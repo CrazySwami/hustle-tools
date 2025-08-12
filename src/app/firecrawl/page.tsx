@@ -3,8 +3,7 @@
 import React, { useMemo, useState } from "react";
 import JSZip from 'jszip';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+
 
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -21,10 +20,22 @@ interface ScrapeItem {
   error?: string;
 }
 
-interface ScrapeResponse {
+
+
+interface FirecrawlScrapeResult {
+  markdown: string;
+  metadata: {
+    sourceURL: string;
+    error?: string;
+  };
+}
+
+interface BatchStatusResponse {
   success: boolean;
-  results?: ScrapeItem[];
-  combined?: string;
+  status: 'processing' | 'completed' | 'failed';
+  completed: number;
+  total: number;
+  data?: FirecrawlScrapeResult[];
   error?: string;
 }
 
@@ -64,7 +75,7 @@ export default function FirecrawlPage() {
 
   // Scrape state
   const [urlsText, setUrlsText] = useState("");
-  const [mappedUrls, setMappedUrls] = useState<string[]>([]);
+
   const [openStates, setOpenStates] = useState<Record<string, boolean>>({});
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
@@ -135,7 +146,7 @@ export default function FirecrawlPage() {
       // Poll for the result
       const poll = async () => {
         const statusRes = await fetch(`/api/batch-scrape/status/${startData.id}`);
-        const statusData = await statusRes.json();
+        const statusData = (await statusRes.json()) as BatchStatusResponse;
 
         if (!statusRes.ok) {
           setJobStatus("error");
@@ -147,7 +158,7 @@ export default function FirecrawlPage() {
         setJobProgress({ completed: statusData.completed, total: statusData.total });
 
         if (statusData.status === "completed") {
-          const results = statusData.data.map((item: any) => ({
+                    const results = (statusData.data || []).map((item) => ({
             url: item.metadata.sourceURL,
             markdown: item.markdown,
             error: item.metadata.error

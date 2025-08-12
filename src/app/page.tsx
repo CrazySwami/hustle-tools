@@ -1,5 +1,5 @@
 import { BackgroundPaths } from "@/components/ui/background-path";
-import Link from "next/link";
+
 
 export default function Home() {
   return (

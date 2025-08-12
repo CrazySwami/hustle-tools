@@ -3,14 +3,6 @@
 import * as React from "react"
 import Link from "next/link"
 
-import { cn } from "@/lib/utils"
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu"
 import { ModeToggle } from "./mode-toggle"
 
 export function Navbar() {

@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 const FIRECRAWL_BATCH_STATUS_URL = "https://api.firecrawl.dev/v1/batch/scrape/";
 
 export async function GET(
-  req: NextRequest,
-  context: { params: { jobId: string } }
+  req: Request,
+  context: { params: Promise<{ jobId: string }> }
 ) {
   try {
-    const { jobId } = context.params;
+    const { jobId } = await context.params;
     if (!jobId) {
       return NextResponse.json(
         { success: false, error: "Missing jobId in request" },

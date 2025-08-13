@@ -25,6 +25,12 @@ export function Navbar() {
           >
             Image Alterations
           </Link>
+          <Link
+            href="/chat"
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
+            Chat
+          </Link>
         </nav>
         <ModeToggle />
       </div>

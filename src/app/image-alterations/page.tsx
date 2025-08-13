@@ -36,7 +36,7 @@ export default function ImageAlterationsPage() {
           }
 
           // Background (blurred and darkened)
-          ctx.filter = 'blur(10px)';
+          ctx.filter = 'blur(40px)';
           ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
           ctx.filter = 'none';
           ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';

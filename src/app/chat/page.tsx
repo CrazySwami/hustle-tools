@@ -23,7 +23,7 @@ import { useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Response } from '@/components/ai-elements/response';
 import { MarkdownWithCitations } from '@/components/ai-elements/markdown-with-citations';
-import { GlobeIcon } from 'lucide-react';
+import { GlobeIcon, BrainIcon } from 'lucide-react';
 import {
   Source,
   Sources,
@@ -65,6 +65,8 @@ const modelGroups: ModelGroup[] = [
       { name: 'GPT-4o mini', value: 'openai/gpt-4o-mini' },
       { name: 'GPT-4 Turbo', value: 'openai/gpt-4-turbo' },
       { name: 'GPT-3.5 Turbo', value: 'openai/gpt-3.5-turbo' },
+      { name: 'o1-preview', value: 'openai/o1-preview' },
+      { name: 'o1-mini', value: 'openai/o1-mini' },
       { name: 'o3', value: 'openai/o3' },
       { name: 'o3-mini', value: 'openai/o3-mini' },
       { name: 'o4-mini', value: 'openai/o4-mini' },
@@ -75,21 +77,25 @@ const modelGroups: ModelGroup[] = [
   {
     provider: 'Anthropic',
     models: [
-      { name: 'Claude 4.1 Opus', value: 'anthropic/claude-4.1-opus' },
-      { name: 'Claude 4 Opus', value: 'anthropic/claude-4-opus' },
-      { name: 'Claude 4 Sonnet', value: 'anthropic/claude-4-sonnet' },
-      { name: 'Claude 3.7 Sonnet', value: 'anthropic/claude-3.7-sonnet' },
-      { name: 'Claude 3.5 Sonnet', value: 'anthropic/claude-3.5-sonnet' },
-      { name: 'Claude 3.5 Haiku', value: 'anthropic/claude-3.5-haiku' },
+      { name: 'Claude Opus 4', value: 'anthropic/claude-opus-4-20250514' },
+      { name: 'Claude Sonnet 4', value: 'anthropic/claude-sonnet-4-20250514' },
+      { name: 'Claude 3.7 Sonnet', value: 'anthropic/claude-3-7-sonnet-20250219' },
+      { name: 'Claude 3.5 Sonnet', value: 'anthropic/claude-3-5-sonnet-20241022' },
+      { name: 'Claude 3.5 Haiku', value: 'anthropic/claude-3-5-haiku-20241022' },
+      { name: 'Claude 3 Opus', value: 'anthropic/claude-3-opus-20240229' },
+      { name: 'Claude 3 Haiku', value: 'anthropic/claude-3-haiku-20240307' },
     ]
   },
   {
     provider: 'Google',
     models: [
+      { name: 'Gemini 2.0 Flash Exp', value: 'google/gemini-2.0-flash-exp' },
       { name: 'Gemini 2.5 Pro', value: 'google/gemini-2.5-pro' },
       { name: 'Gemini 2.5 Flash', value: 'google/gemini-2.5-flash' },
       { name: 'Gemini 2.0 Flash', value: 'google/gemini-2.0-flash' },
       { name: 'Gemini 2.0 Flash Lite', value: 'google/gemini-2.0-flash-lite' },
+      { name: 'Gemini 1.5 Pro', value: 'google/gemini-1.5-pro' },
+      { name: 'Gemini 1.5 Flash', value: 'google/gemini-1.5-flash' },
     ]
   },
   {
@@ -104,6 +110,7 @@ const modelGroups: ModelGroup[] = [
   {
     provider: 'xAI',
     models: [
+      { name: 'Grok 3', value: 'xai/grok-3' },
       { name: 'Grok 4', value: 'xai/grok-4' },
       { name: 'Grok 3 Beta', value: 'xai/grok-3-beta' },
       { name: 'Grok 3 Mini Beta', value: 'xai/grok-3-mini-beta' },
@@ -176,6 +183,7 @@ const ChatBotDemo = () => {
   const [input, setInput] = useState('');
   const [model, setModel] = useState<string>(modelGroups[0].models[0].value);
   const [webSearch, setWebSearch] = useState(false);
+  const [enableReasoning, setEnableReasoning] = useState(false);
   const { messages, sendMessage, status } = useChat();
   
   // Track which provider groups are open
@@ -183,6 +191,43 @@ const ChatBotDemo = () => {
     // Only OpenAI open by default
     OpenAI: true
   });
+
+  // List of models that support reasoning
+  const reasoningModels = [
+    // OpenAI models
+    'openai/gpt-5',
+    'openai/gpt-5-mini',
+    'openai/o1-preview',
+    'openai/o1-mini',
+    'openai/o3',
+    'openai/o3-mini',
+    'openai/o4-mini',
+    // Anthropic models
+    'anthropic/claude-opus-4-20250514',
+    'anthropic/claude-sonnet-4-20250514',
+    'anthropic/claude-3-7-sonnet-20250219',
+    // Google models
+    'google/gemini-2.0-flash-exp',
+    // DeepSeek models
+    'deepseek/deepseek-r1',
+    'deepseek/deepseek-r1-distill-llama-70b',
+    'deepseek/deepseek-v3-0324',
+    // Perplexity reasoning models
+    'perplexity/sonar-reasoning',
+    'perplexity/sonar-reasoning-pro'
+  ];
+
+  // Check if current model supports reasoning using a more flexible approach
+  const modelSupportsReasoning = reasoningModels.some(supportedModel => {
+    // Extract the base model name without version numbers
+    const baseModelName = supportedModel.split('-20')[0]; // Remove date/version suffix
+    return model.includes(baseModelName);
+  });
+  
+  // Log for debugging
+  console.log('Current model:', model);
+  console.log('Supports reasoning:', modelSupportsReasoning);
+  console.log('Reasoning models:', reasoningModels);
 
   // Toggle provider group open/closed
   const toggleProvider = (provider: string, e: React.MouseEvent) => {
@@ -210,6 +255,7 @@ const ChatBotDemo = () => {
           body: {
             model: selectedModel,
             webSearch,
+            enableReasoning: enableReasoning && modelSupportsReasoning,
           },
         },
       );
@@ -267,6 +313,17 @@ const ChatBotDemo = () => {
                             />
                           );
                         case 'reasoning':
+                          console.log('Reasoning part received:', part);
+                          console.log('Reasoning text content:', part.text);
+                          console.log('Reasoning text length:', part.text ? part.text.length : 0);
+                          console.log('Reasoning state:', part.state);
+                          
+                          // Only render reasoning if there's actual content
+                          if (!part.text || part.text.trim() === '') {
+                            console.log('Empty reasoning content detected, skipping render');
+                            return null;
+                          }
+                          
                           return (
                             <Reasoning
                               key={`${message.id}-${i}`}
@@ -304,9 +361,21 @@ const ChatBotDemo = () => {
                 <GlobeIcon size={16} />
                 <span>Search</span>
               </PromptInputButton>
+              <PromptInputButton
+                variant={enableReasoning && modelSupportsReasoning ? 'default' : 'ghost'}
+                onClick={() => setEnableReasoning(!enableReasoning)}
+                disabled={!modelSupportsReasoning}
+                title={!modelSupportsReasoning ? "Current model doesn't support reasoning" : "Toggle AI reasoning"}
+              >
+                <BrainIcon size={16} />
+                <span>Reasoning</span>
+              </PromptInputButton>
               <PromptInputModelSelect
                 onValueChange={(value) => {
                   setModel(value);
+                  // Log when model changes
+                  console.log('Model changed to:', value);
+                  console.log('Supports reasoning:', reasoningModels.includes(value));
                 }}
                 value={model}
               >

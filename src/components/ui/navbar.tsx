@@ -31,6 +31,12 @@ export function Navbar() {
           >
             Chat
           </Link>
+          <Link
+            href="/editor"
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
+            Editor
+          </Link>
         </nav>
         <ModeToggle />
       </div>

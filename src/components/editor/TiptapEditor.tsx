@@ -140,7 +140,11 @@ const FontSelector = ({
   )
 }
 
-export default function TiptapEditor() {
+interface TiptapEditorProps {
+  onContentChange?: (content: string) => void;
+}
+
+export default function TiptapEditor({ onContentChange }: TiptapEditorProps) {
   const [isMounted, setIsMounted] = useState(false)
   const [showColorSelector, setShowColorSelector] = useState(false)
   const [showFontSelector, setShowFontSelector] = useState(false)

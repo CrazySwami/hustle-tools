@@ -1,5 +1,6 @@
-import { streamText, UIMessage, convertToModelMessages } from 'ai';
+import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
+import { tools } from '@/lib/tools';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -61,19 +62,52 @@ export async function POST(req: Request) {
       model,
       webSearch,
       enableReasoning = false, // New parameter to toggle reasoning
+      enableTools = true, // New parameter to toggle tool calling
     }: { 
       messages: UIMessage[]; 
       model: string; 
       webSearch: boolean;
       enableReasoning?: boolean;
+      enableTools?: boolean;
     } = await req.json();
 
     console.log('Request body parsed:', { 
       model, 
       webSearch, 
       enableReasoning,
-      messageCount: messages.length 
+      enableTools,
+      messageCount: messages?.length || 0,
+      messagesStructure: messages?.map(m => ({ 
+        id: m.id, 
+        role: m.role, 
+        hasContent: !!m.content,
+        hasParts: !!m.parts,
+        partsLength: m.parts?.length || 0
+      })) || []
     });
+
+    // Validate messages array
+    if (!messages || !Array.isArray(messages)) {
+      console.error('Invalid messages format:', messages);
+      return new Response(
+        JSON.stringify({ error: 'Invalid messages format', details: 'Messages must be an array' }), 
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Convert messages with error handling
+    let convertedMessages;
+    try {
+      convertedMessages = convertToModelMessages(messages);
+      console.log('Converted messages:', JSON.stringify(convertedMessages, null, 2));
+    } catch (error) {
+      console.error('Error converting messages:', error);
+      console.error('Original messages:', JSON.stringify(messages, null, 2));
+      return new Response(
+        JSON.stringify({ error: 'Message conversion failed', details: error.message }), 
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Configure the model based on selection and web search preference
     let selectedModel = model;
@@ -87,6 +121,11 @@ export async function POST(req: Request) {
     } else if (webSearch) {
       console.log('Web search requested but not available for non-Perplexity model:', model);
       systemPrompt = 'You are a helpful assistant that can answer questions and help with tasks. Note: Web search was requested but is only available with Perplexity models.';
+    }
+
+    // Add tool calling instructions to system prompt if tools are enabled
+    if (enableTools) {
+      systemPrompt += ' You have access to various tools including weather information, calculations, code generation, and task management. When users ask for weather information, calculations, code generation, or task management, you should use the appropriate tool to provide accurate and interactive results. After using a tool, always provide a helpful text response that explains or contextualizes the tool results for the user.';
     }
 
     // Configure options based on model type
@@ -106,24 +145,34 @@ export async function POST(req: Request) {
       console.log('Provider options for reasoning:', JSON.stringify(providerOptions, null, 2));
     }
 
-    const convertedMessages = convertToModelMessages(messages);
-    console.log('Converted messages:', JSON.stringify(convertedMessages, null, 2));
+    console.log('Calling streamText with:', { 
+      selectedModel, 
+      systemPrompt, 
+      options, 
+      providerOptions,
+      toolsEnabled: enableTools 
+    });
 
-    console.log('Calling streamText with:', { selectedModel, systemPrompt, options, providerOptions });
     const result = streamText({
       model: selectedModel,
       messages: convertedMessages,
       system: systemPrompt,
       options,
-      providerOptions
+      providerOptions,
+      // Only include tools if enabled
+      ...(enableTools && { 
+        tools,
+        stopWhen: stepCountIs(5), // Use stopWhen instead of maxSteps
+      }),
     });
 
     console.log('--- Sending stream response ---');
 
-    // send sources and reasoning back to the client
+    // send sources, reasoning, and tool results back to the client
     return result.toUIMessageStreamResponse({
       sendSources: true,
       sendReasoning: true,
+      sendToolResults: true, // Enable tool result parts in the response
     });
   } catch (error) {
     console.error('*** Unhandled error in /api/chat ***', error);

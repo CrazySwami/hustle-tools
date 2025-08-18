@@ -36,6 +36,14 @@ import {
   ReasoningTrigger,
 } from '@/components/ai-elements/reasoning';
 import { Loader } from '@/components/ai-elements/loader';
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from '@/components/ai-elements/tool';
+import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
 
 // Define interfaces for model and model groups
 interface Model {
@@ -229,6 +237,26 @@ const ChatBotDemo = () => {
   console.log('Supports reasoning:', modelSupportsReasoning);
   console.log('Reasoning models:', reasoningModels);
 
+  // Helper to format tool output for display
+  const formatToolOutput = (output: any): React.ReactNode => {
+    if (
+      output &&
+      typeof output === 'object' &&
+      'type' in output &&
+      output.type === 'json' &&
+      'value' in output
+    ) {
+      const pretty = JSON.stringify((output as any).value, null, 2);
+      return <Response>{`\n\n\u0060\u0060\u0060json\n${pretty}\n\u0060\u0060\u0060`}</Response>;
+    }
+
+    // Fallback: prettify whatever we got
+    const pretty = typeof output === 'object'
+      ? JSON.stringify(output, null, 2)
+      : String(output);
+    return <Response>{pretty}</Response>;
+  };
+
   // Toggle provider group open/closed
   const toggleProvider = (provider: string, e: React.MouseEvent) => {
     e.preventDefault(); // Prevent dropdown from closing
@@ -303,6 +331,7 @@ const ChatBotDemo = () => {
                 <Message from={message.role} key={message.id}>
                   <MessageContent>
                     {message.parts.map((part, i) => {
+                      console.log('Message part:', part.type, part);
                       switch (part.type) {
                         case 'text':
                           return (
@@ -311,6 +340,54 @@ const ChatBotDemo = () => {
                               content={part.text}
                               sources={message.sources}
                             />
+                          );
+                        case 'tool-call':
+                          console.log('Rendering tool-call:', part);
+                          return (
+                            <Tool key={`${message.id}-${i}`} defaultOpen>
+                              <ToolHeader 
+                                type={part.toolName} 
+                                state="input-available"
+                              />
+                              <ToolContent>
+                                <ToolInput input={part.input ?? part.args} />
+                              </ToolContent>
+                            </Tool>
+                          );
+                        case 'tool-result':
+                          console.log('Rendering tool-result:', part);
+                          return (
+                            <Tool key={`${message.id}-${i}`} defaultOpen>
+                              <ToolHeader 
+                                type={part.toolName} 
+                                state={part.isError ? "output-error" : "output-available"}
+                              />
+                              <ToolContent>
+                                <ToolInput input={part.input ?? part.args} />
+                                <ToolOutput 
+                                  output={formatToolOutput(part.output ?? part.result)}
+                                  errorText={part.isError ? String(part.output ?? part.result) : undefined}
+                                />
+                              </ToolContent>
+                            </Tool>
+                          );
+                        // Handle specific tool types as fallback
+                        case 'tool-weatherTool':
+                          console.log('Rendering tool-weatherTool:', part);
+                          return (
+                            <Tool key={`${message.id}-${i}`} defaultOpen>
+                              <ToolHeader 
+                                type="weatherTool" 
+                                state={part.state || "output-available"}
+                              />
+                              <ToolContent>
+                                <ToolInput input={part.input || part.args} />
+                                <ToolOutput 
+                                  output={part.output || part.result}
+                                  errorText={part.errorText}
+                                />
+                              </ToolContent>
+                            </Tool>
                           );
                         case 'reasoning':
                           console.log('Reasoning part received:', part);
@@ -335,6 +412,27 @@ const ChatBotDemo = () => {
                             </Reasoning>
                           );
                         default:
+                          // Generic handler: any part.type that starts with "tool-" conforms to ToolUIPart
+                          if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
+                            // Cast to any to access ToolUIPart props safely
+                            const toolPart: any = part;
+                            return (
+                              <Tool key={`${message.id}-${i}`} defaultOpen={toolPart.state === 'output-available' || toolPart.state === 'output-error'}>
+                                <ToolHeader type={toolPart.type.replace('tool-', '')} state={toolPart.state} />
+                                <ToolContent>
+                                  {/* For states where input is defined */}
+                                  {toolPart.input && <ToolInput input={toolPart.input} />}
+                                  {/* Show output or error when available */}
+                                  {toolPart.state?.startsWith('output') && (
+                                    <ToolOutput
+                                      output={formatToolOutput(toolPart.output)}
+                                      errorText={toolPart.errorText}
+                                    />
+                                  )}
+                                </ToolContent>
+                              </Tool>
+                            );
+                          }
                           return null;
                       }
                     })}

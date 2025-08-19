@@ -23,7 +23,9 @@ import { useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Response } from '@/components/ai-elements/response';
 import { MarkdownWithCitations } from '@/components/ai-elements/markdown-with-citations';
-import { GlobeIcon, BrainIcon } from 'lucide-react';
+import { GlobeIcon, BrainIcon, PanelRightOpen } from 'lucide-react';
+import TiptapEditor from '@/components/editor/TiptapEditor';
+import { Comment } from '@/components/editor/CommentExtension';
 import {
   Source,
   Sources,
@@ -192,8 +194,11 @@ const ChatBotDemo = () => {
   const [model, setModel] = useState<string>(modelGroups[0].models[0].value);
   const [webSearch, setWebSearch] = useState(false);
   const [enableReasoning, setEnableReasoning] = useState(false);
-  const { messages, sendMessage, status } = useChat();
-  
+  const { messages, sendMessage, status } = useChat({ api: '/api/chat' });
+  const [isEditorVisible, setIsEditorVisible] = useState(false);
+  const [documentContent, setDocumentContent] = useState('');
+  const [comments, setComments] = useState<Comment[]>([]);
+
   // Track which provider groups are open
   const [openProviders, setOpenProviders] = useState<Record<string, boolean>>({
     // Only OpenAI open by default
@@ -284,6 +289,8 @@ const ChatBotDemo = () => {
             model: selectedModel,
             webSearch,
             enableReasoning: enableReasoning && modelSupportsReasoning,
+            documentContent,
+            comments,
           },
         },
       );
@@ -292,8 +299,8 @@ const ChatBotDemo = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 pt-16 relative size-full h-screen">
-      <div className="flex flex-col h-full">
+    <div className="flex h-screen w-full pt-16 px-4 pb-4 gap-4">
+      <div className="flex flex-col h-full flex-1">
         <Conversation className="h-full">
           <ConversationContent>
             {messages.map((message) => (
@@ -426,6 +433,7 @@ const ChatBotDemo = () => {
                                   {toolPart.state?.startsWith('output') && (
                                     <ToolOutput
                                       output={formatToolOutput(toolPart.output)}
+                               
                                       errorText={toolPart.errorText}
                                     />
                                   )}
@@ -467,6 +475,13 @@ const ChatBotDemo = () => {
               >
                 <BrainIcon size={16} />
                 <span>Reasoning</span>
+              </PromptInputButton>
+              <PromptInputButton
+                variant={isEditorVisible ? 'default' : 'ghost'}
+                onClick={() => setIsEditorVisible(!isEditorVisible)}
+              >
+                <PanelRightOpen size={16} />
+                <span>Editor</span>
               </PromptInputButton>
               <PromptInputModelSelect
                 onValueChange={(value) => {
@@ -510,6 +525,14 @@ const ChatBotDemo = () => {
           </PromptInputToolbar>
         </PromptInput>
       </div>
+      {isEditorVisible && (
+        <div className="flex-1 h-full border-l">
+          <TiptapEditor 
+                onContentChange={setDocumentContent} 
+                onCommentsChange={setComments} 
+              />
+        </div>
+      )}
     </div>
   );
 };

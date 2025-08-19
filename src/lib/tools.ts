@@ -113,10 +113,31 @@ export const taskManagerTool = tool({
   },
 });
 
+// Document content tool - gets the current content of the document editor
+export const documentContentTool = tool({
+  description: 'Get the current content of the document editor for analysis, editing suggestions, or context',
+  inputSchema: z.object({
+    requestType: z.enum(['full', 'summary', 'analysis']).optional().describe('Type of content request - full content, summary, or analysis'),
+  }),
+  execute: async ({ requestType = 'full' }) => {
+    // This will be populated by the frontend when the tool is called
+    // The actual content will be passed from the DocumentChatView component
+    return {
+      requestType,
+      content: '', // Will be populated by the frontend
+      wordCount: 0,
+      characterCount: 0,
+      timestamp: new Date().toISOString(),
+      message: 'Document content will be provided by the frontend'
+    };
+  },
+});
+
 // Export all tools
 export const tools = {
   getWeather: weatherTool,
   calculate: calculatorTool,
   generateCode: codeGeneratorTool,
   manageTask: taskManagerTool,
+  getDocumentContent: documentContentTool,
 };

@@ -1,6 +1,7 @@
 import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
 import { tools } from '@/lib/tools';
+import { Comment } from '@/components/editor/CommentExtension';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -63,12 +64,16 @@ export async function POST(req: Request) {
       webSearch,
       enableReasoning = false, // New parameter to toggle reasoning
       enableTools = true, // New parameter to toggle tool calling
+      documentContent, // Document content for the getDocumentContent tool
+      comments,
     }: { 
       messages: UIMessage[]; 
       model: string; 
       webSearch: boolean;
       enableReasoning?: boolean;
       enableTools?: boolean;
+      documentContent?: string;
+      comments?: Comment[];
     } = await req.json();
 
     console.log('Request body parsed:', { 
@@ -100,7 +105,7 @@ export async function POST(req: Request) {
     try {
       convertedMessages = convertToModelMessages(messages);
       console.log('Converted messages:', JSON.stringify(convertedMessages, null, 2));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error converting messages:', error);
       console.error('Original messages:', JSON.stringify(messages, null, 2));
       return new Response(
@@ -153,15 +158,47 @@ export async function POST(req: Request) {
       toolsEnabled: enableTools 
     });
 
+    // Create tools with document content context
+    const toolsWithDocumentContent = enableTools ? {
+      ...tools,
+      getDocumentContent: {
+        ...tools.getDocumentContent,
+        execute: async ({ requestType = 'full' }) => {
+          if (!documentContent) {
+            return {
+              requestType,
+              content: 'No document content available',
+              wordCount: 0,
+              characterCount: 0,
+              timestamp: new Date().toISOString(),
+              message: 'No document content was provided'
+            };
+          }
+
+          const wordCount = documentContent.split(/\s+/).filter(word => word.length > 0).length;
+          const characterCount = documentContent.length;
+
+          return {
+            requestType,
+            content: documentContent,
+            wordCount,
+            characterCount,
+            comments: comments || [],
+            timestamp: new Date().toISOString(),
+            message: 'Document content and comments retrieved successfully'
+          };
+        }
+      }
+    } : undefined;
+
     const result = streamText({
       model: selectedModel,
       messages: convertedMessages,
       system: systemPrompt,
-      options,
       providerOptions,
       // Only include tools if enabled
       ...(enableTools && { 
-        tools,
+        tools: toolsWithDocumentContent,
         stopWhen: stepCountIs(5), // Use stopWhen instead of maxSteps
       }),
     });

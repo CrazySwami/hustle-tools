@@ -37,6 +37,7 @@ export function Navbar() {
           >
             Editor
           </Link>
+
         </nav>
         <ModeToggle />
       </div>

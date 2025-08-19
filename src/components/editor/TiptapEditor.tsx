@@ -17,7 +17,7 @@ import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import HardBreak from '@tiptap/extension-hard-break'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { 
   Bold, 
   Italic, 
@@ -142,14 +142,25 @@ const FontSelector = ({
 
 interface TiptapEditorProps {
   onContentChange?: (content: string) => void;
+  onCommentsChange?: (comments: Comment[]) => void;
 }
 
-export default function TiptapEditor({ onContentChange }: TiptapEditorProps) {
+const initialContent = typeof window !== 'undefined' ? localStorage.getItem('tiptap-document') : null;
+const initialComments = typeof window !== 'undefined' ? localStorage.getItem('tiptap-comments') : null;
+
+export default function TiptapEditor({ onContentChange, onCommentsChange }: TiptapEditorProps = {}) {
   const [isMounted, setIsMounted] = useState(false)
   const [showColorSelector, setShowColorSelector] = useState(false)
   const [showFontSelector, setShowFontSelector] = useState(false)
-  const [comments, setComments] = useState<Comment[]>([])
+  const [comments, setComments] = useState<Comment[]>(initialComments ? JSON.parse(initialComments) : [])
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (onCommentsChange) {
+      onCommentsChange(comments);
+    }
+    localStorage.setItem('tiptap-comments', JSON.stringify(comments));
+  }, [comments, onCommentsChange]);
   const [isCommentsPanelOpen, setIsCommentsPanelOpen] = useState(false)
   const [showAddCommentForm, setShowAddCommentForm] = useState(false)
   const [selectedText, setSelectedText] = useState('')
@@ -160,21 +171,16 @@ export default function TiptapEditor({ onContentChange }: TiptapEditorProps) {
       StarterKit,
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-primary underline',
-        },
       }),
       Strike,
       Underline,
       Subscript,
       Superscript,
+      Highlight.configure({ multicolor: true }),
       TextStyle,
       Color,
       FontFamily,
       Typography,
-      Highlight.configure({
-        multicolor: true,
-      }),
       HorizontalRule,
       HardBreak,
       TaskList,
@@ -184,28 +190,32 @@ export default function TiptapEditor({ onContentChange }: TiptapEditorProps) {
       CommentExtension.configure({
         onCommentActivated: (commentId) => {
           if (commentId) {
-            // Open the panel if it's not already open
-            setIsCommentsPanelOpen(true)
-            setActiveCommentId(commentId)
+            setIsCommentsPanelOpen(true);
+            setActiveCommentId(commentId);
           }
-        }
-      })
+        },
+      }),
     ],
-    content: '<p>Hello, start typing here...</p>',
+    content: initialContent ? JSON.parse(initialContent) : '<p>Hello, start typing here...</p>',
     editorProps: {
       attributes: {
         class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none w-full max-w-none min-h-[calc(100vh-16rem)]',
       },
     },
-    onSelectionUpdate: ({ editor }) => {
-      const { from, to } = editor.state.selection
-      if (from !== to) {
-        setSelectedText(editor.state.doc.textBetween(from, to))
-      } else {
-        setSelectedText('')
+    onUpdate: ({ editor }) => {
+      const json = editor.getJSON();
+      const text = editor.getText();
+      if (onContentChange) {
+        onContentChange(text);
       }
-    }
-  })
+      localStorage.setItem('tiptap-document', JSON.stringify(json));
+    },
+    onSelectionUpdate: ({ editor }) => {
+      const { from, to } = editor.state.selection;
+      const text = editor.state.doc.textBetween(from, to, ' ');
+      setSelectedText(text);
+    },
+  });
 
   // Handle client-side rendering
   useEffect(() => {

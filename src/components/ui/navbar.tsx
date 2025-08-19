@@ -32,6 +32,12 @@ export function Navbar() {
             Chat
           </Link>
           <Link
+            href="/chat-doc-editor"
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
+            Doc Editor
+          </Link>
+          <Link
             href="/editor"
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
           >

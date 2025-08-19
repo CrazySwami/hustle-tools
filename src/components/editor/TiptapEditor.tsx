@@ -143,12 +143,13 @@ const FontSelector = ({
 interface TiptapEditorProps {
   onContentChange?: (content: string) => void;
   onCommentsChange?: (comments: Comment[]) => void;
+  toolbarActions?: React.ReactNode;
 }
 
 const initialContent = typeof window !== 'undefined' ? localStorage.getItem('tiptap-document') : null;
 const initialComments = typeof window !== 'undefined' ? localStorage.getItem('tiptap-comments') : null;
 
-export default function TiptapEditor({ onContentChange, onCommentsChange }: TiptapEditorProps = {}) {
+export default function TiptapEditor({ onContentChange, onCommentsChange, toolbarActions }: TiptapEditorProps = {}) {
   const [isMounted, setIsMounted] = useState(false)
   const [showColorSelector, setShowColorSelector] = useState(false)
   const [showFontSelector, setShowFontSelector] = useState(false)
@@ -304,9 +305,9 @@ export default function TiptapEditor({ onContentChange, onCommentsChange }: Tipt
 
   return (
     <>
-      <div className="w-full border rounded-lg overflow-hidden relative">
+      <div className="border rounded-lg bg-background shadow-sm h-full flex flex-col">
         {/* Toolbar */}
-        <div className="flex flex-wrap gap-1 p-2 bg-muted/20 border-b">
+        <div className="flex justify-between items-center flex-wrap gap-1 p-2 bg-muted/20 border-b">
           {/* Text formatting */}
           <div className="flex flex-wrap gap-1 mr-2 border-r pr-2">
             <MenuButton 
@@ -521,29 +522,35 @@ export default function TiptapEditor({ onContentChange, onCommentsChange }: Tipt
               <Redo className="h-4 w-4" />
             </MenuButton>
           </div>
+          <div>{toolbarActions}</div>
         </div>
         
         {/* Main content area with editor and comments panel */}
-        <div className="flex h-[calc(100vh-16rem)]">
+        <div className="flex-1 relative overflow-hidden">
           {/* Editor Content */}
           <div className={cn(
-            "p-4 transition-all duration-300 ease-in-out",
-            isCommentsPanelOpen ? "w-[calc(100%-20rem)]" : "w-full"
+            "p-4 h-full overflow-y-auto transition-all duration-300 ease-in-out",
+            isCommentsPanelOpen ? "pr-[21rem]" : "pr-4"
           )}>
             <EditorContent editor={editor} className="w-full" />
           </div>
           
           {/* Comments Panel */}
-          <CommentsPanel 
-            comments={comments}
-            activeCommentId={activeCommentId}
-            onCommentClick={handleCommentClick}
-            onCommentResolve={handleCommentResolve}
-            onCommentDelete={handleCommentDelete}
-            onAddComment={handleAddComment}
-            isOpen={isCommentsPanelOpen}
-            onToggle={() => setIsCommentsPanelOpen(!isCommentsPanelOpen)}
-          />
+          <div className={cn(
+            "absolute top-0 right-0 h-full transition-transform duration-300 ease-in-out",
+            isCommentsPanelOpen ? "translate-x-0" : "translate-x-full"
+          )}>
+            <CommentsPanel 
+              comments={comments}
+              activeCommentId={activeCommentId}
+              onCommentClick={handleCommentClick}
+              onCommentResolve={handleCommentResolve}
+              onCommentDelete={handleCommentDelete}
+              onAddComment={handleAddComment}
+              isOpen={isCommentsPanelOpen}
+              onToggle={() => setIsCommentsPanelOpen(!isCommentsPanelOpen)}
+            />
+          </div>
         </div>
         
         {/* Bubble Menu */}

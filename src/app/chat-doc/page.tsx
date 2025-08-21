@@ -22,8 +22,6 @@ import {
 import { useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Response } from '@/components/ai-elements/response';
-import { Actions, Action } from '@/components/ai-elements/actions';
-import { CopyIcon, RotateCcwIcon } from 'lucide-react';
 import { MarkdownWithCitations } from '@/components/ai-elements/markdown-with-citations';
 import { GlobeIcon, BrainIcon, PanelRightOpen } from 'lucide-react';
 import TiptapEditor from '@/components/editor/TiptapEditor';
@@ -48,7 +46,6 @@ import {
   ToolOutput,
 } from '@/components/ai-elements/tool';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
-import { cn } from '@/lib/utils';
 
 // Define interfaces for model and model groups
 interface Model {
@@ -68,9 +65,9 @@ const modelGroups: ModelGroup[] = [
     provider: 'OpenAI',
     isOpen: true, // Default open
     models: [
-      // { name: 'GPT-5', value: 'openai/gpt-5' },
-      // { name: 'GPT-5 mini', value: 'openai/gpt-5-mini' },
-      // { name: 'GPT-5 nano', value: 'openai/gpt-5-nano' },
+      { name: 'GPT-5', value: 'openai/gpt-5' },
+      { name: 'GPT-5 mini', value: 'openai/gpt-5-mini' },
+      { name: 'GPT-5 nano', value: 'openai/gpt-5-nano' },
       { name: 'GPT-4.1', value: 'openai/gpt-4.1' },
       { name: 'GPT-4.1 mini', value: 'openai/gpt-4.1-mini' },
       { name: 'GPT-4.1 nano', value: 'openai/gpt-4.1-nano' },
@@ -197,7 +194,7 @@ const ChatBotDemo = () => {
   const [model, setModel] = useState<string>(modelGroups[0].models[0].value);
   const [webSearch, setWebSearch] = useState(false);
   const [enableReasoning, setEnableReasoning] = useState(false);
-  const { messages, sendMessage, reload, status, stop, setMessages } = useChat();
+  const { messages, sendMessage, status } = useChat();
   const [isEditorVisible, setIsEditorVisible] = useState(false);
   const [documentContent, setDocumentContent] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
@@ -306,8 +303,8 @@ const ChatBotDemo = () => {
       <div className="flex flex-col h-full flex-1">
         <Conversation className="h-full">
           <ConversationContent>
-            {messages.map((message, index) => (
-              <div key={message.id} className="flex flex-col gap-4">
+            {messages.map((message) => (
+              <div key={message.id}>
                 {message.role === 'assistant' && (
                   <Sources>
                     {/* Only render SourcesTrigger once per message */}
@@ -339,77 +336,119 @@ const ChatBotDemo = () => {
                   </Sources>
                 )}
                 <Message from={message.role} key={message.id}>
-                  {/* wrapper ensures bubble and actions stack vertically */}
-                  <div
-                    className={cn(
-                      'flex flex-col gap-1',
-                      message.role === 'user' ? 'items-end' : 'items-start',
-                    )}
-                  >
-                    <MessageContent>
-                      {message.parts.map((part, i) => {
-                        switch (part.type) {
-                          case 'text':
-                            return (
-                              <Response key={i}>{(part.text ?? part.value) as string}</Response>
-                            );
-                          case 'tool-call': {
-                            const toolName = part.toolName ?? part.toolCall?.toolName;
-                            const args = part.args ?? part.toolCall?.args;
-                            return (
-                              <Tool key={i} defaultOpen>
-                                <ToolHeader type={toolName} state="input-available" />
-                                <ToolContent>
-                                  <ToolInput input={args} />
-                                </ToolContent>
-                              </Tool>
-                            );
-                          }
-                          case 'tool-result': {
-                            const toolName = part.toolName ?? part.toolResult?.toolName;
-                            const args = part.args ?? part.toolResult?.args;
-                            const output = part.result ?? part.toolResult?.result ?? part.output;
-                            return (
-                              <Tool key={i} defaultOpen>
-                                <ToolHeader type={toolName} state="output-available" />
-                                <ToolContent>
-                                  <ToolInput input={args} />
-                                  <ToolOutput output={formatToolOutput(output)} />
-                                </ToolContent>
-                              </Tool>
-                            );
-                          }
-                          default:
+                  <MessageContent>
+                    {message.parts.map((part, i) => {
+                      console.log('Message part:', part.type, part);
+                      switch (part.type) {
+                        case 'text':
+                          return (
+                            <MarkdownWithCitations
+                              key={`${message.id}-${i}`}
+                              content={part.text}
+                              sources={message.sources}
+                            />
+                          );
+                        case 'tool-call':
+                          console.log('Rendering tool-call:', part);
+                          return (
+                            <Tool key={`${message.id}-${i}`} defaultOpen>
+                              <ToolHeader 
+                                type={part.toolName} 
+                                state="input-available"
+                              />
+                              <ToolContent>
+                                <ToolInput input={part.input ?? part.args} />
+                              </ToolContent>
+                            </Tool>
+                          );
+                        case 'tool-result':
+                          console.log('Rendering tool-result:', part);
+                          return (
+                            <Tool key={`${message.id}-${i}`} defaultOpen>
+                              <ToolHeader 
+                                type={part.toolName} 
+                                state={part.isError ? "output-error" : "output-available"}
+                              />
+                              <ToolContent>
+                                <ToolInput input={part.input ?? part.args} />
+                                <ToolOutput 
+                                  output={formatToolOutput(part.output ?? part.result)}
+                                  errorText={part.isError ? String(part.output ?? part.result) : undefined}
+                                />
+                              </ToolContent>
+                            </Tool>
+                          );
+                        // Handle specific tool types as fallback
+                        case 'tool-weatherTool':
+                          console.log('Rendering tool-weatherTool:', part);
+                          return (
+                            <Tool key={`${message.id}-${i}`} defaultOpen>
+                              <ToolHeader 
+                                type="weatherTool" 
+                                state={part.state || "output-available"}
+                              />
+                              <ToolContent>
+                                <ToolInput input={part.input || part.args} />
+                                <ToolOutput 
+                                  output={part.output || part.result}
+                                  errorText={part.errorText}
+                                />
+                              </ToolContent>
+                            </Tool>
+                          );
+                        case 'reasoning':
+                          console.log('Reasoning part received:', part);
+                          console.log('Reasoning text content:', part.text);
+                          console.log('Reasoning text length:', part.text ? part.text.length : 0);
+                          console.log('Reasoning state:', part.state);
+                          
+                          // Only render reasoning if there's actual content
+                          if (!part.text || part.text.trim() === '') {
+                            console.log('Empty reasoning content detected, skipping render');
                             return null;
-                        }
-                      })}
-                    </MessageContent>
-                    <Actions>
-                      {message.role === 'assistant' &&
-                        index === messages.length - 1 &&
-                        reload && (
-                        <Action tooltip="Regenerate" onClick={() => reload()}>
-                          <RotateCcwIcon />
-                        </Action>
-                      )}
-                      <Action
-                        tooltip="Copy"
-                        onClick={() => {
-                          const plain = message.parts
-                            .filter((p: any) => p.type === 'text')
-                            .map((p: any) => p.text ?? p.value ?? '')
-                            .join('\n');
-                          navigator.clipboard.writeText(plain);
-                        }}
-                      >
-                        <CopyIcon />
-                      </Action>
-                    </Actions>
-                  </div>
+                          }
+                          
+                          return (
+                            <Reasoning
+                              key={`${message.id}-${i}`}
+                              className="w-full"
+                              isStreaming={status === 'streaming'}
+                            >
+                              <ReasoningTrigger />
+                              <ReasoningContent>{part.text}</ReasoningContent>
+                            </Reasoning>
+                          );
+                        default:
+                          // Generic handler: any part.type that starts with "tool-" conforms to ToolUIPart
+                          if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
+                            // Cast to any to access ToolUIPart props safely
+                            const toolPart: any = part;
+                            return (
+                              <Tool key={`${message.id}-${i}`} defaultOpen={toolPart.state === 'output-available' || toolPart.state === 'output-error'}>
+                                <ToolHeader type={toolPart.type.replace('tool-', '')} state={toolPart.state} />
+                                <ToolContent>
+                                  {/* For states where input is defined */}
+                                  {toolPart.input && <ToolInput input={toolPart.input} />}
+                                  {/* Show output or error when available */}
+                                  {toolPart.state?.startsWith('output') && (
+                                    <ToolOutput
+                                      output={formatToolOutput(toolPart.output)}
+                               
+                                      errorText={toolPart.errorText}
+                                    />
+                                  )}
+                                </ToolContent>
+                              </Tool>
+                            );
+                          }
+                          return null;
+                      }
+                    })}
+                  </MessageContent>
                 </Message>
               </div>
             ))}
-            {status === 'streaming' && <Loader />}
+            {status === 'submitted' && <Loader />}
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>

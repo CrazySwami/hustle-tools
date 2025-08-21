@@ -133,6 +133,43 @@ export const documentContentTool = tool({
   },
 });
 
+// Scrape URL tool - scrapes the content of a given URL
+export const scrapeUrlTool = tool({
+  description: 'Scrape a URL and return the content.',
+  inputSchema: z.object({
+    url: z.string().url().describe('The URL to scrape'),
+  }),
+  execute: async ({ url }) => {
+    try {
+      const apiKey = process.env.FIRECRAWL_API_KEY;
+      if (!apiKey) {
+        throw new Error('FIRECRAWL_API_KEY is not set.');
+      }
+
+      const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`FireCrawl API request failed: ${errorData.error || response.statusText}`);
+      }
+
+      const result = await response.json();
+      return result.data; // The actual scraped data is in the 'data' property
+    } catch (error) {
+      console.error('Error scraping URL:', error);
+      // Return a structured error object that the UI can handle
+      return { error: error instanceof Error ? error.message : 'An unknown error occurred' };
+    }
+  },
+});
+
 // Export all tools
 export const tools = {
   getWeather: weatherTool,
@@ -140,4 +177,5 @@ export const tools = {
   generateCode: codeGeneratorTool,
   manageTask: taskManagerTool,
   getDocumentContent: documentContentTool,
+  scrapeUrl: scrapeUrlTool,
 };

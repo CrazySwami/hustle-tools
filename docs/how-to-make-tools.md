@@ -141,3 +141,49 @@ export function ToolResultRenderer({ toolResult }: ToolResultRendererProps) {
 ```
 
 And that's it! The next time the AI uses the `getStockPrice` tool, the frontend will automatically render your custom `StockWidget` instead of the raw JSON.
+
+---
+
+## Troubleshooting & Common Pitfalls
+
+If your tools are not working as expected, check these common issues.
+
+### 1. Backend API Crashes or Returns `TypeError`
+
+If you see an error in your server logs like `TypeError: result.toAIStreamResponse is not a function` or other streaming-related crashes, the cause is almost always an incorrect response method in your API route.
+
+**Solution:**
+
+In your `src/app/api/chat/route.ts`, ensure you are using `toUIMessageStreamResponse()`. This function is specifically designed to work with the `useChat` hook and correctly formats tool calls and results for the frontend UI.
+
+```typescript
+// src/app/api/chat/route.ts
+
+// ... inside the POST handler
+
+const result = await streamText({
+  // ... model, messages, tools
+});
+
+// CORRECT: Use this for UI streaming with tools
+return result.toUIMessageStreamResponse();
+
+// INCORRECT: Do NOT use this for UI streaming
+// return result.toAIStreamResponse(); 
+```
+
+### 2. AI Does Not Use the Tool
+
+If you ask the AI a question that should trigger a tool, but it responds with a generic text answer instead, your system prompt is likely not specific enough.
+
+**Solution:**
+
+Make your system prompt in `src/app/api/chat/route.ts` more direct and explicit. Clearly instruct the model to use the tool when appropriate.
+
+**Weak Prompt (may not work):**
+`'You are a helpful assistant with access to tools.'`
+
+**Strong Prompt (more reliable):**
+`'You are a helpful assistant with access to tools. Use them when helpful. When a user asks for weather, use the displayWeather tool.'`
+
+By providing clear, direct instructions, you significantly increase the likelihood that the AI will use your tools correctly.

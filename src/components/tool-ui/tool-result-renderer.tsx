@@ -1,9 +1,17 @@
 import { WeatherWidget } from './weather-widget';
 import { CalculatorWidget } from './calculator-widget';
 import { CodeWidget } from './code-widget';
+import { ScrapeResultWidget } from './scrape-result-widget';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckSquare, Clock } from 'lucide-react';
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from '@/components/ai-elements/tool';
 
 interface ToolResult {
   toolCallId: string;
@@ -99,28 +107,22 @@ export function ToolResultRenderer({ toolResult }: ToolResultRendererProps) {
     case 'manageTask':
       return <TaskWidget data={result} />;
     
+    case 'scrapeUrl':
+      return <ScrapeResultWidget data={result} />;
+
     default:
-      // Fallback for unknown tool types
+      // Fallback for unknown tool types, now stylized like AI Elements
       return (
-        <Card className="w-full max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle className="text-lg">Tool Result</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div>
-                <span className="text-sm font-medium text-muted-foreground">Tool:</span>
-                <span className="ml-2">{toolName}</span>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-muted-foreground">Result:</span>
-                <pre className="mt-1 text-sm bg-muted p-2 rounded overflow-auto">
-                  {JSON.stringify(result, null, 2)}
-                </pre>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <Tool defaultOpen>
+          <ToolHeader 
+            type={toolName as any}
+            state='output-available'
+          />
+          <ToolContent>
+            <ToolInput input={toolResult.args} />
+            <ToolOutput output={<pre>{JSON.stringify(result, null, 2)}</pre>} errorText={undefined} />
+          </ToolContent>
+        </Tool>
       );
   }
 }

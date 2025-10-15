@@ -65,10 +65,10 @@ const modelGroups: ModelGroup[] = [
     provider: 'OpenAI',
     isOpen: true, // Default open
     models: [
+      { name: 'GPT-4.1', value: 'openai/gpt-4.1' },
       { name: 'GPT-5', value: 'openai/gpt-5' },
       { name: 'GPT-5 mini', value: 'openai/gpt-5-mini' },
       { name: 'GPT-5 nano', value: 'openai/gpt-5-nano' },
-      { name: 'GPT-4.1', value: 'openai/gpt-4.1' },
       { name: 'GPT-4.1 mini', value: 'openai/gpt-4.1-mini' },
       { name: 'GPT-4.1 nano', value: 'openai/gpt-4.1-nano' },
       { name: 'GPT-4o', value: 'openai/gpt-4o' },

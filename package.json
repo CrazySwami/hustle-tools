@@ -25,6 +25,7 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@supabase/ssr": "^0.6.1",
+    "@tinymce/tinymce-react": "^6.3.0",
     "@tiptap/extension-bubble-menu": "^2.2.4",
     "@tiptap/extension-color": "^2.2.4",
     "@tiptap/extension-floating-menu": "^2.2.4",

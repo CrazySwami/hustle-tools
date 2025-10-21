@@ -5,7 +5,8 @@ import { Editor } from '@grapesjs/react';
 import type grapesjs from 'grapesjs';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import { Section } from '@/lib/section-schema';
-import { DownloadIcon, CodeIcon, SaveIcon, EyeIcon } from 'lucide-react';
+import { DownloadIcon, CodeIcon, SaveIcon, EyeIcon, XIcon } from 'lucide-react';
+import { CSSCascadeInspector } from './CSSCascadeInspector';
 
 interface VisualSectionEditorProps {
   initialSection?: Section;
@@ -21,6 +22,8 @@ export function VisualSectionEditor({
   const editorRef = useRef<grapesjs.Editor | null>(null);
   const { globalCss } = useGlobalStylesheet();
   const [gjsLoaded, setGjsLoaded] = useState(false);
+  const [selectedComponent, setSelectedComponent] = useState<grapesjs.Component | null>(null);
+  const [inspectorVisible, setInspectorVisible] = useState(true);
 
   // Dynamically import GrapeJS (client-side only)
   useEffect(() => {
@@ -69,7 +72,13 @@ export function VisualSectionEditor({
     // Component selection event for cascade inspector
     editor.on('component:selected', (component) => {
       console.log('🎯 Component selected:', component);
-      // TODO: Build CSS cascade inspector here
+      setSelectedComponent(component);
+      setInspectorVisible(true); // Auto-show inspector when component selected
+    });
+
+    editor.on('component:deselected', () => {
+      console.log('❌ Component deselected');
+      setSelectedComponent(null);
     });
   };
 
@@ -149,8 +158,23 @@ ${html}
           <span className="text-xs text-muted-foreground">
             {initialSection?.name || 'Untitled Section'}
           </span>
+          {selectedComponent && (
+            <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded">
+              {`<${selectedComponent.getName()}>`}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setInspectorVisible(!inspectorVisible)}
+            className={`btn-secondary flex items-center gap-2 text-sm ${
+              inspectorVisible ? 'bg-primary/10' : ''
+            }`}
+            title={inspectorVisible ? 'Hide Inspector' : 'Show Inspector'}
+          >
+            <EyeIcon size={16} />
+            Inspector
+          </button>
           <button
             onClick={handleExportToCode}
             className="btn-secondary flex items-center gap-2 text-sm"
@@ -170,8 +194,10 @@ ${html}
         </div>
       </div>
 
-      {/* GrapeJS Editor */}
-      <div className="flex-1 overflow-hidden">
+      {/* Main Content: Split View */}
+      <div className="flex-1 overflow-hidden flex">
+        {/* GrapeJS Editor */}
+        <div className={`${inspectorVisible ? 'flex-1' : 'w-full'} overflow-hidden`}>
         <Editor
           grapesjs={(window as any).grapesjs}
           grapesjsCss="https://unpkg.com/grapesjs/dist/css/grapes.min.css"
@@ -320,6 +346,30 @@ ${html}
           }}
           onEditor={handleEditorInit}
         />
+        </div>
+
+        {/* CSS Cascade Inspector */}
+        {inspectorVisible && (
+          <div className="w-96 border-l bg-background overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+              <h4 className="text-sm font-semibold">CSS Cascade Inspector</h4>
+              <button
+                onClick={() => setInspectorVisible(false)}
+                className="btn-secondary p-1"
+                title="Close Inspector"
+              >
+                <XIcon size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <CSSCascadeInspector
+                editor={editorRef.current}
+                selectedComponent={selectedComponent}
+                globalCss={globalCss || ''}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Panels Container */}

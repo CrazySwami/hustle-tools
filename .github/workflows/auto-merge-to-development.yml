@@ -3,8 +3,7 @@ name: Auto Merge to Development
 on:
   push:
     branches:
-      - 'html-only-no-elementor'
-      - 'claude/grapejs-*'  # Any grapejs branches
+      - 'claude/grapejs-*'  # Any GrapeJS feature branches
 
 jobs:
   merge-to-development:

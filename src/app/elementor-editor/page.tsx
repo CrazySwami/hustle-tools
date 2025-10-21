@@ -757,66 +757,73 @@ export default function ElementorEditorPage() {
             overflowX: isMobile ? 'auto' : 'visible',
             flexWrap: isMobile ? 'nowrap' : 'wrap'
           }}>
-            <div style={{ display: 'flex' }}>
+            <div style={{ display: 'flex', flex: 1, overflowX: isMobile ? 'auto' : 'visible' }}>
               <div
                 className={`tab ${activeTab === 'json' ? 'active' : ''}`}
                 onClick={() => setActiveTab('json')}
+                style={{ whiteSpace: 'nowrap' }}
               >
-                <FileIcon size={16} /> Section Editor
+                <FileIcon size={16} /> {isMobile ? 'Editor' : 'Section Editor'}
               </div>
             <div
               className={`tab ${activeTab === 'sections' ? 'active' : ''}`}
               onClick={() => setActiveTab('sections')}
+              style={{ whiteSpace: 'nowrap' }}
             >
-              <FileIcon size={16} /> Section Library
+              <FileIcon size={16} /> {isMobile ? 'Library' : 'Section Library'}
             </div>
             <div
               className={`tab ${activeTab === 'playground' ? 'active' : ''}`}
               onClick={() => setActiveTab('playground')}
+              style={{ whiteSpace: 'nowrap' }}
             >
-              <GlobeIcon size={16} /> WordPress Playground
+              <GlobeIcon size={16} /> {isMobile ? 'WP' : 'WordPress Playground'}
             </div>
             <div
               className={`tab ${activeTab === 'site-content' ? 'active' : ''} ${!playgroundReady ? 'disabled' : ''}`}
               onClick={() => playgroundReady && setActiveTab('site-content')}
               style={{
                 opacity: playgroundReady ? 1 : 0.5,
-                cursor: playgroundReady ? 'pointer' : 'not-allowed'
+                cursor: playgroundReady ? 'pointer' : 'not-allowed',
+                whiteSpace: 'nowrap'
               }}
               title={!playgroundReady ? 'Waiting for WordPress Playground to initialize...' : ''}
             >
-              <SettingsIcon size={16} /> Site Content
+              <SettingsIcon size={16} /> {isMobile ? 'Content' : 'Site Content'}
             </div>
             <div
               className={`tab ${activeTab === 'style-guide' ? 'active' : ''} ${!playgroundReady ? 'disabled' : ''}`}
               onClick={() => playgroundReady && setActiveTab('style-guide')}
               style={{
                 opacity: playgroundReady ? 1 : 0.5,
-                cursor: playgroundReady ? 'pointer' : 'not-allowed'
+                cursor: playgroundReady ? 'pointer' : 'not-allowed',
+                whiteSpace: 'nowrap'
               }}
               title={!playgroundReady ? 'Waiting for WordPress Playground to initialize...' : ''}
             >
-              <PaletteIcon size={16} /> Style Guide
+              <PaletteIcon size={16} /> {isMobile ? 'Styles' : 'Style Guide'}
             </div>
             </div>
 
-            {/* Chat Toggle Button */}
-            <button
-              onClick={() => setChatVisible(!chatVisible)}
-              className="btn-secondary"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                fontSize: '13px',
-                marginRight: '12px'
-              }}
-              title={chatVisible ? 'Hide Chat' : 'Show Chat'}
-            >
-              {chatVisible ? <XIcon size={16} /> : <CodeIcon size={16} />}
-              {chatVisible ? 'Hide Chat' : 'Show Chat'}
-            </button>
+            {/* Desktop: Chat Toggle Button */}
+            {!isMobile && (
+              <button
+                onClick={() => setChatVisible(!chatVisible)}
+                className="btn-secondary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  fontSize: '13px',
+                  marginRight: '12px'
+                }}
+                title={chatVisible ? 'Hide Chat' : 'Show Chat'}
+              >
+                {chatVisible ? <XIcon size={16} /> : <CodeIcon size={16} />}
+                {chatVisible ? 'Hide Chat' : 'Show Chat'}
+              </button>
+            )}
           </div>
 
           {/* Tab Content - Keep all tabs mounted, just hide inactive ones */}

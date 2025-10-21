@@ -1700,6 +1700,182 @@ window.importHtmlSectionToPage = async function(section) {
     }
 };
 
+// Import multiple HTML sections to create a full page preview
+window.importMultipleSectionsToPage = async function(sections, pageName = 'Multi-Section Preview') {
+    if (!playgroundClient) {
+        throw new Error('Playground not running. Launch it first.');
+    }
+
+    if (!Array.isArray(sections) || sections.length === 0) {
+        throw new Error('Please provide an array of sections');
+    }
+
+    try {
+        updatePlaygroundStatus(`📄 Creating page with ${sections.length} sections...`);
+        console.log('📝 Importing multiple sections to page:', sections);
+
+        // Write sections data to temp file
+        const sectionsJson = JSON.stringify({ pageName, sections });
+        await playgroundClient.writeFile('/tmp/sections_preview.json', sectionsJson);
+
+        const phpCode = `<?php
+            require_once '/wordpress/wp-load.php';
+
+            try {
+                $sections_json = file_get_contents('/tmp/sections_preview.json');
+                $data = json_decode($sections_json, true);
+
+                if ($data && json_last_error() === JSON_ERROR_NONE) {
+                    $page_name = isset($data['pageName']) ? $data['pageName'] : 'Multi-Section Preview';
+                    $sections = isset($data['sections']) ? $data['sections'] : array();
+
+                    if (empty($sections)) {
+                        echo json_encode(array(
+                            'success' => false,
+                            'error' => 'No sections provided'
+                        ));
+                        exit;
+                    }
+
+                    // Build Elementor data structure with all sections
+                    $elementor_data = array();
+
+                    foreach ($sections as $index => $section) {
+                        $html = isset($section['html']) ? $section['html'] : '';
+                        $css = isset($section['css']) ? $section['css'] : '';
+                        $js = isset($section['js']) ? $section['js'] : '';
+
+                        // Combine HTML, CSS, and JS
+                        $combined_html = $html;
+
+                        if (!empty($css)) {
+                            $combined_html .= "\n\n<style>\n" . $css . "\n</style>";
+                        }
+
+                        if (!empty($js)) {
+                            $combined_html .= "\n\n<script>\n" . $js . "\n</script>";
+                        }
+
+                        // Create section with HTML widget
+                        $elementor_data[] = array(
+                            'id' => 'section_' . $index . '_' . substr(md5(uniqid()), 0, 8),
+                            'elType' => 'section',
+                            'settings' => array(),
+                            'elements' => array(
+                                array(
+                                    'id' => 'column_' . $index . '_' . substr(md5(uniqid()), 0, 8),
+                                    'elType' => 'column',
+                                    'settings' => array(
+                                        '_column_size' => 100
+                                    ),
+                                    'elements' => array(
+                                        array(
+                                            'id' => 'widget_' . $index . '_' . substr(md5(uniqid()), 0, 8),
+                                            'elType' => 'widget',
+                                            'widgetType' => 'html',
+                                            'settings' => array(
+                                                'html' => $combined_html
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        );
+                    }
+
+                    // Check if preview page already exists
+                    $page_slug = 'multi-section-preview';
+                    $existing_page = get_page_by_path($page_slug, OBJECT, 'page');
+
+                    if ($existing_page) {
+                        $page_id = $existing_page->ID;
+                        wp_update_post(array(
+                            'ID' => $page_id,
+                            'post_title' => $page_name,
+                            'post_status' => 'publish'
+                        ));
+                    } else {
+                        $page_id = wp_insert_post(array(
+                            'post_title' => $page_name,
+                            'post_name' => $page_slug,
+                            'post_status' => 'publish',
+                            'post_type' => 'page',
+                            'post_content' => ''
+                        ));
+                    }
+
+                    if ($page_id && !is_wp_error($page_id)) {
+                        // Set Elementor page data
+                        update_post_meta($page_id, '_elementor_data', $elementor_data);
+                        update_post_meta($page_id, '_elementor_edit_mode', 'builder');
+                        update_post_meta($page_id, '_elementor_template_type', 'wp-page');
+                        update_post_meta($page_id, '_elementor_page_settings', array());
+
+                        $page_url = get_permalink($page_id);
+                        $edit_url = admin_url('post.php?post=' . $page_id . '&action=elementor');
+
+                        echo json_encode(array(
+                            'success' => true,
+                            'page_id' => $page_id,
+                            'page_url' => $page_url,
+                            'edit_url' => $edit_url,
+                            'sections_count' => count($sections),
+                            'message' => 'Page created with ' . count($sections) . ' sections'
+                        ));
+                    } else {
+                        echo json_encode(array(
+                            'success' => false,
+                            'error' => is_wp_error($page_id) ? $page_id->get_error_message() : 'Failed to create page'
+                        ));
+                    }
+                } else {
+                    echo json_encode(array(
+                        'success' => false,
+                        'error' => 'Invalid JSON - ' . json_last_error_msg()
+                    ));
+                }
+            } catch (Exception $e) {
+                echo json_encode(array(
+                    'success' => false,
+                    'error' => $e->getMessage()
+                ));
+            }
+
+            @unlink('/tmp/sections_preview.json');
+        ?>`;
+
+        console.log('Running PHP to create multi-section page...');
+        const result = await playgroundClient.run({ code: phpCode });
+        console.log('Multi-section page result:', result.text);
+
+        const response = JSON.parse(result.text);
+
+        if (response.success) {
+            updatePlaygroundStatus(`✅ Page created with ${response.sections_count} sections! Opening...`, 'success');
+            console.log('✅ Page ID:', response.page_id);
+
+            // Navigate to the live page
+            await playgroundClient.goTo('/?page_id=' + response.page_id);
+
+            return {
+                success: true,
+                pageId: response.page_id,
+                pageUrl: response.page_url,
+                editUrl: response.edit_url,
+                sectionsCount: response.sections_count,
+                message: response.message
+            };
+        } else {
+            throw new Error(response.error || 'Failed to create multi-section page');
+        }
+
+    } catch (error) {
+        console.error('❌ Import multi-section page error:', error);
+        updatePlaygroundStatus('❌ Error: ' + error.message, 'error');
+        throw error;
+    }
+};
+
 // Auto-start playground on page load (if enabled)
 if (autoStartPlayground) {
     window.addEventListener('DOMContentLoaded', function() {

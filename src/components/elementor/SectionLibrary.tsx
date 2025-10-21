@@ -181,38 +181,46 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
     input.click();
   };
 
-  const previewAllInPlayground = () => {
+  const previewAllInPlayground = async () => {
     if (sections.length === 0) {
       alert('No sections to preview');
       return;
     }
 
-    // Generate Elementor-compatible HTML
-    const elementorJson = sectionsToElementorTemplate(sections);
-    const previewHtml = generateSectionsPreviewHTML(sections);
+    // Check if WordPress Playground is available
+    if (typeof window !== 'undefined' && (window as any).importMultipleSectionsToPage) {
+      try {
+        // Import all sections to WordPress Playground
+        const result = await (window as any).importMultipleSectionsToPage(sections, 'Section Library Preview');
 
-    // Copy both JSON and HTML to clipboard for easy paste into WordPress
-    const exportData = {
-      elementorJson,
-      previewHtml,
-      sections
-    };
+        if (result.success) {
+          alert(`✅ Success!\n\n${result.message}\n\nWordPress Playground will now show your page with all ${result.sectionsCount} sections.`);
+        }
+      } catch (error: any) {
+        console.error('Failed to import to WordPress:', error);
+        alert(`❌ Failed to import to WordPress:\n\n${error.message}\n\nMake sure WordPress Playground is running (check the WordPress Playground tab).`);
+      }
+    } else {
+      // Fallback: Export as before if playground not available
+      const elementorJson = sectionsToElementorTemplate(sections);
+      const previewHtml = generateSectionsPreviewHTML(sections);
 
-    // Copy HTML preview to clipboard
-    navigator.clipboard.writeText(previewHtml).then(() => {
-      // Download Elementor JSON
-      const jsonBlob = new Blob([JSON.stringify(elementorJson, null, 2)], { type: 'application/json' });
-      const jsonUrl = URL.createObjectURL(jsonBlob);
-      const jsonLink = document.createElement('a');
-      jsonLink.href = jsonUrl;
-      jsonLink.download = `elementor-template-${Date.now()}.json`;
-      jsonLink.click();
-      URL.revokeObjectURL(jsonUrl);
+      // Copy HTML preview to clipboard
+      navigator.clipboard.writeText(previewHtml).then(() => {
+        // Download Elementor JSON
+        const jsonBlob = new Blob([JSON.stringify(elementorJson, null, 2)], { type: 'application/json' });
+        const jsonUrl = URL.createObjectURL(jsonBlob);
+        const jsonLink = document.createElement('a');
+        jsonLink.href = jsonUrl;
+        jsonLink.download = `elementor-template-${Date.now()}.json`;
+        jsonLink.click();
+        URL.revokeObjectURL(jsonUrl);
 
-      alert(`✅ Exported ${sections.length} sections!\n\n📋 HTML copied to clipboard\n💾 Elementor JSON downloaded\n\nYou can now:\n1. Paste HTML directly into Elementor HTML widget\n2. Or import the JSON into Elementor`);
-    }).catch(() => {
-      alert('❌ Failed to copy to clipboard');
-    });
+        alert(`⚠️ WordPress Playground not available\n\n✅ Exported ${sections.length} sections instead:\n📋 HTML copied to clipboard\n💾 Elementor JSON downloaded\n\nTo use live preview, launch WordPress Playground first.`);
+      }).catch(() => {
+        alert('❌ Failed to copy to clipboard');
+      });
+    }
 
     // Also pass to parent component if callback exists
     onExportToPlayground?.(sections);

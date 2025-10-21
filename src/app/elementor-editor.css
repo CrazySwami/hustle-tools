@@ -1143,12 +1143,28 @@ button:disabled {
 
     .left-panel,
     .right-panel {
-        width: 100%;
-        height: 50vh;
+        width: 100% !important;
+        height: 100% !important;
     }
 
     .message {
         max-width: 90%;
+    }
+
+    .tab-bar {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; /* Firefox */
+    }
+
+    .tab-bar::-webkit-scrollbar {
+        display: none; /* Chrome, Safari */
+    }
+
+    .tab {
+        flex-shrink: 0;
+        font-size: 12px;
+        padding: 6px 10px;
     }
 }
 

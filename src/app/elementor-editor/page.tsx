@@ -702,8 +702,8 @@ export default function ElementorEditorPage() {
       {/* Main container - using exact class names from original CSS */}
       <div className="chat-editor-container" style={{
         marginTop: '64px',
-        height: 'calc(100vh - 64px)',
-        paddingBottom: isMobile ? '60px' : '0'
+        height: isMobile ? 'calc(100vh - 64px - 60px)' : 'calc(100vh - 64px)',
+        overflow: 'hidden'
       }}>
         {/* Desktop: Left Panel Chat */}
         {!isMobile && chatVisible && (
@@ -1015,7 +1015,7 @@ export default function ElementorEditorPage() {
 
               {/* Chat Content */}
               {chatDrawerOpen && (
-                <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ flex: 1, overflow: 'hidden', height: 0 }}>
                   <ElementorChat
                     messages={messages}
                     isLoading={isLoading}

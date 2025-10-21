@@ -124,7 +124,7 @@ export function ElementorChat({
   };
 
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Top Bar - Match tab-bar styling exactly */}
       <div style={{
         padding: '8px 20px',
@@ -132,6 +132,7 @@ export function ElementorChat({
         background: 'var(--muted)',
         display: 'flex',
         alignItems: 'center',
+        flexShrink: 0
       }}>
         <h2 style={{
           margin: 0,
@@ -144,8 +145,8 @@ export function ElementorChat({
         </h2>
       </div>
 
-      <Conversation className="flex-1">
-        <ConversationContent>
+      <Conversation className="flex-1 !overflow-hidden" style={{ minHeight: 0 }}>
+        <ConversationContent className="!overflow-y-auto !h-full">
           {messages.map((message, index) => (
             <div key={message.id}>
               {/* Show sources for assistant messages - OUTSIDE Message component */}
@@ -335,7 +336,7 @@ export function ElementorChat({
         <ConversationScrollButton />
       </Conversation>
 
-      <PromptInput onSubmit={handleSubmit} className="mt-4">
+      <PromptInput onSubmit={handleSubmit} className="mt-4" style={{ flexShrink: 0 }}>
         <PromptInputTextarea
           onChange={(e) => setInput(e.target.value)}
           value={input}
@@ -370,11 +371,9 @@ export function ElementorChat({
               </PromptInputModelSelectContent>
             </PromptInputModelSelect>
           </PromptInputTools>
-          <PromptInputSubmit disabled={isLoading || !input.trim()} status={status}>
-            {isLoading ? 'Sending...' : 'Send'}
-          </PromptInputSubmit>
+          <PromptInputSubmit disabled={isLoading || !input.trim()} status={status} />
         </PromptInputToolbar>
       </PromptInput>
-    </>
+    </div>
   );
 }

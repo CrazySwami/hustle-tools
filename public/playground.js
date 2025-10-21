@@ -1405,13 +1405,47 @@ window.saveHtmlSectionToLibrary = async function(section) {
                         array(
                             'id' => 'section_' . substr(md5(uniqid()), 0, 8),
                             'elType' => 'section',
-                            'settings' => array(),
+                            'settings' => array(
+                                'content_width' => 'full',
+                                'padding' => array(
+                                    'unit' => 'px',
+                                    'top' => '0',
+                                    'right' => '0',
+                                    'bottom' => '0',
+                                    'left' => '0',
+                                    'isLinked' => true
+                                ),
+                                'margin' => array(
+                                    'unit' => 'px',
+                                    'top' => '0',
+                                    'right' => '0',
+                                    'bottom' => '0',
+                                    'left' => '0',
+                                    'isLinked' => true
+                                )
+                            ),
                             'elements' => array(
                                 array(
                                     'id' => 'column_' . substr(md5(uniqid()), 0, 8),
                                     'elType' => 'column',
                                     'settings' => array(
-                                        '_column_size' => 100
+                                        '_column_size' => 100,
+                                        'padding' => array(
+                                            'unit' => 'px',
+                                            'top' => '0',
+                                            'right' => '0',
+                                            'bottom' => '0',
+                                            'left' => '0',
+                                            'isLinked' => true
+                                        ),
+                                        'margin' => array(
+                                            'unit' => 'px',
+                                            'top' => '0',
+                                            'right' => '0',
+                                            'bottom' => '0',
+                                            'left' => '0',
+                                            'isLinked' => true
+                                        )
                                     ),
                                     'elements' => array(
                                         array(
@@ -1568,13 +1602,47 @@ window.importHtmlSectionToPage = async function(section) {
                         array(
                             'id' => 'section_' . substr(md5(uniqid()), 0, 8),
                             'elType' => 'section',
-                            'settings' => array(),
+                            'settings' => array(
+                                'content_width' => 'full',
+                                'padding' => array(
+                                    'unit' => 'px',
+                                    'top' => '0',
+                                    'right' => '0',
+                                    'bottom' => '0',
+                                    'left' => '0',
+                                    'isLinked' => true
+                                ),
+                                'margin' => array(
+                                    'unit' => 'px',
+                                    'top' => '0',
+                                    'right' => '0',
+                                    'bottom' => '0',
+                                    'left' => '0',
+                                    'isLinked' => true
+                                )
+                            ),
                             'elements' => array(
                                 array(
                                     'id' => 'column_' . substr(md5(uniqid()), 0, 8),
                                     'elType' => 'column',
                                     'settings' => array(
-                                        '_column_size' => 100
+                                        '_column_size' => 100,
+                                        'padding' => array(
+                                            'unit' => 'px',
+                                            'top' => '0',
+                                            'right' => '0',
+                                            'bottom' => '0',
+                                            'left' => '0',
+                                            'isLinked' => true
+                                        ),
+                                        'margin' => array(
+                                            'unit' => 'px',
+                                            'top' => '0',
+                                            'right' => '0',
+                                            'bottom' => '0',
+                                            'left' => '0',
+                                            'isLinked' => true
+                                        )
                                     ),
                                     'elements' => array(
                                         array(

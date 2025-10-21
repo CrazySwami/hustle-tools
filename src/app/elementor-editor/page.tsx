@@ -860,6 +860,7 @@ export default function ElementorEditorPage() {
                   });
                   setCurrentSection(section);
                 }}
+                onSwitchToVisualEditor={() => setActiveTab('visual')}
               />
             </div>
 

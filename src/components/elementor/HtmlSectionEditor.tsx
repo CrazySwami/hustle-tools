@@ -21,6 +21,7 @@ interface HtmlSectionEditorProps {
   streamedJs?: string;
   activeCodeTab?: 'html' | 'css' | 'js';
   onCodeTabChange?: (tab: 'html' | 'css' | 'js') => void;
+  onSwitchToVisualEditor?: () => void;
 }
 
 export function HtmlSectionEditor({
@@ -31,7 +32,8 @@ export function HtmlSectionEditor({
   streamedCss,
   streamedJs,
   activeCodeTab: externalActiveCodeTab,
-  onCodeTabChange
+  onCodeTabChange,
+  onSwitchToVisualEditor
 }: HtmlSectionEditorProps) {
   const [section, setSection] = useState<Section>(initialSection || createSection());
   const [internalActiveCodeTab, setInternalActiveCodeTab] = useState<'html' | 'css' | 'js'>('html');
@@ -238,6 +240,30 @@ export function HtmlSectionEditor({
           >
             {showPreview ? '✓' : ''} Preview
           </button>
+
+          {onSwitchToVisualEditor && (
+            <button
+              onClick={() => {
+                // Save current changes before switching
+                if (onSectionChange) {
+                  onSectionChange(section);
+                }
+                onSwitchToVisualEditor();
+              }}
+              style={{
+                padding: '6px 12px',
+                background: '#8b5cf6',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: 500
+              }}
+            >
+              👁️ Visual Editor
+            </button>
+          )}
         </div>
       </div>
 

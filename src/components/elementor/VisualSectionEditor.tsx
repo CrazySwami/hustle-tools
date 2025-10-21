@@ -38,6 +38,24 @@ export function VisualSectionEditor({
     ? `data:text/css;base64,${btoa(globalCss)}`
     : undefined;
 
+  // Reload content when initialSection changes (e.g., switching from Code Editor)
+  useEffect(() => {
+    if (!editorRef.current || !initialSection) return;
+
+    console.log('📥 Loading section into Visual Editor:', {
+      name: initialSection.name,
+      htmlLength: initialSection.html?.length || 0,
+      cssLength: initialSection.css?.length || 0,
+    });
+
+    if (initialSection.html) {
+      editorRef.current.setComponents(initialSection.html);
+    }
+    if (initialSection.css) {
+      editorRef.current.setStyle(initialSection.css);
+    }
+  }, [initialSection?.id, initialSection?.updatedAt]);
+
   const handleEditorInit = (editor: grapesjs.Editor) => {
     editorRef.current = editor;
 
@@ -194,191 +212,216 @@ ${html}
         </div>
       </div>
 
-      {/* Main Content: Split View */}
+      {/* Main Content: 3-Column Layout */}
       <div className="flex-1 overflow-hidden flex">
-        {/* GrapeJS Editor */}
-        <div className={`${inspectorVisible ? 'flex-1' : 'w-full'} overflow-hidden`}>
-        <Editor
-          grapesjs={(window as any).grapesjs}
-          grapesjsCss="https://unpkg.com/grapesjs/dist/css/grapes.min.css"
-          options={{
-            height: '100%',
-            width: '100%',
-            storageManager: false,
-            canvas: {
-              styles: globalCssDataUrl ? [globalCssDataUrl] : [],
-            },
-            blockManager: {
-              appendTo: '#blocks',
-            },
-            styleManager: {
-              appendTo: '#styles',
-              sectors: [
-                {
-                  name: 'Typography',
-                  open: true,
-                  properties: [
-                    'font-family',
-                    'font-size',
-                    'font-weight',
-                    'letter-spacing',
-                    'color',
-                    'line-height',
-                    'text-align',
-                    'text-decoration',
-                    'text-shadow',
-                  ],
-                },
-                {
-                  name: 'Dimension',
-                  open: false,
-                  properties: [
-                    'width',
-                    'height',
-                    'max-width',
-                    'min-height',
-                    'margin',
-                    'padding',
-                  ],
-                },
-                {
-                  name: 'Background',
-                  open: false,
-                  properties: [
-                    'background-color',
-                    'background-image',
-                    'background-repeat',
-                    'background-position',
-                    'background-attachment',
-                    'background-size',
-                  ],
-                },
-                {
-                  name: 'Border',
-                  open: false,
-                  properties: [
-                    'border-radius',
-                    'border',
-                    'box-shadow',
-                  ],
-                },
-                {
-                  name: 'Extra',
-                  open: false,
-                  properties: [
-                    'opacity',
-                    'transition',
-                    'perspective',
-                    'transform',
-                  ],
-                },
-              ],
-            },
-            layerManager: {
-              appendTo: '#layers',
-            },
-            traitManager: {
-              appendTo: '#traits',
-            },
-            selectorManager: {
-              appendTo: '#selectors',
-            },
-            panels: {
-              defaults: [
-                {
-                  id: 'basic-actions',
-                  el: '.panel__basic-actions',
-                  buttons: [
-                    {
-                      id: 'visibility',
-                      active: true,
-                      className: 'btn-toggle-borders',
-                      label: '<i class="fa fa-clone"></i>',
-                      command: 'sw-visibility',
-                    },
-                  ],
-                },
-                {
-                  id: 'panel-devices',
-                  el: '.panel__devices',
-                  buttons: [
-                    {
-                      id: 'device-desktop',
-                      label: '<i class="fa fa-desktop"></i>',
-                      command: 'set-device-desktop',
-                      active: true,
-                      togglable: false,
-                    },
-                    {
-                      id: 'device-tablet',
-                      label: '<i class="fa fa-tablet"></i>',
-                      command: 'set-device-tablet',
-                      togglable: false,
-                    },
-                    {
-                      id: 'device-mobile',
-                      label: '<i class="fa fa-mobile"></i>',
-                      command: 'set-device-mobile',
-                      togglable: false,
-                    },
-                  ],
-                },
-              ],
-            },
-            deviceManager: {
-              devices: [
-                {
-                  name: 'Desktop',
-                  width: '',
-                },
-                {
-                  name: 'Tablet',
-                  width: '768px',
-                  widthMedia: '992px',
-                },
-                {
-                  name: 'Mobile',
-                  width: '320px',
-                  widthMedia: '480px',
-                },
-              ],
-            },
-          }}
-          onEditor={handleEditorInit}
-        />
+        {/* Left Sidebar - Blocks */}
+        <div className="w-64 border-r bg-background overflow-hidden flex flex-col">
+          <div className="p-3 border-b bg-muted/30">
+            <h4 className="text-sm font-semibold">Blocks</h4>
+          </div>
+          <div id="blocks" className="flex-1 overflow-y-auto p-2"></div>
         </div>
 
-        {/* CSS Cascade Inspector */}
-        {inspectorVisible && (
-          <div className="w-96 border-l bg-background overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-3 border-b bg-muted/30">
-              <h4 className="text-sm font-semibold">CSS Cascade Inspector</h4>
-              <button
-                onClick={() => setInspectorVisible(false)}
-                className="btn-secondary p-1"
-                title="Close Inspector"
-              >
-                <XIcon size={16} />
+        {/* Center - GrapeJS Canvas */}
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <Editor
+            grapesjs={(window as any).grapesjs}
+            grapesjsCss="https://unpkg.com/grapesjs/dist/css/grapes.min.css"
+            options={{
+              height: '100%',
+              width: '100%',
+              storageManager: false,
+              canvas: {
+                styles: globalCssDataUrl ? [globalCssDataUrl] : [],
+              },
+              blockManager: {
+                appendTo: '#blocks',
+              },
+              styleManager: {
+                appendTo: '#styles-container',
+                sectors: [
+                  {
+                    name: 'Typography',
+                    open: true,
+                    properties: [
+                      'font-family',
+                      'font-size',
+                      'font-weight',
+                      'letter-spacing',
+                      'color',
+                      'line-height',
+                      'text-align',
+                      'text-decoration',
+                      'text-shadow',
+                    ],
+                  },
+                  {
+                    name: 'Dimension',
+                    open: false,
+                    properties: [
+                      'width',
+                      'height',
+                      'max-width',
+                      'min-height',
+                      'margin',
+                      'padding',
+                    ],
+                  },
+                  {
+                    name: 'Background',
+                    open: false,
+                    properties: [
+                      'background-color',
+                      'background-image',
+                      'background-repeat',
+                      'background-position',
+                      'background-attachment',
+                      'background-size',
+                    ],
+                  },
+                  {
+                    name: 'Border',
+                    open: false,
+                    properties: [
+                      'border-radius',
+                      'border',
+                      'box-shadow',
+                    ],
+                  },
+                  {
+                    name: 'Extra',
+                    open: false,
+                    properties: [
+                      'opacity',
+                      'transition',
+                      'perspective',
+                      'transform',
+                    ],
+                  },
+                ],
+              },
+              layerManager: {
+                appendTo: '#layers',
+              },
+              traitManager: {
+                appendTo: '#traits',
+              },
+              selectorManager: {
+                appendTo: '#selectors',
+              },
+              panels: {
+                defaults: [
+                  {
+                    id: 'basic-actions',
+                    el: '.panel__basic-actions',
+                    buttons: [
+                      {
+                        id: 'visibility',
+                        active: true,
+                        className: 'btn-toggle-borders',
+                        label: '<i class="fa fa-clone"></i>',
+                        command: 'sw-visibility',
+                      },
+                    ],
+                  },
+                  {
+                    id: 'panel-devices',
+                    el: '.panel__devices',
+                    buttons: [
+                      {
+                        id: 'device-desktop',
+                        label: '<i class="fa fa-desktop"></i>',
+                        command: 'set-device-desktop',
+                        active: true,
+                        togglable: false,
+                      },
+                      {
+                        id: 'device-tablet',
+                        label: '<i class="fa fa-tablet"></i>',
+                        command: 'set-device-tablet',
+                        togglable: false,
+                      },
+                      {
+                        id: 'device-mobile',
+                        label: '<i class="fa fa-mobile"></i>',
+                        command: 'set-device-mobile',
+                        togglable: false,
+                      },
+                    ],
+                  },
+                ],
+              },
+              deviceManager: {
+                devices: [
+                  {
+                    name: 'Desktop',
+                    width: '',
+                  },
+                  {
+                    name: 'Tablet',
+                    width: '768px',
+                    widthMedia: '992px',
+                  },
+                  {
+                    name: 'Mobile',
+                    width: '320px',
+                    widthMedia: '480px',
+                  },
+                ],
+              },
+            }}
+            onEditor={handleEditorInit}
+          />
+        </div>
+
+        {/* Right Sidebar - Styles, Layers, Traits + CSS Inspector */}
+        <div className="w-80 border-l bg-background overflow-hidden flex flex-col">
+          {/* Tabs for Styles/Layers/Traits */}
+          <div className="border-b">
+            <div className="flex p-2 gap-1">
+              <button className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded">
+                Styles
+              </button>
+              <button className="text-xs px-3 py-1.5 hover:bg-muted rounded">
+                Layers
+              </button>
+              <button className="text-xs px-3 py-1.5 hover:bg-muted rounded">
+                Traits
               </button>
             </div>
-            <div className="flex-1 overflow-hidden">
-              <CSSCascadeInspector
-                editor={editorRef.current}
-                selectedComponent={selectedComponent}
-                globalCss={globalCss || ''}
-              />
-            </div>
           </div>
-        )}
-      </div>
 
-      {/* Panels Container */}
-      <div className="hidden">
-        <div id="blocks"></div>
-        <div id="styles"></div>
-        <div id="layers"></div>
-        <div id="traits"></div>
-        <div id="selectors"></div>
+          {/* Styles Panel */}
+          <div className="flex-1 overflow-y-auto">
+            <div id="selectors" className="p-2"></div>
+            <div id="styles-container" className="p-2"></div>
+            <div id="traits" className="p-2 hidden"></div>
+            <div id="layers" className="p-2 hidden"></div>
+          </div>
+
+          {/* CSS Cascade Inspector */}
+          {inspectorVisible && selectedComponent && (
+            <div className="border-t">
+              <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+                <h4 className="text-sm font-semibold">CSS Cascade</h4>
+                <button
+                  onClick={() => setInspectorVisible(false)}
+                  className="btn-secondary p-1"
+                  title="Close Inspector"
+                >
+                  <XIcon size={16} />
+                </button>
+              </div>
+              <div className="h-64 overflow-y-auto">
+                <CSSCascadeInspector
+                  editor={editorRef.current}
+                  selectedComponent={selectedComponent}
+                  globalCss={globalCss || ''}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

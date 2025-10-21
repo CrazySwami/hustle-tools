@@ -1,8 +1,8 @@
 # GrapeJS Visual Editor Integration
 
 **Last Updated:** October 21, 2025
-**Branch:** `claude/grapejs-visual-editor-011CULKQ2LsnwPgcpmWrmkTA`
-**Status:** Phase 1 Complete ✅ | Phase 2 In Progress 🚧
+**Branch:** `development`, `staging` (deployed)
+**Status:** Phase 1 Complete ✅ | Phase 2 Complete ✅
 
 ---
 
@@ -12,12 +12,14 @@ The GrapeJS Visual Editor integration adds a professional drag-and-drop visual H
 
 ### Key Capabilities
 
-- **Drag & Drop Components**: Visual component library for building layouts
+- **3-Column Layout**: Blocks panel (left), visual canvas (center), styles panel (right)
+- **Visible Blocks Panel**: Drag-and-drop elements with clear "+" buttons for adding components
 - **Live Style Editing**: Real-time CSS property manipulation via Style Manager
 - **Responsive Preview**: Desktop, Tablet, and Mobile device modes
 - **Global CSS Integration**: Automatically loads and respects global stylesheets
-- **Bidirectional Sync**: Seamlessly switch between Visual and Code editors
-- **Custom Cascade Inspector**: (Phase 2) Shows exactly where each CSS style comes from
+- **Bidirectional Sync**: Seamlessly switch between Visual ↔ Code editors with automatic state sync
+- **Navigation Buttons**: Switch between editors with one click from either tab
+- **CSS Cascade Inspector**: Shows exactly where each CSS style comes from (inline, class, global)
 
 ---
 
@@ -186,7 +188,68 @@ onSectionChange({
 
 ---
 
-## Phase 2: CSS Cascade Inspector 🚧
+## Latest Enhancements (October 2025) ✅
+
+### 3-Column Layout Implementation
+
+The Visual Editor now uses a professional 3-column layout:
+
+1. **Left Panel - Blocks (256px)**
+   - Visible blocks panel with drag-and-drop components
+   - Clear "+" icons for adding elements
+   - Scrollable component library
+
+2. **Center Panel - Canvas (flex-1)**
+   - GrapeJS visual editor canvas
+   - Click-to-select elements
+   - Responsive device preview toolbar
+
+3. **Right Panel - Styles & Inspector (320px)**
+   - Tabbed interface: Styles / Layers / Traits
+   - Style Manager with all CSS properties
+   - Integrated CSS Cascade Inspector (collapsible)
+
+### Bidirectional Code Synchronization
+
+- **Code → Visual**: `useEffect` hook watches `initialSection.id` and `initialSection.updatedAt`
+- **Visual → Code**: Real-time updates via `onSectionChange` callback
+- **Tab Switching**: State preserved when switching between Code and Visual tabs
+
+### Navigation Buttons
+
+- **Code Editor**: Purple "👁️ Visual Editor" button in toolbar
+- **Visual Editor**: "Code View" button to switch back to code
+- Both buttons save current changes before switching
+
+### WordPress Import Enhancements
+
+All section imports to WordPress now apply full-width defaults:
+
+**Section Settings:**
+```javascript
+{
+  content_width: 'full',
+  padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true },
+  margin: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true }
+}
+```
+
+**Column Settings:**
+```javascript
+{
+  _column_size: 100,
+  padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true },
+  margin: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true }
+}
+```
+
+Applied in:
+- `saveSectionToTemplateLibrary()` - Template library imports
+- `importHtmlSectionToPage()` - Page preview imports
+
+---
+
+## Phase 2: CSS Cascade Inspector ✅
 
 ### Objective
 

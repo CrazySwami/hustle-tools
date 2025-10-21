@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git Branching Strategy
+
+This project uses a three-tier deployment workflow:
+
+- **`development`** - Active development and testing branch. Push all work-in-progress here.
+- **`staging`** - Pre-production testing with beta testers. Merge from development when ready for group testing.
+- **`main`** - Production branch deployed to main website URL. Merge from staging when ready for public release.
+
+**Workflow**: `development` → `staging` → `main`
+
+On Vercel, each branch deploys to a separate URL for isolated testing.
+
 ## Development Commands
 
 ### Running the Application
@@ -47,12 +59,15 @@ A comprehensive WordPress/Elementor development environment with browser-based W
   - Style Guide: Visual style guide editor with global CSS management
 
 **Visual Editor (GrapeJS):**
-- Drag-and-drop visual HTML/CSS/JS builder
-- Click elements to select and style visually
-- Global CSS auto-loading from WordPress theme
-- Responsive device preview (Desktop/Tablet/Mobile)
-- Bidirectional sync with Code Editor
-- CSS Cascade Inspector showing style hierarchy (Phase 2 🚧)
+- **3-Column Layout**: Blocks panel (left), canvas (center), styles panel (right)
+- **Blocks Panel**: Visible "+" buttons to drag-and-drop elements (text, images, buttons, etc.)
+- **Visual Canvas**: Click elements to select and style them visually
+- **Style Manager**: Typography, dimensions, background, borders, effects with live preview
+- **Bidirectional Sync**: Changes sync between Visual Editor ↔ Code Editor automatically
+- **Navigation Buttons**: "Visual Editor" button in Code Editor, "Code View" button in Visual Editor
+- **Global CSS Integration**: WordPress theme styles auto-load into canvas
+- **Responsive Preview**: Desktop/Tablet/Mobile device switcher
+- **CSS Cascade Inspector**: Shows inline, class, and global CSS sources with specificity hierarchy
 - See full documentation: `/docs/grapejs-visual-editor.md`
 
 **WordPress Playground Integration:**
@@ -61,6 +76,13 @@ A comprehensive WordPress/Elementor development environment with browser-based W
 - Uses file-based JSON approach (not string interpolation) to avoid PHP escaping issues
 - Blueprint installs: Elementor, Yoast SEO, Hello Elementor theme
 - Global functions exposed: `openPlaygroundDirect()`, `applySiteConfig()`, `getWordPressSettings()`, `getWordPressPages()`, `getElementorStyleKit()`, `setElementorStyleKit()`
+
+**WordPress Import Settings:**
+When sections are imported to WordPress (via template library or page preview), the following defaults are applied:
+- **Section**: `content_width: 'full'`, `padding: 0px`, `margin: 0px`
+- **Column**: `padding: 0px`, `margin: 0px`
+- This ensures imported sections take full width without unwanted spacing
+- Applied in both `saveSectionToTemplateLibrary()` and `importHtmlSectionToPage()` functions
 
 **State Management:**
 - Uses custom hook `useElementorState` for undo/redo history
@@ -242,3 +264,6 @@ Comprehensive docs in `/docs/`:
 8. **GrapeJS is client-side only**: Must use dynamic import and 'use client' directive
 9. **Global CSS in GrapeJS**: Convert to data URL via `btoa()` before injecting into canvas.styles
 10. **Visual ↔ Code sync**: Always update `currentSection` state when switching between editors
+11. **Visual Editor blocks panel**: Must append to visible DOM element (not hidden div) to show "+" buttons
+12. **WordPress imports use zero padding**: Section and column defaults ensure full-width layouts
+13. **Supabase is optional**: All client creation functions check for credentials and return mock clients if missing

@@ -38,12 +38,22 @@ A comprehensive WordPress/Elementor development environment with browser-based W
 
 **Key Components:**
 - **Left Panel**: AI chat interface with tool calling for HTML/CSS/JS generation
-- **Right Panel**: Tabbed interface with 5 main views
-  - Section Editor: HTML/CSS/JS editor with live preview and settings panel
+- **Right Panel**: Tabbed interface with 6 main views
+  - Code Editor: HTML/CSS/JS Monaco editor with live preview and settings panel
+  - **Visual Editor**: GrapeJS drag-and-drop visual builder (NEW ⭐)
   - Section Library: Manage multiple sections, drag-to-reorder
   - WordPress Playground: Live WordPress instance (auto-launches on page load)
   - Site Content: WordPress settings and pages manager
   - Style Guide: Visual style guide editor with global CSS management
+
+**Visual Editor (GrapeJS):**
+- Drag-and-drop visual HTML/CSS/JS builder
+- Click elements to select and style visually
+- Global CSS auto-loading from WordPress theme
+- Responsive device preview (Desktop/Tablet/Mobile)
+- Bidirectional sync with Code Editor
+- CSS Cascade Inspector showing style hierarchy (Phase 2 🚧)
+- See full documentation: `/docs/grapejs-visual-editor.md`
 
 **WordPress Playground Integration:**
 - Lives in `/public/playground.js` - handles all WP/Elementor operations
@@ -142,11 +152,14 @@ Components that need WordPress Playground must:
 
 ### Elementor Editor Components (`/src/components/elementor/`)
 - `ChatInterface.tsx` - Left panel AI chat (renamed from "Elementor JSON Editor" to "Chat")
-- `JsonEditor.tsx` - JSON editor with validation
+- `HtmlSectionEditor.tsx` - Code Editor tab with Monaco editor for HTML/CSS/JS
+- `VisualSectionEditor.tsx` - Visual Editor tab with GrapeJS drag-and-drop builder ⭐ NEW
+- `SectionLibrary.tsx` - Section Library tab for managing saved sections
 - `PlaygroundView.tsx` - WordPress Playground iframe wrapper (auto-launches)
+- `SiteContentManager.tsx` - WordPress settings & pages CRUD (comprehensive fields)
+- `StyleGuide.tsx` - Style Guide tab with global CSS editor
 - `HtmlGeneratorNew.tsx` - JSON → HTML/CSS/JS converter
 - `JsonConverter.tsx` - HTML/CSS → JSON converter (uses GPT-4 vision for mockups)
-- `SiteContentManager.tsx` - WordPress settings & pages CRUD (comprehensive fields)
 - `StyleKitEditorNew.tsx` - Elementor color/typography editor
 - `WidgetPropertiesPanel.tsx` - JSON property editor UI
 
@@ -210,6 +223,7 @@ Tests cover: WordPress settings, pages CRUD, style kit sync, Elementor JSON, spe
 
 Comprehensive docs in `/docs/`:
 - `README.md` - Main architecture guide
+- `grapejs-visual-editor.md` - GrapeJS Visual Editor integration guide ⭐ NEW
 - `fire-crawl-docs.md` - Firecrawl integration
 - `ui-stack.md` - UI component library guide
 - `models.md` - Supported AI models
@@ -225,3 +239,6 @@ Comprehensive docs in `/docs/`:
 5. **Playground.js is vanilla JS**: Not a React component, uses global window functions
 6. **Status indicator is fixed at bottom**: z-index 1000, shows across all tabs
 7. **Model names include provider prefix**: e.g., `openai/gpt-5` not just `gpt-5`
+8. **GrapeJS is client-side only**: Must use dynamic import and 'use client' directive
+9. **Global CSS in GrapeJS**: Convert to data URL via `btoa()` before injecting into canvas.styles
+10. **Visual ↔ Code sync**: Always update `currentSection` state when switching between editors

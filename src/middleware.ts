@@ -4,6 +4,11 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const { supabase, response } = createSupabaseMiddlewareClient(request)
 
+  // If Supabase is not configured, skip auth checks
+  if (!supabase) {
+    return response
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser()

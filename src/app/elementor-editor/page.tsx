@@ -700,7 +700,11 @@ export default function ElementorEditorPage() {
         />
 
       {/* Main container - using exact class names from original CSS */}
-      <div className="chat-editor-container" style={{ marginTop: '64px', height: 'calc(100vh - 64px)' }}>
+      <div className="chat-editor-container" style={{
+        marginTop: '64px',
+        height: 'calc(100vh - 64px)',
+        paddingBottom: isMobile ? '60px' : '0'
+      }}>
         {/* Desktop: Left Panel Chat */}
         {!isMobile && chatVisible && (
           <div className="left-panel" style={{ width: `${leftPanelWidth}%` }}>
@@ -919,8 +923,8 @@ export default function ElementorEditorPage() {
         {/* Status Indicator */}
         <div style={{
           position: 'fixed',
-          bottom: 0,
-          left: chatVisible ? `${leftPanelWidth}%` : 0,
+          bottom: isMobile ? (chatDrawerOpen ? '70vh' : '60px') : 0,
+          left: !isMobile && chatVisible ? `${leftPanelWidth}%` : 0,
           right: 0,
           height: '32px',
           background: playgroundReady ? '#10b98133' : '#f59e0b33',
@@ -942,9 +946,101 @@ export default function ElementorEditorPage() {
               background: playgroundReady ? '#10b981' : '#f59e0b',
               animation: playgroundReady ? 'none' : 'pulse 2s infinite'
             }} />
-            {playgroundReady ? 'WordPress Playground Ready' : 'Initializing WordPress Playground...'}
+            {!isMobile && (playgroundReady ? 'WordPress Playground Ready' : 'Initializing WordPress Playground...')}
           </div>
         </div>
+
+        {/* Mobile: Chat Drawer */}
+        {isMobile && (
+          <>
+            {/* Chat Drawer Overlay */}
+            {chatDrawerOpen && (
+              <div
+                onClick={() => setChatDrawerOpen(false)}
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(0,0,0,0.5)',
+                  zIndex: 1999,
+                  transition: 'opacity 0.3s ease'
+                }}
+              />
+            )}
+
+            {/* Chat Drawer */}
+            <div
+              style={{
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: chatDrawerOpen ? '70vh' : '60px',
+                background: 'var(--background)',
+                borderTop: '1px solid var(--border)',
+                zIndex: 2000,
+                transition: 'height 0.3s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 -4px 12px rgba(0,0,0,0.1)'
+              }}
+            >
+              {/* Drawer Handle */}
+              <div
+                onClick={() => setChatDrawerOpen(!chatDrawerOpen)}
+                style={{
+                  height: '60px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px',
+                  background: 'var(--card)',
+                  borderBottom: chatDrawerOpen ? '1px solid var(--border)' : 'none',
+                  cursor: 'pointer',
+                  userSelect: 'none'
+                }}
+              >
+                <div style={{
+                  width: '40px',
+                  height: '4px',
+                  background: 'var(--muted)',
+                  borderRadius: '2px'
+                }} />
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--foreground)' }}>
+                  {chatDrawerOpen ? '▼ Close Chat' : '▲ Open Chat'}
+                </span>
+              </div>
+
+              {/* Chat Content */}
+              {chatDrawerOpen && (
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <ElementorChat
+                    messages={messages}
+                    isLoading={isLoading}
+                    status={status}
+                    onSendMessage={(text) => handleSendMessage(text)}
+                    selectedModel={selectedModel}
+                    onModelChange={setSelectedModel}
+                    onReload={reload}
+                    onStreamUpdate={(type, content) => {
+                      setStreamedCode(prev => ({ ...prev, [type]: content }));
+                    }}
+                    onSwitchToSectionEditor={() => setActiveTab('json')}
+                    onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
+                    onUpdateSection={(updates) => {
+                      if (currentSection) {
+                        setCurrentSection({ ...currentSection, ...updates });
+                      }
+                    }}
+                    currentSection={currentSection}
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <style jsx>{`

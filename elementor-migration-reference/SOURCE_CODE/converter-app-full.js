@@ -1,0 +1,3590 @@
+
+let currentMode = 'browser';
+let generatedJSON = null;
+
+// Widget schemas loaded from extracted Elementor source
+let WIDGET_SCHEMAS = null;
+
+// Load widget schemas on page load
+async function loadWidgetSchemas() {
+    try {
+        const response = await fetch('elementor-all-widgets-schemas.json');
+        WIDGET_SCHEMAS = await response.json();
+        console.log('✅ Loaded schemas for', Object.keys(WIDGET_SCHEMAS).length, 'widgets');
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to load widget schemas:', error);
+        return false;
+    }
+}
+
+// State persistence functions - save/restore JSON to survive page refreshes
+function saveState() {
+    if (generatedJSON) {
+        logger.log('STORAGE', 'Saving generated JSON to localStorage');        localStorage.setItem('elementor_generated_json', JSON.stringify(generatedJSON));        localStorage.setItem('elementor_generated_timestamp', Date.now());
+    }
+}
+
+function restoreState() {
+    const savedJSON = localStorage.getItem('elementor_generated_json');    const timestamp = localStorage.getItem('elementor_generated_timestamp');
+
+    if (savedJSON && timestamp) {
+        const ageMinutes = (Date.now() - parseInt(timestamp)) / 60000;
+
+        // Only restore if less than 1 hour old
+        if (ageMinutes < 60) {
+            logger.log('STORAGE', 'Restoring saved JSON from localStorage', {
+                ageMinutes: ageMinutes.toFixed(1)
+            });
+
+            generatedJSON = JSON.parse(savedJSON);
+            document.getElementById('jsonOutput').textContent = JSON.stringify(generatedJSON, null, 2);            document.getElementById('downloadBtn').disabled = false;
+
+            showStatus(`✅ Restored previous conversion from ${ageMinutes.toFixed(0)} minutes ago`, 'success');
+        } else {
+            // Clear old data
+            localStorage.removeItem('elementor_generated_json');            localStorage.removeItem('elementor_generated_timestamp');
+        }
+    }
+}
+
+// Restore state on page load
+window.addEventListener('DOMContentLoaded', async () => {
+    await loadWidgetSchemas();
+    restoreState();
+
+    // Mode switching (needs to run after DOM loads)
+    document.querySelectorAll('.mode-button').forEach(button => {        button.addEventListener('click', function() {            document.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));            this.classList.add('active');
+            currentMode = this.dataset.mode;
+            document.getElementById('apiKeyGroup').style.display = currentMode === 'ai' ? 'block' : 'none';            document.getElementById('assistantConfigGroup').style.display = currentMode === 'ai' ? 'block' : 'none';
+        });
+    });
+
+    // Prevent accidental form submission
+    document.addEventListener('submit', (e) => {
+        e.preventDefault();
+        logger.log('WARNING', 'Form submission prevented', {
+            target: e.target
+        });
+        return false;
+    });
+});
+
+// Debug: Catch page refresh/navigation attempts
+window.addEventListener('beforeunload', (e) => {    logger.log('WARNING', 'Page is about to unload/refresh', {
+        hasJSON: !!generatedJSON,
+        savedToStorage: !!localStorage.getItem('elementor_generated_json')
+    });
+
+    // Save state one more time before leaving
+    if (generatedJSON) {
+        saveState();
+    }
+});
+
+// Load example code
+const examples = {
+    'hero-gradient': {        name: 'Hero Section (Gradient)',
+        html: `<div class="hero"><h1>Welcome to Our Site</h1>
+<p>Build amazing websites with custom sections</p>
+<button class="cta-button">Get Started</button>
+</div>`,css: `.hero {
+background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+color: white;
+padding: 80px 40px;
+text-align: center;
+border-radius: 12px;
+min-height: 400px;
+display: flex;
+flex-direction: column;
+justify-content: center;
+align-items: center;
+}
+
+.hero h1 {
+font-size: 48px;
+margin-bottom: 20px;
+font-weight: 700;
+}
+
+.hero p {
+font-size: 20px;
+margin-bottom: 30px;
+opacity: 0.9;
+}
+
+.cta-button {
+background: #0f3460;
+color: white;
+padding: 16px 32px;
+border: none;
+border-radius: 8px;
+font-size: 18px;
+cursor: pointer;
+transition: all 0.3s;
+}
+
+.cta-button:hover {
+transform: translateY(-2px);
+box-shadow: 0 8px 20px rgba(15, 52, 96, 0.4);
+}`,js: `document.querySelector('.cta-button')?.addEventListener('click', () => {alert('Welcome! This is your custom section.');
+});`},
+    'pricing-cards': {        name: 'Pricing Cards',
+        html: `<div class="pricing-section"><h2>Choose Your Plan</h2><div class="pricing-cards"><div class="pricing-card">
+<h3>Starter</h3>
+<p class="price">$29/mo</p>
+<p>Perfect for individuals</p>
+<button class="btn-primary">Get Started</button>
+</div>
+<div class="pricing-card featured">
+<h3>Professional</h3>
+<p class="price">$79/mo</p>
+<p>For growing teams</p>
+<button class="btn-primary">Get Started</button>
+</div>
+<div class="pricing-card">
+<h3>Enterprise</h3>
+<p class="price">$199/mo</p>
+<p>For large organizations</p>
+<button class="btn-primary">Contact Sales</button>
+</div>
+</div>
+</div>`,css: `.pricing-section {
+background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+padding: 60px 20px;
+text-align: center;
+}
+
+.pricing-section h2 {
+font-size: 42px;
+color: #1a1a2e;
+margin-bottom: 50px;
+font-weight: 700;
+}
+
+.pricing-cards {
+display: flex;
+gap: 30px;
+justify-content: center;
+flex-wrap: wrap;
+}
+
+.pricing-card {
+background: white;
+border: 2px solid #e5e7eb;
+border-radius: 16px;
+padding: 40px 30px;
+width: 280px;
+transition: all 0.3s;
+}
+
+.pricing-card.featured {
+background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
+color: white;
+transform: scale(1.05);
+border-color: #0f3460;
+}
+
+.pricing-card h3 {
+font-size: 24px;
+margin-bottom: 15px;
+font-weight: 600;
+}
+
+.pricing-card .price {
+font-size: 36px;
+font-weight: 700;
+margin: 20px 0;
+}
+
+.btn-primary {
+background: #0f3460;
+color: white;
+padding: 12px 28px;
+border: none;
+border-radius: 8px;
+font-size: 16px;
+cursor: pointer;
+margin-top: 20px;
+}
+
+.pricing-card.featured .btn-primary {
+background: white;
+color: #0f3460;
+}`,js: ''
+    },
+    'testimonial': {        name: 'Testimonial Section',
+        html: `<div class="testimonial-section"><h2>What Our Clients Say</h2><div class="testimonial"><img src="https://via.placeholder.com/80" alt="Client" class="avatar"><p class="quote">"This service transformed our business. Highly recommended!"</p><p class="author">Sarah Johnson</p><p class="role">CEO, TechCorp</p>
+</div>
+</div>`,css: `.testimonial-section {
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+color: white;
+padding: 80px 40px;
+text-align: center;
+}
+
+.testimonial-section h2 {
+font-size: 38px;
+margin-bottom: 40px;
+font-weight: 700;
+}
+
+.testimonial {
+background: rgba(255, 255, 255, 0.1);
+backdrop-filter: blur(10px);
+border-radius: 20px;
+padding: 50px 40px;
+max-width: 700px;
+margin: 0 auto;
+border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.avatar {
+width: 80px;
+height: 80px;
+border-radius: 50%;
+margin-bottom: 25px;
+border: 3px solid white;
+}
+
+.quote {
+font-size: 22px;
+font-style: italic;
+margin: 25px 0;
+line-height: 1.6;
+}
+
+.author {
+font-size: 18px;
+font-weight: 600;
+margin-top: 20px;
+}
+
+.role {
+font-size: 14px;
+opacity: 0.8;
+margin-top: 5px;
+}`,js: ''
+    },
+    'feature-grid': {        name: 'Feature Grid',
+        html: `<div class="features"><h2>Powerful Features</h2><div class="feature-grid"><div class="feature"><div class="icon">⚡</div>
+<h3>Lightning Fast</h3>
+<p>Optimized for speed and performance</p>
+</div>
+<div class="feature"><div class="icon">🔒</div>
+<h3>Secure</h3>
+<p>Bank-level encryption for your data</p>
+</div>
+<div class="feature"><div class="icon">📱</div>
+<h3>Responsive</h3>
+<p>Works perfectly on all devices</p>
+</div>
+<div class="feature"><div class="icon">🎨</div>
+<h3>Customizable</h3>
+<p>Fully customizable to match your brand</p>
+</div>
+</div>
+</div>`,css: `.features {
+background: #ffffff;
+padding: 80px 40px;
+text-align: center;
+}
+
+.features h2 {
+font-size: 42px;
+color: #1a1a2e;
+margin-bottom: 60px;
+font-weight: 700;
+}
+
+.feature-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+gap: 40px;
+max-width: 1200px;
+margin: 0 auto;
+}
+
+.feature {
+background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+padding: 40px 30px;
+border-radius: 16px;
+transition: transform 0.3s;
+}
+
+.feature:hover {
+transform: translateY(-8px);
+}
+
+.icon {
+font-size: 48px;
+margin-bottom: 20px;
+}
+
+.feature h3 {
+font-size: 24px;
+color: #1a1a2e;
+margin-bottom: 15px;
+font-weight: 600;
+}
+
+.feature p {
+font-size: 16px;
+color: #6c757d;
+line-height: 1.6;
+}`,js: ''
+    },
+    'cta-banner': {        name: 'Call-to-Action Banner',
+        html: `<div class="cta-banner"><h2>Ready to Get Started?</h2>
+<p>Join thousands of satisfied customers today</p>
+<div class="cta-buttons"><button class="btn-primary">Start Free Trial</button><button class="btn-secondary">Learn More</button>
+</div>
+</div>`,css: `.cta-banner {
+background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+color: white;
+padding: 80px 40px;
+text-align: center;
+border-radius: 20px;
+}
+
+.cta-banner h2 {
+font-size: 48px;
+margin-bottom: 20px;
+font-weight: 700;
+}
+
+.cta-banner p {
+font-size: 22px;
+margin-bottom: 40px;
+opacity: 0.95;
+}
+
+.cta-buttons {
+display: flex;
+gap: 20px;
+justify-content: center;
+flex-wrap: wrap;
+}
+
+.btn-primary {
+background: white;
+color: #f5576c;
+padding: 18px 40px;
+border: none;
+border-radius: 50px;
+font-size: 18px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.3s;
+}
+
+.btn-primary:hover {
+transform: scale(1.05);
+box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.btn-secondary {
+background: transparent;
+color: white;
+padding: 18px 40px;
+border: 2px solid white;
+border-radius: 50px;
+font-size: 18px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.3s;
+}
+
+.btn-secondary:hover {
+background: white;
+color: #f5576c;
+}`,js: ''
+    }
+};
+
+function loadExample(exampleKey = 'hero-gradient') {
+    const example = examples[exampleKey];
+    if (!example) return;
+
+    document.getElementById('htmlInput').value = example.html;    document.getElementById('cssInput').value = example.css;    document.getElementById('jsInput').value = example.js;    showStatus(`✅ Loaded example: ${example.name}`, 'success');
+}
+
+// Clear all inputs
+function clearInputs() {
+    document.getElementById('htmlInput').value = '';    document.getElementById('cssInput').value = '';    document.getElementById('jsInput').value = '';    document.getElementById('exampleSelector').value = '';    document.getElementById('previewBox').innerHTML = '<p style="color: #9ca3af; text-align: center;">Preview will appear here...</p>';    document.getElementById('jsonOutput').textContent = 'Click "Convert" to generate JSON...';    document.getElementById('detectedFields').innerHTML = '';    document.getElementById('downloadBtn').disabled = true;
+    generatedJSON = null;
+    showStatus('All inputs cleared.', 'info');
+}
+
+// Comprehensive Logging System
+const logger = {
+    enabled: true,
+    logs: [],
+
+    log(category, message, data = null) {
+        if (!this.enabled) return;
+
+        const timestamp = new Date().toISOString();
+        const logEntry = {
+            timestamp,
+            category,
+            message,
+            data: data ? JSON.parse(JSON.stringify(data)) : null
+        };
+
+        this.logs.push(logEntry);
+
+        // Console output with emoji categories
+        const emojis = {
+            'API': '🌐',            'ASSISTANT': '🤖',            'THREAD': '🧵',            'RUN': '▶️',            'FILE_SEARCH': '🔍',            'RESPONSE': '📥',            'PARSING': '📋',            'VALIDATION': '✅',            'POST_PROCESS': '🛠️',            'GRADIENT': '🎨',            'PROPERTY': '⚙️',            'TEMPLATE': '📄',            'ERROR': '❌',            'WARNING': '⚠️',            'SUCCESS': '✨'
+        };
+
+        const emoji = emojis[category] || '📌';
+        console.group(`${emoji} [${category}] ${message}`);
+        if (data) {
+            if (typeof data === 'string' && data.length > 500) {                console.log('Data (truncated):', data.substring(0, 500) + '...');                console.log('Full length:', data.length, 'characters');
+            } else {
+                console.log('Data:', data);
+            }
+        }
+        console.groupEnd();
+    },
+
+    group(category, title) {
+        if (!this.enabled) return;
+        const emojis = {
+            'API': '🌐',            'ASSISTANT': '🤖',            'POST_PROCESS': '🛠️',            'VALIDATION': '✅'
+        };
+        const emoji = emojis[category] || '📌';
+        console.group(`${emoji} [${category}] ${title}`);
+    },
+
+    groupEnd() {
+        if (!this.enabled) return;
+        console.groupEnd();
+    },
+
+    downloadLogs() {
+        const blob = new Blob([JSON.stringify(this.logs, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `elementor-conversion-logs-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    },
+
+    clear() {
+        this.logs = [];
+        console.clear();
+        console.log('🧹 Logs cleared');
+    }
+};
+
+// ============================================================================
+// SCHEMA-FIRST WIDGET CREATION SYSTEM
+// ============================================================================
+
+/**
+ * Get default value for a property based on its name pattern
+ */
+function getDefaultValueForProperty(propName) {
+    // Critical container properties with sensible defaults
+    if (propName === 'content_width') {        return 'full';
+    }
+    if (propName === 'container_type') {        return 'flex';
+    }
+
+    // Color properties
+    if (propName.includes('_color') || propName === 'color') {        return '';
+    }
+
+    // Size/dimension properties
+    if (propName.includes('_size') || propName === 'font_size' || propName === 'letter_spacing' ||        propName === 'word_spacing' || propName === 'line_height') {        // Check if it's a responsive sizeif (propName.includes('font_size') || propName.includes('letter_spacing')) {            return {unit: 'px', size: ''};
+        }
+        if (propName.includes('line_height')) {            return {unit: 'em', size: ''};
+        }
+        return {unit: 'px', size: ''};
+    }
+
+    // Spacing properties (padding, margin)
+    if (propName === 'padding' || propName === 'margin' || propName.startsWith('_padding') || propName.startsWith('_margin')) {        return {unit: 'px', top: '', right: '', bottom: '', left: '', isLinked: true};
+    }
+
+    // Border radius
+    if (propName.includes('border_radius') || propName.includes('radius')) {        return {unit: 'px', top: '', right: '', bottom: '', left: '', isLinked: true};
+    }
+
+    // Border width
+    if (propName.includes('border_width') || propName === 'width') {        return {unit: 'px', top: '', right: '', bottom: '', left: '', isLinked: true};
+    }
+
+    // Angle properties
+    if (propName.includes('_angle')) {        return {unit: 'deg', size: 180};
+    }
+
+    // Gradient stop properties
+    if (propName.includes('_stop')) {        return {unit: '%', size: propName.includes('_b') ? 100 : 0};
+    }
+
+    // Gap properties
+    if (propName.includes('_gap')) {        return {unit: 'px', column: 0, row: 0};
+    }
+
+    // Link properties
+    if (propName === 'link') {        return {url: '', is_external: false, nofollow: false};
+    }
+
+    // Boolean/string defaults
+    return '';
+}
+
+/**
+ * Create a complete widget with ALL properties from schema
+ * @param {string} widgetType - The widget type (heading, text-editor, button, container, etc.)
+ * @returns {object} Complete widget object with all properties initialized
+ */
+function createWidget(widgetType) {
+    if (!WIDGET_SCHEMAS) {
+        console.error('❌ Widget schemas not loaded yet!');
+        return null;
+    }
+
+    const schema = WIDGET_SCHEMAS[widgetType];
+    if (!schema) {
+        console.error(`❌ No schema found for widget type: ${widgetType}`);
+        return null;
+    }
+
+    logger.log('SCHEMA', `Creating ${widgetType} widget from schema`, {
+        totalProperties: schema.totalProperties,
+        elType: schema.elType,
+        hasWidgetType: schema.hasWidgetType
+    });
+
+    // Create base widget structure
+    const widget = {
+        id: generateId(),
+        elType: schema.elType,
+        isInner: false,
+        settings: {},
+        elements: []
+    };
+
+    // Add widgetType ONLY if not a container
+    if (schema.hasWidgetType) {
+        widget.widgetType = widgetType;
+    }
+
+    // Initialize ALL properties from schema with defaults
+    let initializedCount = 0;
+    for (const [propName, propInfo] of Object.entries(schema.properties)) {
+        widget.settings[propName] = getDefaultValueForProperty(propName);
+        initializedCount++;
+    }
+
+    logger.log('SCHEMA', `✅ Initialized ${widgetType} with ${initializedCount} properties`);
+
+    return widget;
+}
+
+/**
+ * Build widgets from AI response using schemas
+ * @param {object} aiResponse - AI response with structure and extractedValues
+ * @returns {array} Complete widgets array
+ */
+function buildWidgetsFromAIResponse(aiResponse) {
+    logger.group('SCHEMA', 'Building widgets from AI response using schemas');
+
+    // Validate AI response structure
+    if (!aiResponse.structure || !Array.isArray(aiResponse.structure)) {
+        logger.log('ERROR', 'Invalid AI response - missing or invalid structure array', {
+            aiResponse: aiResponse,
+            hasStructure: !!aiResponse.structure,
+            structureType: typeof aiResponse.structure
+        });
+        console.error('❌ AI Response Format Error:', aiResponse);        throw new Error('AI returned invalid structure format. Expected {structure: [...]}');
+    }
+
+    if (aiResponse.structure.length === 0) {
+        logger.log('WARNING', 'AI returned empty structure array');        console.warn('⚠️ AI returned no widgets in structure');
+    }
+
+    function processItem(item, depth = 0) {
+        const indent = '  '.repeat(depth);        logger.log('SCHEMA', `${indent}Processing: ${item.widgetType}`);
+
+        // Create complete widget from schema
+        const widget = createWidget(item.widgetType);
+        if (!widget) {
+            logger.log('ERROR', `${indent}Failed to create widget: ${item.widgetType}`);
+            return null;
+        }
+
+        // Override with AI-extracted values
+        if (item.extractedValues) {
+            let overrideCount = 0;
+            for (const [key, value] of Object.entries(item.extractedValues)) {
+                if (key in widget.settings) {
+                    widget.settings[key] = value;
+                    overrideCount++;
+                    logger.log('SCHEMA', `${indent}  ✓ ${key} = ${JSON.stringify(value).substring(0, 50)}`);
+                } else {
+                    logger.log('WARNING', `${indent}  ⚠️ Unknown property: ${key}`);
+                }
+            }
+            logger.log('SCHEMA', `${indent}Overrode ${overrideCount} properties from AI`);
+        }
+
+        // Add activation flags if needed
+        if (widget.settings.typography_font_size?.size || widget.settings.typography_font_family) {
+            if (!widget.settings.typography_typography) {
+                widget.settings.typography_typography = 'custom';                logger.log('SCHEMA', `${indent}  ✓ Auto-added typography_typography = "custom"`);
+            }
+        }
+
+        if (widget.settings.background_gradient_color || widget.settings.background_color) {
+            if (!widget.settings.background_background) {
+                widget.settings.background_background = widget.settings.background_gradient_color ? 'gradient' : 'classic';                logger.log('SCHEMA', `${indent}  ✓ Auto-added background_background = "${widget.settings.background_background}"`);
+            }
+        }
+
+        // Process children recursively
+        if (item.children && item.children.length > 0) {
+            logger.log('SCHEMA', `${indent}Processing ${item.children.length} children`);
+            widget.elements = item.children.map(child => processItem(child, depth + 1)).filter(Boolean);
+        }
+
+        return widget;
+    }
+
+    const widgets = aiResponse.structure.map(item => processItem(item)).filter(Boolean);
+
+    logger.log('SCHEMA', `✅ Created ${widgets.length} complete widgets from schemas`);
+    logger.groupEnd();
+
+    return widgets;
+}
+
+// AI Progress Tracker
+const progressTracker = {
+    steps: [],
+    currentStep: -1,
+    startTime: null,
+
+    init(steps) {
+        this.steps = steps;
+        this.currentStep = -1;
+        this.startTime = Date.now();
+
+        const tracker = document.getElementById('aiProgressTracker');        const stepsContainer = document.getElementById('progressSteps');
+
+        // Clear and show tracker
+        stepsContainer.innerHTML = '';        tracker.classList.add('active');
+
+        logger.log('PROGRESS', 'Progress tracker initialized', { steps: steps.length });
+
+        // Create step elements
+        steps.forEach((step, index) => {
+            const stepEl = document.createElement('div');            stepEl.className = 'progress-step';
+            stepEl.id = `progress-step-${index}`;
+            stepEl.innerHTML = `<div class="step-icon">${index + 1}</div>                <div class="step-content">                    <div class="step-label">${step.label}</div>                    <div class="step-description">${step.description}</div>
+                </div>
+                <div class="step-time">--</div>
+            `;stepsContainer.appendChild(stepEl);
+        });
+    },
+
+    nextStep() {
+        // Mark previous step as completed
+        if (this.currentStep >= 0) {
+            const prevStep = document.getElementById(`progress-step-${this.currentStep}`);
+            if (prevStep) {
+                prevStep.classList.remove('active');                prevStep.classList.add('completed');
+                const elapsed = ((Date.now() - this.startTime) / 1000).toFixed(1);
+                prevStep.querySelector('.step-time').textContent = `${elapsed}s`;
+            }
+        }
+
+        // Activate next step
+        this.currentStep++;
+        if (this.currentStep < this.steps.length) {
+            const currentStep = document.getElementById(`progress-step-${this.currentStep}`);
+            if (currentStep) {
+                currentStep.classList.add('active');                currentStep.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    },
+
+    complete(success = true) {
+        // Mark last step as completed
+        if (this.currentStep >= 0) {
+            const lastStep = document.getElementById(`progress-step-${this.currentStep}`);
+            if (lastStep) {
+                lastStep.classList.remove('active');                lastStep.classList.add('completed');
+                const elapsed = ((Date.now() - this.startTime) / 1000).toFixed(1);
+                lastStep.querySelector('.step-time').textContent = `${elapsed}s`;
+            }
+        }
+
+        // Hide tracker after delay
+        setTimeout(() => {
+            const tracker = document.getElementById('aiProgressTracker');            tracker.classList.remove('active');
+        }, success ? 2000 : 0);
+    },
+
+    hide() {
+        const tracker = document.getElementById('aiProgressTracker');        tracker.classList.remove('active');
+    }
+};
+
+// Show status message
+function showStatus(message, type = 'info') {    const statusDiv = document.getElementById('statusMessage');    const alertClass = type === 'error' ? 'alert-error' : type === 'success' ? 'alert-success' : 'alert-info';    const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+    
+    statusDiv.innerHTML = `<div class="alert ${alertClass}">${icon} ${message}</div>`;
+    
+    setTimeout(() => {
+        statusDiv.innerHTML = '';
+    }, 5000);
+}
+
+// Enhanced browser-only conversion with comprehensive detection
+function browserConvert(html, css, js) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    const editableFields = {};
+    let fieldCounter = { text: 0, color: 0, image: 0, link: 0, spacing: 0, background: 0 };
+
+    // Detect text elements
+    const textSelectors = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'button', 'a'];
+    textSelectors.forEach(selector => {
+        doc.querySelectorAll(selector).forEach(element => {
+            if (element.textContent.trim()) {
+                const fieldId = `text_${fieldCounter.text++}`;
+                const originalText = element.textContent.trim();
+
+                editableFields[fieldId] = {
+                    type: 'text',                    label: `${selector.toUpperCase()}: ${originalText.substring(0, 30)}${originalText.length > 30 ? '...' : ''}`,
+                    default: originalText,
+                    placeholder: `{{${fieldId}}}`
+                };
+
+                element.textContent = `{{${fieldId}}}`;
+            }
+        });
+    });
+
+    // Detect links
+    doc.querySelectorAll('a[href]').forEach(link => {        const href = link.getAttribute('href');        if (href && href !== '#') {
+            const fieldId = `link_${fieldCounter.link++}`;
+
+            editableFields[fieldId] = {
+                type: 'url',                label: `Link: ${href.substring(0, 40)}${href.length > 40 ? '...' : ''}`,
+                default: href,
+                placeholder: `{{${fieldId}}}`
+            };
+
+            link.setAttribute('href', `{{${fieldId}}}`);
+        }
+    });
+
+    // Detect images
+    doc.querySelectorAll('img').forEach(img => {        const src = img.getAttribute('src');
+        if (src) {
+            const fieldId = `image_${fieldCounter.image++}`;
+
+            editableFields[fieldId] = {
+                type: 'image',
+                label: `Image: ${src.substring(0, 30)}...`,
+                default: src,
+                placeholder: `{{${fieldId}}}`
+            };
+
+            img.setAttribute('src', `{{${fieldId}}}`);
+        }
+    });
+
+    // Detect colors in CSS
+    const colorRegex = /(#[0-9a-fA-F]{3,6}|rgb\([^)]+\)|rgba\([^)]+\)|hsl\([^)]+\)|hsla\([^)]+\))/g;
+    let modifiedCSS = css;
+    const colorMatches = css.match(colorRegex) || [];
+
+    // Remove duplicates
+    const uniqueColors = [...new Set(colorMatches)];
+
+    uniqueColors.forEach(color => {
+        const fieldId = `color_${fieldCounter.color++}`;
+
+        editableFields[fieldId] = {
+            type: 'color',
+            label: `Color ${fieldCounter.color}: ${color}`,
+            default: color,
+            placeholder: `{{${fieldId}}}`
+        };
+
+        modifiedCSS = modifiedCSS.replace(new RegExp(color.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `{{${fieldId}}}`);
+    });
+
+    // Detect spacing (padding, margin) in CSS
+    const spacingRegex = /(padding|margin):\s*([^;]+);/g;
+    let match;
+    while ((match = spacingRegex.exec(css)) !== null) {
+        const property = match[1];
+        const value = match[2];
+        const fieldId = `spacing_${fieldCounter.spacing++}`;
+
+        editableFields[fieldId] = {
+            type: 'spacing',
+            label: `${property.charAt(0).toUpperCase() + property.slice(1)}: ${value}`,
+            default: value,
+            placeholder: `{{${fieldId}}}`
+        };
+
+        modifiedCSS = modifiedCSS.replace(match[0], `${property}: {{${fieldId}}};`);
+    }
+
+    // Detect background images
+    const bgImageRegex = /background(-image)?:\s*url\(['"]?([^'"]+)['"]?\)/g;while ((match = bgImageRegex.exec(css)) !== null) {
+        const bgUrl = match[2];
+        const fieldId = `background_${fieldCounter.background++}`;
+
+        editableFields[fieldId] = {
+            type: 'image',
+            label: `Background Image: ${bgUrl.substring(0, 30)}...`,
+            default: bgUrl,
+            placeholder: `{{${fieldId}}}`
+        };
+
+        modifiedCSS = modifiedCSS.replace(match[0], `background-image: url({{${fieldId}}})`);
+    }
+
+    return {
+        html: doc.body.innerHTML,
+        css: modifiedCSS,
+        js: js,
+        fields: editableFields
+    };
+}
+
+// Validate Elementor JSON structure
+function validateElementorJSON(structure) {
+    const warnings = [];
+    const validWidgetTypes = ['heading', 'text-editor', 'image', 'button', 'container', 'spacer', 'divider', 'icon', 'icon-list', 'image-box', 'html'];
+
+    // Check required top-level properties
+    if (!structure.fidelity_score) warnings.push('Missing fidelity_score');    if (!structure.structure_analysis) warnings.push('Missing structure_analysis');
+    if (!structure.elements || !Array.isArray(structure.elements)) {
+        warnings.push('Missing or invalid elements array');
+        return { valid: false, warnings };
+    }
+
+    // Validate each element recursively
+    const validateElement = (element, path = 'root') => {
+        if (!element.id) warnings.push(`${path}: Missing id`);
+        if (!element.elType) warnings.push(`${path}: Missing elType`);
+
+        if (element.elType === 'widget') {
+            if (!element.widgetType) {
+                warnings.push(`${path}: Widget missing widgetType`);
+            } else if (!validWidgetTypes.includes(element.widgetType)) {
+                warnings.push(`${path}: Invalid widgetType "${element.widgetType}"`);
+            }
+
+            // Validate widget-specific settings
+            if (element.widgetType === 'heading' && element.settings && !element.settings.title) {
+                warnings.push(`${path}: Heading widget missing title setting`);
+            }
+            if (element.widgetType === 'button' && element.settings && !element.settings.text) {
+                warnings.push(`${path}: Button widget missing text setting`);
+            }
+            if (element.widgetType === 'text-editor' && element.settings && !element.settings.editor) {
+                warnings.push(`${path}: Text-editor widget missing editor setting`);
+            }
+        }
+
+        // Validate nested elements
+        if (element.elements && Array.isArray(element.elements)) {
+            element.elements.forEach((child, index) => {
+                validateElement(child, `${path}.elements[${index}]`);
+            });
+        }
+    };
+
+    structure.elements.forEach((element, index) => {
+        validateElement(element, `elements[${index}]`);
+    });
+
+    return { valid: warnings.length === 0, warnings };
+}
+
+// Load and validate against full Elementor reference file
+async function validatePropertiesAgainstReference(structure) {
+    try {
+        const response = await fetch('elementor-controls-reference.json');
+        if (!response.ok) {
+            console.warn('⚠️ Could not load elementor-controls-reference.json');
+            return { valid: true, warnings: [], suggestions: [] };
+        }
+        const fullReference = await response.json();
+        return validatePropertyNames(structure, fullReference);
+    } catch (error) {
+        console.warn('⚠️ Error loading reference file:', error.message);
+        return { valid: true, warnings: [], suggestions: [] };
+    }
+}
+
+// Validate property names against Elementor controls reference
+function validatePropertyNames(structure, elementorReference) {
+    const warnings = [];
+    const suggestions = [];
+
+    // Build valid property sets from reference
+    const validProperties = {};
+    Object.keys(elementorReference).forEach(widgetType => {
+        // Skip metadata entries
+        if (widgetType.startsWith('_')) return;
+
+        const ref = elementorReference[widgetType];
+        validProperties[widgetType] = new Set();
+
+        // Helper to recursively extract property names
+        const extractProperties = (obj, prefix = '') => {            if (!obj || typeof obj !== 'object') return;
+
+            Object.keys(obj).forEach(key => {
+                const value = obj[key];
+
+                // Add the property itself
+                const propName = prefix ? `${prefix}_${key}` : key;
+                validProperties[widgetType].add(propName);
+
+                // If it has nested properties, extract those too
+                if (value && typeof value === 'object') {                    if (value.properties && typeof value.properties === 'object') {
+                        // This is a group control with nested properties
+                        Object.keys(value.properties).forEach(nestedKey => {
+                            validProperties[widgetType].add(nestedKey);
+                        });
+                    }
+                }
+            });
+        };
+
+        // Extract from all control sections
+        if (ref.content_controls) extractProperties(ref.content_controls);
+        if (ref.style_controls) extractProperties(ref.style_controls);
+        if (ref.layout_controls) extractProperties(ref.layout_controls);
+    });
+
+    console.log('📚 Loaded property reference for widgets:', Object.keys(validProperties));
+    Object.keys(validProperties).forEach(type => {
+        console.log(`  • ${type}: ${validProperties[type].size} properties`);
+    });
+
+    // Validate each element's propertiesconst validateElement = (element, path = 'root') => {
+        // Handle both widgets and containers
+        const typeToCheck = element.widgetType || (element.elType === 'container' ? 'container' : null);
+
+        if (typeToCheck && element.settings) {
+            // Try both hyphenated and underscored versions
+            const normalizedType = typeToCheck.replace(/-/g, '_');            const hyphenatedType = typeToCheck.replace(/_/g, '-');
+
+            const validProps = validProperties[normalizedType] || validProperties[hyphenatedType] || validProperties[typeToCheck];
+
+            if (validProps) {
+                Object.keys(element.settings).forEach(prop => {
+                    if (!validProps.has(prop)) {
+                        // Check for common mistakes
+                        let suggestion = null;
+
+                        if (typeToCheck === 'heading' && prop === 'text_color') {                            suggestion = 'title_color';                        } else if (prop.includes('color_start')) {                            suggestion = prop.replace('color_start', 'gradient_color');                        } else if (prop.includes('color_end')) {                            suggestion = prop.replace('color_end', 'gradient_color_b');                        } else if (prop === 'background_color' && !element.settings.background_background) {                            suggestion = 'Set background_background first';                        } else if (prop.startsWith('typography_') && !element.settings.typography_typography) {                            suggestion = 'Set typography_typography: "custom" first';
+                        }
+
+                        const warning = `${path} [${typeToCheck}]: Unknown property "${prop}"`;
+                        warnings.push(suggestion ? `${warning} → Try: ${suggestion}` : warning);
+
+                        if (suggestion) {
+                            suggestions.push({
+                                path,
+                                widgetType: typeToCheck,
+                                incorrectProperty: prop,
+                                suggestedProperty: suggestion
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        // Validate nested elements
+        if (element.elements && Array.isArray(element.elements)) {
+            element.elements.forEach((child, index) => {
+                validateElement(child, `${path}.elements[${index}]`);
+            });
+        }
+    };
+
+    if (structure.elements && Array.isArray(structure.elements)) {
+        structure.elements.forEach((element, index) => {
+            validateElement(element, `elements[${index}]`);
+        });
+    }
+
+    return {
+        valid: warnings.length === 0,
+        warnings,
+        suggestions
+    };
+}
+
+// Extract computed styles from rendered DOM
+function extractComputedStyles(html, css) {
+    console.log('🔍 Extracting computed styles from rendered DOM...');
+
+    // Create hidden iframe to render HTML
+    const iframe = document.createElement('iframe');    iframe.style.position = 'absolute';    iframe.style.left = '-9999px';    iframe.style.width = '1920px';    iframe.style.height = '1080px';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentDocument;
+    iframeDoc.open();
+    iframeDoc.write(`<!DOCTYPE html>
+        <html>
+        <head><style>${css}</style></head>
+        <body>${html}</body>
+        </html>
+    `);iframeDoc.close();
+
+    const styleData = {};
+
+    // Extract computed styles for all elements
+    iframeDoc.body.querySelectorAll('*').forEach((element, index) => {
+        const computed = window.getComputedStyle(element);
+        const id = element.tagName.toLowerCase() + '_' + index;
+
+        styleData[id] = {
+            tag: element.tagName.toLowerCase(),
+            text: element.textContent?.trim(),
+            styles: {
+                fontSize: computed.fontSize,
+                fontFamily: computed.fontFamily,
+                fontWeight: computed.fontWeight,
+                color: computed.color,
+                backgroundColor: computed.backgroundColor,
+                backgroundImage: computed.backgroundImage,
+                padding: computed.padding,
+                paddingTop: computed.paddingTop,
+                paddingRight: computed.paddingRight,
+                paddingBottom: computed.paddingBottom,
+                paddingLeft: computed.paddingLeft,
+                margin: computed.margin,
+                marginTop: computed.marginTop,
+                marginRight: computed.marginRight,
+                marginBottom: computed.marginBottom,
+                marginLeft: computed.marginLeft,
+                border: computed.border,
+                borderWidth: computed.borderWidth,
+                borderColor: computed.borderColor,
+                borderStyle: computed.borderStyle,
+                borderRadius: computed.borderRadius,
+                textAlign: computed.textAlign,
+                display: computed.display,
+                flexDirection: computed.flexDirection,
+                justifyContent: computed.justifyContent,
+                alignItems: computed.alignItems,
+                gap: computed.gap,
+                width: computed.width,
+                height: computed.height,
+                lineHeight: computed.lineHeight,
+                letterSpacing: computed.letterSpacing
+            }
+        };
+    });
+
+    document.body.removeChild(iframe);
+    console.log('✅ Extracted computed styles for', Object.keys(styleData).length, 'elements');
+    return styleData;
+}
+
+// =========================
+// Background/Gradient helpers and post-processing
+// =========================
+function rgbToHex(color) {
+    if (!color) return null;
+    if (color.startsWith('#')) return color.toUpperCase();    if (color === 'transparent') return null;
+    const m = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([0-9.]+))?\s*\)/i);
+    if (!m) return null;
+    const r = Math.max(0, Math.min(255, parseInt(m[1], 10)));
+    const g = Math.max(0, Math.min(255, parseInt(m[2], 10)));
+    const b = Math.max(0, Math.min(255, parseInt(m[3], 10)));
+    return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+function hslToHex(hsl) {
+    const m = hsl.match(/hsla?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)%\s*,\s*(\d+(?:\.\d+)?)%(?:\s*,\s*([0-9.]+))?\s*\)/i);
+    if (!m) return null;
+    let h = (parseFloat(m[1]) % 360) / 360;
+    let s = Math.max(0, Math.min(100, parseFloat(m[2]))) / 100;
+    let l = Math.max(0, Math.min(100, parseFloat(m[3]))) / 100;
+    const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const r = Math.round(hue2rgb(p, q, h + 1/3) * 255);
+    const g = Math.round(hue2rgb(p, q, h) * 255);
+    const b = Math.round(hue2rgb(p, q, h - 1/3) * 255);
+    return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+function normalizeColorToHex(col) {
+    if (!col) return null;
+    if (col.startsWith('#')) return col.toUpperCase();
+    if (/rgba?\(/i.test(col)) return rgbToHex(col);
+    if (/hsla?\(/i.test(col)) return hslToHex(col);
+    // Unknown format or named color; let Elementor/theme handle
+    return null;
+}
+
+function isTransparentColor(col) {
+    if (!col) return true;
+    if (col === 'transparent') return true;
+    const m = col.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(?:\s*,\s*([0-9.]+))?\s*\)/i);
+    if (m && m[1] !== undefined) return parseFloat(m[1]) === 0;
+    return false;
+}
+
+function parseGradientString(str) {
+    if (!str || !/gradient\(/i.test(str)) return null;
+    const lower = str.toLowerCase();
+    const type = lower.includes('linear-gradient') ? 'linear' : (lower.includes('radial-gradient') ? 'radial' : 'linear');
+    const angleMatch = lower.match(/(-?\d+(?:\.\d+)?)deg/);
+    const angle = angleMatch ? parseFloat(angleMatch[1]) : 180;
+    const colorRegex = /#(?:[0-9a-f]{3,8})\b|rgba?\([^\)]+\)|hsla?\([^\)]+\)/ig;
+    const colors = lower.match(colorRegex) || [];
+    const c1 = normalizeColorToHex(colors[0]);
+    const c2 = normalizeColorToHex(colors[1]);
+    const stops = (lower.match(/(\d+(?:\.\d+)?)%/g) || []).map(s => parseFloat(s));
+    const loc1 = stops[0] !== undefined ? stops[0] : 0;
+    const loc2 = stops[1] !== undefined ? stops[1] : 100;
+    if (!c1 || !c2) return null;
+    return { type, angle, colorA: c1, colorB: c2, locationA: loc1, locationB: loc2 };
+}
+
+function firstRenderedElementStyles(computedStyles) {
+    if (!computedStyles) return null;
+    const firstKey = Object.keys(computedStyles)[0];
+    return firstKey ? computedStyles[firstKey].styles : null;
+}
+
+function enforceActivationFlagsOnSettings(settings) {
+    if (!settings || typeof settings !== 'object') return;
+    // Background activation
+    const hasGrad = 'background_color_b' in settings || 'background_gradient_color_b' in settings;    const hasClassic = 'background_color' in settings && !hasGrad;
+    if (!settings.background_background && hasGrad) {
+        settings.background_background = 'gradient';
+    }
+    if (!settings.background_background && hasClassic) {
+        settings.background_background = 'classic';
+    }
+    if (settings.background_background === 'gradient') {        if (!('background_gradient_type' in settings)) settings.background_gradient_type = 'linear';        if (!('background_gradient_color_stop' in settings)) settings.background_gradient_color_stop = { unit: '%', size: 0 };        if (!('background_gradient_color_b_stop' in settings)) settings.background_gradient_color_b_stop = { unit: '%', size: 100 };        if (!('background_gradient_angle' in settings)) settings.background_gradient_angle = { unit: 'deg', size: 180 };
+    }
+    // Typography activation
+    const hasTypographyProps = Object.keys(settings).some(k => k.startsWith('typography_') && k !== 'typography_typography');
+    if (hasTypographyProps && !settings.typography_typography) {
+        settings.typography_typography = 'custom';
+    }
+    // Border activation
+    if ((settings.border_color || settings.border_width) && !settings.border_border) {
+        settings.border_border = 'solid';
+    }
+}
+
+function enforceActivationFlags(structure) {
+    if (!structure || !Array.isArray(structure.elements)) return structure;
+    const walk = (el) => {
+        if (el.settings) enforceActivationFlagsOnSettings(el.settings);
+        if (Array.isArray(el.elements)) el.elements.forEach(walk);
+    };
+    structure.elements.forEach(walk);
+    return structure;
+}
+
+function applyBackgroundFromComputedToTopContainer(structure, computedStyles) {
+    logger.group('GRADIENT', 'Applying background from computed styles');
+
+    if (!structure || !Array.isArray(structure.elements) || structure.elements.length === 0) {
+        logger.log('GRADIENT', 'No elements in structure, skipping');
+        logger.groupEnd();
+        return structure;
+    }
+
+    const top = structure.elements[0];
+    if (!top || (top.elType !== 'container' && top.elType !== 'section')) {        logger.log('GRADIENT', 'Top element is not container/section, skipping', { elType: top?.elType });
+        logger.groupEnd();
+        return structure;
+    }
+
+    top.settings = top.settings || {};
+
+    const styles = firstRenderedElementStyles(computedStyles);
+    if (!styles) {
+        logger.log('GRADIENT', 'No computed styles found, skipping');
+        logger.groupEnd();
+        return structure;
+    }
+
+    logger.log('GRADIENT', 'Computed background styles detected', {
+        backgroundImage: styles.backgroundImage?.substring(0, 100),
+        backgroundColor: styles.backgroundColor
+    });
+
+    const grad = parseGradientString(styles.backgroundImage);
+    if (grad) {
+        logger.log('GRADIENT', 'Gradient successfully parsed', grad);
+
+        // Clear any existing background properties that might conflict
+        delete top.settings.background_color;
+
+        // Set gradient properties (these will override anything AI generated)
+        top.settings.background_background = 'gradient';
+        top.settings.background_gradient_type = grad.type;
+        top.settings.background_gradient_angle = { unit: 'deg', size: grad.angle };
+        // Elementor uses background_gradient_color (not background_color for gradients!)
+        top.settings.background_gradient_color = grad.colorA;
+        top.settings.background_gradient_color_b = grad.colorB;
+        top.settings.background_gradient_color_stop = { unit: '%', size: grad.locationA };        top.settings.background_gradient_color_b_stop = { unit: '%', size: grad.locationB };
+
+        logger.log('GRADIENT', 'Gradient properties applied to container', {
+            background_background: top.settings.background_background,
+            background_gradient_type: top.settings.background_gradient_type,
+            background_gradient_color: top.settings.background_gradient_color,
+            background_gradient_color_b: top.settings.background_gradient_color_b,
+            background_gradient_color_stop: top.settings.background_gradient_color_stop,
+            background_gradient_color_b_stop: top.settings.background_gradient_color_b_stop,
+            angle: top.settings.background_gradient_angle
+        });
+        logger.groupEnd();
+        return structure;
+    }
+
+    // Only apply solid background if no gradient detected
+    const bgHex = normalizeColorToHex(styles.backgroundColor);
+    if (bgHex && !isTransparentColor(styles.backgroundColor)) {
+        logger.log('GRADIENT', 'Solid background applied (no gradient detected)', { color: bgHex });
+
+        // Clear any gradient properties if they exist
+        delete top.settings.background_gradient_color;
+        delete top.settings.background_gradient_color_b;
+        delete top.settings.background_gradient_color_stop;
+        delete top.settings.background_gradient_color_b_stop;
+        delete top.settings.background_gradient_type;
+        delete top.settings.background_gradient_angle;
+
+        top.settings.background_background = 'classic';
+        top.settings.background_color = bgHex;
+    } else {
+        logger.log('GRADIENT', 'No background applied', {
+            bgHex,
+            isTransparent: isTransparentColor(styles.backgroundColor)
+        });
+    }
+
+    logger.groupEnd();
+    return structure;
+}
+
+// Widget Property Templates - Complete definitions for each widget type
+const WIDGET_PROPERTY_TEMPLATES = {
+    container: {
+        // Background (classic)
+        background_background: "classic",  // REQUIRED: "classic"|"gradient"        background_color: "#FFFFFF",
+
+        // Background (gradient) - use these instead when gradient is needed
+        // background_background: "gradient",  // REQUIRED first!        // background_gradient_type: "linear",        // background_gradient_angle: {unit: "deg", size: 180},        // background_gradient_color: "#hex",      // First color - REQUIRED!        // background_gradient_color_b: "#hex",    // Second color - REQUIRED!        // background_gradient_color_stop: {unit: "%", size: 0},        // background_gradient_color_b_stop: {unit: "%", size: 100},
+
+        // Spacing
+        padding: {unit: "px", top: 0, right: 0, bottom: 0, left: 0, isLinked: false},        margin: {unit: "px", top: 0, right: 0, bottom: 0, left: 0, isLinked: false},
+
+        // Border (only if border exists)
+        // border_border: "solid",  // Activate with "solid"|"dashed"|"dotted"        // border_width: {unit: "px", top: 1, right: 1, bottom: 1, left: 1, isLinked: true},        // border_color: "#000000",        border_radius: {unit: "px", top: 0, right: 0, bottom: 0, left: 0, isLinked: true},
+
+        // Layout (flexbox default)
+        flex_direction: "row",        flex_justify_content: "flex-start",        flex_align_items: "flex-start",        flex_gap: {unit: "px", column: 0, row: 0}
+    },
+
+    heading: {
+        // Content
+        title: "Heading Text",        header_size: "h2",        align: "left",
+
+        // Color
+        title_color: "#000000",
+
+        // Typography (MUST activate first!)
+        typography_typography: "custom",  // REQUIRED to activate!        typography_font_family: "Arial",        typography_font_size: {unit: "px", size: 32},        typography_font_weight: "700",        typography_line_height: {unit: "em", size: 1.2},        typography_letter_spacing: {unit: "px", size: 0}
+    },
+
+    "text-editor": {
+        // Content
+        editor: "<p>Text content here</p>",        align: "left",
+
+        // Color
+        text_color: "#000000",
+
+        // Typography (MUST activate first!)
+        typography_typography: "custom",  // REQUIRED to activate!        typography_font_family: "Arial",        typography_font_size: {unit: "px", size: 16},        typography_font_weight: "400",        typography_line_height: {unit: "em", size: 1.6},        typography_letter_spacing: {unit: "px", size: 0}
+    },
+
+    button: {
+        // Content
+        text: "Click Here",        align: "left",
+
+        // Typography (MUST activate first!)
+        typography_typography: "custom",  // REQUIRED to activate!        typography_font_family: "Arial",        typography_font_size: {unit: "px", size: 16},        typography_font_weight: "600",
+
+        // Colors
+        button_text_color: "#FFFFFF",
+
+        // Background (MUST activate first!)
+        background_background: "classic",  // REQUIRED: "classic"|"gradient"        background_color: "#0073e6",
+
+        // Border (optional - only if border exists)
+        // border_border: "solid",  // Activate with "solid"|"dashed"|"dotted"        // border_width: {unit: "px", top: 2, right: 2, bottom: 2, left: 2, isLinked: true},        // border_color: "#0073e6",        border_radius: {unit: "px", top: 4, right: 4, bottom: 4, left: 4, isLinked: true},
+
+        // Spacing
+        button_padding: {unit: "px", top: 12, right: 24, bottom: 12, left: 24, isLinked: false}
+    }
+};
+
+function ensureCompleteWidgetProperties(element, onlyIfMissing = false) {
+    if (!element || !element.widgetType) return;
+
+    const template = WIDGET_PROPERTY_TEMPLATES[element.widgetType];
+    if (!template) return;
+
+    element.settings = element.settings || {};
+
+    // For containers, check if gradient is needed based on what AI provided
+    if (element.widgetType === 'container' && element.settings.background_background === 'gradient') {
+        // Ensure both gradient colors exist
+        if (!element.settings.background_gradient_color || !element.settings.background_gradient_color_b) {
+            console.warn('⚠️ Container gradient missing colors, will be fixed in post-processing');
+        }
+        // Ensure gradient structure is complete
+        if (!element.settings.background_gradient_type) element.settings.background_gradient_type = 'linear';
+        if (!element.settings.background_gradient_angle) element.settings.background_gradient_angle = {unit: "deg", size: 180};        if (!element.settings.background_gradient_color_stop) element.settings.background_gradient_color_stop = {unit: "%", size: 0};        if (!element.settings.background_gradient_color_b_stop) element.settings.background_gradient_color_b_stop = {unit: "%", size: 100};
+    }
+
+    // Apply template defaults
+    for (const [key, defaultValue] of Object.entries(template)) {
+        // If onlyIfMissing is true, skip if property already exists (preserves computed styles)
+        if (onlyIfMissing && (key in element.settings)) {
+            continue;
+        }
+
+        if (!(key in element.settings)) {
+            // Skip commented-out optional properties (border, gradient when classic is used, etc.)
+            if (key.startsWith('border_') && key !== 'border_radius' && !element.settings.border_border) continue;            if (key.startsWith('background_gradient_') && element.settings.background_background === 'classic') continue;
+
+            // Apply default
+            element.settings[key] = typeof defaultValue === 'object' ? JSON.parse(JSON.stringify(defaultValue)) : defaultValue;
+        }
+    }
+
+    // Recursively process child elements
+    if (element.elements && Array.isArray(element.elements)) {
+        element.elements.forEach(el => ensureCompleteWidgetProperties(el, onlyIfMissing));
+    }
+}
+
+// NEW: Apply computed styles to ALL elements in the structure (fidelity-first)
+function applyAllComputedStylesToElements(structure, computedStyles) {
+    if (!computedStyles || !structure || !structure.elements) return;
+
+    logger.group('COMPUTED_STYLES', 'Applying computed styles to all elements');    logger.log('COMPUTED_STYLES', 'Available computed styles', {
+        elementCount: Object.keys(computedStyles).length,
+        elements: Object.keys(computedStyles)
+    });
+
+    // Create a map of element selectors to their computed styles
+    const styleMap = new Map();
+    Object.entries(computedStyles).forEach(([selector, data]) => {
+        styleMap.set(selector, data.styles);
+    });
+
+    // Walk the element tree and apply styles
+    const applyToElement = (element, depth = 0) => {
+        if (!element || !element.settings) return;
+
+        // Try to match this element with computed styles
+        // For now, apply first available styles (TODO: improve matching)
+        const availableStyles = Array.from(styleMap.values());
+        if (availableStyles.length === 0) return;
+
+        const widgetType = element.widgetType;
+        const styles = availableStyles[0]; // Use first for now
+
+        logger.log('COMPUTED_STYLES', `Applying to ${widgetType || element.elType}`, {
+            depth,
+            widgetType,
+            elType: element.elType
+        });
+
+        // Apply computed styles based on widget type
+        if (widgetType === 'heading' || widgetType === 'text-editor') {
+            // Typography
+            if (styles.fontSize) {
+                const size = parseFloat(styles.fontSize);
+                element.settings.typography_font_size = { unit: 'px', size: Math.round(size) };
+            }
+            if (styles.fontWeight) {
+                element.settings.typography_font_weight = String(styles.fontWeight);
+            }
+            if (styles.fontFamily) {
+                element.settings.typography_font_family = styles.fontFamily.split(',')[0].replace(/['"]/g, '');}
+            if (styles.lineHeight) {
+                const lh = parseFloat(styles.lineHeight);
+                element.settings.typography_line_height = { unit: 'em', size: lh };
+            }
+            if (styles.letterSpacing) {
+                const ls = parseFloat(styles.letterSpacing);
+                element.settings.typography_letter_spacing = { unit: 'px', size: Math.round(ls) };
+            }
+
+            // Color
+            if (styles.color) {
+                const hex = normalizeColorToHex(styles.color);
+                if (hex) {
+                    if (widgetType === 'heading') {
+                        element.settings.title_color = hex;
+                    } else {
+                        element.settings.text_color = hex;
+                    }
+                }
+            }
+
+            // Ensure typography is activated
+            element.settings.typography_typography = 'custom';
+        }
+
+        if (widgetType === 'button') {
+            // Button text color
+            if (styles.color) {
+                const hex = normalizeColorToHex(styles.color);
+                if (hex) element.settings.button_text_color = hex;
+            }
+
+            // Button background
+            if (styles.backgroundColor && !isTransparentColor(styles.backgroundColor)) {
+                const hex = normalizeColorToHex(styles.backgroundColor);
+                if (hex) {
+                    element.settings.background_background = 'classic';
+                    element.settings.background_color = hex;
+                }
+            }
+
+            // Button padding
+            if (styles.paddingTop && styles.paddingRight && styles.paddingBottom && styles.paddingLeft) {
+                element.settings.button_padding = {
+                    unit: 'px',
+                    top: parseFloat(styles.paddingTop),
+                    right: parseFloat(styles.paddingRight),
+                    bottom: parseFloat(styles.paddingBottom),
+                    left: parseFloat(styles.paddingLeft),
+                    isLinked: false
+                };
+            }
+
+            // Border radius
+            if (styles.borderTopLeftRadius) {
+                element.settings.border_radius = {
+                    unit: 'px',
+                    top: parseFloat(styles.borderTopLeftRadius),
+                    right: parseFloat(styles.borderTopRightRadius || styles.borderTopLeftRadius),
+                    bottom: parseFloat(styles.borderBottomRightRadius || styles.borderTopLeftRadius),
+                    left: parseFloat(styles.borderBottomLeftRadius || styles.borderTopLeftRadius),
+                    isLinked: true
+                };
+            }
+        }
+
+        if (widgetType === 'container' || element.elType === 'container') {
+            // Padding
+            if (styles.paddingTop !== undefined) {
+                element.settings.padding = {
+                    unit: 'px',
+                    top: parseFloat(styles.paddingTop),
+                    right: parseFloat(styles.paddingRight || styles.paddingTop),
+                    bottom: parseFloat(styles.paddingBottom || styles.paddingTop),
+                    left: parseFloat(styles.paddingLeft || styles.paddingTop),
+                    isLinked: false
+                };
+            }
+
+            // Margin
+            if (styles.marginTop !== undefined) {
+                element.settings.margin = {
+                    unit: 'px',
+                    top: parseFloat(styles.marginTop),
+                    right: parseFloat(styles.marginRight || styles.marginTop),
+                    bottom: parseFloat(styles.marginBottom || styles.marginTop),
+                    left: parseFloat(styles.marginLeft || styles.marginTop),
+                    isLinked: false
+                };
+            }
+
+            // Border radius
+            if (styles.borderTopLeftRadius) {
+                element.settings.border_radius = {
+                    unit: 'px',
+                    top: parseFloat(styles.borderTopLeftRadius),
+                    right: parseFloat(styles.borderTopRightRadius || styles.borderTopLeftRadius),
+                    bottom: parseFloat(styles.borderBottomRightRadius || styles.borderTopLeftRadius),
+                    left: parseFloat(styles.borderBottomLeftRadius || styles.borderTopLeftRadius),
+                    isLinked: true
+                };
+            }
+        }
+
+        // Recursively apply to children
+        if (element.elements && Array.isArray(element.elements)) {
+            element.elements.forEach(child => applyToElement(child, depth + 1));
+        }
+    };
+
+    structure.elements.forEach(el => applyToElement(el, 0));
+    logger.groupEnd();
+}
+
+function postProcessElementorStructure(structure, computedStyles) {
+    logger.group('POST_PROCESS', 'Starting post-processing pipeline (FIDELITY-FIRST ORDER)');
+
+    try {
+        // STEP 1: Apply computed styles FIRST (exact values from browser)
+        logger.log('POST_PROCESS', 'Step 1: Applying computed styles (PRIORITY)');
+        applyAllComputedStylesToElements(structure, computedStyles);
+        logger.log('POST_PROCESS', 'Computed styles applied with priority');
+
+        // STEP 2: Apply gradient/background to top container from computed styles
+        logger.log('POST_PROCESS', 'Step 2: Applying backgrounds from computed styles');
+        applyBackgroundFromComputedToTopContainer(structure, computedStyles);
+
+        // STEP 3: Fill missing properties from templates (only if not already set)
+        logger.log('POST_PROCESS', 'Step 3: Filling missing properties from templates');
+        if (structure.elements && Array.isArray(structure.elements)) {
+            logger.log('TEMPLATE', 'Processing elements', { count: structure.elements.length });
+            structure.elements.forEach(el => ensureCompleteWidgetProperties(el, true)); // true = onlyIfMissing
+            logger.log('TEMPLATE', 'Widget properties completed (non-destructive)');
+        }
+
+        // STEP 4: Ensure activation flags so Elementor applies our settings
+        logger.log('POST_PROCESS', 'Step 4: Enforcing activation flags');
+        enforceActivationFlags(structure);
+        logger.log('POST_PROCESS', 'Activation flags enforced');
+
+        // 4) Ensure all elements have required Elementor properties
+        logger.log('POST_PROCESS', 'Step 4: Adding required Elementor properties');
+        const ensureElementorProperties = (element) => {
+            if (!element) return;
+
+            // Generate ID if missing
+            if (!element.id) {
+                element.id = generateId();
+            }
+
+            // Add elType if missing (determine from widgetType)
+            if (!element.elType) {
+                element.elType = element.widgetType === 'container' ? 'container' : 'widget';
+            }
+
+            // CRITICAL: Remove widgetType from containers (only widgets should have it)
+            if (element.elType === 'container' && element.widgetType === 'container') {
+                delete element.widgetType;
+            }
+
+            // Add isInner if missing
+            if (element.isInner === undefined) {
+                element.isInner = false;
+            }
+
+            // Ensure elements array exists (even if empty for widgets)
+            if (!element.elements) {
+                element.elements = [];
+            }
+
+            // Recursively process children
+            if (element.elements && Array.isArray(element.elements)) {
+                element.elements.forEach(ensureElementorProperties);
+            }
+        };
+        if (structure.elements && Array.isArray(structure.elements)) {
+            structure.elements.forEach(ensureElementorProperties);
+        }
+
+        logger.log('SUCCESS', 'Post-processing completed successfully');
+        logger.groupEnd();
+    } catch (e) {
+        logger.log('ERROR', 'Post-processing failed', { error: e.message, stack: e.stack });
+        logger.groupEnd();
+    }
+    return structure;
+}
+
+// Validate that all required Elementor properties are present
+function validateElementorStructure(structure) {
+    logger.group('VALIDATION', 'Validating Elementor structure');
+
+    const issues = [];
+    let elementCount = 0;
+
+    const validateElement = (element, path = 'root') => {
+        if (!element) return;
+        elementCount++;
+
+        // Check required properties
+        if (!element.id) {
+            issues.push(`${path}: Missing 'id' property`);
+        }
+        if (!element.elType) {
+            issues.push(`${path}: Missing 'elType' property`);
+        }
+
+        // Check widgetType rules
+        if (element.elType === 'container' && element.widgetType) {            issues.push(`${path}: Container should NOT have 'widgetType' property (found: ${element.widgetType})`);
+        }
+        if (element.elType === 'widget' && !element.widgetType) {            issues.push(`${path}: Widget missing 'widgetType' property`);
+        }
+
+        if (element.isInner === undefined) {
+            issues.push(`${path}: Missing 'isInner' property`);
+        }
+        if (!element.elements) {
+            issues.push(`${path}: Missing 'elements' array`);
+        }
+        if (!element.settings) {
+            issues.push(`${path}: Missing 'settings' object`);
+        }
+
+        // Log valid element
+        logger.log('VALIDATION', `✓ ${path}`, {
+            id: element.id,
+            elType: element.elType,
+            widgetType: element.widgetType,
+            isInner: element.isInner,
+            hasElements: !!element.elements,
+            hasSettings: !!element.settings
+        });
+
+        // Recursively validate children
+        if (element.elements && Array.isArray(element.elements)) {
+            element.elements.forEach((child, idx) => {
+                const childPath = `${path}.elements[${idx}](${child.widgetType || child.elType})`;
+                validateElement(child, childPath);
+            });
+        }
+    };
+
+    // Validate all elements
+    if (structure.elements && Array.isArray(structure.elements)) {
+        structure.elements.forEach((el, idx) => {
+            validateElement(el, `elements[${idx}](${el.widgetType || el.elType})`);
+        });
+    }
+
+    logger.log('VALIDATION', 'Validation complete', {
+        totalElements: elementCount,
+        issuesFound: issues.length
+    });
+
+    if (issues.length > 0) {
+        logger.log('WARNING', 'Validation issues found', { issues });        console.warn('⚠️ Validation issues:', issues);
+    } else {
+        logger.log('SUCCESS', '✅ All elements have required properties');        console.log('✅ Structure validation passed - all elements have required properties');
+    }
+
+    logger.groupEnd();
+
+    return {
+        valid: issues.length === 0,
+        issues,
+        elementCount
+    };
+}
+
+// AI-enhanced conversion using OpenAI API for native Elementor widgets
+async function aiConvert(html, css, js, apiKey) {
+    console.log('🚀 AI Conversion Started');    console.log('HTML length:', html.length, 'CSS length:', css.length, 'JS length:', js.length);
+
+    // Initialize progress tracker
+    progressTracker.init([
+        { label: 'Validating API Key', description: 'Checking OpenAI authentication...' },        { label: 'Extracting Styles', description: 'Computing rendered CSS values...' },        { label: 'Sending to AI', description: 'Uploading HTML to GPT-5...' },        { label: 'AI Processing', description: 'Converting to Elementor JSON...' },        { label: 'Validating Structure', description: 'Checking JSON format...' },        { label: 'Validating Properties', description: 'Verifying widget settings...' }
+    ]);
+    progressTracker.nextStep(); // Step 1: Validating
+
+    if (!apiKey || !apiKey.startsWith('sk-')) {
+        progressTracker.hide();
+        showStatus('Invalid OpenAI API key. Please enter a valid key starting with sk-', 'error');        throw new Error('Invalid API key');
+    }
+
+    console.log('✅ API key validated');    showStatus('🤖 AI analyzing HTML structure and converting to native Elementor widgets...', 'info');
+
+    progressTracker.nextStep(); // Step 2: Extracting styles
+    // Extract computed styles
+    const computedStyles = extractComputedStyles(html, css);
+
+    const elementorReference = {
+        heading: {
+            title: "string",            align: "left|center|right",            title_color: "hex (NOT text_color!)",            typography_typography: "custom (REQUIRED to activate typography)",            typography_font_family: "Arial (full name)",            typography_font_size: {size: 48, unit: "px"},            typography_font_weight: "700"
+        },
+        text_editor: {
+            editor: "html string",            align: "left|center|right|justify",            text_color: "hex",            typography_typography: "custom (REQUIRED)"
+        },
+        button: {
+            text: "string",            link: {url: "#", is_external: false},            align: "left|center|right",            button_text_color: "hex",            background_background: "classic|gradient (REQUIRED first!)",            background_color: "hex (after background_background)",            typography_typography: "custom (REQUIRED)"
+        },
+        container: {
+            background_background: "classic|gradient (REQUIRED first!)",            background_color: "hex (for classic)",            background_gradient_type: "linear|radial (for gradient)",            background_gradient_angle: {unit: "deg", size: 135},            background_gradient_color: "hex (color A)",            background_gradient_color_b: "hex (color B - NOT color_end!)",            padding: {unit: "px", top: 0, right: 0, bottom: 0, left: 0, isLinked: false},            border_radius: {unit: "px", top: 0, right: 0, bottom: 0, left: 0, isLinked: true}
+        }
+    };
+
+    const prompt = `IMPORTANT: You only need to identify widget types and extract property VALUES. The system will automatically load ALL required properties from schemas.TASK: Analyze the HTML and return a simple structure with widget types and extracted values.
+
+WIDGET TYPE MAPPING:
+- h1, h2, h3, h4, h5, h6 → widgetType: "heading"- p, div with text → widgetType: "text-editor"- button, a with button styling → widgetType: "button"- Wrapper containers → widgetType: "container"
+
+PROPERTY VALUE FORMATS:
+- Font sizes: {size: 32, unit: "px"}- Spacing: {unit: "px", top: 80, right: 40, bottom: 80, left: 40, isLinked: false}- Colors: "#RRGGBB" (hex format, convert from rgb)- Gradients: background_background: "gradient", background_gradient_color: "#hex1", background_gradient_color_b: "#hex2"
+
+HTML TO CONVERT:
+${html}
+
+COMPUTED STYLES (extract values from these):
+${JSON.stringify(computedStyles, null, 2)}
+
+RESPOND WITH VALID JSON ONLY (no markdown):
+{
+"fidelity_score": 0-100,"structure_analysis": "brief description","structure": [
+{
+"widgetType": "container","extractedValues": {"background_background": "gradient","background_gradient_type": "linear","background_gradient_angle": {"unit": "deg", "size": 135},"background_gradient_color": "#667eea","background_gradient_color_b": "#764ba2","background_gradient_color_stop": {"unit": "%", "size": 0},"background_gradient_color_b_stop": {"unit": "%", "size": 100},"padding": {"unit": "px", "top": 80, "right": 40, "bottom": 80, "left": 40, "isLinked": false}
+},
+"children": [
+{
+  "widgetType": "heading",  "extractedValues": {    "title": "Welcome",    "header_size": "h1",    "title_color": "#ffffff",    "typography_typography": "custom",    "typography_font_family": "Arial",    "typography_font_size": {"unit": "px", "size": 48}
+  }
+}
+]
+}
+]
+}
+
+NOTE: The system will automatically add ALL remaining properties for each widget type with proper defaults. You only need to extract the values that are visible in the HTML/CSS.`;    try {
+        progressTracker.nextStep(); // Step 3: Sending to AI
+        console.log('📤 Sending request to OpenAI API...');        showStatus('📤 Sending request to OpenAI API...', 'info');
+
+        const requestBody = {
+            model: 'gpt-5-2025-08-07',
+            messages: [
+                {
+                    role: 'user',
+                    content: `SYSTEM INSTRUCTIONS: You are an expert Elementor JSON conversion specialist with comprehensive knowledge of:ELEMENTOR WIDGET TYPES & EXACT SETTINGS PROPERTIES:
+1. heading:
+- title (text content)
+- align ("left"|"center"|"right")
+- title_color (hex color for text)
+- typography_typography: "custom" (required to enable)
+- typography_font_family, typography_font_size: {size, unit}, typography_font_weight
+
+2. text-editor:
+- editor (HTML content)
+- align ("left"|"center"|"right"|"justify")
+- text_color (hex color)
+- typography_typography: "custom"
+- typography_*
+
+3. button:
+- text (button text)
+- link: {url, is_external, nofollow}
+- align ("left"|"center"|"right")- typography_typography: "custom"
+- button_text_color (hex)
+- background_background: "classic" (required!)
+- background_color (hex)
+- border_radius: {unit, top, right, bottom, left, isLinked}
+
+4. container:
+- background_background: "classic"|"gradient"|"video" (required!)
+- background_color (hex) - for classic
+- background_gradient_type: "linear"|"radial" - for gradient- background_gradient_angle: {unit: "deg", size: 135} - for linear gradient- background_gradient_color: "#color" - for gradient start- background_gradient_color_b: "#color" - for gradient end
+- padding: {unit, top, right, bottom, left, isLinked}
+- border_radius: {unit, top, right, bottom, left, isLinked}
+
+CRITICAL CONTROL ACTIVATION RULES:
+- ALWAYS set typography_typography: "custom" before any typography_* properties- ALWAYS set background_background: "classic"|"gradient" before background_color or gradient properties
+- For gradients: Use background_gradient_color and background_gradient_color_b (not color_start/color_end)
+- Font families must use full names: "Arial", "Times New Roman", "Helvetica"
+
+COMPUTED STYLES DATA:
+You are provided with getComputedStyle() values from the rendered DOM. Use these EXACT values:
+- fontSize → typography_font_size: {size: parseInt(value), unit: "px"}
+- fontWeight → typography_font_weight
+- color (rgb) → Convert to hex for title_color/text_color/button_text_color
+- backgroundColor (rgb) → Convert to hex, MUST set background_background: "classic" FIRST
+- backgroundImage (gradient) → Extract BOTH colors:
+* background_background: "gradient" (REQUIRED FIRST!)* background_gradient_type: "linear" or "radial"* background_gradient_color: "#hexcolor" (FIRST color - REQUIRED!)* background_gradient_color_b: "#hexcolor" (SECOND color - REQUIRED!)* background_gradient_color_stop: {unit: "%", size: 0}* background_gradient_color_b_stop: {unit: "%", size: 100}* background_gradient_angle: {unit: "deg", size: angle}- padding → MUST include: {unit: "px", top: X, right: Y, bottom: Z, left: W, isLinked: false}- margin → MUST include: {unit: "px", top: X, right: Y, bottom: Z, left: W, isLinked: false}- border → If border exists, include border_border: "solid", border_width, border_color- borderRadius → {unit: "px", top: X, right: Y, bottom: Z, left: W, isLinked: true}
+- lineHeight → typography_line_height
+- letterSpacing → typography_letter_spacing
+
+REQUIRED PROPERTY TEMPLATES - Use these as minimum requirements for each widget:
+
+CONTAINER (widgetType: "container", elType: "container"):
+{
+"widgetType": "container","elType": "container","settings": {"background_background": "classic",      // REQUIRED: "classic" or "gradient""background_color": "#hex",              // For classic backgrounds
+// For gradients instead:
+// "background_background": "gradient",// "background_gradient_type": "linear",// "background_gradient_angle": {"unit": "deg", "size": 180},// "background_gradient_color": "#hex",      // REQUIRED first color!// "background_gradient_color_b": "#hex",    // REQUIRED second color!// "background_gradient_color_stop": {"unit": "%", "size": 0},// "background_gradient_color_b_stop": {"unit": "%", "size": 100},"padding": {"unit": "px", "top": 0, "right": 0, "bottom": 0, "left": 0, "isLinked": false},"margin": {"unit": "px", "top": 0, "right": 0, "bottom": 0, "left": 0, "isLinked": false},"border_radius": {"unit": "px", "top": 0, "right": 0, "bottom": 0, "left": 0, "isLinked": true},"flex_direction": "row","flex_justify_content": "flex-start","flex_align_items": "flex-start","flex_gap": {"unit": "px", "column": 0, "row": 0}
+},
+"elements": []  // Child widgets go here
+}
+
+HEADING (widgetType: "heading"):
+{
+"widgetType": "heading","elType": "widget","settings": {"title": "Heading Text","header_size": "h2","align": "left","title_color": "#hex","typography_typography": "custom",      // REQUIRED to activate!"typography_font_family": "Arial","typography_font_size": {"unit": "px", "size": 32},"typography_font_weight": "700","typography_line_height": {"unit": "em", "size": 1.2},"typography_letter_spacing": {"unit": "px", "size": 0}
+}
+}
+
+TEXT-EDITOR (widgetType: "text-editor"):
+{
+"widgetType": "text-editor","elType": "widget","settings": {"editor": "<p>Text content</p>","align": "left","text_color": "#hex","typography_typography": "custom",      // REQUIRED to activate!"typography_font_family": "Arial","typography_font_size": {"unit": "px", "size": 16},"typography_font_weight": "400","typography_line_height": {"unit": "em", "size": 1.6},"typography_letter_spacing": {"unit": "px", "size": 0}
+}
+}
+
+BUTTON (widgetType: "button"):
+{
+"widgetType": "button","elType": "widget","settings": {"text": "Click Here","align": "left","button_text_color": "#hex","typography_typography": "custom",      // REQUIRED to activate!"typography_font_family": "Arial","typography_font_size": {"unit": "px", "size": 16},"typography_font_weight": "600","background_background": "classic",     // REQUIRED to activate!"background_color": "#hex","border_radius": {"unit": "px", "top": 4, "right": 4, "bottom": 4, "left": 4, "isLinked": true},"button_padding": {"unit": "px", "top": 12, "right": 24, "bottom": 12, "left": 24, "isLinked": false}
+}
+}
+
+CRITICAL RULES - DO NOT SKIP THESE:
+1. Use the property templates above as MINIMUM requirements for each widget
+2. Create INDIVIDUAL widgets for each HTML element (h1→heading, p→text-editor, button→button)
+3. Container wraps multiple widgets with elType="container" and elements:[] array
+4. ALWAYS include ALL properties from the templates above
+5. ALWAYS include padding/margin from computed styles (DO NOT skip spacing!)
+6. ALWAYS set background_background: "classic" BEFORE using background_color7. ALWAYS set typography_typography: "custom" BEFORE using typography_* properties
+8. For gradients: MUST include BOTH background_gradient_color AND background_gradient_color_b (NEVER skip the second color!)
+9. For buttons: MUST include button_padding, button_text_color, background_background, and background_color
+10. Convert ALL rgb() colors to hex (#RRGGBB format)
+11. Map semantic HTML to correct widget types (h1-h6→heading, p→text-editor, button/a→button)
+12. Preserve layout hierarchy and ALL spacing/padding values from computed styles
+
+OUTPUT FORMAT REQUIREMENTS:
+- Valid JSON only, no markdown, no explanations
+- Include fidelity_score (0-100) based on conversion accuracy
+- Include structure_analysis (1 sentence description)
+- Root elements array with proper nesting
+
+USER REQUEST:
+${prompt}`}
+            ],
+            reasoning_effort: 'high',            verbosity: 'medium',
+            max_completion_tokens: 16000
+        };
+
+        logger.group('API', 'OpenAI Chat Completion Request');        logger.log('API', 'Request body', {
+            model: requestBody.model,
+            messageCount: requestBody.messages.length,
+            reasoning_effort: requestBody.reasoning_effort,
+            verbosity: requestBody.verbosity,
+            max_completion_tokens: requestBody.max_completion_tokens,
+            payloadSize: JSON.stringify(requestBody).length
+        });
+        logger.log('API', 'Full prompt sent to API', {
+            promptLength: requestBody.messages[0].content.length,
+            fullPrompt: requestBody.messages[0].content
+        });
+        logger.groupEnd();
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        progressTracker.nextStep(); // Step 4: AI Processing
+
+        logger.log('API', 'Response received', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries())
+        });
+
+        if (!response.ok) {
+            progressTracker.hide();
+            const error = await response.json();
+            logger.log('ERROR', 'API request failed', error);            throw new Error(error.error?.message || 'API request failed');
+        }
+
+        showStatus('🔄 Processing AI response...', 'info');
+        const data = await response.json();
+
+        logger.group('RESPONSE', 'OpenAI API Response');        logger.log('RESPONSE', 'Response metadata', {
+            id: data.id,
+            model: data.model,
+            usage: data.usage,
+            finishReason: data.choices[0].finish_reason
+        });
+
+        const aiResponse = data.choices[0].message.content;
+        logger.log('RESPONSE', 'Full AI response', {
+            responseLength: aiResponse.length,
+            fullResponse: aiResponse
+        });
+        logger.groupEnd();
+
+        // Parse AI response
+        let elementorStructure;
+        try {
+            showStatus('🔍 Parsing AI response...', 'info');
+
+            logger.log('PARSING', 'Starting JSON parsing');
+
+            // Remove markdown code blocks if present
+            const jsonMatch = aiResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [null, aiResponse];
+            const jsonString = jsonMatch[1];
+
+            logger.log('PARSING', 'Extracted JSON string', {
+                hadMarkdown: !!jsonMatch[0],
+                jsonLength: jsonString.length
+            });
+
+            let aiResponseParsed = JSON.parse(jsonString);
+
+            logger.log('PARSING', 'Successfully parsed AI response', {
+                fidelityScore: aiResponseParsed.fidelity_score,
+                structureAnalysis: aiResponseParsed.structure_analysis,
+                structureCount: aiResponseParsed.structure?.length,
+                parsedResponse: aiResponseParsed
+            });
+
+            progressTracker.nextStep(); // Step 5: Validating structure
+
+            // BUILD COMPLETE WIDGETS FROM SCHEMAS
+            showStatus('🏗️ Building complete widgets from schemas...', 'info');
+            const completeElements = buildWidgetsFromAIResponse(aiResponseParsed);
+
+            // Create elementorStructure with complete widgets
+            elementorStructure = {
+                fidelity_score: aiResponseParsed.fidelity_score,
+                structure_analysis: aiResponseParsed.structure_analysis,
+                elements: completeElements
+            };
+
+            logger.log('SCHEMA', 'Schema-based widgets built successfully', {
+                elementCount: elementorStructure.elements.length,
+                completeStructure: elementorStructure
+            });
+
+            // Validate Elementor structure
+            showStatus('✅ Validating Elementor structure...', 'info');
+            const validation = validateElementorJSON(elementorStructure);
+            if (!validation.valid) {
+                console.warn('⚠️ Validation warnings:', validation.warnings);                showStatus(`⚠️ Structure validated with ${validation.warnings.length} warnings`, 'info');
+            } else {
+                console.log('✅ Structure validation passed');
+            }
+
+            progressTracker.nextStep(); // Step 6: Validating properties
+            // Validate structure completeness
+            showStatus('🔍 Validating element structure...', 'info');
+            const structureValidation = validateElementorStructure(elementorStructure);
+            if (!structureValidation.valid) {
+                console.error('❌ Structure validation failed:', structureValidation.issues);                throw new Error(`Structure validation failed: ${structureValidation.issues.join(', ')}`);
+            }
+
+            // Validate property names against reference
+            showStatus('🔍 Validating property names...', 'info');
+            const propertyValidation = await validatePropertiesAgainstReference(elementorStructure);
+            if (!propertyValidation.valid) {
+                console.warn('⚠️ Property validation warnings:', propertyValidation.warnings);                propertyValidation.warnings.forEach(w => console.warn('  •', w));                showStatus(`⚠️ Found ${propertyValidation.warnings.length} property issues`, 'info');
+            } else {
+                console.log('✅ Property validation passed');
+            }
+
+        } catch (e) {
+            progressTracker.hide();
+            console.error('❌ JSON Parse Error:', e);            console.error('Failed content:', aiResponse);            throw new Error('AI returned invalid JSON: ' + e.message);
+        }
+
+        progressTracker.complete(true);
+        showStatus(`✅ AI conversion complete! Fidelity: ${elementorStructure.fidelity_score}%`, 'success');        console.log('✅ AI Conversion Complete');
+
+        return {
+            type: 'native',
+            fidelity: elementorStructure.fidelity_score,
+            analysis: elementorStructure.structure_analysis,
+            elements: elementorStructure.elements,
+            originalHtml: html,
+            originalCss: css,
+            originalJs: js
+        };
+
+    } catch (error) {
+        progressTracker.hide();
+        console.error('❌ AI Conversion Failed:', error);        showStatus(`AI conversion failed: ${error.message}. Falling back to browser mode...`, 'error');        console.log('🔄 Falling back to browser mode...');
+        return browserConvert(html, css, js);
+    }
+}
+
+// AI conversion using Assistants API with file search (RAG)
+async function aiConvertWithAssistants(html, css, js, apiKey, assistantId, vectorStoreId) {
+    logger.group('ASSISTANT', 'AI Conversion Started (Assistants API with File Search)');    logger.log('ASSISTANT', 'Input sizes', {
+        htmlLength: html.length,
+        cssLength: css.length,
+        jsLength: js.length,
+        assistantId,
+        vectorStoreId
+    });
+
+    // Initialize progress tracker for Assistants API
+    progressTracker.init([
+        { label: 'Validating API Key', description: 'Checking OpenAI authentication...' },        { label: 'Extracting Styles', description: 'Computing rendered CSS values...' },        { label: 'Creating Thread', description: 'Setting up file search context...' },        { label: 'Sending Request', description: 'Uploading HTML to assistant...' },        { label: 'Searching Files', description: 'AI searching Elementor source code...' },        { label: 'Generating JSON', description: 'Converting with exact properties...' },        { label: 'Validating Structure', description: 'Checking JSON format...' },        { label: 'Validating Properties', description: 'Verifying widget settings...' }
+    ]);
+    progressTracker.nextStep(); // Step 1: Validating
+
+    if (!apiKey || !apiKey.startsWith('sk-')) {
+        progressTracker.hide();
+        showStatus('Invalid OpenAI API key', 'error');        throw new Error('Invalid API key');
+    }
+
+    if (!assistantId) {
+        progressTracker.hide();
+        showStatus('⚠️ Assistant ID not configured. Using standard API...', 'info');
+        return aiConvert(html, css, js, apiKey);
+    }
+
+    logger.log('ASSISTANT', 'Using Assistant ID', { assistantId });
+
+    progressTracker.nextStep(); // Step 2: Extracting styles
+    showStatus('🤖 Creating thread with file search...', 'info');
+
+    // Extract computed styles
+    logger.log('PARSING', 'Extracting computed styles from HTML');
+    const computedStyles = extractComputedStyles(html, css);
+    logger.log('PARSING', 'Computed styles extracted', {
+        elementCount: Object.keys(computedStyles || {}).length,
+        sample: computedStyles ? Object.keys(computedStyles).slice(0, 3) : []
+    });
+
+    try {
+        progressTracker.nextStep(); // Step 3: Creating thread
+        // Create thread with file search enabled
+        logger.log('THREAD', 'Creating new thread', {
+            vectorStoreEnabled: !!vectorStoreId,
+            vectorStoreId
+        });
+
+        const threadRequestBody = {
+            tool_resources: vectorStoreId ? {
+                file_search: { vector_store_ids: [vectorStoreId] }
+            } : undefined
+        };
+
+        logger.log('API', 'POST /threads', { body: threadRequestBody });
+
+        const threadResponse = await fetch('https://api.openai.com/v1/threads', {            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',                'Authorization': `Bearer ${apiKey}`,                'OpenAI-Beta': 'assistants=v2'
+            },
+            body: JSON.stringify(threadRequestBody)
+        });
+
+        logger.log('API', 'Thread response status', { status: threadResponse.status });
+
+        if (!threadResponse.ok) {
+            const error = await threadResponse.json();
+            logger.log('ERROR', 'Thread creation failed', error);            throw new Error(`Thread creation failed: ${error.error?.message || 'Unknown error'}`);
+        }
+
+        const thread = await threadResponse.json();
+        logger.log('THREAD', 'Thread created successfully', {
+            threadId: thread.id,
+            toolResources: thread.tool_resources
+        });
+
+        // Add message to thread
+        showStatus('📤 Sending conversion request...', 'info');
+
+        const messageContent = `You are an expert at converting HTML/CSS to Elementor widget structures. You have access to the complete Elementor widget source code via file search.IMPORTANT: You only need to identify widget types and extract their property VALUES. The system will automatically load ALL required properties from schemas.
+
+TASK: Analyze the HTML and return a simple structure with widget types and extracted values.
+
+INSTRUCTIONS:
+1. **IDENTIFY WIDGET TYPES** for each HTML element:
+- h1, h2, h3, h4, h5, h6 → widgetType: "heading"- p, div with text → widgetType: "text-editor"- button, a with button styling → widgetType: "button"- Wrapper containers → widgetType: "container"
+
+2. **EXTRACT PROPERTY VALUES** from the computed styles (DO NOT create property structures, just extract values):
+- Text content (title, editor content)
+- Colors (convert rgb to hex)
+- Font sizes, weights, families
+- Spacing values (padding, margin)
+- Background colors/gradients
+- Border radius, etc.
+
+3. **USE CORRECT PROPERTY NAMES** (verify in source files if needed):
+- heading: title_color, typography_font_family, typography_font_size, etc.
+- text-editor: text_color, editor, typography_*, etc.
+- button: button_text_color, text, background_color, etc.
+- container: background_background, background_gradient_color, padding, margin, etc.
+
+4. **PROPERTY VALUE FORMATS**:
+- Font sizes: {size: 32, unit: "px"}- Spacing: {unit: "px", top: 80, right: 40, bottom: 80, left: 40, isLinked: false}- Colors: "#RRGGBB" (hex format)- Gradients: background_background: "gradient", background_gradient_color: "#hex1", background_gradient_color_b: "#hex2"
+
+HTML TO CONVERT:
+${html}
+
+COMPUTED STYLES DATA (extract values from these):
+${JSON.stringify(computedStyles, null, 2)}
+
+RESPOND WITH VALID JSON ONLY (no markdown, no explanations):
+{
+"fidelity_score": 0-100,"structure_analysis": "brief description","structure": [
+{
+"widgetType": "container","extractedValues": {"background_background": "gradient","background_gradient_type": "linear","background_gradient_angle": {"unit": "deg", "size": 135},"background_gradient_color": "#667eea","background_gradient_color_b": "#764ba2","background_gradient_color_stop": {"unit": "%", "size": 0},"background_gradient_color_b_stop": {"unit": "%", "size": 100},"padding": {"unit": "px", "top": 80, "right": 40, "bottom": 80, "left": 40, "isLinked": false}
+},
+"children": [
+{
+  "widgetType": "heading",  "extractedValues": {    "title": "Welcome",    "header_size": "h1",    "align": "center",    "title_color": "#ffffff",    "typography_typography": "custom",    "typography_font_family": "Arial",    "typography_font_size": {"unit": "px", "size": 48},    "typography_font_weight": "700"
+  }
+},
+{
+  "widgetType": "text-editor",  "extractedValues": {    "editor": "<p>This is a hero section</p>",    "align": "center",    "text_color": "#ffffff",    "typography_typography": "custom",    "typography_font_family": "Arial",    "typography_font_size": {"unit": "px", "size": 18}
+  }
+}
+]
+}
+]
+}
+
+NOTE: The system will automatically add ALL remaining properties for each widget type with proper defaults. You only need to extract the values that are visible in the HTML/CSS.`;        logger.group('API', 'Sending message to Assistants API');        logger.log('API', 'Message metadata', {
+            threadId: thread.id,
+            messageLength: messageContent.length,
+            htmlSnippet: html.substring(0, 100),
+            computedStylesCount: Object.keys(computedStyles || {}).length
+        });
+        logger.log('API', 'Full prompt sent to Assistant', {
+            promptLength: messageContent.length,
+            fullPrompt: messageContent
+        });
+        logger.log('API', 'Computed styles being sent', {
+            computedStyles: computedStyles
+        });
+        logger.groupEnd();
+
+        const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',                'Authorization': `Bearer ${apiKey}`,                'OpenAI-Beta': 'assistants=v2'
+            },
+            body: JSON.stringify({
+                role: 'user',
+                content: messageContent
+            })
+        });
+
+        logger.log('API', 'Message response status', { status: messageResponse.status });
+
+        if (!messageResponse.ok) {
+            const error = await messageResponse.json();
+            logger.log('ERROR', 'Message creation failed', error);            throw new Error(`Message creation failed: ${error.error?.message || 'Unknown error'}`);
+        }
+
+        const message = await messageResponse.json();
+        logger.log('THREAD', 'Message added to thread', {
+            messageId: message.id,
+            role: message.role
+        });
+
+        progressTracker.nextStep(); // Step 4: Sending request
+        // Run the assistant
+        showStatus('🤖 AI analyzing with Elementor source knowledge...', 'info');
+
+        logger.log('RUN', 'Starting assistant run', {
+            threadId: thread.id,
+            assistantId
+        });
+
+        const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',                'Authorization': `Bearer ${apiKey}`,                'OpenAI-Beta': 'assistants=v2'
+            },
+            body: JSON.stringify({
+                assistant_id: assistantId
+            })
+        });
+
+        logger.log('API', 'Run response status', { status: runResponse.status });
+
+        if (!runResponse.ok) {
+            const error = await runResponse.json();
+            logger.log('ERROR', 'Run creation failed', error);            throw new Error(`Run creation failed: ${error.error?.message || 'Unknown error'}`);
+        }
+
+        const run = await runResponse.json();
+        logger.log('RUN', 'Run started successfully', {
+            runId: run.id,
+            status: run.status,
+            model: run.model,
+            tools: run.tools
+        });
+
+        progressTracker.nextStep(); // Step 5: Searching files
+        // Poll for completion
+        let runStatus = run.status;
+        let attempts = 0;
+        const maxAttempts = 60; // 60 seconds max
+
+        logger.log('RUN', 'Starting polling for run completion', { maxAttempts });
+
+        while (runStatus === 'queued' || runStatus === 'in_progress') {
+            if (attempts++ > maxAttempts) {
+                logger.log('ERROR', 'Run timeout', { attempts, maxAttempts });
+                progressTracker.hide();
+                throw new Error('Assistant run timeout');
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const statusResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,                    'OpenAI-Beta': 'assistants=v2'
+                }
+            });
+
+            const statusData = await statusResponse.json();
+            runStatus = statusData.status;
+
+            logger.log('RUN', `Poll ${attempts}: ${runStatus}`, {
+                status: runStatus,
+                usage: statusData.usage,
+                lastError: statusData.last_error
+            });
+
+            // Log if file search is being used
+            if (statusData.required_action) {
+                logger.log('FILE_SEARCH', 'Assistant requested tool use', statusData.required_action);
+            }
+
+            // Update to generating step after a few seconds
+            if (attempts === 3) {
+                progressTracker.nextStep(); // Step 6: Generating JSON
+            }
+        }
+
+        if (runStatus !== 'completed') {            logger.log('ERROR', 'Run failed', { runStatus, attempts });
+            progressTracker.hide();
+            throw new Error(`Assistant run failed with status: ${runStatus}`);
+        }
+
+        logger.log('RUN', 'Run completed successfully', {
+            totalTime: attempts,
+            finalStatus: runStatus
+        });
+
+        // Get messages
+        showStatus('📥 Retrieving response...', 'info');        logger.log('API', 'Fetching thread messages', { threadId: thread.id });
+
+        const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,                'OpenAI-Beta': 'assistants=v2'
+            }
+        });
+
+        const messagesData = await messagesResponse.json();
+        logger.log('RESPONSE', 'Messages retrieved', {
+            messageCount: messagesData.data?.length || 0
+        });
+
+        const assistantMessage = messagesData.data.find(m => m.role === 'assistant');
+
+        if (!assistantMessage) {
+            logger.log('ERROR', 'No assistant message found', { messages: messagesData.data });            throw new Error('No assistant response found');
+        }
+
+        const aiResponse = assistantMessage.content[0].text.value;
+
+        logger.group('RESPONSE', 'Full AI Response from Assistant');        logger.log('RESPONSE', 'Response metadata', {
+            responseLength: aiResponse.length,
+            messageId: assistantMessage.id,
+            annotations: assistantMessage.content[0].text.annotations?.length || 0
+        });
+        logger.log('RESPONSE', 'Full assistant response', {
+            fullResponse: aiResponse
+        });
+        logger.log('FILE_SEARCH', 'Annotations (files referenced)', {
+            annotations: assistantMessage.content[0].text.annotations
+        });
+        logger.groupEnd();
+
+        progressTracker.nextStep(); // Step 7: Validating structure
+        // Parse and validate response (same as before)
+        showStatus('🔍 Parsing AI response...', 'info');
+
+        logger.log('PARSING', 'Starting JSON parsing');
+
+        const jsonMatch = aiResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [null, aiResponse];
+        const jsonString = jsonMatch[1];
+
+        logger.log('PARSING', 'Extracted JSON string', {
+            hadMarkdown: !!jsonMatch[0],
+            jsonLength: jsonString.length
+        });
+
+        let aiResponseParsed = JSON.parse(jsonString);
+
+        logger.log('PARSING', 'Successfully parsed AI response', {
+            fidelityScore: aiResponseParsed.fidelity_score,
+            structureAnalysis: aiResponseParsed.structure_analysis,
+            structureCount: aiResponseParsed.structure?.length,
+            parsedResponse: aiResponseParsed
+        });
+
+        // LOG RAW AI RESPONSE TO CONSOLE FOR DEBUGGING
+        console.log('🔍 RAW AI RESPONSE:', aiResponseParsed);        console.log('📊 Structure array:', aiResponseParsed.structure);        console.log('📈 Structure length:', aiResponseParsed.structure?.length);
+
+        // BUILD COMPLETE WIDGETS FROM SCHEMAS
+        showStatus('🏗️ Building complete widgets from schemas...', 'info');
+        const completeElements = buildWidgetsFromAIResponse(aiResponseParsed);
+
+        // Create elementorStructure with complete widgets
+        const elementorStructure = {
+            fidelity_score: aiResponseParsed.fidelity_score,
+            structure_analysis: aiResponseParsed.structure_analysis,
+            elements: completeElements
+        };
+
+        logger.log('SCHEMA', 'Schema-based widgets built successfully', {
+            elementCount: elementorStructure.elements.length,
+            completeStructure: elementorStructure
+        });
+
+        // Validate structure
+        showStatus('✅ Validating structure...', 'info');
+        const validation = validateElementorJSON(elementorStructure);
+        if (!validation.valid) {
+            console.warn('⚠️ Validation warnings:', validation.warnings);
+        }
+
+        progressTracker.nextStep(); // Step 8: Validating properties
+        // Validate structure completeness
+        showStatus('🔍 Validating element structure...', 'info');
+        const structureValidation = validateElementorStructure(elementorStructure);
+        if (!structureValidation.valid) {
+            console.error('❌ Structure validation failed:', structureValidation.issues);            throw new Error(`Structure validation failed: ${structureValidation.issues.join(', ')}`);
+        }
+
+        // Validate properties
+        const propertyValidation = await validatePropertiesAgainstReference(elementorStructure);
+        if (!propertyValidation.valid) {
+            console.warn('⚠️ Property warnings:', propertyValidation.warnings);            propertyValidation.warnings.forEach(w => console.warn('  •', w));
+        }
+
+        progressTracker.complete(true);
+        showStatus(`✅ Conversion complete! Fidelity: ${elementorStructure.fidelity_score}%`, 'success');
+
+        return {
+            type: 'native',
+            fidelity: elementorStructure.fidelity_score,
+            analysis: elementorStructure.structure_analysis,
+            elements: elementorStructure.elements,
+            originalHtml: html,
+            originalCss: css,
+            originalJs: js
+        };
+
+    } catch (error) {
+        progressTracker.hide();
+        console.error('❌ Assistants API Failed:', error);        showStatus(`Assistants API failed: ${error.message}. Falling back to standard API...`, 'error');
+        return aiConvert(html, css, js, apiKey);
+    }
+}
+
+// Main conversion function
+async function convertToElementor() {
+    // Allow UI to update before heavy processing
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    console.clear();
+    console.log('='.repeat(80));    console.log('🎯 ELEMENTOR CONVERSION PIPELINE - FULL WORKFLOW');    console.log('='.repeat(80));    console.log('Mode:', currentMode);    console.log('');
+
+    console.log('📋 EXPECTED WORKFLOW:');    console.log('');    console.log('1️⃣  EXTRACT COMPUTED STYLES');    console.log('   → Parse HTML/CSS and render in hidden iframe');    console.log('   → Use getComputedStyle() to get actual browser values');    console.log('   → Convert rgb() colors to hex, extract gradients, etc.');    console.log('');    console.log('2️⃣  AI CONVERSION (with Vector Store)');    console.log('   → AI searches Elementor PHP source files in vector store');    console.log('   → AI finds EXACT property names from add_control() calls');    console.log('   → AI determines correct JSON structure (containers vs widgets)');    console.log('   → AI generates JSON with correct structure:');    console.log('      • Containers: {elType: "container", NO widgetType}');    console.log('      • Widgets: {elType: "widget", widgetType: "heading|text-editor|button"}');    console.log('');    console.log('3️⃣  POST-PROCESSING');    console.log('   → Apply widget property templates (ensure all properties exist)');    console.log('   → Enforce activation flags (typography_typography, background_background)');    console.log('   → Apply backgrounds from computed styles to container');    console.log('   → Add required Elementor properties (id, elType, isInner, elements)');    console.log('   → REMOVE widgetType from containers (if AI added it incorrectly)');    console.log('');    console.log('4️⃣  VALIDATION');    console.log('   → Check all elements have: id, elType, isInner, settings, elements[]');    console.log('   → Verify containers do NOT have widgetType');    console.log('   → Verify widgets DO have widgetType');    console.log('   → Validate property names against reference file');    console.log('');    console.log('5️⃣  JSON GENERATION & EXPORT');    console.log('   → Wrap elements in proper template structure');    console.log('   → Auto-download JSON file');    console.log('   → Save to localStorage for recovery');    console.log('');    console.log('='.repeat(80));    console.log('');
+
+    const html = document.getElementById('htmlInput').value.trim();    const css = document.getElementById('cssInput').value.trim();    const js = document.getElementById('jsInput').value.trim();
+
+    if (!html && !css) {
+        console.warn('⚠️ No HTML or CSS provided');        showStatus('Please enter HTML or CSS to convert.', 'error');
+        return;
+    }
+
+    console.log('Input received - HTML:', html.length, 'CSS:', css.length, 'JS:', js.length);    showStatus('Converting... Please wait.', 'info');
+
+    try {
+        let result;
+
+        if (currentMode === 'ai') {            console.log('🤖 AI Mode Selected');            const apiKey = document.getElementById('apiKey').value.trim();
+            if (!apiKey) {
+                console.error('❌ No API key provided');                showStatus('Please enter an API key for AI mode, or switch to Browser-Only mode.', 'error');
+                return;
+            }
+            console.log('API Key length:', apiKey.length);
+
+            // Check if advanced assistant configuration is provided
+            const assistantId = document.getElementById('assistantId')?.value.trim() || null;            const vectorStoreId = document.getElementById('vectorStoreId')?.value.trim() || null;
+
+            if (assistantId) {
+                console.log('🔬 Using Assistants API with File Search');
+                result = await aiConvertWithAssistants(html, css, js, apiKey, assistantId, vectorStoreId);
+            } else {
+                console.log('🤖 Using standard GPT-5 API');
+                result = await aiConvert(html, css, js, apiKey);
+            }
+        } else {
+            console.log('🌐 Browser Mode Selected');
+            result = browserConvert(html, css, js);
+        }
+        
+        // Update preview
+        console.log('🖼️ Updating preview...');
+        updatePreview(html, css, js);
+
+        // Display detected fields or AI analysis
+        console.log('📊 Displaying results...');        if (result.type === 'native') {            console.log('Displaying AI analysis');
+            displayAIAnalysis(result);
+        } else {
+            console.log('Displaying detected fields:', Object.keys(result.fields || {}).length);
+            displayFields(result.fields);
+        }
+
+        // Log AI-generated structure BEFORE JSON generation
+        console.log('');        console.log('🔍 STEP 2 COMPLETE: AI Generated Structure');        console.log('━'.repeat(80));        console.group('Raw AI Output (before post-processing)');        console.log('Element count:', result.elements?.length || 0);
+        result.elements?.forEach((el, idx) => {
+            console.log(`\nElement ${idx}:`, {
+                id: el.id,
+                elType: el.elType,
+                widgetType: el.widgetType,
+                hasWidgetType: !!el.widgetType,
+                childCount: el.elements?.length || 0
+            });
+            if (el.elType === 'container' && el.widgetType) {
+                console.warn(`⚠️ AI incorrectly added widgetType:"${el.widgetType}" to container - will be removed in post-processing`);
+            }
+        });
+        console.groupEnd();
+        console.log('');
+
+        // Generate Elementor JSON
+        console.log('🔍 STEP 5: Generating Final JSON...');        console.log('━'.repeat(80));
+        generatedJSON = generateElementorJSON(result);
+        console.log('✅ JSON generated, size:', JSON.stringify(generatedJSON).length, 'bytes');
+
+        // Save to localStorage immediately
+        saveState();
+
+        // Display JSON
+        document.getElementById('jsonOutput').textContent = JSON.stringify(generatedJSON, null, 2);
+
+        // Enable download button
+        document.getElementById('downloadBtn').disabled = false;
+
+        // Log final JSON structure for verification
+        console.log('');        console.log('🔍 FINAL JSON STRUCTURE ANALYSIS');        console.log('━'.repeat(80));        console.group('Final Validated JSON');
+
+        const analyzeElement = (el, path = '', depth = 0) => {            const indent = '  '.repeat(depth);            const isContainer = el.elType === 'container';
+            const hasWidgetType = !!el.widgetType;
+            const status = isContainer && hasWidgetType ? '❌ ERROR' : '✅ VALID';
+
+            console.log(`${indent}${status} ${path || 'root'}`);            console.log(`${indent}  ├─ id: ${el.id || 'MISSING'}`);            console.log(`${indent}  ├─ elType: ${el.elType || 'MISSING'}`);            console.log(`${indent}  ├─ widgetType: ${el.widgetType || '(none)'}`);            console.log(`${indent}  ├─ isInner: ${el.isInner !== undefined ? el.isInner : 'MISSING'}`);
+            console.log(`${indent}  ├─ has settings: ${!!el.settings}`);
+            console.log(`${indent}  └─ children: ${el.elements?.length || 0}`);
+
+            if (isContainer && hasWidgetType) {
+                console.error(`${indent}  ⚠️⚠️⚠️ CRITICAL ERROR: Container has widgetType="${el.widgetType}" - This WILL break Elementor!`);
+            }
+
+            if (el.elements && el.elements.length > 0) {
+                el.elements.forEach((child, idx) => {
+                    analyzeElement(child, `${path}.elements[${idx}](${child.widgetType || child.elType})`, depth + 1);
+                });
+            }
+        };
+
+        if (generatedJSON.content && generatedJSON.content.length > 0) {
+            generatedJSON.content.forEach((el, idx) => {
+                analyzeElement(el, `content[${idx}]`);
+            });
+        }
+
+        console.groupEnd();
+        console.log('');
+
+        // Auto-download JSON file immediately
+        console.log('💾 Auto-downloading JSON file...');
+        const jsonString = JSON.stringify(generatedJSON, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `elementor-${result.type === 'native' ? 'ai' : 'browser'}-${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('✅ JSON file downloaded automatically');
+
+        const successMsg = result.type === 'native'
+            ? `✅ AI Conversion complete! Fidelity: ${result.fidelity}% - ${result.elements.length} native widgets created. JSON downloaded!`
+            : `✅ Conversion successful! Detected ${Object.keys(result.fields || {}).length} editable fields. JSON downloaded!`;
+
+        console.log('');        console.log('='.repeat(80));        console.log('✅ CONVERSION PIPELINE COMPLETE');        console.log('='.repeat(80));
+        console.log(successMsg);
+        console.log('');        console.log('Next Steps:');        console.log('1. Import the downloaded JSON file to WordPress');        console.log('2. Go to Elementor → Templates → Saved Templates');        console.log('3. Click "Import Templates" and upload the JSON file');        console.log('4. The template should load without errors in Elementor editor');        console.log('='.repeat(80));        showStatus(successMsg, 'success');
+
+    } catch (error) {
+        console.error('❌ CONVERSION FAILED');        console.error('Error:', error);        console.error('Stack:', error.stack);        console.log('='.repeat(60));        showStatus(`Conversion failed: ${error.message}`, 'error');
+    }
+}
+
+// Preview mode state
+let currentPreviewMode = 'pure';let currentPreviewContent = { html: '', css: '', js: '' };
+
+// Elementor default styles (extracted from Elementor frontend CSS)
+const ELEMENTOR_DEFAULT_STYLES = `/* Elementor Global Defaults */
+    .elementor-widget-heading .elementor-heading-title {
+        font-family: 'Roboto', Arial, sans-serif;
+        font-weight: 600;
+        line-height: 1.2;
+        color: #000000;
+    }
+    .elementor-widget-text-editor {
+        font-family: 'Roboto', Arial, sans-serif;
+        font-size: 16px;
+        line-height: 1.6;
+        color: #333333;
+    }
+    .elementor-widget-button .elementor-button {
+        font-family: 'Roboto', Arial, sans-serif;
+        font-size: 16px;
+        font-weight: 500;
+        padding: 12px 24px;
+        background-color: #61ce70;
+        color: #ffffff;
+        border-radius: 3px;
+        line-height: 1;
+        text-decoration: none;
+        display: inline-block;
+    }
+    .elementor-container {
+        max-width: 1140px;
+        margin: 0 auto;
+        display: flex;
+    }
+    /* Typography defaults */
+    h1, .elementor-heading-title.elementor-size-default {
+        font-size: 64px;
+    }
+    h2 {
+        font-size: 48px;
+    }
+    h3 {
+        font-size: 36px;
+    }
+    h4 {
+        font-size: 28px;
+    }
+    h5 {
+        font-size: 22px;
+    }
+    h6 {
+        font-size: 18px;
+    }
+`;// Switch preview mode
+function switchPreviewMode(mode) {
+    currentPreviewMode = mode;
+
+    // Update button states
+    document.querySelectorAll('.preview-toggle-btn').forEach(btn => {        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+
+    // Update indicator
+    const indicator = document.getElementById('previewModeIndicator');
+    const indicators = {
+        'pure': 'Mode: Pure HTML/CSS (No Elementor defaults)',        'elementor': 'Mode: Elementor Style Kit (Elementor defaults applied)',        'hybrid': 'Mode: Hybrid (Your styles + Elementor base)'
+    };
+    indicator.textContent = indicators[mode];
+
+    // Re-render preview with current content
+    if (currentPreviewContent.html) {
+        updatePreview(currentPreviewContent.html, currentPreviewContent.css, currentPreviewContent.js);
+    }
+}
+
+// Update live preview
+function updatePreview(html, css, js) {
+    const previewBox = document.getElementById('previewBox');
+
+    // Store content for mode switching
+    currentPreviewContent = { html, css, js };
+
+    let previewCSS = '';
+
+    // Build CSS based on current mode
+    switch(currentPreviewMode) {
+        case 'pure':            // Pure mode: Only user's CSSpreviewCSS = css;
+            break;
+
+        case 'elementor':            // Elementor mode: Elementor defaults + user's CSS overridespreviewCSS = ELEMENTOR_DEFAULT_STYLES + '\n' + css;
+            break;
+
+        case 'hybrid':            // Hybrid mode: User's CSS + Elementor fallbackspreviewCSS = css + '\n' + ELEMENTOR_DEFAULT_STYLES;
+            break;
+    }
+
+    // Create iframe for isolated preview
+    previewBox.innerHTML = `<style>${previewCSS}</style>
+        ${html}
+    `;}
+
+// Display detected fields
+function displayFields(fields) {
+    const fieldsDiv = document.getElementById('detectedFields');
+
+    if (!fields || Object.keys(fields).length === 0) {
+        fieldsDiv.innerHTML = '';
+        return;
+    }
+
+    let html = '<div class="field-list"><strong>Detected Editable Fields:</strong><br><br>';
+
+    Object.entries(fields).forEach(([id, config]) => {
+        html += `<div class="field-item"><strong>${config.label}</strong>            <span class="field-type">${config.type}</span>
+        </div>`;});
+
+    html += '</div>';
+    fieldsDiv.innerHTML = html;
+}
+
+// Display AI analysis and native widgets
+function displayAIAnalysis(result) {
+    const fieldsDiv = document.getElementById('detectedFields');
+
+    const fidelityColor = result.fidelity >= 80 ? '#10b981' : result.fidelity >= 60 ? '#f59e0b' : '#ef4444';
+
+    // Count total widgets (including nested)
+    let totalWidgets = 0;
+    const countWidgets = (elements) => {
+        elements.forEach(el => {
+            totalWidgets++;
+            if (el.elements && el.elements.length > 0) {
+                countWidgets(el.elements);
+            }
+        });
+    };
+    countWidgets(result.elements);
+
+    let html = `<div class="field-list" style="max-height: 400px; overflow-y: auto;"><strong>🤖 AI Native Widget Conversion</strong><br><br>        <div class="field-item">
+            <strong>Conversion Fidelity:</strong>
+            <div class="fidelity-meter">                <div class="fidelity-bar" style="width: ${result.fidelity}%; background: ${fidelityColor};">
+                    ${result.fidelity}%
+                </div>
+            </div>
+            ${result.fidelity >= 80 ? '✅ Excellent match!' : result.fidelity >= 60 ? '⚠️ Good match, minor differences' : '⚠️ Approximate match, review needed'}
+        </div>
+        <div class="field-item">
+            <strong>Analysis:</strong> ${result.analysis}
+        </div>
+        <div class="field-item">
+            <strong>Total Widgets Created:</strong> ${totalWidgets}
+        </div>
+        <br><strong>Widget Breakdown:</strong><br><br>`;    // Recursive function to display widgets
+    const displayWidget = (element, depth = 0) => {
+        const indent = '&nbsp;'.repeat(depth * 4);
+        const widgetType = element.widgetType || element.elType;
+        const widgetLabel = element.settings?.title || element.settings?.text || element.settings?.editor?.substring(0, 30) || widgetType;
+
+        html += `<div class="field-item" style="margin-left: ${depth * 20}px;">${indent}${depth > 0 ? '└─ ' : ''}
+            <strong>${widgetLabel}</strong>
+            <span class="field-type">${widgetType}</span>
+        </div>`;        // Display nested elements
+        if (element.elements && element.elements.length > 0) {
+            element.elements.forEach(child => displayWidget(child, depth + 1));
+        }
+    };
+
+    result.elements.forEach((element, index) => {
+        displayWidget(element, 0);
+    });
+
+    html += '</div>';
+    fieldsDiv.innerHTML = html;
+}
+
+// Clean empty properties from settings (optional - keeps JSON cleaner)
+function cleanEmptyProperties(element) {
+    // Clean settings object
+    if (element.settings) {
+        const cleanedSettings = {};
+        for (const [key, value] of Object.entries(element.settings)) {
+            // Keep non-empty values
+            if (value !== "" && value !== null && value !== undefined) {
+                // For objects, check if they have non-empty values
+                if (typeof value === 'object' && !Array.isArray(value)) {
+                    const hasValues = Object.values(value).some(v => v !== "" && v !== null && v !== undefined && v !== 0);
+                    if (hasValues || key === 'link') { // Always keep link object
+                        cleanedSettings[key] = value;
+                    }
+                } else {
+                    cleanedSettings[key] = value;
+                }
+            }
+        }
+        element.settings = cleanedSettings;
+    }
+
+    // Recursively clean children
+    if (element.elements && element.elements.length > 0) {
+        element.elements = element.elements.map(cleanEmptyProperties);
+    }
+
+    return element;
+}
+
+// Generate Elementor JSON structure
+function generateElementorJSON(result) {
+    const timestamp = Date.now();
+
+    // AI Native Widgets Mode
+    if (result.type === 'native') {
+        // Check if result.elements already contains a proper container structure
+        // If first element is a container with children, use it directly
+        if (result.elements.length === 1 &&
+            result.elements[0].elType === 'container' &&
+            result.elements[0].elements?.length > 0) {
+            logger.log('JSON_GEN', 'Using AI-generated container structure directly');
+
+            // Clean empty properties to reduce JSON size
+            const cleanedElements = result.elements.map(el => cleanEmptyProperties({
+                ...el,
+                id: el.id || generateId()
+            }));
+
+            return {
+                version: "0.4",
+                title: `AI-Native-Widgets-Section-${timestamp}`,
+                type: "container",
+                content: cleanedElements
+            };
+        }
+
+        // Otherwise, wrap elements in a container
+        logger.log('JSON_GEN', 'Wrapping elements in container structure', {
+            elementCount: result.elements.length
+        });
+
+        // Add required Elementor properties to all widgets
+        const addRequiredProperties = (element) => {
+            const updated = {
+                ...element,
+                id: element.id || generateId(),
+                elType: element.elType || (element.widgetType === 'container' ? 'container' : 'widget'),
+                isInner: element.isInner !== undefined ? element.isInner : false
+            };
+
+            // CRITICAL: Remove widgetType from containers (only widgets should have it)
+            if (updated.elType === 'container' && updated.widgetType === 'container') {
+                delete updated.widgetType;
+            }
+
+            // Ensure elements array exists
+            if (!updated.elements) {
+                updated.elements = [];
+            }
+
+            // Recursively process children
+            if (updated.elements.length > 0) {
+                updated.elements = updated.elements.map(addRequiredProperties);
+            }
+
+            return updated;
+        };
+
+        return {
+            version: "0.4",
+            title: `AI-Native-Widgets-Section-${timestamp}`,
+            type: "container",
+            content: [{
+                id: generateId(),
+                elType: "container",
+                isInner: false,
+                settings: {},
+                elements: result.elements.map(addRequiredProperties)
+            }]
+        };
+    }
+
+    // Browser Custom HTML Mode
+    return {
+        version: "0.4",
+        title: `${currentMode === 'ai' ? 'AI' : 'Browser'}-Converted-Section-${timestamp}`,
+        type: "section",
+        content: [{
+            id: generateId(),
+            elType: "section",
+            isInner: false,
+            elements: [{
+                id: generateId(),
+                elType: "column",
+                isInner: false,
+                settings: {
+                    _column_size: 100,
+                    _inline_size: null
+                },
+                elements: [{
+                    id: generateId(),
+                    elType: "widget",
+                    isInner: false,
+                    widgetType: "html",
+                    settings: {
+                        html: `<style>${result.css}</style>\n${result.html}\n<script>${result.js || ''}<\/script>`,
+                        editable_fields: JSON.stringify(result.fields),
+                        ...generateDefaultValues(result.fields)
+                    }
+                }]
+            }]
+        }]
+    };
+}
+
+// Direct HTML to Elementor conversion (NO AI)
+async function directHTMLConvert() {
+    const html = document.getElementById('htmlInput').value.trim();    const css = document.getElementById('cssInput').value.trim();
+
+    if (!html) {
+        showStatus('Please enter HTML code', 'error');
+        return;
+    }
+
+    console.clear();
+    console.log('%c⚡ DIRECT CONVERSION (NO AI)', 'font-size: 20px; font-weight: bold; color: #3b82f6;');
+
+    // Ensure schemas loaded
+    if (!WIDGET_SCHEMAS) {
+        await loadWidgetSchemas();
+    }
+
+    try {
+        // Parse HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const body = doc.body;
+
+        // Simple conversion: wrap everything in a container
+        const mockAIResponse = {
+            fidelity_score: 85,
+            structure_analysis: "Direct HTML parse - no AI",
+            structure: [{
+                widgetType: "container",
+                extractedValues: {
+                    content_width: "full",                    padding: {unit: "px", top: 20, right: 20, bottom: 20, left: 20, isLinked: false}
+                },
+                children: Array.from(body.children).map(parseElement).filter(Boolean)
+            }]
+        };
+
+        console.log('📥 Parsed structure:', mockAIResponse);
+
+        // Build with schemas
+        const completeElements = buildWidgetsFromAIResponse(mockAIResponse);
+
+        // Generate JSON
+        const json = generateElementorJSON({
+            type: 'native',
+            elements: completeElements,
+            fidelity: 85,
+            analysis: "Direct HTML conversion"
+        });
+
+        document.getElementById('jsonOutput').textContent = JSON.stringify(json, null, 2);
+        generatedJSON = json;
+        document.getElementById('downloadBtn').disabled = false;
+
+        showStatus('✅ Direct conversion complete!', 'success');        console.log('✅ JSON generated:', json);
+
+    } catch (error) {
+        console.error('❌ Conversion failed:', error);        showStatus(`Conversion failed: ${error.message}`, 'error');
+    }
+}
+
+// Parse HTML element to widget structure
+function parseElement(element) {
+    const tag = element.tagName.toLowerCase();
+
+    if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+        return {
+            widgetType: "heading",
+            extractedValues: {
+                title: element.textContent,
+                header_size: tag
+            }
+        };
+    }
+
+    if (tag === 'p') {
+        return {
+            widgetType: "text-editor",
+            extractedValues: {
+                editor: `<p>${element.textContent}</p>`
+            }
+        };
+    }
+
+    if (tag === 'button' || (tag === 'a' && element.classList.contains('button'))) {
+        return {
+            widgetType: "button",
+            extractedValues: {
+                text: element.textContent
+            }
+        };
+    }
+
+    if (tag === 'div') {
+        const children = Array.from(element.children).map(parseElement).filter(Boolean);
+        if (children.length > 0) {
+            return {
+                widgetType: "container",
+                extractedValues: {},
+                children: children
+            };
+        }
+        // Div with just text
+        if (element.textContent.trim()) {
+            return {
+                widgetType: "text-editor",
+                extractedValues: {
+                    editor: `<p>${element.textContent}</p>`
+                }
+            };
+        }
+    }
+
+    return null;
+}
+
+// Generate default values for all fields
+function generateDefaultValues(fields) {
+    const defaults = {};
+
+    Object.entries(fields).forEach(([id, config]) => {
+        if (config.type === 'image') {
+            defaults[id] = {
+                url: config.default,
+                id: ""
+            };
+        } else {
+            defaults[id] = config.default;
+        }
+    });
+
+    return defaults;
+}
+
+// Generate unique ID
+function generateId() {
+    return Math.random().toString(36).substring(2, 10);
+}
+
+// Download JSON file
+function downloadJSON() {
+    if (!generatedJSON) {
+        showStatus('No JSON to download. Please convert first.', 'error');
+        return;
+    }
+
+    const jsonString = JSON.stringify(generatedJSON, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `elementor-section-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showStatus('JSON file downloaded successfully!', 'success');
+}
+
+// Test schema system without calling AI
+async function testSchemaSystem() {
+    console.clear();
+    console.log('%c🧪 TESTING SCHEMA SYSTEM (NO API CALL)', 'font-size: 20px; font-weight: bold; color: #10b981;');
+
+    // Ensure schemas are loaded
+    if (!WIDGET_SCHEMAS) {
+        console.log('⏳ Loading widget schemas...');        showStatus('Loading widget schemas...', 'info');
+        const loaded = await loadWidgetSchemas();
+        if (!loaded) {
+            showStatus('❌ Failed to load widget schemas!', 'error');
+            return;
+        }
+        console.log('✅ Schemas loaded:', Object.keys(WIDGET_SCHEMAS).length, 'widgets');
+    } else {
+        console.log('✅ Schemas already loaded:', Object.keys(WIDGET_SCHEMAS).length, 'widgets');
+    }
+
+    // Mock AI response in the expected format
+    const mockAIResponse = {
+        fidelity_score: 95,
+        structure_analysis: "Pricing section with gradient background and 3 cards",
+        structure: [
+            {
+                widgetType: "container",
+                extractedValues: {
+                    background_background: "gradient",                    background_gradient_type: "linear",                    background_gradient_angle: {unit: "deg", size: 180},                    background_gradient_color: "#f8f9fa",                    background_gradient_color_b: "#ffffff",                    padding: {unit: "px", top: 60, right: 20, bottom: 60, left: 20, isLinked: false}
+                },
+                children: [
+                    {
+                        widgetType: "heading",
+                        extractedValues: {
+                            title: "Choose Your Plan",                            header_size: "h2",                            align: "center",                            title_color: "#1a1a2e",                            typography_typography: "custom",                            typography_font_size: {unit: "px", size: 42},                            typography_font_weight: "700"
+                        }
+                    },
+                    {
+                        widgetType: "text-editor",
+                        extractedValues: {
+                            editor: "<p>Perfect for individuals</p>",                            align: "center",                            text_color: "#000000",                            typography_typography: "custom",                            typography_font_size: {unit: "px", size: 16}
+                        }
+                    }
+                ]
+            }
+        ]
+    };
+
+    console.log('📥 Mock AI Response:', mockAIResponse);    console.log('📊 Structure array:', mockAIResponse.structure);    console.log('📈 Structure length:', mockAIResponse.structure.length);
+
+    try {
+        // Test the schema builder
+        console.log('\n🏗️ Building widgets from schemas...');
+        const completeElements = buildWidgetsFromAIResponse(mockAIResponse);
+
+        console.log('\n✅ Schema building successful!');        console.log('📦 Generated elements:', completeElements);        console.log('📊 Element count:', completeElements.length);
+
+        // Generate the final JSON
+        const testJSON = generateElementorJSON({
+            type: 'native',
+            elements: completeElements,
+            fidelity: mockAIResponse.fidelity_score,
+            analysis: mockAIResponse.structure_analysis
+        });
+
+        console.log('\n📄 Final Elementor JSON:', testJSON);
+
+        // Display in UI
+        document.getElementById('jsonOutput').textContent = JSON.stringify(testJSON, null, 2);
+        generatedJSON = testJSON;
+        document.getElementById('downloadBtn').disabled = false;
+
+        showStatus('✅ Schema test successful! Check console for details.', 'success');
+    } catch (error) {
+        console.error('❌ Schema test failed:', error);        showStatus(`Schema test failed: ${error.message}`, 'error');
+    }
+}
+
+function debugJSON() {
+    if (!generatedJSON) {
+        alert('❌ No JSON generated yet. Please convert first.');
+        return;
+    }
+
+    console.clear();
+    console.log('%c🔍 ELEMENTOR JSON DEBUG REPORT', 'font-size: 20px; font-weight: bold; color: #3b82f6;');    console.log('='.repeat(80));
+
+    // Check structure
+    console.group('📦 JSON Structure');    console.log('Has content:', !!generatedJSON.content);    console.log('Content length:', generatedJSON.content?.length || 0);    console.log('Content[0] elements:', generatedJSON.content?.[0]?.elements?.length || 0);
+    console.groupEnd();
+
+    // Check container (first element)
+    if (generatedJSON.content?.[0]?.elements?.[0]) {
+        const container = generatedJSON.content[0].elements[0];
+        console.group('📦 Container (First Element)');        console.log('Widget Type:', container.widgetType);        console.log('Element Type:', container.elType);        console.log('Settings:', container.settings);
+
+        // Check gradient specifically
+        if (container.settings?.background_background === 'gradient') {            console.group('🎨 GRADIENT PROPERTIES');            console.log('✅ background_background:', container.settings.background_background);            console.log('✅ background_gradient_type:', container.settings.background_gradient_type);            console.log('✅ background_gradient_color:', container.settings.background_gradient_color);            console.log('✅ background_gradient_color_b:', container.settings.background_gradient_color_b);            console.log('✅ background_gradient_color_stop:', container.settings.background_gradient_color_stop);            console.log('✅ background_gradient_color_b_stop:', container.settings.background_gradient_color_b_stop);            console.log('✅ background_gradient_angle:', container.settings.background_gradient_angle);
+
+            // Validation
+            const issues = [];
+            if (!container.settings.background_gradient_color) issues.push('❌ Missing background_gradient_color');            if (!container.settings.background_gradient_color_b) issues.push('❌ Missing background_gradient_color_b');
+
+            if (issues.length > 0) {
+                console.warn('⚠️ ISSUES FOUND:', issues);
+            } else {
+                console.log('✅ All gradient properties present!');
+            }
+            console.groupEnd();
+        }
+
+        console.log('Child elements:', container.elements?.length || 0);
+        console.groupEnd();
+    }
+
+    // Check all widgets
+    console.group('🎯 All Widgets');
+    let widgetCount = 0;
+    const countWidgets = (elements, depth = 0) => {
+        if (!elements) return;
+        elements.forEach(el => {
+            widgetCount++;
+            const indent = '  '.repeat(depth);
+            console.log(`${indent}${widgetCount}. ${el.widgetType || el.elType}`, {
+                id: el.id,
+                settings: Object.keys(el.settings || {}).length + ' properties',
+                children: el.elements?.length || 0
+            });
+            if (el.elements) countWidgets(el.elements, depth + 1);
+        });
+    };
+    countWidgets(generatedJSON.content?.[0]?.elements);
+    console.log(`\nTotal widgets: ${widgetCount}`);
+    console.groupEnd();
+
+    // Full JSON
+    console.group('📄 Full JSON (click to expand)');
+    console.log(generatedJSON);
+    console.groupEnd();
+
+    console.log('='.repeat(80));    alert('✅ Debug report printed to console!\n\nPress F12 to view the console and see:\n• JSON structure\n• Gradient properties\n• All widgets\n• Full JSON');
+}
+
+// ============================================================================
+// LOCAL JSON QUALITY TESTING SUITE
+// ============================================================================
+
+function testJSONQuality() {
+    if (!generatedJSON) {
+        alert('❌ No JSON to test! Please convert HTML first.');
+        return;
+    }
+
+    const html = document.getElementById('htmlInput').value.trim();    const css = document.getElementById('cssInput').value.trim();
+
+    console.log('🎯 Starting JSON Quality Test...');
+    const results = {
+        structureScore: 0,
+        propertyFidelityScore: 0,
+        visualFidelityScore: 0,
+        issues: [],
+        successes: []
+    };
+
+    // Test 1: Structure Validation
+    console.group('Test 1: Structure Validation');
+    const structureTest = validateJSONStructure(generatedJSON);
+    results.structureScore = structureTest.score;
+    results.issues.push(...structureTest.issues);
+    results.successes.push(...structureTest.successes);
+    console.log('Score:', structureTest.score + '%');
+    console.groupEnd();
+
+    // Test 2: Property Fidelity (compare computed styles vs JSON properties)
+    console.group('Test 2: Property Fidelity');
+    const computedStyles = extractComputedStyles(html, css);
+    const fidelityTest = comparePropertyFidelity(generatedJSON, computedStyles);
+    results.propertyFidelityScore = fidelityTest.score;
+    results.issues.push(...fidelityTest.issues);
+    results.successes.push(...fidelityTest.successes);
+    console.log('Score:', fidelityTest.score + '%');
+    console.groupEnd();
+
+    // Test 3: Visual Rendering Test
+    console.group('Test 3: Visual Rendering');
+    const visualTest = testVisualRendering(html, css, generatedJSON);
+    results.visualFidelityScore = visualTest.score;
+    results.issues.push(...visualTest.issues);
+    results.successes.push(...visualTest.successes);
+    console.log('Score:', visualTest.score + '%');
+    console.groupEnd();
+
+    // Calculate overall score
+    const overallScore = Math.round(
+        (results.structureScore + results.propertyFidelityScore + results.visualFidelityScore) / 3
+    );
+
+    // Display results
+    displayQualityResults(results, overallScore);
+}
+
+function validateJSONStructure(json) {
+    const issues = [];
+    const successes = [];
+    let score = 100;
+
+    // Check required top-level properties
+    if (!json.version) { issues.push('Missing version'); score -= 10; }    else { successes.push('✅ Has version: ' + json.version); }
+
+    if (!json.title) { issues.push('Missing title'); score -= 10; }    else { successes.push('✅ Has title: ' + json.title); }
+
+    if (!json.content || !Array.isArray(json.content)) {
+        issues.push('Missing or invalid content array');
+        score -= 30;
+    } else {
+        successes.push(`✅ Has content array (${json.content.length} elements)`);
+
+        // Validate elements
+        let elementCount = 0;
+        const validateElement = (el, path = 'root') => {
+            elementCount++;
+            if (!el.id) { issues.push(`${path}: Missing id`); score -= 5; }
+            if (!el.elType) { issues.push(`${path}: Missing elType`); score -= 5; }
+
+            // Check widgetType rules
+            if (el.elType === 'container' && el.widgetType) {
+                issues.push(`${path}: Container has widgetType (${el.widgetType})`);
+                score -= 10;
+            }
+            if (el.elType === 'widget' && !el.widgetType) {
+                issues.push(`${path}: Widget missing widgetType`);
+                score -= 10;
+            }
+
+            if (el.isInner === undefined) { issues.push(`${path}: Missing isInner`); score -= 5; }
+            if (!el.elements) { issues.push(`${path}: Missing elements array`); score -= 5; }
+
+            // Recursively validate children
+            if (el.elements && Array.isArray(el.elements)) {
+                el.elements.forEach((child, idx) => validateElement(child, `${path}[${idx}]`));
+            }
+        };
+
+        json.content.forEach((el, idx) => validateElement(el, `content[${idx}]`));
+        successes.push(`✅ Validated ${elementCount} elements`);
+    }
+
+    return { score: Math.max(0, score), issues, successes };
+}
+
+function comparePropertyFidelity(json, computedStyles) {
+    const issues = [];
+    const successes = [];
+    let totalChecks = 0;
+    let passedChecks = 0;
+
+    if (!computedStyles || Object.keys(computedStyles).length === 0) {
+        issues.push('No computed styles available for comparison');
+        return { score: 50, issues, successes };
+    }
+
+    // Get first element's computed stylesconst firstStyle = Object.values(computedStyles)[0]?.styles;
+    if (!firstStyle) {
+        issues.push('Could not extract computed styles');
+        return { score: 50, issues, successes };
+    }
+
+    // Find first container in JSON
+    const findFirstContainer = (elements) => {
+        for (const el of elements) {
+            if (el.elType === 'container') return el;
+            if (el.elements) {
+                const found = findFirstContainer(el.elements);
+                if (found) return found;
+            }
+        }
+        return null;
+    };
+
+    const container = json.content ? findFirstContainer(json.content) : null;
+
+    if (container && container.settings) {
+        console.log('Comparing container properties...');
+
+        // Check padding
+        if (firstStyle.paddingTop) {
+            totalChecks++;
+            const expected = parseFloat(firstStyle.paddingTop);
+            const actual = container.settings.padding?.top;
+            if (actual && Math.abs(actual - expected) <= 2) {
+                passedChecks++;
+                successes.push(`✅ Padding top: ${actual}px (expected ${expected}px)`);
+            } else {
+                issues.push(`❌ Padding top: ${actual}px vs expected ${expected}px`);
+            }
+        }
+
+        // Check background color/gradient
+        if (firstStyle.backgroundColor || firstStyle.backgroundImage) {
+            totalChecks++;
+            if (container.settings.background_background) {
+                passedChecks++;
+                successes.push(`✅ Background type: ${container.settings.background_background}`);
+            } else {
+                issues.push('❌ Background not set');
+            }
+        }
+
+        // Check border radius
+        if (firstStyle.borderTopLeftRadius) {
+            totalChecks++;
+            const expected = parseFloat(firstStyle.borderTopLeftRadius);
+            const actual = container.settings.border_radius?.top;
+            if (actual && Math.abs(actual - expected) <= 2) {
+                passedChecks++;
+                successes.push(`✅ Border radius: ${actual}px (expected ${expected}px)`);
+            } else {
+                issues.push(`❌ Border radius: ${actual}px vs expected ${expected}px`);
+            }
+        }
+    }
+
+    const score = totalChecks > 0 ? Math.round((passedChecks / totalChecks) * 100) : 50;
+    return { score, issues, successes };
+}
+
+function testVisualRendering(originalHtml, originalCss, json) {
+    const issues = [];
+    const successes = [];
+
+    // This is a simplified test - in production you'd render both and compare// For now, we'll check if key visual properties are present
+
+    let score = 100;
+    let checks = 0;
+
+    // Check if colors exist
+    const hasColors = originalCss.match(/#[0-9a-fA-F]{3,6}|rgb\([^)]+\)/g);
+    if (hasColors) {
+        checks++;
+        // Check if JSON has color properties
+        const jsonString = JSON.stringify(json);
+        const jsonHasColors = jsonString.includes('color') || jsonString.includes('Color');
+        if (jsonHasColors) {
+            successes.push('✅ Colors preserved in JSON');
+        } else {
+            issues.push('❌ Colors missing from JSON');
+            score -= 20;
+        }
+    }
+
+    // Check if text content exists
+    const textContent = originalHtml.replace(/<[^>]*>/g, '').trim();
+    if (textContent.length > 0) {
+        checks++;
+        const jsonString = JSON.stringify(json);
+        const jsonHasText = jsonString.includes(textContent.substring(0, 20));
+        if (jsonHasText) {
+            successes.push('✅ Text content preserved');
+        } else {
+            issues.push('❌ Text content missing or modified');
+            score -= 30;
+        }
+    }
+
+    // Check if layout properties exist (padding, margin)
+    if (originalCss.includes('padding') || originalCss.includes('margin')) {
+        checks++;
+        const jsonString = JSON.stringify(json);
+        if (jsonString.includes('padding') || jsonString.includes('margin')) {            successes.push('✅ Spacing properties preserved');
+        } else {
+            issues.push('❌ Spacing properties missing');
+            score -= 25;
+        }
+    }
+
+    if (checks === 0) {
+        successes.push('⚠️ No visual checks available');
+        score = 50;
+    }
+
+    return { score: Math.max(0, score), issues, successes };
+}
+
+function displayQualityResults(results, overallScore) {
+    const panel = document.getElementById('qualityTestResults');    panel.style.display = 'block';
+
+    const getScoreColor = (score) => {
+        if (score >= 90) return '#10b981'; // green        if (score >= 70) return '#f59e0b'; // yellow        return '#ef4444'; // red
+    };
+
+    const getScoreLabel = (score) => {
+        if (score >= 90) return 'Excellent';        if (score >= 70) return 'Good';        if (score >= 50) return 'Fair';        return 'Poor';
+    };
+
+    panel.innerHTML = `<h3 style="margin-bottom: 15px; color: #1f2937;">
+            🎯 JSON Quality Test Results
+        </h3>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid ${getScoreColor(overallScore)};">                <div style="font-size: 32px; font-weight: bold; color: ${getScoreColor(overallScore)};">
+                    ${overallScore}%
+                </div>
+                <div style="font-size: 14px; color: #6b7280; margin-top: 5px;">
+                    Overall Score
+                </div>
+                <div style="font-size: 12px; color: ${getScoreColor(overallScore)}; margin-top: 5px; font-weight: bold;">
+                    ${getScoreLabel(overallScore)}
+                </div>
+            </div>
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">                <div style="font-size: 24px; font-weight: bold; color: #667eea;">
+                    ${results.structureScore}%
+                </div>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">
+                    Structure
+                </div>
+            </div>
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">                <div style="font-size: 24px; font-weight: bold; color: #667eea;">
+                    ${results.propertyFidelityScore}%
+                </div>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">
+                    Property Fidelity
+                </div>
+            </div>
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">                <div style="font-size: 24px; font-weight: bold; color: #667eea;">
+                    ${results.visualFidelityScore}%
+                </div>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">
+                    Visual Fidelity
+                </div>
+            </div>
+        </div>
+
+        ${results.successes.length > 0 ? `<div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #10b981;">            <h4 style="margin-bottom: 10px; color: #065f46;">✅ Passed Checks (${results.successes.length})</h4>            <div style="font-size: 13px; line-height: 1.6;">                ${results.successes.map(s => `<div style="margin-bottom: 5px;">${s}</div>`).join('')}
+            </div>
+        </div>
+        ` : ''}        ${results.issues.length > 0 ? `<div style="background: #fef2f2; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">            <h4 style="margin-bottom: 10px; color: #991b1b;">❌ Issues Found (${results.issues.length})</h4>            <div style="font-size: 13px; line-height: 1.6;">                ${results.issues.map(i => `<div style="margin-bottom: 5px;">${i}</div>`).join('')}
+            </div>
+        </div>
+        ` : `
+        <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; text-align: center;">            <div style="font-size: 18px; color: #10b981;">🎉 No issues found!</div>
+        </div>
+        `}        <div style="margin-top: 15px; padding: 15px; background: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b;">            <h4 style="margin-bottom: 10px; color: #92400e;">💡 Recommendations</h4>            <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.8; color: #78350f;">
+                ${overallScore < 90 ? '<li>Try using AI mode with computed styles for better fidelity</li>' : ''}                ${results.propertyFidelityScore < 80 ? '<li>Check if computed styles are being extracted correctly</li>' : ''}                ${results.structureScore < 90 ? '<li>Ensure all elements have required Elementor properties (id, elType, isInner)</li>' : ''}                ${results.issues.some(i => i.includes('widgetType')) ? '<li>Containers should NOT have widgetType property</li>' : ''}                ${overallScore >= 90 ? '<li>Excellent! Your JSON should work well in Elementor</li>' : ''}
+            </ul>
+        </div>
+    `;    // Scroll to results
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function showVisualDiff() {
+    if (!generatedJSON) {
+        alert('❌ No JSON to compare! Please convert HTML first.');
+        return;
+    }
+
+    const html = document.getElementById('htmlInput').value.trim();    const css = document.getElementById('cssInput').value.trim();
+
+    // Open a new window with side-by-side comparison
+    const diffWindow = window.open('', 'Visual Diff', 'width=1400,height=800');
+    diffWindow.document.write(`<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Visual Diff - Original vs Elementor JSON</title>
+            <style>
+                body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background: #f3f4f6; }
+                .container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1400px; margin: 0 auto; }
+                .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+                .panel h2 { margin-top: 0; color: #1f2937; }
+                .preview { border: 2px solid #e5e7eb; padding: 20px; border-radius: 8px; min-height: 400px; }
+                .info { background: #f9fafb; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 14px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">                <div class="panel">
+                    <h2>🎨 Original HTML/CSS</h2>
+                    <div class="info">This is your original design as rendered by the browser</div>                    <div class="preview">
+                        <style>${css}</style>
+                        ${html}
+                    </div>
+                </div>
+                <div class="panel">
+                    <h2>⚡ Elementor JSON Preview</h2>
+                    <div class="info">This simulates how Elementor would render it (note: not 100% accurate)</div>                    <div class="preview" id="elementorPreview">
+                        Loading...
+                    </div>
+                </div>
+            </div>
+            <script>
+                // Simulate Elementor rendering
+                const json = ${JSON.stringify(generatedJSON)};
+
+                function renderElement(el) {
+                    if (!el) return '';
+
+                    if (el.elType === 'container') {
+                        const settings = el.settings || {};
+                        const styles = [];
+
+                        if (settings.background_background === 'gradient') {
+                            const angle = settings.background_gradient_angle?.size || 180;
+                            const c1 = settings.background_gradient_color || '#fff';                            const c2 = settings.background_gradient_color_b || '#000';                            styles.push('background: linear-gradient(' + angle + 'deg, ' + c1 + ', ' + c2 + ')');
+                        } else if (settings.background_color) {
+                            styles.push('background-color: ' + settings.background_color);
+                        }
+
+                        if (settings.padding) {
+                            const p = settings.padding;
+                            styles.push('padding: ' + p.top + 'px ' + p.right + 'px ' + p.bottom + 'px ' + p.left + 'px');
+                        }
+
+                        const children = (el.elements || []).map(renderElement).join('');                        return '<div style="' + styles.join('; ') + '">' + children + '</div>';
+                    }
+
+                    if (el.widgetType === 'heading') {
+                        const settings = el.settings || {};
+                        const styles = [];
+                        if (settings.title_color) styles.push('color: ' + settings.title_color);                        if (settings.typography_font_size) styles.push('font-size: ' + settings.typography_font_size.size + 'px');                        const tag = settings.header_size || 'h2';                        return '<' + tag + ' style="' + styles.join('; ') + '">' + (settings.title || 'Heading') + '</' + tag + '>';
+                    }
+
+                    if (el.widgetType === 'text-editor') {
+                        const settings = el.settings || {};
+                        const styles = [];
+                        if (settings.text_color) styles.push('color: ' + settings.text_color);                        return '<div style="' + styles.join('; ') + '">' + (settings.editor || '') + '</div>';
+                    }
+
+                    if (el.widgetType === 'button') {
+                        const settings = el.settings || {};
+                        const styles = [];
+                        if (settings.button_text_color) styles.push('color: ' + settings.button_text_color);                        if (settings.background_color) styles.push('background-color: ' + settings.background_color);
+                        if (settings.button_padding) {
+                            const p = settings.button_padding;
+                            styles.push('padding: ' + p.top + 'px ' + p.right + 'px ' + p.bottom + 'px ' + p.left + 'px');
+                        }
+                        return '<button style="' + styles.join('; ') + '; border: none; cursor: pointer;">' + (settings.text || 'Button') + '</button>';
+                    }
+
+                    return '';
+                }
+
+                const content = json.content || [];
+                const html = content.map(renderElement).join('');                document.getElementById('elementorPreview').innerHTML = html;
+            </script>
+        </body>
+        </html>
+    `);diffWindow.document.close();
+}
+
+// Load example on page load
+window.addEventListener('load', () => {
+    loadExample();
+});
+
+// Expose all functions to window for onclick handlers  
+window.loadExample = loadExample;
+window.clearInputs = clearInputs;
+window.convertToElementor = convertToElementor;
+window.switchPreviewMode = switchPreviewMode;
+window.downloadJSON = downloadJSON;
+window.testJSONQuality = testJSONQuality;
+window.showVisualDiff = showVisualDiff;
+window.testSchemaSystem = testSchemaSystem;
+window.directHTMLConvert = directHTMLConvert;
+window.debugJSON = debugJSON;
+window.testInPlayground = testInPlayground;
+
+console.log('✅ All core functions exposed to window object');

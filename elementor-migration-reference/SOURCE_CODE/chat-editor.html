@@ -1,0 +1,2951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elementor JSON Chat Editor</title>
+    <link rel="stylesheet" href="styles/chat-editor-styles.css?v=2">
+</head>
+<body>
+    <div class="chat-editor-container">
+        <!-- Left Panel: Chat UI -->
+        <div class="left-panel">
+            <div class="chat-header">
+                <h1>🤖 Elementor JSON Editor</h1>
+                <div class="api-key-status" id="apiKeyStatus">
+                    <span id="apiKeyIndicator" class="status-dot"></span>
+                    <span id="apiKeyText">API Key Not Set</span>
+                    <button id="setApiKeyBtn" class="btn-small">Set API Key</button>
+                </div>
+                <div class="web-search-toggle">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="webSearchToggle" class="toggle-checkbox">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-text">🌐 Web Search</span>
+                    </label>
+                </div>
+                <button id="toggleDebugPanel" class="btn-small debug-toggle">🔍 Debug</button>
+            </div>
+
+            <!-- Collapsible Debug Panel -->
+            <div id="debugPanel" class="debug-panel" style="display: none;">
+                <div class="debug-panel-content">
+                    <div class="debug-section">
+                        <h3>💰 Session Costs</h3>
+                        <div id="costTracker" class="token-tracker-widget"></div>
+                        <div class="session-info">
+                            <button id="sessionStatsBtn" class="btn-small">📊 Detailed Stats</button>
+                            <button id="restartSessionBtn" class="btn-small">🔄 Restart</button>
+                        </div>
+                    </div>
+                    <div class="debug-section">
+                        <h3>📋 Console Logs</h3>
+                        <div id="debugLogs" class="debug-logs"></div>
+                        <button id="clearLogsBtn" class="btn-small">🗑️ Clear Logs</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <!-- Messages will be inserted here dynamically -->
+            </div>
+
+            <div class="chat-input-container">
+                <div class="file-upload-area" id="fileUploadArea">
+                    <input type="file" id="jsonFileInput" accept=".json" style="display: none;">
+                    <input type="file" id="imageFileInput" accept="image/jpeg,image/jpg,image/png,image/webp" style="display: none;">
+                    <button id="loadJsonBtn" class="btn-secondary">📁 Load JSON</button>
+                    <button id="loadSampleBtn" class="btn-secondary">🎨 Load Sample</button>
+                    <span id="currentFileName" class="file-name"></span>
+                    <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+                        <label for="chatModelSelector" style="font-size: 13px; color: #6b7280;">Model:</label>
+                        <select id="chatModelSelector" class="model-selector">
+                            <option value="gpt-5-2025-08-07">GPT-5 Standard</option>
+                            <option value="gpt-5-mini-2025-08-07">GPT-5 Mini</option>
+                            <option value="gpt-5-nano-2025-08-07">GPT-5 Nano</option>
+                            <option value="gpt-4o">GPT-4o</option>
+                            <option value="gpt-4o-mini">GPT-4o Mini</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="image-preview-area" id="imagePreviewArea" style="display: none;">
+                    <div class="image-preview-container">
+                        <img id="imagePreview" class="image-preview" alt="Preview">
+                        <button id="removeImageBtn" class="remove-image-btn" title="Remove image">✕</button>
+                        <span id="imageFileName" class="image-file-name"></span>
+                    </div>
+                </div>
+                <div class="input-row">
+                    <button id="voiceBtn" class="voice-button" title="Voice input (click to start/stop recording)">🎤</button>
+                    <button id="imageBtn" class="image-button" title="Upload image or screenshot playground">🖼️</button>
+                    <textarea id="chatInput" class="chat-input" placeholder="Ask me to edit your JSON... (or click 🎤 to speak)" rows="2"></textarea>
+                    <button id="sendBtn" class="send-button">Send</button>
+                </div>
+                <div class="input-hints">
+                    <span class="hint">Tip: Use Ctrl+Enter (⌘+Enter on Mac) to send | Type / for commands | 🖼️ for images</span>
+                    <span id="recordingStatus" class="recording-status"></span>
+                </div>
+
+                <!-- Slash Command Menu -->
+                <div id="slashCommandMenu" class="slash-command-menu" style="display: none;">
+                    <div class="slash-menu-header">🛠️ Available Commands</div>
+                    <div class="slash-menu-items" id="slashMenuItems"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: JSON Editor + WordPress Playground -->
+        <div class="right-panel">
+            <div class="tab-bar">
+                <div class="tab active" id="jsonTab" data-tab="json">
+                    📝 JSON Editor
+                </div>
+                <div class="tab" id="htmlGenTab" data-tab="htmlgen">
+                    🎨 HTML Generator
+                </div>
+                <div class="tab" id="jsonConverterTab" data-tab="jsonconverter">
+                    ⚡ JSON Converter
+                </div>
+                <div class="tab" id="playgroundTab" data-tab="playground">
+                    🌐 WordPress Playground
+                </div>
+                <div class="tab-actions">
+                    <button id="downloadJsonBtn" class="btn-small" title="Download JSON">⬇️</button>
+                    <button id="undoBtn" class="btn-small" title="Undo (Ctrl+Z)" disabled>↶</button>
+                    <button id="redoBtn" class="btn-small" title="Redo (Ctrl+Y)" disabled>↷</button>
+                </div>
+            </div>
+
+            <div class="tab-content">
+                <!-- JSON Editor View -->
+                <div class="tab-pane active" id="jsonView">
+                    <div class="json-editor-container" id="jsonEditorContainer">
+                        <div class="json-editor-placeholder">
+                            <div class="placeholder-content">
+                                <div class="placeholder-icon">📄</div>
+                                <h3>No JSON Loaded</h3>
+                                <p>Load a JSON file or sample to get started</p>
+                                <button id="loadJsonBtn2" class="btn-primary">Load JSON File</button>
+                                <button id="loadSampleBtn2" class="btn-secondary">Load Sample</button>
+                            </div>
+                        </div>
+                        <div class="json-editor-toolbar" style="display: none;">
+                            <button id="saveJsonBtn" class="btn-primary">💾 Save Changes</button>
+                            <span id="saveStatus" class="save-status"></span>
+                        </div>
+                        <pre id="jsonEditor" class="json-editor" contenteditable="true" spellcheck="false"></pre>
+                    </div>
+                </div>
+
+                <!-- HTML Generator View -->
+                <div class="tab-pane" id="htmlgenView">
+                    <div class="html-generator-container">
+                        <div class="html-gen-header">
+                            <h3>🎨 HTML Generator</h3>
+                            <select id="htmlGenModelSelector" class="model-selector">
+                                <option value="gpt-5-2025-08-07">GPT-5 Standard ($1.25/1M)</option>
+                                <option value="gpt-5-mini-2025-08-07">GPT-5 Mini ($0.25/1M)</option>
+                                <option value="gpt-5-nano-2025-08-07">GPT-5 Nano ($0.05/1M)</option>
+                            </select>
+                        </div>
+
+                        <!-- Image Upload Section -->
+                        <div class="image-upload-section">
+                            <h4>📸 Upload Design Mockups (Optional)</h4>
+                            <div class="mockup-uploads">
+                                <div class="mockup-upload-box">
+                                    <label for="desktopMockupInput" class="upload-label">
+                                        <div class="upload-icon">🖥️</div>
+                                        <div>Desktop</div>
+                                        <input type="file" id="desktopMockupInput" accept="image/*" style="display: none;">
+                                        <div id="desktopPreview" class="mockup-preview" style="display: none;"></div>
+                                    </label>
+                                </div>
+                                <div class="mockup-upload-box">
+                                    <label for="tabletMockupInput" class="upload-label">
+                                        <div class="upload-icon">📱</div>
+                                        <div>Tablet</div>
+                                        <input type="file" id="tabletMockupInput" accept="image/*" style="display: none;">
+                                        <div id="tabletPreview" class="mockup-preview" style="display: none;"></div>
+                                    </label>
+                                </div>
+                                <div class="mockup-upload-box">
+                                    <label for="mobileMockupInput" class="upload-label">
+                                        <div class="upload-icon">📱</div>
+                                        <div>Mobile</div>
+                                        <input type="file" id="mobileMockupInput" accept="image/*" style="display: none;">
+                                        <div id="mobilePreview" class="mockup-preview" style="display: none;"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Custom Prompt -->
+                        <div class="custom-prompt-section">
+                            <h4>💬 Custom Prompt (Optional)</h4>
+                            <textarea id="htmlGenPrompt" class="custom-prompt-input" placeholder="e.g., Make it responsive, use Tailwind classes, include hover effects..."></textarea>
+                        </div>
+
+                        <!-- Generate Button -->
+                        <div class="generate-button-container">
+                            <button id="generateHtmlBtn" class="btn-primary btn-large">✨ Generate HTML/CSS/JS</button>
+                        </div>
+
+                        <!-- Generated Code Section (hidden until generated) -->
+                        <div id="generatedCodeSection" class="generated-code-section" style="display: none;">
+                            <h4>📝 Generated Code</h4>
+                            <div class="code-tabs">
+                                <button class="code-tab active" data-tab="html">HTML</button>
+                                <button class="code-tab" data-tab="css">CSS</button>
+                                <button class="code-tab" data-tab="js">JavaScript</button>
+                            </div>
+                            <div class="code-editors">
+                                <textarea id="generatedHtml" class="code-editor active"></textarea>
+                                <textarea id="generatedCss" class="code-editor" style="display: none;"></textarea>
+                                <textarea id="generatedJs" class="code-editor" style="display: none;"></textarea>
+                            </div>
+
+                            <!-- Preview -->
+                            <h4 style="margin-top: 20px;">👁️ Preview</h4>
+                            <div class="viewport-switcher">
+                                <button class="viewport-btn active" data-viewport="desktop">🖥️ Desktop</button>
+                                <button class="viewport-btn" data-viewport="tablet">📱 Tablet</button>
+                                <button class="viewport-btn" data-viewport="mobile">📱 Mobile</button>
+                            </div>
+                            <iframe id="htmlPreviewIframe" class="html-preview-iframe desktop"></iframe>
+
+                            <!-- Refinement Chat -->
+                            <h4 style="margin-top: 20px;">💬 Refinement Chat</h4>
+                            <div class="refinement-chat">
+                                <div id="refinementMessages" class="refinement-messages"></div>
+                                <div class="refinement-input-container">
+                                    <textarea id="refinementInput" class="refinement-input" placeholder="e.g., Change button colors to blue, make text larger..." rows="2"></textarea>
+                                    <button id="refineBtn" class="btn-primary">Send</button>
+                                </div>
+                            </div>
+
+                            <!-- Send to JSON Converter -->
+                            <div class="send-to-converter-container">
+                                <button id="sendToConverterBtn" class="btn-primary btn-large">⚡ Send to JSON Converter →</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- JSON Converter View -->
+                <div class="tab-pane" id="jsonconverterView">
+                    <div class="json-converter-container">
+                        <div class="json-conv-header">
+                            <h3>⚡ JSON Converter</h3>
+                            <select id="jsonConvModelSelector" class="model-selector">
+                                <option value="gpt-5-2025-08-07">GPT-5 Standard ($1.25/1M)</option>
+                                <option value="gpt-5-mini-2025-08-07">GPT-5 Mini ($0.25/1M)</option>
+                                <option value="gpt-5-nano-2025-08-07">GPT-5 Nano ($0.05/1M)</option>
+                            </select>
+                        </div>
+
+                        <!-- Source Code -->
+                        <div class="source-code-section">
+                            <h4>📝 Source Code</h4>
+                            <div class="code-tabs">
+                                <button class="code-tab active" data-tab="html">HTML</button>
+                                <button class="code-tab" data-tab="css">CSS</button>
+                                <button class="code-tab" data-tab="js">JavaScript</button>
+                            </div>
+                            <div class="code-editors">
+                                <textarea id="sourceHtml" class="code-editor active"></textarea>
+                                <textarea id="sourceCss" class="code-editor" style="display: none;"></textarea>
+                                <textarea id="sourceJs" class="code-editor" style="display: none;"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Vision Mode removed - was non-functional placeholder -->
+
+                        <!-- Conversion Settings -->
+                        <div class="conversion-settings-section">
+                            <h4>⚙️ Conversion Settings</h4>
+                            <div class="conversion-mode">
+                                <label>Mode:</label>
+                                <label class="radio-label">
+                                    <input type="radio" name="conversionMode" value="fast" checked>
+                                    <span>⚡ Fast (Browser-only)</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="conversionMode" value="accurate">
+                                    <span>🎯 Accurate (AI + Vector Store)</span>
+                                </label>
+                            </div>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="useGlobalStylesheet">
+                                <span>Use Global Stylesheet</span>
+                            </label>
+                            <textarea id="globalStylesheet" class="global-stylesheet" placeholder="/* Global CSS styles... */" style="display: none;"></textarea>
+                        </div>
+
+                        <!-- Custom Conversion Prompt -->
+                        <div class="custom-prompt-section">
+                            <h4>💬 Custom Conversion Prompt (Optional)</h4>
+                            <textarea id="conversionPrompt" class="custom-prompt-input" placeholder="e.g., Focus on button widgets, preserve exact colors..."></textarea>
+                        </div>
+
+                        <!-- Convert Button -->
+                        <div class="convert-button-container">
+                            <button id="convertToElementorBtn" class="btn-primary btn-large">🚀 CONVERT TO ELEMENTOR JSON</button>
+                        </div>
+
+                        <!-- Conversion Result -->
+                        <div id="conversionResult" class="conversion-result" style="display: none;">
+                            <div class="success-message">
+                                <h4>✅ Conversion Complete!</h4>
+                                <p>Auto-sending to JSON Editor...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WordPress Playground View -->
+                <div class="tab-pane" id="playgroundView">
+                    <div class="playground-container" id="playgroundContainer">
+                        <div class="playground-controls">
+                            <button id="startPlaygroundBtn" class="btn-primary">🚀 Launch</button>
+                            <button id="updatePlaygroundBtn" class="btn-secondary" disabled>🔄 Update & Open</button>
+                            <button id="viewPageBtn" class="btn-secondary" disabled>👁️ View Live</button>
+                            <div id="playgroundStatus" class="playground-status">
+                                <span id="playgroundStatusText"></span>
+                            </div>
+                        </div>
+                        <iframe id="playgroundIframe" class="playground-iframe"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key Modal -->
+    <div id="apiKeyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔑 OpenAI API Key</h2>
+                <button class="modal-close" id="closeModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Enter your OpenAI API key to enable AI-powered editing:</p>
+                <input type="password" id="apiKeyInput" class="api-key-input" placeholder="sk-...">
+                <p class="help-text">
+                    Your API key is stored locally and never sent to our servers.
+                    <a href="https://platform.openai.com/api-keys" target="_blank">Get an API key →</a>
+                </p>
+                <div class="modal-actions">
+                    <button id="saveApiKeyBtn" class="btn-primary">Save API Key</button>
+                    <button id="cancelApiKeyBtn" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approval Modal for JSON Patches -->
+    <div id="approvalModal" class="modal">
+        <div class="modal-content approval-modal">
+            <div class="modal-header">
+                <h2>✏️ Proposed Changes</h2>
+                <button class="modal-close" id="closeApprovalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="approvalContent" class="approval-content">
+                    <!-- Approval UI will be inserted here -->
+                </div>
+                <div class="modal-actions">
+                    <button id="applyChangesBtn" class="btn-primary">✓ Apply Changes</button>
+                    <button id="applyIndividualBtn" class="btn-secondary" style="display: none;">Apply Individual</button>
+                    <button id="rejectChangesBtn" class="btn-secondary">✗ Reject</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Options Menu -->
+    <div id="imageOptionsMenu" class="context-menu" style="display: none;">
+        <div class="context-menu-item" id="uploadImageOption">
+            📁 Upload Image
+        </div>
+        <div class="context-menu-item" id="screenshotPlaygroundOption">
+            📸 Screenshot Playground
+        </div>
+    </div>
+
+    <!-- Session Stats Modal -->
+    <div id="sessionStatsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📊 Session Statistics</h2>
+                <button class="modal-close" id="closeStatsBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">💬</div>
+                        <div class="stat-value" id="messageCount">0</div>
+                        <div class="stat-label">Messages</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔄</div>
+                        <div class="stat-value" id="turnCount">0</div>
+                        <div class="stat-label">Turns</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔧</div>
+                        <div class="stat-value" id="toolCallCount">0</div>
+                        <div class="stat-label">Tool Calls</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📥</div>
+                        <div class="stat-value" id="inputTokens">0</div>
+                        <div class="stat-label">Input Tokens</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📤</div>
+                        <div class="stat-value" id="outputTokens">0</div>
+                        <div class="stat-label">Output Tokens</div>
+                    </div>
+                    <div class="stat-card highlight">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-value" id="sessionCost">$0.00</div>
+                        <div class="stat-label">Estimated Cost</div>
+                    </div>
+                </div>
+                <!-- Tool capabilities list -->
+                <div id="toolsList" style="display: none;">
+                    <h3>🛠️ Available Tools & Capabilities</h3>
+                    <ul>
+                        <li><strong>JSON Editing</strong> - Surgical edits with approval workflow</li>
+                        <li><strong>Structure Analysis</strong> - Search and inspect your JSON</li>
+                        <li><strong>Elementor Docs Search</strong> - <span id="vectorStoreStatus">Checking...</span></li>
+                        <li><strong>WordPress Playground</strong> - Live preview with Elementor</li>
+                        <li><strong>Screenshot Capture</strong> - Visual documentation</li>
+                        <li><strong>Image Analysis</strong> - AI vision for design feedback</li>
+                        <li><strong>Web Search</strong> - Access current information (toggle on/off)</li>
+                    </ul>
+                </div>
+                <div class="cost-breakdown">
+                    <h3>Cost Breakdown (GPT-5)</h3>
+                    <p><strong>Input:</strong> <span id="inputCost">$0.00</span> ($1.25 per 1M tokens)</p>
+                    <p><strong>Output:</strong> <span id="outputCost">$0.00</span> ($10.00 per 1M tokens)</p>
+                    <p class="note">📸 <em>Note: Image tokens are included in input tokens</em></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sample JSON for testing -->
+    <script id="sampleJson" type="application/json">
+    {
+      "widgetType": "custom_html_section",
+      "content": [
+        {
+          "id": "abc123",
+          "elType": "widget",
+          "widgetType": "heading",
+          "settings": {
+            "title": "Welcome to My Site",
+            "title_color": "#000000",
+            "typography_font_size": {
+              "size": 32,
+              "unit": "px"
+            },
+            "align": "center"
+          }
+        },
+        {
+          "id": "def456",
+          "elType": "widget",
+          "widgetType": "button",
+          "settings": {
+            "text": "Click Me",
+            "button_color": "#0066cc",
+            "button_text_color": "#ffffff",
+            "button_size": "md"
+          }
+        },
+        {
+          "id": "ghi789",
+          "elType": "widget",
+          "widgetType": "text-editor",
+          "settings": {
+            "editor": "This is a sample text widget with some content. You can edit this text using the chat interface!"
+          }
+        }
+      ]
+    }
+    </script>
+
+    <!-- Load modules -->
+    <script src="vendor/fast-json-patch.min.js"></script>
+    <script type="module">
+        // Import all modules
+        import { StateManager } from './modules/state-manager.js';
+        import { ChatUI } from './modules/chat-ui.js';
+        import { JsonEditor } from './modules/json-editor.js';
+        import { JsonDiff } from './modules/json-diff.js';
+        import { OpenAIClient } from './modules/openai-client.js';
+        import { OpenAIAudio } from './modules/openai-audio.js';
+        import { HTMLToElementorConverter } from './modules/html-converter.js';
+
+        // Initialize the application
+        class ChatEditorApp {
+            constructor() {
+                this.stateManager = new StateManager();
+                this.chatUI = null;
+                this.jsonEditor = null;
+                this.jsonDiff = new JsonDiff();
+                this.openaiClient = null;
+                this.openaiAudio = null;
+                this.htmlConverter = null; // HTML to Elementor converter
+
+                this.currentPatches = null;
+                this.currentImage = null; // Store current image for sending to AI
+                this.webSearchEnabled = false; // Web search toggle state
+                
+                // Session tracking
+                this.sessionStats = {
+                    messages: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    totalCost: 0,
+                    toolCalls: 0,
+                    turns: 0
+                };
+
+                // Debug logs
+                this.debugLogs = [];
+                this.setupConsoleInterception();
+
+                // Slash command definitions
+                this.slashCommands = [
+                    {
+                        command: '/search',
+                        tool: 'search_elementor_docs',
+                        icon: '🔍',
+                        name: 'Search Elementor Docs',
+                        description: 'Search the vector store for Elementor widget documentation',
+                        example: '/search button widget properties'
+                    },
+                    {
+                        command: '/convert',
+                        tool: 'convert_html_to_elementor_json',
+                        icon: '🎨',
+                        name: 'Convert HTML to Elementor',
+                        description: 'Convert HTML/CSS/JS code to Elementor JSON',
+                        example: '/convert <paste HTML here>'
+                    },
+                    {
+                        command: '/patch',
+                        tool: 'generate_json_patch',
+                        icon: '🔧',
+                        name: 'Generate JSON Patch',
+                        description: 'Create surgical edits to your JSON template',
+                        example: '/patch change button color to blue'
+                    },
+                    {
+                        command: '/analyze',
+                        tool: 'analyze_json_structure',
+                        icon: '📊',
+                        name: 'Analyze JSON Structure',
+                        description: 'Analyze your current template structure',
+                        example: '/analyze list all widgets'
+                    },
+                    {
+                        command: '/open',
+                        tool: 'open_template_in_playground',
+                        icon: '🚀',
+                        name: 'Open in Playground',
+                        description: 'Launch or refresh WordPress Playground',
+                        example: '/open'
+                    },
+                    {
+                        command: '/screenshot',
+                        tool: 'capture_playground_screenshot',
+                        icon: '📸',
+                        name: 'Screenshot Playground',
+                        description: 'Capture screenshot of current template',
+                        example: '/screenshot'
+                    }
+                ];
+
+                this.selectedSlashIndex = -1;
+
+                this.init();
+            }
+
+            async init() {
+                console.log('🚀 Initializing Chat Editor App...');
+
+                // Initialize UI components
+                this.chatUI = new ChatUI(document.getElementById('chatMessages'), this.handleSendMessage.bind(this));
+                this.jsonEditor = new JsonEditor(document.getElementById('jsonEditor'));
+
+                // Setup event listeners
+                this.setupEventListeners();
+
+                // Load state from localStorage
+                const savedState = this.stateManager.loadFromLocalStorage();
+                if (savedState && savedState.currentJson) {
+                    this.jsonEditor.setJson(savedState.currentJson);
+                    this.showJsonEditor();
+                    
+                    // Add restore message at the top
+                    this.chatUI.addSystemMessage('💾 Restored previous session');
+                    
+                    // Auto-hide the message after 3 seconds
+                    setTimeout(() => {
+                        const messages = document.querySelectorAll('.message.system');
+                        if (messages.length > 0) {
+                            const firstMessage = messages[0];
+                            if (firstMessage.textContent.includes('Restored previous session')) {
+                                firstMessage.style.transition = 'opacity 0.5s ease';
+                                firstMessage.style.opacity = '0';
+                                setTimeout(() => firstMessage.remove(), 500);
+                            }
+                        }
+                    }, 3000);
+                    
+                    // Set global for playground integration
+                    window.generatedJSON = savedState.currentJson;
+                }
+
+                // Load API key from .env if not in localStorage
+                await this.loadApiKeyFromEnv();
+
+                // Load Assistant config
+                await this.loadAssistantConfig();
+
+                // Check for API key
+                this.checkApiKey();
+
+                // Auto-start playground if JSON is loaded
+                this.autoStartPlayground();
+
+                console.log('✅ Chat Editor App initialized');
+            }
+
+            async loadApiKeyFromEnv() {
+                // Check if API key already in localStorage
+                if (localStorage.getItem('openai_api_key')) {
+                    return; // Already have it
+                }
+
+                try {
+                    // Try to load from .env file
+                    const response = await fetch('.env');
+                    if (response.ok) {
+                        const envContent = await response.text();
+                        const lines = envContent.split('\n');
+
+                        for (const line of lines) {
+                            if (line.startsWith('sk-')) {
+                                const apiKey = line.trim();
+                                localStorage.setItem('openai_api_key', apiKey);
+                                console.log('✅ Auto-loaded API key from .env');
+                                return;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.log('ℹ️ No .env file found, user will need to set API key manually');
+                }
+            }
+
+            async loadAssistantConfig() {
+                try {
+                    const response = await fetch('assistant-config.json');
+                    if (response.ok) {
+                        const config = await response.json();
+                        // Store assistant config globally for vector store access
+                        window.assistantConfig = {
+                            assistant_id: config.assistant_id,
+                            vector_store_id: config.vector_store_id,
+                            created_at: config.created_at,
+                            files_uploaded: config.files_uploaded
+                        };
+                        
+                        console.log('✅ Loaded Assistant config:');
+                        console.log('   📋 Assistant ID:', config.assistant_id);
+                        console.log('   📚 Vector Store ID:', config.vector_store_id);
+                        console.log('   📁 Files uploaded:', config.files_uploaded);
+                        
+                        // Initialize HTML converter with assistant config
+                        const apiKey = localStorage.getItem('openai_api_key');
+                        if (apiKey && config.assistant_id && config.vector_store_id) {
+                            this.htmlConverter = new HTMLToElementorConverter(
+                                apiKey,
+                                config.assistant_id,
+                                config.vector_store_id
+                            );
+                            console.log('✅ HTML to Elementor converter initialized');
+                        }
+                        
+                        // Update status indicator
+                        const statusEl = document.getElementById('vectorStoreStatus');
+                        if (statusEl) {
+                            statusEl.innerHTML = '✅ <span style="color: #10b981;">Active (48 files)</span>';
+                        }
+                    } else {
+                        console.warn('⚠️ assistant-config.json not found - vector store features disabled');
+                        const statusEl = document.getElementById('vectorStoreStatus');
+                        if (statusEl) {
+                            statusEl.innerHTML = '❌ <span style="color: #ef4444;">Not configured</span>';
+                        }
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error loading assistant-config.json:', error.message);
+                    console.log('💡 Vector store features will be disabled');
+                    const statusEl = document.getElementById('vectorStoreStatus');
+                    if (statusEl) {
+                        statusEl.innerHTML = '❌ <span style="color: #ef4444;">Error loading</span>';
+                    }
+                }
+            }
+
+            async autoStartPlayground() {
+                // Wait for playground.js module to load, then auto-start if we have JSON
+                setTimeout(async () => {
+                    // Only auto-start if we have JSON loaded
+                    if (!this.stateManager.currentJson) {
+                        console.log('ℹ️ No JSON loaded, skipping auto-start');
+                        return;
+                    }
+
+                    // Wait for playground module to be available
+                    let attempts = 0;
+                    while ((!window.openPlaygroundDirect && !window.testInPlayground) && attempts < 10) {
+                        console.log(`⏳ Waiting for playground module... (${attempts + 1}/10)`);
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        attempts++;
+                    }
+
+                    // Check if playground is already running
+                    if (window.playgroundClient) {
+                        console.log('✅ Playground already running');
+                        return;
+                    }
+
+                    // Start playground
+                    if (window.testInPlayground || window.openPlaygroundDirect) {
+                        console.log('🚀 Auto-starting WordPress Playground in background...');
+                        
+                        const statusEl = document.getElementById('playgroundStatusText');
+                        if (statusEl) {
+                            statusEl.textContent = '🌐 Starting WordPress Playground in background...';
+                        }
+
+                        try {
+                            await this.startPlayground();
+                            this.chatUI.addSystemMessage('✅ WordPress Playground ready in background');
+                        } catch (error) {
+                            console.error('Failed to auto-start Playground:', error);
+                        }
+                    } else {
+                        console.warn('⚠️ Playground module not available after waiting');
+                    }
+                }, 2000); // Wait 2 seconds after page load before attempting
+            }
+
+            setupEventListeners() {
+                // API Key
+                document.getElementById('setApiKeyBtn').addEventListener('click', () => this.showApiKeyModal());
+                document.getElementById('saveApiKeyBtn').addEventListener('click', () => this.saveApiKey());
+                document.getElementById('cancelApiKeyBtn').addEventListener('click', () => this.hideApiKeyModal());
+                document.getElementById('closeModalBtn').addEventListener('click', () => this.hideApiKeyModal());
+
+                // Web Search Toggle
+                document.getElementById('webSearchToggle').addEventListener('change', (e) => this.handleWebSearchToggle(e));
+
+                // Model Selector
+                document.getElementById('chatModelSelector').addEventListener('change', (e) => {
+                    if (this.openaiClient) {
+                        this.openaiClient.model = e.target.value;
+                        console.log('✅ Model changed to:', e.target.value);
+                    }
+                });
+
+                // Debug Panel
+                document.getElementById('toggleDebugPanel').addEventListener('click', () => this.toggleDebugPanel());
+                document.getElementById('clearLogsBtn').addEventListener('click', () => this.clearDebugLogs());
+
+                // Session Stats
+                document.getElementById('sessionStatsBtn').addEventListener('click', () => this.showSessionStats());
+                document.getElementById('restartSessionBtn').addEventListener('click', () => this.restartSession());
+                document.getElementById('closeStatsBtn').addEventListener('click', () => this.hideSessionStats());
+
+                // Chat input
+                document.getElementById('sendBtn').addEventListener('click', () => this.handleSendClick());
+                const chatInput = document.getElementById('chatInput');
+
+                // Handle input for slash commands
+                chatInput.addEventListener('input', (e) => this.handleSlashInput(e));
+
+                chatInput.addEventListener('keydown', (e) => {
+                    // Support both Ctrl+Enter (Windows/Linux) and Cmd+Enter (Mac)
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        this.handleSendClick();
+                    }
+
+                    // Handle slash command navigation
+                    if (this.isSlashMenuVisible()) {
+                        if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            this.navigateSlashMenu(1);
+                        } else if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            this.navigateSlashMenu(-1);
+                        } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+                            e.preventDefault();
+                            this.selectSlashCommand();
+                        } else if (e.key === 'Escape') {
+                            this.hideSlashMenu();
+                        }
+                    }
+                });
+
+                // Voice input
+                document.getElementById('voiceBtn').addEventListener('click', () => this.handleVoiceClick());
+
+                // Image input
+                document.getElementById('imageBtn').addEventListener('click', (e) => this.showImageOptions(e));
+                document.getElementById('imageFileInput').addEventListener('change', (e) => this.handleImageUpload(e));
+                document.getElementById('removeImageBtn').addEventListener('click', () => this.removeImage());
+                document.getElementById('uploadImageOption').addEventListener('click', () => this.selectImageFile());
+                document.getElementById('screenshotPlaygroundOption').addEventListener('click', () => this.screenshotPlayground());
+
+                // Close image menu when clicking outside
+                document.addEventListener('click', (e) => {
+                    const menu = document.getElementById('imageOptionsMenu');
+                    if (!e.target.closest('#imageBtn') && !e.target.closest('#imageOptionsMenu')) {
+                        menu.style.display = 'none';
+                    }
+                });
+
+                // File loading
+                document.getElementById('loadJsonBtn').addEventListener('click', () => document.getElementById('jsonFileInput').click());
+                document.getElementById('loadJsonBtn2').addEventListener('click', () => document.getElementById('jsonFileInput').click());
+                document.getElementById('jsonFileInput').addEventListener('change', (e) => this.handleFileUpload(e));
+                document.getElementById('loadSampleBtn').addEventListener('click', () => this.loadSample());
+                document.getElementById('loadSampleBtn2').addEventListener('click', () => this.loadSample());
+                
+                // JSON editor save
+                document.getElementById('saveJsonBtn').addEventListener('click', () => this.saveJsonEdits());
+
+                // Tabs
+                document.getElementById('jsonTab').addEventListener('click', () => this.switchTab('json'));
+                document.getElementById('htmlGenTab').addEventListener('click', () => this.switchTab('htmlgen'));
+                document.getElementById('jsonConverterTab').addEventListener('click', () => this.switchTab('jsonconverter'));
+                document.getElementById('playgroundTab').addEventListener('click', () => this.switchTab('playground'));
+
+                // JSON actions
+                document.getElementById('downloadJsonBtn').addEventListener('click', () => this.downloadJson());
+                document.getElementById('undoBtn').addEventListener('click', () => this.undo());
+                document.getElementById('redoBtn').addEventListener('click', () => this.redo());
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey && e.key === 'z') {
+                        e.preventDefault();
+                        this.undo();
+                    }
+                    if (e.ctrlKey && e.key === 'y') {
+                        e.preventDefault();
+                        this.redo();
+                    }
+                });
+
+                // Approval modal
+                document.getElementById('closeApprovalBtn').addEventListener('click', () => this.hideApprovalModal());
+                document.getElementById('applyChangesBtn').addEventListener('click', () => this.applyPatch());
+                document.getElementById('rejectChangesBtn').addEventListener('click', () => this.hideApprovalModal());
+
+                // WordPress Playground controls
+                document.getElementById('startPlaygroundBtn').addEventListener('click', () => this.startPlayground());
+                document.getElementById('updatePlaygroundBtn').addEventListener('click', () => this.updatePlayground());
+                document.getElementById('viewPageBtn').addEventListener('click', () => this.viewLivePage());
+
+                // HTML Generator controls
+                document.getElementById('desktopMockupInput').addEventListener('change', (e) => this.handleMockupUpload(e, 'desktop'));
+                document.getElementById('tabletMockupInput').addEventListener('change', (e) => this.handleMockupUpload(e, 'tablet'));
+                document.getElementById('mobileMockupInput').addEventListener('change', (e) => this.handleMockupUpload(e, 'mobile'));
+                document.getElementById('generateHtmlBtn').addEventListener('click', () => this.generateHtmlFromImages());
+                document.getElementById('refineBtn').addEventListener('click', () => this.refineGeneratedHtml());
+                document.getElementById('sendToConverterBtn').addEventListener('click', () => this.sendToJsonConverter());
+
+                // HTML Generator code tabs
+                document.querySelectorAll('#htmlgenView .code-tab').forEach(tab => {
+                    tab.addEventListener('click', (e) => this.switchCodeTab(e.target, 'htmlgen'));
+                });
+
+                // HTML Generator viewport switcher
+                document.querySelectorAll('.viewport-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.switchViewport(e.target));
+                });
+
+                // JSON Converter controls
+                document.getElementById('useGlobalStylesheet').addEventListener('change', (e) => this.toggleGlobalStylesheet(e.target.checked));
+                document.getElementById('convertToElementorBtn').addEventListener('click', () => this.convertToElementor());
+
+                // JSON Converter code tabs
+                document.querySelectorAll('#jsonconverterView .code-tab').forEach(tab => {
+                    tab.addEventListener('click', (e) => this.switchCodeTab(e.target, 'jsonconverter'));
+                });
+            }
+
+            async startPlayground() {
+                // Wait a bit for playground.js module to load if needed
+                if (!window.openPlaygroundDirect && !window.testInPlayground) {
+                    this.chatUI.addSystemMessage('⏳ Loading playground module...');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
+                // Check if we have JSON to import
+                if (window.generatedJSON && window.testInPlayground) {
+                    console.log('Starting playground with JSON template...');
+                    await window.testInPlayground();
+                } else if (window.openPlaygroundDirect) {
+                    console.log('Starting playground without JSON (direct launch)...');
+                    await window.openPlaygroundDirect();
+                    
+                    // Enable buttons after playground starts (even without page)
+                    setTimeout(() => {
+                        const updateBtn = document.getElementById('updatePlaygroundBtn');
+                        const viewBtn = document.getElementById('viewPageBtn');
+                        if (updateBtn && window.playgroundClient) updateBtn.disabled = false;
+                        if (viewBtn && window.playgroundClient) viewBtn.disabled = false;
+                    }, 3000); // Wait 3 seconds for playground to initialize
+                } else {
+                    this.chatUI.addSystemMessage('❌ Playground module not loaded. Please refresh the page.');
+                    console.error('Playground functions not available:', {
+                        openPlaygroundDirect: typeof window.openPlaygroundDirect,
+                        testInPlayground: typeof window.testInPlayground
+                    });
+                }
+            }
+
+            async updatePlayground() {
+                console.log('updatePlayground called');
+                console.log('playgroundClient:', !!window.playgroundClient);
+                console.log('currentPageId:', window.currentPageId);
+                console.log('generatedJSON:', window.generatedJSON);
+
+                // If playground is running but no page exists yet, create it first
+                if (window.playgroundClient && !window.currentPageId) {
+                    if (window.importToExistingPlayground) {
+                        this.chatUI.addSystemMessage('📄 Creating page and importing template...');
+                        try {
+                            await window.importToExistingPlayground();
+                            this.chatUI.addSystemMessage('✅ Template imported to playground!');
+                        } catch (error) {
+                            console.error('Import error:', error);
+                            const errorMsg = safeErrorMessage(error);
+                            this.chatUI.addSystemMessage('❌ Failed to import: ' + errorMsg);
+                        }
+                    } else {
+                        this.chatUI.addSystemMessage('❌ Playground not ready');
+                    }
+                } else if (window.refreshPlaygroundTemplate) {
+                    // Page exists, just refresh
+                    try {
+                        await window.refreshPlaygroundTemplate();
+                    } catch (error) {
+                        console.error('Refresh error:', error);
+                        const errorMsg = safeErrorMessage(error);
+                        this.chatUI.addSystemMessage('❌ Failed to refresh: ' + errorMsg);
+                    }
+                } else {
+                    this.chatUI.addSystemMessage('❌ Please launch WordPress Playground first');
+                }
+            }
+
+            async viewLivePage() {
+                if (window.playgroundClient && window.currentPageId) {
+                    try {
+                        // Navigate to the live page (frontend view) with cache-busting parameter
+                        const pageSlug = 'elementor-test-preview';
+                        const timestamp = Date.now();
+                        await window.playgroundClient.goTo(`/${pageSlug}/?v=${timestamp}`);
+                        
+                        // Force a hard reload to clear any cached content
+                        setTimeout(async () => {
+                            await window.playgroundClient.goTo(`/${pageSlug}/?v=${timestamp + 1}`);
+                        }, 100);
+                        
+                        this.chatUI.addSystemMessage('👁️ Viewing live page (frontend)');
+                    } catch (error) {
+                        this.chatUI.addSystemMessage('❌ Failed to open page: ' + error.message);
+                    }
+                } else if (window.playgroundClient && !window.currentPageId) {
+                    this.chatUI.addSystemMessage('❌ No page created yet. Click "Open Elementor" first.');
+                } else {
+                    this.chatUI.addSystemMessage('❌ Please launch WordPress Playground first');
+                }
+            }
+
+            async openElementorEditor() {
+                if (window.openElementorEditor) {
+                    await window.openElementorEditor();
+                } else {
+                    this.chatUI.addSystemMessage('❌ Playground not ready');
+                }
+            }
+
+            checkApiKey() {
+                const apiKey = localStorage.getItem('openai_api_key');
+                if (apiKey) {
+                    document.getElementById('apiKeyIndicator').className = 'status-dot active';
+                    document.getElementById('apiKeyText').textContent = 'API Key Set';
+                    this.openaiClient = new OpenAIClient(apiKey);
+                    this.openaiAudio = new OpenAIAudio(apiKey);
+
+                    // Set initial model from selector
+                    const modelSelector = document.getElementById('chatModelSelector');
+                    if (modelSelector) {
+                        this.openaiClient.model = modelSelector.value;
+                    }
+                } else {
+                    document.getElementById('apiKeyIndicator').className = 'status-dot';
+                    document.getElementById('apiKeyText').textContent = 'API Key Not Set';
+                }
+            }
+
+            showApiKeyModal() {
+                document.getElementById('apiKeyModal').style.display = 'flex';
+                const currentKey = localStorage.getItem('openai_api_key') || '';
+                document.getElementById('apiKeyInput').value = currentKey;
+            }
+
+            hideApiKeyModal() {
+                document.getElementById('apiKeyModal').style.display = 'none';
+            }
+
+            saveApiKey() {
+                const apiKey = document.getElementById('apiKeyInput').value.trim();
+                if (!apiKey || !apiKey.startsWith('sk-')) {
+                    alert('Please enter a valid OpenAI API key (starts with sk-)');
+                    return;
+                }
+                localStorage.setItem('openai_api_key', apiKey);
+                this.checkApiKey();
+                this.hideApiKeyModal();
+                this.chatUI.addSystemMessage('✅ API key saved successfully');
+            }
+
+            handleWebSearchToggle(e) {
+                this.webSearchEnabled = e.target.checked;
+                if (this.webSearchEnabled) {
+                    this.chatUI.addSystemMessage('🌐 Web search enabled - AI can now search the internet for current information');
+                } else {
+                    this.chatUI.addSystemMessage('🌐 Web search disabled');
+                }
+            }
+
+            showSessionStats() {
+                // Update stats display
+                document.getElementById('messageCount').textContent = this.sessionStats.messages;
+                document.getElementById('turnCount').textContent = this.sessionStats.turns;
+                document.getElementById('toolCallCount').textContent = this.sessionStats.toolCalls;
+                document.getElementById('inputTokens').textContent = this.sessionStats.inputTokens.toLocaleString();
+                document.getElementById('outputTokens').textContent = this.sessionStats.outputTokens.toLocaleString();
+                document.getElementById('totalTokens').textContent = (this.sessionStats.inputTokens + this.sessionStats.outputTokens).toLocaleString();
+                document.getElementById('sessionCost').textContent = '$' + this.sessionStats.totalCost.toFixed(4);
+                
+                // Calculate breakdown (GPT-5 accurate pricing)
+                const inputCost = (this.sessionStats.inputTokens / 1000000) * 1.25;
+                const outputCost = (this.sessionStats.outputTokens / 1000000) * 10.00;
+                document.getElementById('inputCost').textContent = '$' + inputCost.toFixed(4);
+                document.getElementById('outputCost').textContent = '$' + outputCost.toFixed(4);
+                
+                document.getElementById('sessionStatsModal').style.display = 'flex';
+            }
+
+            hideSessionStats() {
+                document.getElementById('sessionStatsModal').style.display = 'none';
+            }
+
+            restartSession() {
+                if (!confirm('⚠️ Restart session?\n\nThis will:\n- Clear all messages\n- Reset token counters\n- Keep your current JSON\n\nContinue?')) {
+                    return;
+                }
+                
+                // Reset stats
+                this.sessionStats = {
+                    messages: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    totalCost: 0,
+                    toolCalls: 0,
+                    turns: 0
+                };
+                
+                // Clear chat messages
+                this.chatUI.clearMessages();
+                
+                // Clear conversation history but keep JSON
+                this.stateManager.messages = [];
+                this.stateManager.saveToLocalStorage();
+                
+                this.chatUI.addSystemMessage('🔄 Session restarted - counters reset');
+                
+                // Close modal if open
+                this.hideSessionStats();
+            }
+
+            updateSessionStats(usage, toolCalled = false) {
+                if (!usage) return;
+                
+                this.sessionStats.messages++;
+                this.sessionStats.turns++; // Each API call is a turn
+                if (toolCalled) {
+                    this.sessionStats.toolCalls++;
+                }
+                this.sessionStats.inputTokens += usage.input_tokens || 0;
+                this.sessionStats.outputTokens += usage.output_tokens || 0;
+                
+                // Calculate cost (GPT-5 accurate pricing)
+                // Input: $1.25 per 1M tokens
+                // Output: $10.00 per 1M tokens
+                // Note: Images are counted in input tokens by the API
+                const inputCost = (this.sessionStats.inputTokens / 1000000) * 1.25;
+                const outputCost = (this.sessionStats.outputTokens / 1000000) * 10.00;
+                this.sessionStats.totalCost = inputCost + outputCost;
+                
+                console.log('📊 Session stats updated:', this.sessionStats);
+                console.log('💰 Cost breakdown:', {
+                    inputTokens: usage.input_tokens,
+                    outputTokens: usage.output_tokens,
+                    inputCost: ((usage.input_tokens || 0) / 1000000) * 1.25,
+                    outputCost: ((usage.output_tokens || 0) / 1000000) * 10.00
+                });
+            }
+
+            async handleSendClick() {
+                const input = document.getElementById('chatInput');
+                const message = input.value.trim();
+                if (!message) return;
+
+                input.value = '';
+                await this.handleSendMessage(message);
+            }
+
+            async handleSendMessage(message) {
+                if (!this.openaiClient) {
+                    this.chatUI.addSystemMessage('❌ Please set your OpenAI API key first');
+                    this.showApiKeyModal();
+                    return;
+                }
+
+                if (!this.stateManager.currentJson) {
+                    this.chatUI.addSystemMessage('❌ Please load a JSON file first');
+                    return;
+                }
+
+                // Get current image if any
+                const currentImage = this.currentImage;
+
+                // Add user message (with image if present)
+                if (currentImage) {
+                    this.chatUI.addMessage('user', message, { image: currentImage.base64 });
+                    // Remove image after sending
+                    this.removeImage();
+                } else {
+                    this.chatUI.addMessage('user', message);
+                }
+
+                try {
+                    // Show typing indicator
+                    this.chatUI.showTypingIndicator();
+
+                    // Show API status
+                    const hasImage = !!currentImage;
+                    const modelName = this.openaiClient.model || 'gpt-5';
+                    this.chatUI.addApiStatus('sending', `Sending request to **${modelName}**${hasImage ? ' with image' : ''}${this.webSearchEnabled ? ' (web search enabled)' : ''}`);
+
+                    // Add timeout warning after 5 seconds
+                    const timeoutWarning = setTimeout(() => {
+                        this.chatUI.addApiStatus('processing', '⏳ Still processing... (this may take 10-30s for complex requests)');
+                    }, 5000);
+
+                    // Hide typing indicator before creating streaming message
+                    this.chatUI.hideTypingIndicator();
+
+                    // Create streaming message element
+                    const streamingMessageId = 'streaming-' + Date.now();
+                    this.chatUI.addStreamingMessage(streamingMessageId);
+                    
+                    // Set up streaming callback
+                    this.openaiClient.onStreamChunk = (chunk) => {
+                        this.chatUI.appendToStreamingMessage(streamingMessageId, chunk);
+                    };
+                    
+                    // Send to OpenAI (with image if present and web search state)
+                    const response = await this.openaiClient.sendMessage(
+                        message,
+                        this.stateManager.currentJson,
+                        this.stateManager.messages,
+                        currentImage ? currentImage.base64 : null,
+                        this.webSearchEnabled
+                    );
+                    
+                    // Clear timeout warning
+                    clearTimeout(timeoutWarning);
+
+                    // Finalize streaming message
+                    this.chatUI.finalizeStreamingMessage(streamingMessageId);
+                    this.openaiClient.onStreamChunk = null;
+
+                    // Track token usage
+                    if (response.usage) {
+                        this.updateSessionStats(response.usage, !!response.tool_call);
+                        const tokensUsed = (response.usage.input_tokens || 0) + (response.usage.output_tokens || 0);
+                        const reasoningTokens = response.usage.output_tokens_details?.reasoning_tokens || 0;
+
+                        // Show reasoning indicator if reasoning tokens were used
+                        if (reasoningTokens > 0) {
+                            const reasoningText = `The AI used extended reasoning to analyze your request and formulate the best response. This involved deeper analysis and planning to ensure accuracy.`;
+                            this.chatUI.addReasoningDisplay(reasoningText, reasoningTokens);
+                        }
+
+                        this.chatUI.addApiStatus('receiving', `Response received: ${tokensUsed.toLocaleString()} tokens${reasoningTokens > 0 ? ` (${reasoningTokens} reasoning)` : ''}`);
+
+                        // Track with token tracker widget
+                        if (window.trackTokenUsage) {
+                            window.trackTokenUsage({
+                                model: this.openaiClient.model || 'gpt-5-2025-08-07',
+                                inputTokens: response.usage.input_tokens || 0,
+                                outputTokens: response.usage.output_tokens || 0,
+                                type: 'chat',
+                                success: true
+                            });
+                        }
+                    }
+
+                    // Hide typing indicator
+                    this.chatUI.hideTypingIndicator();
+
+                    // Handle response
+                    if (response.tool_call) {
+                        // Show tool call indicator with verbose details
+                        this.chatUI.addToolCallMessage(response.tool_call.name, response.tool_call.arguments, modelName);
+
+                        // Tool was called - handle it and check if continuation needed
+                        const shouldContinue = await this.handleToolCall(response.tool_call, response.message, message);
+
+                        // If the tool indicates we should continue (multi-step operation)
+                        if (shouldContinue) {
+                            // Send the tool result back to AI for next step
+                            await this.continueMultiStepOperation(response.tool_call, message);
+                        }
+                    }
+                    // Note: Regular messages are already handled by streaming
+                    // The streaming message was created above and finalized, so we don't add it again
+
+                    // Save message to history
+                    this.stateManager.messages.push({role: 'user', content: message});
+                    this.stateManager.messages.push({role: 'assistant', content: response.message || 'Tool executed'});
+
+                } catch (error) {
+                    this.chatUI.hideTypingIndicator();
+                    const errorMsg = error?.message || String(error) || 'Unknown error';
+                    this.chatUI.addMessage('assistant', `❌ Error: ${errorMsg}`);
+                    console.error('OpenAI error:', error);
+                }
+            }
+
+            async handleToolCall(toolCall, assistantMessage, originalRequest = '') {
+                console.log('Tool called:', toolCall);
+                
+                // Show tool execution status
+                this.chatUI.addApiStatus('tool_executing', `Executing tool: **${toolCall.name}**`);
+
+                // Track if we should continue with another step
+                let shouldContinue = false;
+
+                if (toolCall.name === 'generate_json_patch') {
+                    // Show visual patch display
+                    this.currentPatches = toolCall.arguments.patches;
+                    this.chatUI.addJsonPatchDisplay(toolCall.arguments.patches, true);
+                    this.chatUI.addMessage('assistant', assistantMessage);
+                    this.chatUI.addApprovalMessage(toolCall.arguments, this.stateManager.currentJson,
+                        () => this.applyPatch(),
+                        () => this.rejectPatch()
+                    );
+                } else if (toolCall.name === 'analyze_json_structure') {
+                    // Show visual analysis display
+                    const analysis = {
+                        widgetType: toolCall.result?.widgetType || toolCall.result?.widget_type,
+                        widgetCount: toolCall.result?.widgetCount || toolCall.result?.content?.length,
+                        hasContent: toolCall.result?.hasContent !== undefined ? toolCall.result.hasContent : !!toolCall.result?.content,
+                        structure: toolCall.result?.structure
+                    };
+                    this.chatUI.addJsonAnalysisDisplay(analysis);
+
+                    // Show the analysis result
+                    const resultText = toolCall.result?.analysis || toolCall.result?.summary || JSON.stringify(toolCall.result, null, 2);
+                    this.chatUI.addMessage('assistant', resultText);
+
+                    // Check if the original request implies an edit should follow
+                    const requestLower = originalRequest.toLowerCase();
+                    const hasActionWord = /\b(change|update|edit|modify|set|add|remove|delete|replace)\b/.test(requestLower);
+                    const hasConnector = /\b(then|and then|after|next)\b/.test(requestLower);
+
+                    if (hasActionWord || hasConnector) {
+                        shouldContinue = true;
+                        this.chatUI.addApiStatus('processing', 'Analysis complete. Proceeding to edit step...');
+                    }
+                } else if (toolCall.name === 'search_elementor_docs') {
+                    // Show vector store search results with visual display
+                    if (toolCall.result?.success && toolCall.result?.documentation) {
+                        // Parse results from documentation text (if available as structured data)
+                        const results = toolCall.result?.results || [{
+                            filename: toolCall.result.widget_type ? `${toolCall.result.widget_type}.php` : 'Elementor source',
+                            content: toolCall.result.documentation.substring(0, 200) + '...',
+                            score: 0.9
+                        }];
+
+                        this.chatUI.addVectorSearchDisplay(
+                            toolCall.result.query || toolCall.arguments?.query,
+                            results,
+                            48 // Total Elementor files in vector store
+                        );
+
+                        const message = `## 📚 Elementor Documentation\n\n**Query:** ${toolCall.result.query}\n${toolCall.result.widget_type ? `**Widget:** ${toolCall.result.widget_type}\n` : ''}\n\n${toolCall.result.documentation}`;
+                        this.chatUI.addMessage('assistant', message);
+
+                        // Check if the original request implies we should now do something with this info
+                        const requestLower = originalRequest.toLowerCase();
+                        const hasActionWord = /\b(add|create|insert|use|apply|set)\b/.test(requestLower);
+                        const hasConnector = /\b(then|and then|after|next)\b/.test(requestLower);
+
+                        if (hasActionWord || hasConnector) {
+                            shouldContinue = true;
+                            this.chatUI.addApiStatus('processing', 'Documentation retrieved. Proceeding to apply...');
+                        }
+                    } else {
+                        const errorMsg = toolCall.result?.message || toolCall.result?.error || 'Documentation search failed';
+                        this.chatUI.addMessage('assistant', `⚠️ ${errorMsg}`);
+                    }
+                } else if (toolCall.name === 'convert_html_to_elementor_json') {
+                    // Handle HTML conversion - Start interactive flow
+                    if (toolCall.result?.needs_interactive_flow) {
+                        this.chatUI.addMessage('assistant', '🎨 **Starting HTML to Elementor Conversion Wizard**\n\nI\'ll guide you through a complete conversion process with the same 5-step pipeline as the standalone converter.');
+                        await this.startHtmlConversionFlow(toolCall.result.args);
+                    } else if (toolCall.result?.success && toolCall.result?.json) {
+                        // Direct result (shouldn't happen with new flow, but kept for compatibility)
+                        this.chatUI.addApiStatus('complete', `Conversion complete! HTML (${toolCall.result.html_length} chars) → Elementor JSON`);
+                        
+                        // Load the JSON into the editor
+                        this.stateManager.currentJson = toolCall.result.json;
+                        this.jsonEditor.setJson(toolCall.result.json);
+                        
+                        // Show success message
+                        const message = `## 🎨 HTML to Elementor Conversion Complete!\n\n**Stats:**\n- HTML: ${toolCall.result.html_length} characters\n- CSS: ${toolCall.result.css_length} characters\n- JS: ${toolCall.result.js_length} characters\n${toolCall.result.had_image_description ? '- Image description: Included\n' : ''}\n\n✅ **Elementor JSON loaded into editor!**\n\n👉 You can now:\n1. Review the JSON in the editor\n2. Make any edits\n3. Click "Update & Open" to test in Playground`;
+                        this.chatUI.addMessage('assistant', message);
+                    } else {
+                        const errorMsg = toolCall.result?.error || 'Conversion failed';
+                        this.chatUI.addMessage('assistant', `⚠️ Conversion failed: ${errorMsg}`);
+                    }
+                } else if (toolCall.name === 'open_template_in_playground') {
+                    // Handle playground actions
+                    this.chatUI.addMessage('assistant', assistantMessage);
+                    await this.handlePlaygroundAction(toolCall.arguments);
+                } else if (toolCall.name === 'capture_playground_screenshot') {
+                    // Handle screenshot
+                    this.chatUI.addMessage('assistant', assistantMessage);
+                    await this.handleScreenshotTool(toolCall.arguments);
+                } else if (toolCall.name === 'list_available_tools') {
+                    // Handle tool list - show message first, then list
+                    if (assistantMessage) {
+                        this.chatUI.addMessage('assistant', assistantMessage);
+                    }
+                    this.showToolsList();
+                } else {
+                    // Other tools - show response with result
+                    if (assistantMessage) {
+                        this.chatUI.addMessage('assistant', assistantMessage);
+                    }
+                    // Show tool result if no message
+                    if (!assistantMessage && toolCall.result) {
+                        const resultText = typeof toolCall.result === 'string' 
+                            ? toolCall.result 
+                            : JSON.stringify(toolCall.result, null, 2);
+                        this.chatUI.addMessage('assistant', resultText);
+                    }
+                }
+                
+                // Show completion status
+                this.chatUI.addApiStatus('complete', `Tool **${toolCall.name}** completed`);
+                
+                return shouldContinue;
+            }
+
+            /**
+             * Continue multi-step operation by sending tool result to AI
+             */
+            async continueMultiStepOperation(toolCall, originalRequest) {
+                try {
+                    // Show that we're continuing
+                    this.chatUI.showTypingIndicator();
+                    
+                    // Format the tool result for the AI
+                    const toolResultSummary = this.formatToolResultForContinuation(toolCall);
+                    
+                    // Create continuation message
+                    const continuationMessage = `Based on the previous result:\n${toolResultSummary}\n\nOriginal request was: "${originalRequest}"\n\nPlease proceed with the next step.`;
+                    
+                    const modelName = this.openaiClient.model || 'gpt-5';
+                    this.chatUI.addApiStatus('processing', `**${modelName}** determining next step...`);
+                    
+                    // Send back to AI
+                    const response = await this.openaiClient.sendMessage(
+                        continuationMessage,
+                        this.stateManager.currentJson,
+                        this.stateManager.messages,
+                        null,
+                        this.webSearchEnabled
+                    );
+                    
+                    // Track token usage
+                    if (response.usage) {
+                        this.updateSessionStats(response.usage, !!response.tool_call);
+                        const tokensUsed = (response.usage.input_tokens || 0) + (response.usage.output_tokens || 0);
+                        const reasoningTokens = response.usage.output_tokens_details?.reasoning_tokens || 0;
+                        this.chatUI.addApiStatus('receiving', `Response received: ${tokensUsed.toLocaleString()} tokens${reasoningTokens > 0 ? ` (${reasoningTokens} reasoning)` : ''}`);
+
+                        // Track with token tracker widget
+                        if (window.trackTokenUsage) {
+                            window.trackTokenUsage({
+                                model: this.openaiClient.model || 'gpt-5-2025-08-07',
+                                inputTokens: response.usage.input_tokens || 0,
+                                outputTokens: response.usage.output_tokens || 0,
+                                type: 'chat',
+                                success: true
+                            });
+                        }
+                    }
+
+                    this.chatUI.hideTypingIndicator();
+                    
+                    // Handle the next step
+                    if (response.tool_call) {
+                        this.chatUI.addToolCallMessage(response.tool_call.name, response.tool_call.arguments, modelName);
+                        await this.handleToolCall(response.tool_call, response.message, originalRequest);
+                    } else if (response.message) {
+                        this.chatUI.addMessage('assistant', response.message);
+                    }
+                    
+                    // Save to history
+                    this.stateManager.messages.push({role: 'assistant', content: response.message || 'Continued operation'});
+                    
+                } catch (error) {
+                    this.chatUI.hideTypingIndicator();
+                    console.error('Error continuing multi-step operation:', error);
+                    this.chatUI.addMessage('assistant', `⚠️ Could not continue: ${error.message}`);
+                }
+            }
+
+            /**
+             * Format tool result for continuation message
+             */
+            formatToolResultForContinuation(toolCall) {
+                if (toolCall.name === 'analyze_json_structure') {
+                    const result = toolCall.result;
+                    if (result.widgets) {
+                        return `Found ${result.count} widgets: ${JSON.stringify(result.widgets, null, 2)}`;
+                    } else if (result.found) {
+                        return `Analysis result: ${JSON.stringify(result, null, 2)}`;
+                    }
+                    return JSON.stringify(result, null, 2);
+                } else if (toolCall.name === 'search_elementor_docs') {
+                    return `Documentation retrieved: ${toolCall.result.documentation?.substring(0, 500)}...`;
+                }
+                return JSON.stringify(toolCall.result, null, 2);
+            }
+
+            showToolsList() {
+                const toolsInfo = `
+# 🛠️ Available Tools & Capabilities
+
+## 1. 🔧 **JSON Editing** (generate_json_patch)
+**What it does:** Makes surgical edits to your Elementor JSON using RFC 6902 JSON Patch standard
+**When to use:** "Change heading color to red", "Update button text", "Add new widget"
+**Requires:** User approval before applying changes
+**Example:** "Make all headings blue" → AI generates patches → You approve → Changes applied
+
+## 2. 🔍 **JSON Analysis** (analyze_json_structure)
+**What it does:** Answers questions about your JSON structure without modifying it
+**When to use:** "What widgets do I have?", "Where is the button color?", "How many sections?"
+**Requires:** No approval needed
+**Example:** "List all heading elements" → AI analyzes and responds immediately
+
+## 3. 🌐 **Playground Preview** (open_template_in_playground)
+**What it does:** Launches or refreshes WordPress Playground with your template
+**When to use:** "Show me the template", "Open in playground", "Preview this"
+**Actions:**
+  - **launch** - Start WordPress Playground
+  - **refresh** - Update existing preview
+  - **open_editor** - Open Elementor editor view
+**Example:** "Show me how it looks" → Switches to playground tab → Opens preview
+
+## 4. 📸 **Screenshot Capture** (capture_playground_screenshot)
+**What it does:** Takes a screenshot of the WordPress Playground
+**When to use:** "Show me how it looks", "Capture the preview", "Take a screenshot"
+**Requires:** Playground must be running
+**Example:** "Screenshot the current design" → Captures → Shows preview → AI can analyze
+
+## 5. 🖼️ **Image Upload**
+**What it does:** Upload images for AI to analyze (not a tool, but a feature)
+**When to use:** Design mockups, screenshots, reference images
+**Supports:** JPEG, JPG, PNG, WebP (max 5MB)
+**Example:** Upload mockup → Ask "Recreate this layout" → AI analyzes and generates JSON
+
+## 6. 🎤 **Voice Input**
+**What it does:** Record voice messages instead of typing
+**When to use:** Hands-free operation, quick requests
+**Example:** Click 🎤 → Speak "Change heading to welcome" → AI transcribes → Responds
+
+## 7. ↩️ **Undo/Redo**
+**What it does:** Revert or reapply changes to JSON
+**When to use:** Made a mistake, want to go back
+**Example:** Applied wrong change → Click Undo → Reverts to previous state
+
+---
+
+## 💬 How to Use
+
+Just ask naturally! Examples:
+- "What can you do?" → Shows this list
+- "Change heading color to blue" → Uses generate_json_patch
+- "What widgets do I have?" → Uses analyze_json_structure  
+- "Show me the template" → Uses open_template_in_playground
+- "Take a screenshot" → Uses capture_playground_screenshot
+
+## ⚙️ Current Settings
+
+- **Model:** GPT-5 (OpenAI's flagship)
+- **Context:** 256,000 tokens
+- **Vision:** ✅ Enabled (can analyze images)
+- **Web Search:** ❌ Disabled (requires API migration)
+- **Tools Active:** 5 AI tools + 2 manual features
+
+## 📚 More Info
+
+Visit: http://localhost:8080/tools-list.html for visual tool registry
+                `;
+                
+                this.chatUI.addMessage('assistant', toolsInfo);
+            }
+
+            async handleScreenshotTool(args) {
+                try {
+                    await this.screenshotPlayground();
+                } catch (error) {
+                    this.chatUI.addSystemMessage(`❌ Screenshot failed: ${error.message}`);
+                    console.error('Screenshot error:', error);
+                }
+            }
+
+            async handlePlaygroundAction(args) {
+                const action = args.action;
+                const message = args.message || '';
+
+                try {
+                    // Switch to playground tab first
+                    this.switchTab('playground');
+
+                    if (action === 'launch') {
+                        // Launch playground
+                        this.chatUI.addSystemMessage('🚀 Launching WordPress Playground...');
+                        await this.startPlayground();
+                    } else if (action === 'refresh') {
+                        // Refresh template
+                        if (!window.playgroundClient) {
+                            // Playground not running, launch it first
+                            this.chatUI.addSystemMessage('🚀 Launching WordPress Playground first...');
+                            await this.startPlayground();
+                        } else if (!window.currentPageId) {
+                            // Playground running but no page, import template
+                            this.chatUI.addSystemMessage('📄 Creating page and importing template...');
+                            if (window.importToExistingPlayground) {
+                                await window.importToExistingPlayground();
+                                this.chatUI.addSystemMessage('✅ Template loaded in Elementor editor!');
+                            }
+                        } else {
+                            // Page exists, just refresh
+                            this.chatUI.addSystemMessage('🔄 Refreshing template in playground...');
+                            await this.updatePlayground();
+                            this.chatUI.addSystemMessage('✅ Template refreshed!');
+                        }
+                    } else if (action === 'open_editor') {
+                        // Open Elementor editor
+                        if (!window.playgroundClient || !window.currentPageId) {
+                            // Need to set up playground first
+                            this.chatUI.addSystemMessage('🚀 Setting up WordPress Playground...');
+                            await this.startPlayground();
+                        } else {
+                            this.chatUI.addSystemMessage('✏️ Opening Elementor editor...');
+                            await this.openElementorEditor();
+                            this.chatUI.addSystemMessage('✅ Elementor editor opened!');
+                        }
+                    }
+                } catch (error) {
+                    const errorMsg = error?.message || String(error) || 'Unknown error';
+                    this.chatUI.addSystemMessage(`❌ Error: ${errorMsg}`);
+                    console.error('Playground action error:', error);
+                }
+            }
+
+            showApprovalModal(patchData) {
+                const modal = document.getElementById('approvalModal');
+                const content = document.getElementById('approvalContent');
+
+                let html = `<div class="patch-summary">${patchData.summary}</div>`;
+                html += `<div class="patch-list">`;
+
+                patchData.patches.forEach((patch, idx) => {
+                    const oldValue = this.jsonDiff.getValueAtPath(this.stateManager.currentJson, patch.path);
+                    html += `
+                        <div class="patch-item">
+                            <div class="patch-number">${idx + 1}</div>
+                            <div class="patch-details">
+                                <div class="patch-path">📍 ${patch.path}</div>
+                                <div class="patch-change">
+                                    <span class="old-value">- ${JSON.stringify(oldValue)}</span>
+                                    <span class="new-value">+ ${JSON.stringify(patch.value)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+                content.innerHTML = html;
+                modal.style.display = 'flex';
+            }
+
+            hideApprovalModal() {
+                document.getElementById('approvalModal').style.display = 'none';
+                this.currentPatches = null;
+            }
+
+            rejectPatch() {
+                this.currentPatches = null;
+                this.chatUI.addSystemMessage('✗ Changes rejected');
+            }
+
+            async applyPatch() {
+                if (!this.currentPatches) return;
+
+                try {
+                    const result = this.jsonDiff.applyPatches(this.stateManager.currentJson, this.currentPatches);
+
+                    if (result.success) {
+                        // Update JSON
+                        this.stateManager.setJson(result.newJson);
+                        this.jsonEditor.setJson(result.newJson);
+
+                        // Highlight changes
+                        this.jsonEditor.highlightChanges(this.currentPatches);
+
+                        // Update undo/redo buttons
+                        this.updateUndoRedoButtons();
+
+                        this.chatUI.addSystemMessage(`✅ Applied ${this.currentPatches.length} change(s)`);
+                        
+                        // Update global for playground
+                        window.generatedJSON = result.newJson;
+                        
+                        // Auto-refresh playground if it's open
+                        if (window.playgroundClient && window.currentPageId) {
+                            this.updatePlayground();
+                        }
+                        
+                        // Clear current patches
+                        this.currentPatches = null;
+                    } else {
+                        throw new Error(result.error);
+                    }
+                } catch (error) {
+                    this.chatUI.addSystemMessage(`❌ Error applying patch: ${error.message}`);
+                    console.error('Patch error:', error);
+                }
+            }
+
+            async handleVoiceClick() {
+                const btn = document.getElementById('voiceBtn');
+                const status = document.getElementById('recordingStatus');
+
+                if (!this.openaiAudio) {
+                    this.chatUI.addSystemMessage('❌ Please set your OpenAI API key first');
+                    this.showApiKeyModal();
+                    return;
+                }
+
+                if (!this.openaiAudio.isRecording) {
+                    // Start recording
+                    try {
+                        await this.openaiAudio.startRecording();
+                        btn.classList.add('recording');
+                        status.textContent = '🔴 Recording... (click again to stop)';
+                    } catch (error) {
+                        this.chatUI.addSystemMessage('❌ Microphone access denied or not available');
+                        console.error('Recording error:', error);
+                    }
+                } else {
+                    // Stop recording and transcribe
+                    btn.classList.remove('recording');
+                    btn.disabled = true;
+                    status.textContent = '⏳ Transcribing...';
+
+                    try {
+                        const audioBlob = await this.openaiAudio.stopRecording();
+                        const text = await this.openaiAudio.transcribeAudio(audioBlob);
+
+                        document.getElementById('chatInput').value = text;
+                        status.textContent = '✅ Transcription complete';
+
+                        setTimeout(() => {
+                            status.textContent = '';
+                        }, 3000);
+                    } catch (error) {
+                        this.chatUI.addSystemMessage('❌ Transcription failed: ' + error.message);
+                        status.textContent = '';
+                        console.error('Transcription error:', error);
+                    } finally {
+                        btn.disabled = false;
+                    }
+                }
+            }
+
+            showImageOptions(e) {
+                e.stopPropagation();
+                const menu = document.getElementById('imageOptionsMenu');
+                const btn = e.currentTarget;
+                const rect = btn.getBoundingClientRect();
+                
+                // Position menu above button
+                menu.style.top = (rect.top - menu.offsetHeight - 10) + 'px';
+                menu.style.left = rect.left + 'px';
+                menu.style.display = 'block';
+            }
+
+            selectImageFile() {
+                document.getElementById('imageOptionsMenu').style.display = 'none';
+                document.getElementById('imageFileInput').click();
+            }
+
+            async handleImageUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                // Reset input
+                event.target.value = '';
+
+                // Validate file type
+                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                if (!allowedTypes.includes(file.type)) {
+                    this.chatUI.addSystemMessage('❌ Invalid file type. Only JPEG, JPG, PNG, and WebP images are allowed.');
+                    return;
+                }
+
+                // Validate file size (5MB max)
+                const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+                if (file.size > maxSize) {
+                    this.chatUI.addSystemMessage('❌ File too large. Maximum size is 5MB.');
+                    return;
+                }
+
+                try {
+                    // Read file as base64
+                    const base64 = await this.fileToBase64(file);
+                    this.displayImage(base64, file.name);
+                    this.chatUI.addSystemMessage(`✅ Image loaded: ${file.name}`);
+                } catch (error) {
+                    this.chatUI.addSystemMessage('❌ Failed to load image: ' + error.message);
+                    console.error('Image load error:', error);
+                }
+            }
+
+            async screenshotPlayground() {
+                const menu = document.getElementById('imageOptionsMenu');
+                if (menu) menu.style.display = 'none';
+
+                try {
+                    // Check if playground is running
+                    if (!window.playgroundClient || !window.currentPageId) {
+                        this.chatUI.addSystemMessage('❌ Playground not running. Launch it first and click "View Live".');
+                        return;
+                    }
+
+                    this.chatUI.addSystemMessage('📸 Capturing playground screenshot...');
+
+                    // Switch to playground tab
+                    this.switchTab('playground');
+
+                    // Navigate to live page first
+                    const pageSlug = 'elementor-test-preview';
+                    const timestamp = Date.now();
+                    await window.playgroundClient.goTo(`/${pageSlug}/?v=${timestamp}`);
+
+                    // Wait a moment for page to load
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // Get iframe element
+                    const iframe = document.getElementById('playgroundIframe');
+
+                    // Use html2canvas or similar approach to capture
+                    // Since we can't directly screenshot cross-origin iframes,
+                    // we'll use the WordPress Playground API to get a screenshot
+
+                    try {
+                        // Try to get screenshot from playground
+                        const screenshotBlob = await window.playgroundClient.takeScreenshot();
+
+                        // Convert blob to base64
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64 = reader.result;
+                            this.displayImage(base64, `playground-screenshot-${Date.now()}.png`);
+                            this.chatUI.addSystemMessage('✅ Screenshot captured successfully!');
+                        };
+                        reader.readAsDataURL(screenshotBlob);
+                    } catch (screenshotError) {
+                        // Fallback: Show message to use OS screenshot tool
+                        console.warn('Playground screenshot API not available:', screenshotError);
+                        this.chatUI.addSystemMessage('⚠️ Auto-screenshot not available. The live page is now displayed in the Playground tab. Please use your OS screenshot tool:\n\n🍎 Mac: Cmd + Shift + 4\n🪟 Windows: Win + Shift + S\n\nThen upload via the 🖼️ button.');
+                    }
+
+                } catch (error) {
+                    console.error('Screenshot error:', error);
+                    this.chatUI.addSystemMessage('❌ Screenshot error: ' + error.message);
+                }
+            }
+
+            fileToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            displayImage(base64, filename) {
+                this.currentImage = {
+                    base64: base64,
+                    filename: filename
+                };
+
+                // Show preview
+                const previewArea = document.getElementById('imagePreviewArea');
+                const preview = document.getElementById('imagePreview');
+                const filenameSpan = document.getElementById('imageFileName');
+
+                preview.src = base64;
+                filenameSpan.textContent = filename;
+                previewArea.style.display = 'block';
+            }
+
+            removeImage() {
+                this.currentImage = null;
+                document.getElementById('imagePreviewArea').style.display = 'none';
+                document.getElementById('imagePreview').src = '';
+                this.chatUI.addSystemMessage('🗑️ Image removed');
+            }
+
+            handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        this.stateManager.setJson(json);
+                        this.jsonEditor.setJson(json);
+                        this.showJsonEditor();
+                        this.chatUI.addSystemMessage(`✅ Loaded ${file.name}`);
+                        document.getElementById('currentFileName').textContent = file.name;
+                        
+                        // Set global for playground integration
+                        window.generatedJSON = json;
+                        
+                        // If playground is already running but no page exists, import now
+                        if (window.playgroundClient && !window.currentPageId && window.importToExistingPlayground) {
+                            try {
+                                await window.importToExistingPlayground();
+                                this.chatUI.addSystemMessage('✅ Template imported to Playground');
+                            } catch (error) {
+                                console.error('Failed to import to playground:', error);
+                            }
+                        }
+                    } catch (error) {
+                        this.chatUI.addSystemMessage('❌ Invalid JSON file: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            async loadSample() {
+                const sampleJson = JSON.parse(document.getElementById('sampleJson').textContent);
+                this.stateManager.setJson(sampleJson);
+                this.jsonEditor.setJson(sampleJson);
+                this.showJsonEditor();
+                this.chatUI.addSystemMessage('✅ Loaded sample JSON');
+                document.getElementById('currentFileName').textContent = 'sample.json';
+                
+                // Set global for playground integration
+                window.generatedJSON = sampleJson;
+                
+                // If playground is already running but no page exists, import now
+                if (window.playgroundClient && !window.currentPageId && window.importToExistingPlayground) {
+                    try {
+                        await window.importToExistingPlayground();
+                        this.chatUI.addSystemMessage('✅ Template imported to Playground');
+                    } catch (error) {
+                        console.error('Failed to import to playground:', error);
+                    }
+                }
+            }
+
+            showJsonEditor() {
+                document.querySelector('.json-editor-placeholder').style.display = 'none';
+                document.querySelector('.json-editor-toolbar').style.display = 'flex';
+                document.getElementById('jsonEditor').style.display = 'block';
+            }
+
+            saveJsonEdits() {
+                try {
+                    const editorContent = document.getElementById('jsonEditor').textContent;
+                    const json = JSON.parse(editorContent);
+                    
+                    // Update state
+                    this.stateManager.setJson(json);
+                    this.jsonEditor.setJson(json);
+                    
+                    // Update global for playground
+                    window.generatedJSON = json;
+                    
+                    // Show success message
+                    const statusEl = document.getElementById('saveStatus');
+                    statusEl.textContent = '✅ Saved';
+                    statusEl.style.color = '#10b981';
+                    setTimeout(() => {
+                        statusEl.textContent = '';
+                    }, 2000);
+                    
+                    this.chatUI.addSystemMessage('💾 JSON changes saved');
+                } catch (error) {
+                    // Show error message
+                    const statusEl = document.getElementById('saveStatus');
+                    statusEl.textContent = '❌ Invalid JSON';
+                    statusEl.style.color = '#ef4444';
+                    
+                    this.chatUI.addSystemMessage('❌ Invalid JSON: ' + error.message);
+                }
+            }
+
+            downloadJson() {
+                if (!this.stateManager.currentJson) {
+                    this.chatUI.addSystemMessage('❌ No JSON to download');
+                    return;
+                }
+
+                const blob = new Blob([JSON.stringify(this.stateManager.currentJson, null, 2)], {
+                    type: 'application/json'
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'elementor-edited.json';
+                a.click();
+                URL.revokeObjectURL(url);
+
+                this.chatUI.addSystemMessage('✅ JSON downloaded');
+            }
+
+            undo() {
+                const json = this.stateManager.undo();
+                if (json) {
+                    this.jsonEditor.setJson(json);
+                    this.chatUI.addSystemMessage('↶ Undid last change');
+                    this.updateUndoRedoButtons();
+                }
+            }
+
+            redo() {
+                const json = this.stateManager.redo();
+                if (json) {
+                    this.jsonEditor.setJson(json);
+                    this.chatUI.addSystemMessage('↷ Redid change');
+                    this.updateUndoRedoButtons();
+                }
+            }
+
+            updateUndoRedoButtons() {
+                document.getElementById('undoBtn').disabled = this.stateManager.historyIndex <= 0;
+                document.getElementById('redoBtn').disabled = this.stateManager.historyIndex >= this.stateManager.history.length - 1;
+            }
+
+            switchTab(tab) {
+                // Map tab names to their actual element IDs (handles case sensitivity)
+                const tabIdMap = {
+                    'json': 'jsonTab',
+                    'htmlgen': 'htmlGenTab',
+                    'jsonconverter': 'jsonConverterTab',
+                    'playground': 'playgroundTab'
+                };
+
+                const viewIdMap = {
+                    'json': 'jsonView',
+                    'htmlgen': 'htmlgenView',
+                    'jsonconverter': 'jsonconverterView',
+                    'playground': 'playgroundView'
+                };
+
+                // Update tab buttons
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                const tabBtnId = tabIdMap[tab] || `${tab}Tab`;
+                const tabBtn = document.getElementById(tabBtnId);
+                if (tabBtn) {
+                    tabBtn.classList.add('active');
+                } else {
+                    console.warn(`Tab button #${tabBtnId} not found`);
+                    return;
+                }
+
+                // Update tab content
+                document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+                const tabViewId = viewIdMap[tab] || `${tab}View`;
+                const tabView = document.getElementById(tabViewId);
+                if (tabView) {
+                    tabView.classList.add('active');
+                } else {
+                    console.warn(`Tab view #${tabViewId} not found`);
+                    return;
+                }
+
+                // Auto-start playground if switching to it for the first time
+                if (tab === 'playground' && !window.playgroundClient && this.stateManager.currentJson) {
+                    // TODO: Auto-start playground
+                    console.log('TODO: Auto-start WordPress Playground');
+                }
+            }
+
+            /**
+             * Start HTML to Elementor Conversion Wizard
+             * Interactive multi-step flow with image upload, code input, and progress
+             */
+            async startHtmlConversionFlow(initialArgs = {}) {
+                if (!this.htmlConverter) {
+                    this.chatUI.addMessage('assistant', '⚠️ HTML converter not initialized. Please ensure:\n1. API key is set\n2. assistant-config.json is loaded\n3. Vector store is configured');
+                    return;
+                }
+
+                // STEP 1: Image Upload Prompt
+                this.chatUI.addMessage('assistant', '📸 **Step 1: Design Reference Image (Optional)**\n\nDo you have a design reference image (mockup, screenshot, etc.)?');
+                
+                // Create image upload UI
+                this.createImageUploadUI();
+            }
+
+            /**
+             * Create interactive image upload UI in chat
+             */
+            createImageUploadUI() {
+                const wizardEl = document.createElement('div');
+                wizardEl.className = 'conversion-wizard';
+                wizardEl.id = 'conversionWizard';
+                wizardEl.innerHTML = `
+                    <div class="wizard-step" id="imageStep">
+                        <div class="wizard-buttons">
+                            <label for="wizardImageInput" class="wizard-btn wizard-btn-primary">
+                                📸 Upload Image
+                                <input type="file" id="wizardImageInput" accept="image/*" style="display: none;">
+                            </label>
+                            <button class="wizard-btn wizard-btn-secondary" id="skipImageBtn">
+                                ⏭️ No Image - Skip This Step
+                            </button>
+                        </div>
+                        <div id="imagePreview" style="display: none; margin-top: 15px;">
+                            <img id="wizardPreviewImg" style="max-width: 100%; max-height: 300px; border-radius: 8px;">
+                        </div>
+                        <div id="imageDescription" style="display: none; margin-top: 15px; padding: 15px; background: #f3f4f6; border-radius: 8px;">
+                            <strong>📝 Image Description:</strong>
+                            <p id="imageDescriptionText" style="margin-top: 8px; white-space: pre-wrap;"></p>
+                        </div>
+                    </div>
+                `;
+                
+                // Add to chat container
+                const chatMessages = document.querySelector('.chat-messages');
+                chatMessages.appendChild(wizardEl);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                // Wire up event handlers
+                const imageInput = document.getElementById('wizardImageInput');
+                const skipBtn = document.getElementById('skipImageBtn');
+
+                imageInput.addEventListener('change', (e) => this.handleWizardImageUpload(e));
+                skipBtn.addEventListener('click', () => this.showCodeInputStep(null));
+            }
+
+            /**
+             * Handle image upload in wizard
+             */
+            async handleWizardImageUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                this.chatUI.addApiStatus('processing', 'Analyzing uploaded image...');
+
+                // Show preview
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const imageData = e.target.result;
+                    
+                    // Display preview
+                    const previewEl = document.getElementById('imagePreview');
+                    const imgEl = document.getElementById('wizardPreviewImg');
+                    imgEl.src = imageData;
+                    previewEl.style.display = 'block';
+
+                    // Analyze image with GPT-5 Vision
+                    const description = await this.analyzeImageForConversion(imageData);
+                    
+                    // Display description
+                    const descEl = document.getElementById('imageDescription');
+                    const descTextEl = document.getElementById('imageDescriptionText');
+                    descTextEl.textContent = description;
+                    descEl.style.display = 'block';
+
+                    this.chatUI.addApiStatus('complete', 'Image analyzed!');
+                    this.chatUI.addMessage('assistant', `✅ **Image Analyzed!**\n\nI can see:\n${description.substring(0, 200)}${description.length > 200 ? '...' : ''}\n\nNow let's get your HTML/CSS/JS code.`);
+
+                    // Move to next step
+                    setTimeout(() => this.showCodeInputStep(description), 1500);
+                };
+                reader.readAsDataURL(file);
+            }
+
+            /**
+             * Analyze image with GPT-5 Vision
+             */
+            async analyzeImageForConversion(imageBase64) {
+                try {
+                    const prompt = "Analyze this design image. Describe:\n1. Layout structure (header, sections, columns)\n2. Visual elements (headings, text, buttons, images)\n3. Colors, fonts, spacing\n4. Background styles\n5. Any special effects or patterns\n\nBe detailed - this will guide HTML to Elementor conversion.";
+
+                    const response = await this.openaiClient.sendMessage(
+                        prompt,
+                        this.stateManager.currentJson,
+                        [],
+                        imageBase64,
+                        false
+                    );
+
+                    return response.message || 'Image analyzed successfully';
+                } catch (error) {
+                    console.error('Error analyzing image:', error);
+                    return 'Could not analyze image: ' + error.message;
+                }
+            }
+
+            /**
+             * Show code input step with 3 tabs
+             */
+            showCodeInputStep(imageDescription) {
+                // Remove image step
+                const wizardEl = document.getElementById('conversionWizard');
+                if (wizardEl) {
+                    wizardEl.remove();
+                }
+
+                this.chatUI.addMessage('assistant', '📝 **Step 2: Paste Your Code**\n\nOpen each tab and paste your code. Then click Convert at the bottom.');
+
+                // Create code input UI with tabs
+                const codeWizardEl = document.createElement('div');
+                codeWizardEl.className = 'conversion-wizard';
+                codeWizardEl.id = 'codeWizard';
+                codeWizardEl.innerHTML = `
+                    <div class="wizard-step" id="codeStep">
+                        <div class="code-tabs">
+                            <button class="code-tab active" data-tab="html">HTML</button>
+                            <button class="code-tab" data-tab="css">CSS</button>
+                            <button class="code-tab" data-tab="js">JavaScript</button>
+                        </div>
+                        <div class="code-inputs">
+                            <textarea id="htmlCodeInput" class="code-textarea active" placeholder="Paste your HTML code here..."></textarea>
+                            <textarea id="cssCodeInput" class="code-textarea" placeholder="Paste your CSS code here (optional)..." style="display: none;"></textarea>
+                            <textarea id="jsCodeInput" class="code-textarea" placeholder="Paste your JavaScript code here (optional)..." style="display: none;"></textarea>
+                        </div>
+                        <div class="wizard-convert-container">
+                            <button class="wizard-btn wizard-btn-primary wizard-btn-large" id="convertBtn">
+                                ✓ Convert to Elementor JSON
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                const chatMessages = document.querySelector('.chat-messages');
+                chatMessages.appendChild(codeWizardEl);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                // Wire up tab switching
+                const tabs = codeWizardEl.querySelectorAll('.code-tab');
+                const textareas = codeWizardEl.querySelectorAll('.code-textarea');
+
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        // Update active tab
+                        tabs.forEach(t => t.classList.remove('active'));
+                        tab.classList.add('active');
+
+                        // Update active textarea
+                        const targetTab = tab.getAttribute('data-tab');
+                        textareas.forEach(ta => {
+                            ta.style.display = 'none';
+                            ta.classList.remove('active');
+                        });
+                        const targetTextarea = document.getElementById(`${targetTab}CodeInput`);
+                        targetTextarea.style.display = 'block';
+                        targetTextarea.classList.add('active');
+                    });
+                });
+
+                // Wire up convert button
+                const convertBtn = document.getElementById('convertBtn');
+                convertBtn.addEventListener('click', () => {
+                    const html = document.getElementById('htmlCodeInput').value.trim();
+                    const css = document.getElementById('cssCodeInput').value.trim();
+                    const js = document.getElementById('jsCodeInput').value.trim();
+
+                    if (!html) {
+                        this.chatUI.addMessage('assistant', '⚠️ Please enter HTML code before converting.');
+                        return;
+                    }
+
+                    this.executeConversion(html, css, js, imageDescription);
+                });
+            }
+
+            /**
+             * Execute the full 5-step conversion pipeline
+             */
+            async executeConversion(html, css, js, imageDescription) {
+                // Remove code wizard
+                const codeWizard = document.getElementById('codeWizard');
+                if (codeWizard) {
+                    codeWizard.remove();
+                }
+
+                this.chatUI.addMessage('assistant', '🎨 **Starting Conversion Pipeline...**\n\nThis follows the same 5-step process as the standalone converter.');
+
+                try {
+                    // Run full conversion with progress updates
+                    const result = await this.htmlConverter.convert(
+                        html,
+                        css,
+                        js,
+                        imageDescription,
+                        (step, message) => {
+                            // Progress callback
+                            this.chatUI.addApiStatus('processing', `**Step ${step}:** ${message}`);
+                        }
+                    );
+
+                    if (result.success) {
+                        // Load JSON into editor
+                        this.stateManager.currentJson = result.json;
+                        this.jsonEditor.setJson(result.json);
+
+                        // Show success with stats
+                        const statsMsg = `## 🎉 Conversion Complete!
+
+**Pipeline Executed:**
+✅ Step 1: Extracted computed styles (${result.stats.elements_with_computed_styles} elements)
+✅ Step 2: AI conversion with vector store
+✅ Step 3: Post-processing & structure enforcement
+✅ Step 4: Validation (${result.validation.errors.length} errors, ${result.validation.warnings.length} warnings)
+✅ Step 5: JSON generation
+
+**Code Stats:**
+- HTML: ${result.stats.html_length} characters
+- CSS: ${result.stats.css_length} characters
+- JS: ${result.stats.js_length} characters
+${result.stats.had_image_description ? '- Image description: Included ✓\n' : ''}
+
+**Validation:**
+- Errors: ${result.validation.errors.length}
+- Warnings: ${result.validation.warnings.length}
+
+${result.validation.errors.length > 0 ? `\n⚠️ **Errors Found:**\n${result.validation.errors.map(e => `- ${e}`).join('\n')}` : ''}
+${result.validation.warnings.length > 0 ? `\n💡 **Warnings:**\n${result.validation.warnings.map(w => `- ${w}`).join('\n')}` : ''}
+
+✅ **Elementor JSON loaded into editor!**
+
+👉 **Next Steps:**
+1. Review the JSON in the left panel
+2. Make any edits if needed
+3. Click "Update & Open" to test in WordPress Playground`;
+
+                        this.chatUI.addMessage('assistant', statsMsg);
+                        this.chatUI.addApiStatus('complete', 'Ready to test in Playground!');
+
+                    } else {
+                        this.chatUI.addMessage('assistant', `❌ **Conversion Failed**\n\n${result.error}`);
+                    }
+
+                } catch (error) {
+                    console.error('Conversion error:', error);
+                    const errorMsg = error?.message || String(error) || 'Unknown error';
+                    this.chatUI.addMessage('assistant', `❌ **Conversion Error:**\n\n${errorMsg}`);
+                }
+            }
+
+            // ====================================
+            // HTML Generator Methods
+            // ====================================
+
+            handleMockupUpload(event, viewport) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const previewEl = document.getElementById(`${viewport}Preview`);
+                    previewEl.innerHTML = `<img src="${e.target.result}" alt="${viewport} mockup" style="max-width: 100%; border-radius: 4px;">`;
+                    previewEl.style.display = 'block';
+
+                    // Store the image data
+                    if (!this.mockupImages) this.mockupImages = {};
+                    this.mockupImages[viewport] = e.target.result;
+
+                    console.log(`✅ ${viewport} mockup uploaded`);
+                };
+                reader.readAsDataURL(file);
+            }
+
+            async generateHtmlFromImages() {
+                if (!this.openaiClient) {
+                    alert('❌ Please set your OpenAI API key first');
+                    this.showApiKeyModal();
+                    return;
+                }
+
+                // Get images and prompt
+                const images = this.mockupImages || {};
+                const customPrompt = document.getElementById('htmlGenPrompt').value.trim();
+                const selectedModel = document.getElementById('htmlGenModelSelector').value;
+
+                if (Object.keys(images).length === 0) {
+                    alert('⚠️ Please upload at least one mockup image');
+                    return;
+                }
+
+                const generateBtn = document.getElementById('generateHtmlBtn');
+                generateBtn.disabled = true;
+                generateBtn.textContent = '⏳ Generating...';
+
+                try {
+                    // Build prompt
+                    let prompt = `You are an expert web developer. Generate clean, semantic HTML, CSS, and JavaScript code based on the provided design mockup(s).\n\n`;
+
+                    if (images.desktop) prompt += `Desktop mockup provided.\n`;
+                    if (images.tablet) prompt += `Tablet mockup provided.\n`;
+                    if (images.mobile) prompt += `Mobile mockup provided.\n`;
+
+                    prompt += `\nRequirements:\n`;
+                    prompt += `- Create responsive HTML5 code\n`;
+                    prompt += `- Use modern CSS (Flexbox/Grid)\n`;
+                    prompt += `- Include hover effects and transitions\n`;
+                    prompt += `- Make it mobile-friendly\n`;
+
+                    if (customPrompt) {
+                        prompt += `\nAdditional requirements:\n${customPrompt}\n`;
+                    }
+
+                    prompt += `\n**Return ONLY a JSON object with this exact structure:**\n`;
+                    prompt += `{\n  "html": "your HTML code here",\n  "css": "your CSS code here",\n  "js": "your JavaScript code here (or empty string)"\n}\n\n`;
+                    prompt += `Do not include markdown code blocks or any text outside the JSON.`;
+
+                    // Use the first available image for Vision API
+                    const imageToAnalyze = images.desktop || images.tablet || images.mobile;
+
+                    // Call OpenAI with Vision
+                    const response = await this.openaiClient.sendMessage(
+                        prompt,
+                        this.stateManager.currentJson,
+                        [],
+                        imageToAnalyze,
+                        false
+                    );
+
+                    // Track token usage
+                    if (response.usage && window.trackTokenUsage) {
+                        window.trackTokenUsage({
+                            model: selectedModel,
+                            inputTokens: response.usage.input_tokens || 0,
+                            outputTokens: response.usage.output_tokens || 0,
+                            type: 'image-to-html',
+                            success: true
+                        });
+                    }
+
+                    // Parse JSON response
+                    const jsonMatch = response.message.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) {
+                        throw new Error('Could not find JSON in response');
+                    }
+
+                    const result = JSON.parse(jsonMatch[0]);
+
+                    // Populate code editors
+                    document.getElementById('generatedHtml').value = result.html;
+                    document.getElementById('generatedCss').value = result.css || '';
+                    document.getElementById('generatedJs').value = result.js || '';
+
+                    // Show generated code section
+                    document.getElementById('generatedCodeSection').style.display = 'block';
+
+                    // Update preview
+                    this.updateHtmlPreview();
+
+                    console.log('✅ HTML generated successfully');
+
+                } catch (error) {
+                    console.error('Generation error:', error);
+                    alert('❌ Generation failed: ' + error.message);
+                } finally {
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = '✨ Generate HTML/CSS/JS';
+                }
+            }
+
+            updateHtmlPreview() {
+                const html = document.getElementById('generatedHtml').value;
+                const css = document.getElementById('generatedCss').value;
+                const js = document.getElementById('generatedJs').value;
+
+                const iframe = document.getElementById('htmlPreviewIframe');
+                const doc = iframe.contentDocument || iframe.contentWindow.document;
+
+                const fullHtml = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <style>${css}</style>
+                    </head>
+                    <body>
+                        ${html}
+                        <script>${js}<\/script>
+                    </body>
+                    </html>
+                `;
+
+                doc.open();
+                doc.write(fullHtml);
+                doc.close();
+            }
+
+            async refineGeneratedHtml() {
+                if (!this.openaiClient) {
+                    alert('❌ Please set your OpenAI API key first');
+                    return;
+                }
+
+                const refinementInput = document.getElementById('refinementInput');
+                const request = refinementInput.value.trim();
+
+                if (!request) {
+                    alert('⚠️ Please enter a refinement request');
+                    return;
+                }
+
+                const refineBtn = document.getElementById('refineBtn');
+                refineBtn.disabled = true;
+                refineBtn.textContent = '⏳ Refining...';
+
+                try {
+                    // Get current code
+                    const html = document.getElementById('generatedHtml').value;
+                    const css = document.getElementById('generatedCss').value;
+                    const js = document.getElementById('generatedJs').value;
+
+                    // Build refinement prompt
+                    const prompt = `You are refining existing HTML/CSS/JS code based on user feedback.\n\n` +
+                        `**Current Code:**\n` +
+                        `HTML:\n${html}\n\n` +
+                        `CSS:\n${css}\n\n` +
+                        `JS:\n${js}\n\n` +
+                        `**User Request:** ${request}\n\n` +
+                        `**Return ONLY a JSON object with this exact structure:**\n` +
+                        `{\n  "html": "refined HTML code",\n  "css": "refined CSS code",\n  "js": "refined JavaScript code"\n}\n\n` +
+                        `Do not include markdown code blocks or any text outside the JSON.`;
+
+                    const selectedModel = document.getElementById('htmlGenModelSelector').value;
+
+                    const response = await this.openaiClient.sendMessage(
+                        prompt,
+                        this.stateManager.currentJson,
+                        [],
+                        null,
+                        false
+                    );
+
+                    // Track token usage
+                    if (response.usage && window.trackTokenUsage) {
+                        window.trackTokenUsage({
+                            model: selectedModel,
+                            inputTokens: response.usage.input_tokens || 0,
+                            outputTokens: response.usage.output_tokens || 0,
+                            type: 'html-refinement',
+                            success: true
+                        });
+                    }
+
+                    // Parse response
+                    const jsonMatch = response.message.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) {
+                        throw new Error('Could not find JSON in response');
+                    }
+
+                    const result = JSON.parse(jsonMatch[0]);
+
+                    // Update code editors
+                    document.getElementById('generatedHtml').value = result.html;
+                    document.getElementById('generatedCss').value = result.css || '';
+                    document.getElementById('generatedJs').value = result.js || '';
+
+                    // Update preview
+                    this.updateHtmlPreview();
+
+                    // Add to refinement messages
+                    const messagesEl = document.getElementById('refinementMessages');
+                    messagesEl.innerHTML += `
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-weight: 600; color: #3b82f6;">You:</div>
+                            <div style="margin-top: 4px;">${request}</div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-weight: 600; color: #10b981;">AI:</div>
+                            <div style="margin-top: 4px;">✅ Code updated successfully</div>
+                        </div>
+                    `;
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+                    // Clear input
+                    refinementInput.value = '';
+
+                    console.log('✅ Code refined successfully');
+
+                } catch (error) {
+                    console.error('Refinement error:', error);
+                    alert('❌ Refinement failed: ' + error.message);
+                } finally {
+                    refineBtn.disabled = false;
+                    refineBtn.textContent = 'Send';
+                }
+            }
+
+            sendToJsonConverter() {
+                // Get generated code
+                const html = document.getElementById('generatedHtml').value;
+                const css = document.getElementById('generatedCss').value;
+                const js = document.getElementById('generatedJs').value;
+
+                if (!html) {
+                    alert('⚠️ No HTML code to send');
+                    return;
+                }
+
+                // Populate JSON Converter tab
+                document.getElementById('sourceHtml').value = html;
+                document.getElementById('sourceCss').value = css;
+                document.getElementById('sourceJs').value = js;
+
+                // Switch to JSON Converter tab
+                this.switchTab('jsonconverter');
+
+                console.log('✅ Code sent to JSON Converter');
+            }
+
+            switchCodeTab(clickedTab, context) {
+                // Get the parent container
+                const container = clickedTab.closest('.tab-pane');
+                const tabs = container.querySelectorAll('.code-tab');
+                const editors = container.querySelectorAll('.code-editor');
+
+                // Update active tab
+                tabs.forEach(t => t.classList.remove('active'));
+                clickedTab.classList.add('active');
+
+                // Get target
+                const target = clickedTab.getAttribute('data-tab');
+
+                // Update active editor
+                editors.forEach(editor => {
+                    editor.style.display = 'none';
+                    editor.classList.remove('active');
+                });
+
+                // Show target editor
+                let targetEditor;
+                if (context === 'htmlgen') {
+                    targetEditor = document.getElementById(`generated${target.charAt(0).toUpperCase() + target.slice(1)}`);
+                } else if (context === 'jsonconverter') {
+                    targetEditor = document.getElementById(`source${target.charAt(0).toUpperCase() + target.slice(1)}`);
+                }
+
+                if (targetEditor) {
+                    targetEditor.style.display = 'block';
+                    targetEditor.classList.add('active');
+                }
+            }
+
+            switchViewport(clickedBtn) {
+                const viewport = clickedBtn.getAttribute('data-viewport');
+                const iframe = document.getElementById('htmlPreviewIframe');
+
+                // Update active button
+                document.querySelectorAll('.viewport-btn').forEach(btn => btn.classList.remove('active'));
+                clickedBtn.classList.add('active');
+
+                // Update iframe class
+                iframe.className = `html-preview-iframe ${viewport}`;
+            }
+
+            // ====================================
+            // JSON Converter Methods
+            // ====================================
+
+            toggleGlobalStylesheet(enabled) {
+                const textarea = document.getElementById('globalStylesheet');
+                textarea.style.display = enabled ? 'block' : 'none';
+            }
+
+            // generateAiDescription() - Method removed (Vision Mode was non-functional)
+
+            async convertToElementor() {
+                if (!this.openaiClient) {
+                    alert('❌ Please set your OpenAI API key first');
+                    return;
+                }
+
+                // Get source code
+                const html = document.getElementById('sourceHtml').value;
+                const css = document.getElementById('sourceCss').value;
+                const js = document.getElementById('sourceJs').value;
+
+                if (!html) {
+                    alert('⚠️ No HTML code to convert');
+                    return;
+                }
+
+                const btn = document.getElementById('convertToElementorBtn');
+                btn.disabled = true;
+                btn.textContent = '⏳ Converting...';
+
+                try {
+                    // Get conversion mode
+                    const mode = document.querySelector('input[name="conversionMode"]:checked').value;
+                    const aiDescription = null; // Vision Mode removed
+                    const customPrompt = document.getElementById('conversionPrompt').value;
+
+                    // Use the existing HTML converter if available
+                    if (mode === 'accurate' && this.htmlConverter) {
+                        // Call HTML converter with AI mode
+                        const result = await this.htmlConverter.convert(
+                            html,
+                            css,
+                            js,
+                            aiDescription || null,
+                            (step, message) => {
+                                console.log(`Step ${step}: ${message}`);
+                            }
+                        );
+
+                        if (result.success) {
+                            // Show success message
+                            document.getElementById('conversionResult').style.display = 'block';
+
+                            // Load into JSON editor
+                            this.stateManager.currentJson = result.json;
+                            this.jsonEditor.setJson(result.json);
+                            window.generatedJSON = result.json;
+
+                            // Switch to JSON editor after 2 seconds
+                            setTimeout(() => {
+                                this.switchTab('json');
+                                document.getElementById('conversionResult').style.display = 'none';
+                                this.chatUI.addSystemMessage('✅ Elementor JSON loaded into editor');
+                            }, 2000);
+                        } else {
+                            throw new Error(result.error);
+                        }
+                    } else {
+                        // Fast mode - use browser-only conversion
+                        alert('⚠️ Browser-only conversion not yet implemented in this interface. Please use the standalone converter or select Accurate mode.');
+                    }
+
+                } catch (error) {
+                    console.error('Conversion error:', error);
+                    alert('❌ Conversion failed: ' + error.message);
+                    document.getElementById('conversionResult').style.display = 'none';
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = '🚀 CONVERT TO ELEMENTOR JSON';
+                }
+            }
+
+            // ====================================
+            // Slash Command Methods
+            // ====================================
+
+            handleSlashInput(e) {
+                const input = e.target.value;
+
+                // Show menu if input starts with /
+                if (input.startsWith('/') && input.length > 0) {
+                    const query = input.slice(1).toLowerCase();
+                    const filtered = this.slashCommands.filter(cmd =>
+                        cmd.command.slice(1).toLowerCase().includes(query) ||
+                        cmd.name.toLowerCase().includes(query)
+                    );
+                    this.showSlashMenu(filtered);
+                } else {
+                    this.hideSlashMenu();
+                }
+            }
+
+            showSlashMenu(commands) {
+                const menu = document.getElementById('slashCommandMenu');
+                const itemsContainer = document.getElementById('slashMenuItems');
+
+                itemsContainer.innerHTML = '';
+                this.selectedSlashIndex = 0;
+
+                commands.forEach((cmd, index) => {
+                    const item = document.createElement('div');
+                    item.className = `slash-menu-item${index === 0 ? ' selected' : ''}`;
+                    item.dataset.index = index;
+                    item.dataset.command = cmd.command;
+
+                    item.innerHTML = `
+                        <div class="slash-menu-icon">${cmd.icon}</div>
+                        <div class="slash-menu-content">
+                            <div class="slash-menu-name">${cmd.name}</div>
+                            <div class="slash-menu-command">${cmd.command}</div>
+                            <div class="slash-menu-description">${cmd.description}</div>
+                        </div>
+                    `;
+
+                    item.addEventListener('click', () => {
+                        this.selectedSlashIndex = index;
+                        this.selectSlashCommand();
+                    });
+
+                    itemsContainer.appendChild(item);
+                });
+
+                menu.style.display = 'block';
+            }
+
+            hideSlashMenu() {
+                document.getElementById('slashCommandMenu').style.display = 'none';
+                this.selectedSlashIndex = -1;
+            }
+
+            isSlashMenuVisible() {
+                return document.getElementById('slashCommandMenu').style.display === 'block';
+            }
+
+            navigateSlashMenu(direction) {
+                const items = document.querySelectorAll('.slash-menu-item');
+                if (items.length === 0) return;
+
+                // Remove current selection
+                items[this.selectedSlashIndex]?.classList.remove('selected');
+
+                // Update index
+                this.selectedSlashIndex += direction;
+                if (this.selectedSlashIndex < 0) this.selectedSlashIndex = items.length - 1;
+                if (this.selectedSlashIndex >= items.length) this.selectedSlashIndex = 0;
+
+                // Add new selection
+                items[this.selectedSlashIndex]?.classList.add('selected');
+                items[this.selectedSlashIndex]?.scrollIntoView({ block: 'nearest' });
+            }
+
+            selectSlashCommand() {
+                const items = document.querySelectorAll('.slash-menu-item');
+                const selectedItem = items[this.selectedSlashIndex];
+
+                if (selectedItem) {
+                    const command = selectedItem.dataset.command;
+                    const chatInput = document.getElementById('chatInput');
+
+                    // Replace /query with /command
+                    chatInput.value = command + ' ';
+                    chatInput.focus();
+
+                    this.hideSlashMenu();
+                }
+            }
+
+            // ====================================
+            // Debug Panel Methods
+            // ====================================
+
+            setupConsoleInterception() {
+                const logsContainer = document.getElementById('debugLogs');
+                const originalLog = console.log;
+                const originalWarn = console.warn;
+                const originalError = console.error;
+
+                const addLogEntry = (type, args) => {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const message = Array.from(args).map(arg => {
+                        try {
+                            if (arg === null) return 'null';
+                            if (arg === undefined) return 'undefined';
+                            if (typeof arg === 'string') return arg;
+                            if (typeof arg === 'number') return String(arg);
+                            if (typeof arg === 'boolean') return String(arg);
+                            if (typeof arg === 'function') return '[Function]';
+                            if (typeof arg === 'symbol') return arg.toString();
+
+                            // Check if it's a Proxy or special object that can't be stringified
+                            const objType = Object.prototype.toString.call(arg);
+                            if (objType === '[object Object]') {
+                                try {
+                                    return JSON.stringify(arg);
+                                } catch (e) {
+                                    return '[Object (unstringifiable)]';
+                                }
+                            }
+
+                            return String(arg);
+                        } catch (e) {
+                            return '[Value (conversion error)]';
+                        }
+                    }).join(' ');
+
+                    this.debugLogs.push({ type, message, timestamp });
+
+                    // Keep only last 100 logs
+                    if (this.debugLogs.length > 100) {
+                        this.debugLogs.shift();
+                    }
+
+                    // Update UI if panel is open
+                    const panel = document.getElementById('debugPanel');
+                    if (panel.style.display !== 'none') {
+                        this.renderDebugLogs();
+                    }
+                };
+
+                console.log = (...args) => {
+                    originalLog.apply(console, args);
+                    addLogEntry('info', args);
+                };
+
+                console.warn = (...args) => {
+                    originalWarn.apply(console, args);
+                    addLogEntry('warning', args);
+                };
+
+                console.error = (...args) => {
+                    originalError.apply(console, args);
+                    addLogEntry('error', args);
+                };
+            }
+
+            toggleDebugPanel() {
+                const panel = document.getElementById('debugPanel');
+                const button = document.getElementById('toggleDebugPanel');
+
+                if (panel.style.display === 'none') {
+                    panel.style.display = 'block';
+                    button.textContent = '🔍 Close Debug';
+                    this.renderDebugLogs();
+                } else {
+                    panel.style.display = 'none';
+                    button.textContent = '🔍 Debug';
+                }
+            }
+
+            renderDebugLogs() {
+                const container = document.getElementById('debugLogs');
+                container.innerHTML = '';
+
+                if (this.debugLogs.length === 0) {
+                    container.innerHTML = '<div style="color: #6b7280; text-align: center; padding: 20px;">No logs yet</div>';
+                    return;
+                }
+
+                this.debugLogs.slice(-50).forEach(log => {
+                    const entry = document.createElement('div');
+                    entry.className = `log-entry ${log.type}`;
+                    entry.textContent = `[${log.timestamp}] ${log.message}`;
+                    container.appendChild(entry);
+                });
+
+                // Auto-scroll to bottom
+                container.scrollTop = container.scrollHeight;
+            }
+
+            clearDebugLogs() {
+                this.debugLogs = [];
+                this.renderDebugLogs();
+            }
+        }
+
+        // Initialize app when DOM is ready
+        window.app = new ChatEditorApp();
+
+        // Helper to safely extract error message
+        function safeErrorMessage(error) {
+            try {
+                if (typeof error === 'string') return error;
+                if (error?.message) return error.message;
+                if (error?.toString && typeof error.toString === 'function') {
+                    const str = error.toString();
+                    if (str !== '[object Object]') return str;
+                }
+                return JSON.stringify(error, null, 2);
+            } catch (e) {
+                return 'Error (cannot convert to string)';
+            }
+        }
+
+        // Global error handler to catch unhandled errors
+        window.addEventListener('error', (event) => {
+            console.error('Unhandled error:', event.error);
+            const errorMsg = safeErrorMessage(event.error || event.message);
+            if (window.app?.chatUI) {
+                window.app.chatUI.addSystemMessage(`⚠️ Error: ${errorMsg}`);
+            }
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Unhandled promise rejection:', event.reason);
+            const errorMsg = safeErrorMessage(event.reason);
+            if (window.app?.chatUI) {
+                window.app.chatUI.addSystemMessage(`⚠️ Promise Error: ${errorMsg}`);
+            }
+        });
+    </script>
+
+    <!-- Token tracking -->
+    <script src="token-tracker.js?v=2"></script>
+
+    <!-- Playground integration (reuse existing) -->
+    <script type="module" src="./playground.js?v=2"></script>
+</body>
+</html>

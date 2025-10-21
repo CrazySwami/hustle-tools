@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Test - Feature Verification</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .test-section h2 {
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .status.pass {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status.fail {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        .log-area {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        .log-area .log-line {
+            margin: 2px 0;
+        }
+
+        .log-area .success {
+            color: #4ade80;
+        }
+
+        .log-area .error {
+            color: #f87171;
+        }
+
+        .log-area .warning {
+            color: #fbbf24;
+        }
+
+        .log-area .info {
+            color: #60a5fa;
+        }
+
+        /* Slash Menu Test */
+        .input-container {
+            position: relative;
+            margin-top: 15px;
+        }
+
+        #testInput {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .slash-menu {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            margin-bottom: 8px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .slash-menu.visible {
+            display: block;
+        }
+
+        .menu-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .menu-item:hover {
+            background: #f3f4f6;
+        }
+
+        .menu-item.selected {
+            background: #eff6ff;
+            border-left: 3px solid #3b82f6;
+        }
+
+        /* Streaming Test */
+        #streamOutput {
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 15px;
+            min-height: 100px;
+            margin-top: 10px;
+            background: #fafafa;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="margin-bottom: 30px; color: #1e1e1e;">🔍 Debug Test Suite</h1>
+
+    <!-- Test 1: Slash Command -->
+    <div class="test-section">
+        <h2>1. Slash Command Menu <span class="status pending" id="status1">PENDING</span></h2>
+        <p>Type <code>/</code> in the input below. Menu should appear above the input.</p>
+
+        <div class="input-container">
+            <div class="slash-menu" id="slashMenu">
+                <div class="menu-item" data-cmd="/search">🔍 /search - Search command</div>
+                <div class="menu-item" data-cmd="/analyze">🔬 /analyze - Analyze command</div>
+                <div class="menu-item" data-cmd="/convert">🔄 /convert - Convert command</div>
+            </div>
+            <input type="text" id="testInput" placeholder="Type / to test slash menu...">
+        </div>
+
+        <div class="log-area" id="log1"></div>
+    </div>
+
+    <!-- Test 2: Streaming Simulation -->
+    <div class="test-section">
+        <h2>2. Text Streaming <span class="status pending" id="status2">PENDING</span></h2>
+        <p>Click the button to simulate character-by-character streaming.</p>
+
+        <button onclick="testStreaming()">Test Streaming</button>
+        <button onclick="clearStreamOutput()">Clear</button>
+
+        <div id="streamOutput"></div>
+        <div class="log-area" id="log2"></div>
+    </div>
+
+    <!-- Test 3: Token Tracking -->
+    <div class="test-section">
+        <h2>3. Token Tracking Function <span class="status pending" id="status3">PENDING</span></h2>
+        <p>Test if trackTokenUsage() function exists and works.</p>
+
+        <button onclick="testTokenTracking()">Test Token Tracking</button>
+
+        <div class="log-area" id="log3"></div>
+    </div>
+
+    <!-- Test 4: Tab Switching -->
+    <div class="test-section">
+        <h2>4. Tab ID Detection <span class="status pending" id="status4">PENDING</span></h2>
+        <p>Check if tab elements exist with correct IDs.</p>
+
+        <button onclick="testTabIDs()">Test Tab IDs</button>
+
+        <div class="log-area" id="log4"></div>
+    </div>
+
+    <!-- Test 5: Module Loading -->
+    <div class="test-section">
+        <h2>5. Module Loading Order <span class="status pending" id="status5">PENDING</span></h2>
+        <p>Check if all required modules are loaded.</p>
+
+        <button onclick="testModules()">Test Modules</button>
+
+        <div class="log-area" id="log5"></div>
+    </div>
+
+    <script>
+        // Logging helper
+        function log(logId, message, type = 'info') {
+            const logArea = document.getElementById(logId);
+            const line = document.createElement('div');
+            line.className = `log-line ${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logArea.appendChild(line);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function setStatus(statusId, status) {
+            const el = document.getElementById(statusId);
+            el.className = `status ${status}`;
+            el.textContent = status.toUpperCase();
+        }
+
+        // ====================================
+        // Test 1: Slash Command
+        // ====================================
+        const input = document.getElementById('testInput');
+        const menu = document.getElementById('slashMenu');
+
+        input.addEventListener('input', (e) => {
+            const value = e.target.value;
+            log('log1', `Input value: "${value}"`, 'info');
+
+            if (value.startsWith('/')) {
+                menu.classList.add('visible');
+                log('log1', 'Menu should now be visible', 'success');
+                setStatus('status1', 'pass');
+            } else {
+                menu.classList.remove('visible');
+                log('log1', 'Menu hidden', 'info');
+            }
+        });
+
+        // Click handler for menu items
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const cmd = item.dataset.cmd;
+                input.value = cmd + ' ';
+                menu.classList.remove('visible');
+                log('log1', `Selected command: ${cmd}`, 'success');
+            });
+        });
+
+        log('log1', 'Slash command listener attached', 'success');
+
+        // ====================================
+        // Test 2: Streaming
+        // ====================================
+        let streamingActive = false;
+
+        async function testStreaming() {
+            if (streamingActive) return;
+
+            streamingActive = true;
+            setStatus('status2', 'pending');
+
+            const output = document.getElementById('streamOutput');
+            output.textContent = '';
+
+            const text = "This is a test of character-by-character streaming. Each character should appear one at a time with a small delay, simulating real-time AI response streaming.";
+
+            log('log2', `Starting to stream ${text.length} characters`, 'info');
+
+            for (let i = 0; i < text.length; i++) {
+                output.textContent += text[i];
+                log('log2', `Character ${i + 1}/${text.length}: "${text[i]}"`, 'success');
+                await new Promise(resolve => setTimeout(resolve, 30));
+            }
+
+            log('log2', 'Streaming complete!', 'success');
+            setStatus('status2', 'pass');
+            streamingActive = false;
+        }
+
+        function clearStreamOutput() {
+            document.getElementById('streamOutput').textContent = '';
+            document.getElementById('log2').innerHTML = '';
+            setStatus('status2', 'pending');
+        }
+
+        // ====================================
+        // Test 3: Token Tracking
+        // ====================================
+        function testTokenTracking() {
+            document.getElementById('log3').innerHTML = '';
+
+            log('log3', 'Checking for trackTokenUsage function...', 'info');
+
+            if (typeof window.trackTokenUsage === 'function') {
+                log('log3', '✓ trackTokenUsage function exists', 'success');
+
+                try {
+                    window.trackTokenUsage({
+                        model: 'gpt-5-test',
+                        inputTokens: 100,
+                        outputTokens: 50,
+                        type: 'test',
+                        success: true
+                    });
+                    log('log3', '✓ trackTokenUsage called successfully', 'success');
+                    setStatus('status3', 'pass');
+                } catch (error) {
+                    log('log3', `✗ Error calling trackTokenUsage: ${error.message}`, 'error');
+                    setStatus('status3', 'fail');
+                }
+            } else {
+                log('log3', '✗ trackTokenUsage function NOT FOUND', 'error');
+                log('log3', 'This means token-tracker.js is not loaded', 'warning');
+                setStatus('status3', 'fail');
+            }
+        }
+
+        // ====================================
+        // Test 4: Tab IDs (simulated)
+        // ====================================
+        function testTabIDs() {
+            document.getElementById('log4').innerHTML = '';
+
+            log('log4', 'This test would check for tab elements in the main app', 'info');
+            log('log4', 'Expected IDs: chatTab, jsoneditorTab, htmlGenTab, jsonconverterTab, playgroundTab', 'info');
+            log('log4', '', 'info');
+            log('log4', 'In the main app, open console and run:', 'warning');
+            log('log4', '  document.querySelectorAll("[id$=Tab]")', 'info');
+            log('log4', '  document.querySelectorAll("[id$=View]")', 'info');
+
+            setStatus('status4', 'pending');
+        }
+
+        // ====================================
+        // Test 5: Module Loading
+        // ====================================
+        function testModules() {
+            document.getElementById('log5').innerHTML = '';
+
+            log('log5', 'Checking for required objects/functions...', 'info');
+
+            const checks = [
+                { name: 'window.app', exists: typeof window.app !== 'undefined' },
+                { name: 'window.trackTokenUsage', exists: typeof window.trackTokenUsage === 'function' },
+                { name: 'OpenAIClient (in app)', exists: typeof window.app?.openaiClient !== 'undefined' },
+                { name: 'StateManager (in app)', exists: typeof window.app?.stateManager !== 'undefined' }
+            ];
+
+            let allPass = true;
+            checks.forEach(check => {
+                if (check.exists) {
+                    log('log5', `✓ ${check.name} - Found`, 'success');
+                } else {
+                    log('log5', `✗ ${check.name} - NOT FOUND`, 'error');
+                    allPass = false;
+                }
+            });
+
+            if (allPass) {
+                setStatus('status5', 'pass');
+            } else {
+                setStatus('status5', 'fail');
+                log('log5', '', 'info');
+                log('log5', 'Some modules are missing. This is expected in debug-test.html', 'warning');
+                log('log5', 'Run these checks in the main chat-editor.html console instead', 'warning');
+            }
+        }
+
+        // Auto-run module check on load
+        setTimeout(() => {
+            log('log5', 'Page loaded. Click "Test Modules" to check.', 'info');
+        }, 100);
+    </script>
+</body>
+</html>

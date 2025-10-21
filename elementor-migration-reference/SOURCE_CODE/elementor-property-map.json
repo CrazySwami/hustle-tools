@@ -1,0 +1,129 @@
+{
+  "heading": {
+    "content_controls": {
+      "title": "string",
+      "link": {"url": "string", "is_external": "boolean", "nofollow": "boolean"},
+      "size": "string (default|small|medium|large|xl|xxl)",
+      "header_size": "string (h1|h2|h3|h4|h5|h6|div|span|p)",
+      "align": "string (left|center|right|justify)"
+    },
+    "style_controls": {
+      "title_color": "hex color",
+      "title_hover_color": "hex color",
+      "typography_typography": "custom (required to enable)",
+      "typography_font_family": "string (full font name)",
+      "typography_font_size": {"unit": "px|em|rem", "size": "number"},
+      "typography_font_weight": "string|number",
+      "typography_line_height": {"unit": "px|em", "size": "number"},
+      "text_stroke_stroke_color": "hex color",
+      "text_stroke_stroke_width": {"unit": "px", "size": "number"},
+      "text_shadow_text_shadow": "object",
+      "blend_mode": "string"
+    }
+  },
+  "text-editor": {
+    "content_controls": {
+      "editor": "html string",
+      "drop_cap": "yes|no"
+    },
+    "style_controls": {
+      "align": "string (left|center|right|justify)",
+      "text_color": "hex color",
+      "typography_typography": "custom",
+      "typography_font_family": "string",
+      "typography_font_size": {"unit": "px|em|rem", "size": "number"},
+      "typography_font_weight": "string|number"
+    }
+  },
+  "button": {
+    "content_controls": {
+      "text": "string",
+      "link": {"url": "string", "is_external": "boolean", "nofollow": "boolean"},
+      "align": "string (left|center|right|justify)",
+      "size": "string (xs|sm|md|lg|xl)",
+      "icon": "string",
+      "icon_align": "left|right"
+    },
+    "style_controls": {
+      "typography_typography": "custom",
+      "typography_font_family": "string",
+      "typography_font_size": {"unit": "px|em|rem", "size": "number"},
+      "typography_font_weight": "string|number",
+      "button_text_color": "hex color (normal state)",
+      "button_text_hover_color": "hex color (hover state)",
+      "background_background": "classic|gradient (required!)",
+      "background_color": "hex color (for classic)",
+      "background_color_hover": "hex color (hover for classic)",
+      "border_border": "solid|double|dotted|dashed|none",
+      "border_width": {"unit": "px", "top": 0, "right": 0, "bottom": 0, "left": 0},
+      "border_color": "hex color",
+      "border_radius": {"unit": "px", "top": 0, "right": 0, "bottom": 0, "left": 0, "isLinked": true},
+      "box_shadow_box_shadow": "object",
+      "text_padding": {"unit": "px", "top": 0, "right": 0, "bottom": 0, "left": 0, "isLinked": false}
+    }
+  },
+  "container": {
+    "layout_controls": {
+      "container_type": "flex|grid",
+      "content_width": "full|boxed",
+      "flex_direction": "row|column|row-reverse|column-reverse",
+      "flex_align_items": "flex-start|center|flex-end|stretch",
+      "flex_justify_content": "flex-start|center|flex-end|space-between|space-around|space-evenly",
+      "flex_gap": {"unit": "px", "size": 0}
+    },
+    "style_controls": {
+      "background_background": "classic|gradient|video|slideshow (required!)",
+      "background_color": "hex color (for classic)",
+      "background_image": {"url": "string", "id": "number"},
+      "background_position": "string (center center|top left|etc)",
+      "background_repeat": "no-repeat|repeat|repeat-x|repeat-y",
+      "background_size": "auto|cover|contain|custom",
+      "background_gradient_type": "linear|radial (for gradient)",
+      "background_gradient_angle": {"unit": "deg", "size": 0},
+      "background_gradient_position": "center center|top left|etc",
+      "background_gradient_color": "hex color (gradient color A)",
+      "background_gradient_color_b": "hex color (gradient color B)",
+      "background_gradient_color_a_stop": {"unit": "%", "size": 0},
+      "background_gradient_color_b_stop": {"unit": "%", "size": 100},
+      "border_border": "solid|double|dotted|dashed|none",
+      "border_width": {"unit": "px", "top": 0, "right": 0, "bottom": 0, "left": 0},
+      "border_color": "hex color",
+      "border_radius": {"unit": "px", "top": 0, "right": 0, "bottom": 0, "left": 0, "isLinked": true},
+      "box_shadow_box_shadow": "object",
+      "padding": {"unit": "px|em|%", "top": 0, "right": 0, "bottom": 0, "left": 0, "isLinked": false},
+      "margin": {"unit": "px|em|%", "top": 0, "right": 0, "bottom": 0, "left": 0, "isLinked": false}
+    }
+  },
+  "image": {
+    "content_controls": {
+      "image": {"url": "string", "id": "number"},
+      "image_size": "thumbnail|medium|large|full|custom",
+      "link_to": "none|file|custom",
+      "link": {"url": "string", "is_external": "boolean", "nofollow": "boolean"},
+      "caption": "none|attachment|custom",
+      "caption_text": "string"
+    },
+    "style_controls": {
+      "width": {"unit": "px|%|vw", "size": 100},
+      "max_width": {"unit": "px|%|vw", "size": 100},
+      "height": {"unit": "px|vh", "size": "auto"},
+      "object_fit": "fill|cover|contain|none",
+      "align": "left|center|right",
+      "border_radius": {"unit": "px", "top": 0, "right": 0, "bottom": 0, "left": 0},
+      "opacity": {"unit": "", "size": 1},
+      "css_filters_brightness": {"unit": "", "size": 100},
+      "css_filters_contrast": {"unit": "", "size": 100},
+      "css_filters_saturate": {"unit": "", "size": 100}
+    }
+  },
+  "notes": {
+    "control_activation": [
+      "typography_typography: 'custom' must be set before any typography_* properties work",
+      "background_background: 'classic'|'gradient' must be set before background properties work",
+      "border_border: 'solid'|etc must be set before border_width/border_color work"
+    ],
+    "color_format": "Always use hex format (#RRGGBB) not rgb() or rgba()",
+    "font_families": "Use full names: 'Arial', 'Times New Roman', 'Helvetica', 'Roboto'",
+    "responsive_controls": "Some controls have _mobile and _tablet variants"
+  }
+}

@@ -90,8 +90,9 @@ const modelGroups: ModelGroup[] = [
   {
     provider: 'Anthropic',
     models: [
+      { name: 'Claude Haiku 4.5', value: 'anthropic/claude-haiku-4.5-20251022' },
+      { name: 'Claude Sonnet 4.5', value: 'anthropic/claude-sonnet-4.5-20250514' },
       { name: 'Claude Opus 4', value: 'anthropic/claude-opus-4-20250514' },
-      { name: 'Claude Sonnet 4', value: 'anthropic/claude-sonnet-4-20250514' },
       { name: 'Claude 3.7 Sonnet', value: 'anthropic/claude-3-7-sonnet-20250219' },
       { name: 'Claude 3.5 Sonnet', value: 'anthropic/claude-3-5-sonnet-20241022' },
       { name: 'Claude 3.5 Haiku', value: 'anthropic/claude-3-5-haiku-20241022' },

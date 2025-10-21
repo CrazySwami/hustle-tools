@@ -1,0 +1,661 @@
+# HTML-Only Section Builder Implementation Plan
+**Branch:** `html-only-no-elementor`
+**Goal:** Pivot from Elementor JSON to HTML/CSS/JS sections using Elementor's HTML widget
+
+---
+
+## ✅ Phase 1: Cleanup & Remove Elementor JSON Components
+
+### 1.1 Remove Files
+- [ ] Delete `/src/components/elementor/JsonConverter.tsx`
+- [ ] Delete `/src/app/api/convert-to-elementor/route.ts`
+- [ ] Remove JSON Converter tab from main editor page
+- [ ] Remove JSON Editor tab references (keep file for now, will refactor)
+
+### 1.2 Update Main Editor Page
+- [ ] Remove `json-converter` tab from `/src/app/elementor-editor/page.tsx`
+- [ ] Remove `JsonConverter` component import and usage
+- [ ] Keep only: HTML Generator tab, Playground tab, Site Content tab
+- [ ] Rename "JSON Editor" tab to "HTML Editor" (will refactor content later)
+
+---
+
+## ✅ Phase 2: WordPress Global Stylesheet Integration
+
+### 2.1 Backend - Pull WordPress Theme Styles
+- [ ] Create `/src/app/api/get-wordpress-stylesheet/route.ts`
+  - [ ] Accept WordPress Playground client URL as parameter
+  - [ ] Use PHP to get active theme: `wp_get_theme()`
+  - [ ] Get stylesheet URI: `get_stylesheet_uri()`
+  - [ ] Read actual CSS file from `/wp-content/themes/{active-theme}/style.css`
+  - [ ] Parse CSS to extract CSS variables (`:root {}` block)
+  - [ ] Return both raw CSS and parsed variables
+
+### 2.2 Playground.js Integration
+- [ ] Add function `window.getWordPressStylesheet()` to `/public/playground.js`
+  - [ ] Run PHP to get theme stylesheet path
+  - [ ] Read CSS file contents
+  - [ ] Return raw CSS text
+- [ ] Add function `window.updateGlobalStylesheet(css)`
+  - [ ] Write CSS to custom file in `/wp-content/uploads/custom-global.css`
+  - [ ] Enqueue CSS file via PHP: `wp_enqueue_style()`
+
+### 2.3 Frontend - Global Stylesheet State
+- [ ] Create `/src/lib/global-stylesheet-context.tsx`
+  - [ ] Context for global CSS state
+  - [ ] `globalCss` - Raw CSS string
+  - [ ] `cssVariables` - Parsed CSS variables object
+  - [ ] `updateGlobalCss()` - Update CSS and sync to WordPress
+  - [ ] `pullFromWordPress()` - Fetch latest from WordPress
+  - [ ] `pushToWordPress()` - Save changes to WordPress
+
+---
+
+## ✅ Phase 3: Style Guide Tab (Visual Editor + CSS Editor)
+
+### 3.1 Create Style Guide Component
+- [ ] Create `/src/components/elementor/StyleGuide.tsx`
+  - [ ] Split view: Style Guide Preview (left) | CSS Editor (right)
+  - [ ] 60/40 split with resizable divider
+
+### 3.2 Style Guide Preview (Left Panel)
+- [ ] **Typography Section**
+  - [ ] H1, H2, H3, H4, H5, H6 examples with actual styles applied
+  - [ ] Body text, small text examples
+  - [ ] Link styles (normal, hover, visited)
+  - [ ] Font family display
+  - [ ] Font weight variations
+
+- [ ] **Colors Section**
+  - [ ] Primary colors grid (show swatches with hex values)
+  - [ ] Secondary colors
+  - [ ] Grayscale/neutral colors
+  - [ ] Success/warning/error colors
+  - [ ] Extract from CSS variables or theme
+
+- [ ] **Buttons Section**
+  - [ ] Primary button (normal, hover, active, disabled states)
+  - [ ] Secondary button states
+  - [ ] Outline button states
+  - [ ] Ghost button states
+  - [ ] Button sizes (small, medium, large)
+
+- [ ] **Spacing Section**
+  - [ ] Margin scale visualization
+  - [ ] Padding scale visualization
+  - [ ] Gap/spacing tokens
+
+- [ ] **Borders & Shadows Section**
+  - [ ] Border radius examples
+  - [ ] Border width/styles
+  - [ ] Box shadow examples (sm, md, lg)
+
+- [ ] **Forms Section**
+  - [ ] Input field (normal, focus, error, disabled)
+  - [ ] Textarea
+  - [ ] Select dropdown
+  - [ ] Checkbox
+  - [ ] Radio button
+
+- [ ] Live updates - Changes to CSS immediately reflect in style guide
+
+### 3.3 CSS Editor (Right Panel)
+- [ ] Monaco Editor or CodeMirror for CSS editing
+- [ ] Syntax highlighting for CSS
+- [ ] Line numbers
+- [ ] CSS validation/linting
+- [ ] Auto-save (debounced)
+- [ ] "Pull from WordPress" button - Fetch latest theme CSS
+- [ ] "Push to WordPress" button - Save CSS to WordPress
+- [ ] "Reset to Theme Default" button
+
+### 3.4 Style Guide State Integration
+- [ ] Connect to GlobalStylesheetContext
+- [ ] Parse CSS variables from editor content
+- [ ] Apply CSS to style guide preview via `<style>` tag
+- [ ] Detect changes and mark as "unsaved"
+
+### 3.5 Add Style Guide Tab to Main Editor
+- [ ] Add new tab "Style Guide" to `/src/app/elementor-editor/page.tsx`
+- [ ] Position after HTML Generator, before Playground
+- [ ] Import and render `<StyleGuide />` component
+
+---
+
+## ✅ Phase 4: HTML/CSS/JS Section Editor (Replaces JSON Editor)
+
+### 4.1 Create HTML Editor Component
+- [ ] Create `/src/components/elementor/HtmlSectionEditor.tsx`
+  - [ ] Top: Section settings panel (collapsible)
+  - [ ] Middle: Code editor with 3 tabs (HTML/CSS/JS)
+  - [ ] Bottom: Live preview panel (toggle on/off)
+
+### 4.2 Section Settings Panel
+- [ ] **Layout Settings**
+  - [ ] Margin controls (top, right, bottom, left) with unit selector (px, %, em, rem)
+  - [ ] Padding controls (same as margin)
+  - [ ] Width/max-width controls
+  - [ ] Height/min-height controls
+
+- [ ] **Background Settings**
+  - [ ] Background type selector (none, color, gradient, image)
+  - [ ] Color picker for solid background
+  - [ ] Gradient editor (start color, end color, angle)
+  - [ ] Image URL input + upload
+
+- [ ] **Border Settings**
+  - [ ] Border width (top, right, bottom, left)
+  - [ ] Border color
+  - [ ] Border radius (top-left, top-right, bottom-right, bottom-left)
+  - [ ] Border style (solid, dashed, dotted, none)
+
+- [ ] **Shadow & Effects**
+  - [ ] Box shadow (horizontal, vertical, blur, spread, color)
+  - [ ] CSS filters (blur, brightness, contrast)
+  - [ ] Opacity slider
+
+- [ ] **Animation Settings**
+  - [ ] Animation type dropdown (none, fadeIn, fadeInUp, slideInLeft, etc.)
+  - [ ] Animation duration (fast, normal, slow)
+  - [ ] Animation delay
+
+- [ ] **Advanced**
+  - [ ] Custom CSS classes input
+  - [ ] Z-index control
+  - [ ] Position (relative, absolute, fixed, sticky)
+
+### 4.3 Code Editor Tabs
+- [ ] **HTML Tab**
+  - [ ] Monaco/CodeMirror with HTML syntax highlighting
+  - [ ] Auto-complete HTML tags
+  - [ ] Warning: "Don't include <!DOCTYPE>, <html>, <head>, or <body> tags"
+
+- [ ] **CSS Tab**
+  - [ ] CSS syntax highlighting
+  - [ ] Shows: "Global stylesheet is automatically included"
+  - [ ] Scoped CSS - can add section-specific styles
+
+- [ ] **JavaScript Tab**
+  - [ ] JS syntax highlighting
+  - [ ] Auto-wraps in `<script>` tag on save
+
+### 4.4 Live Preview Panel
+- [ ] Iframe preview of HTML+CSS+JS
+- [ ] Global stylesheet automatically injected
+- [ ] Toggle preview on/off
+- [ ] Responsive preview modes (desktop, tablet, mobile)
+- [ ] Refresh button
+
+### 4.5 Section Data Structure
+- [ ] Create `/src/lib/section-schema.ts`
+  - [ ] TypeScript interface for Section
+  - [ ] Properties: id, name, html, css, js, settings (margins, padding, background, etc.)
+  - [ ] Validation functions
+  - [ ] Conversion to Elementor HTML widget format
+
+### 4.6 Update Main Editor Page
+- [ ] Replace JSON Editor tab content with `<HtmlSectionEditor />`
+- [ ] Rename tab from "JSON Editor" to "Section Editor"
+
+---
+
+## ✅ Phase 5: Section Library (Multi-Section Management)
+
+### 5.1 Create Section Library Component
+- [ ] Create `/src/components/elementor/SectionLibrary.tsx`
+  - [ ] Left sidebar: Section list
+  - [ ] Right panel: Selected section editor (HtmlSectionEditor)
+
+### 5.2 Section List UI
+- [ ] **Header**
+  - [ ] Title: "Sections (X)"
+  - [ ] "+ New Section" button
+  - [ ] "Preview All" button (sends all to playground)
+
+- [ ] **Section Items**
+  - [ ] Thumbnail preview of section
+  - [ ] Section name (editable inline)
+  - [ ] Visual indicators (background color, has animation, etc.)
+  - [ ] Action buttons: Edit, Duplicate, Delete
+  - [ ] Drag handle for reordering
+
+- [ ] **Drag & Drop Reordering**
+  - [ ] Use react-beautiful-dnd or similar
+  - [ ] Visual feedback during drag
+  - [ ] Auto-save new order
+
+### 5.3 Section CRUD Operations
+- [ ] Create new section (blank template)
+- [ ] Edit section (opens HtmlSectionEditor in right panel)
+- [ ] Duplicate section (copy with new ID)
+- [ ] Delete section (with confirmation)
+- [ ] Reorder sections (updates array index)
+
+### 5.4 Section Storage
+- [ ] Store sections in React state (for now)
+- [ ] Auto-save to localStorage
+- [ ] Export all sections as JSON file
+- [ ] Import sections from JSON file
+
+### 5.5 Integration with HTML Generator
+- [ ] Update HtmlGeneratorNew.tsx
+  - [ ] Remove "Send to Converter" button
+  - [ ] Add "Save as Section" button
+  - [ ] On save: Creates new section in library with generated HTML/CSS/JS
+  - [ ] Auto-switch to Section Library tab
+
+### 5.6 Add Section Library Tab
+- [ ] Add "Sections" tab to main editor page
+- [ ] Position after HTML Generator, before Section Editor
+- [ ] Clicking section in library opens it in Section Editor tab
+
+---
+
+## ✅ Phase 5.5: HTML Page Splitter (NEW)
+
+### 5.5.1 Create Page Splitter Component
+- [ ] Create `/src/components/elementor/PageSplitter.tsx`
+  - [ ] Top: Full HTML input area (paste full page HTML)
+  - [ ] Middle: AI-powered section detection and splitting
+  - [ ] Bottom: Preview grid showing all detected sections
+
+### 5.5.2 Section Detection Algorithm
+- [ ] Implement smart HTML parsing
+  - [ ] Detect semantic sections (`<section>`, `<article>`, `<div class="section">`)
+  - [ ] Detect visual sections (headers followed by content blocks)
+  - [ ] Detect by structural patterns (nav, hero, features, testimonials, footer)
+  - [ ] Use AI to intelligently identify section boundaries
+  - [ ] Extract inline styles and convert to scoped CSS
+  - [ ] Extract inline scripts and isolate them per section
+
+### 5.5.3 Preview Grid UI
+- [ ] Display all detected sections in grid layout
+  - [ ] Each section shows miniature preview
+  - [ ] Section number and detected type label
+  - [ ] Editable section name
+  - [ ] Checkbox to include/exclude section
+  - [ ] Merge sections button (combine adjacent sections)
+  - [ ] Split section button (manual split point)
+  - [ ] Reorder sections (drag handles)
+
+### 5.5.4 Section Refinement Tools
+- [ ] Manual split controls
+  - [ ] Click to add split point in HTML view
+  - [ ] Visual line showing split boundaries
+  - [ ] Undo/redo split operations
+- [ ] Merge adjacent sections
+  - [ ] Select multiple sections to combine
+  - [ ] Preview merged result before confirming
+- [ ] CSS extraction options
+  - [ ] Auto-extract inline styles to CSS
+  - [ ] Detect and extract `<style>` blocks
+  - [ ] Option to use global stylesheet vs section CSS
+
+### 5.5.5 Batch Save to Library
+- [ ] "Save All Sections" button
+  - [ ] Validates all sections
+  - [ ] Creates Section objects with proper schema
+  - [ ] Auto-generates section names (Hero, Features, etc.)
+  - [ ] Adds all to Section Library
+  - [ ] Shows success summary (e.g., "✅ Saved 7 sections")
+  - [ ] Auto-switches to Section Library tab
+
+### 5.5.6 AI-Powered Section Classification
+- [ ] Use AI to classify section types:
+  - [ ] Hero/Banner
+  - [ ] Navigation/Header
+  - [ ] Features/Services
+  - [ ] Testimonials/Reviews
+  - [ ] Call-to-Action
+  - [ ] Footer
+  - [ ] Content Block
+  - [ ] Gallery/Media
+- [ ] Auto-suggest section names based on content
+- [ ] Auto-detect and apply appropriate animations
+
+### 5.5.7 Add Page Splitter Tab
+- [ ] Add "Split Page" tab to main editor page
+- [ ] Position after Section Library tab
+- [ ] Icon: scissors or split icon
+- [ ] Tooltip: "Import and split full HTML pages into sections"
+
+---
+
+## ✅ Phase 6: WordPress Playground Integration
+
+### 6.1 Update Playground Import Functions
+- [ ] Update `/public/playground.js`
+  - [ ] Modify `importElementorTemplate()` to accept array of HTML widgets
+  - [ ] Each section = 1 HTML widget with all settings
+  - [ ] Build proper Elementor HTML widget JSON structure
+
+### 6.2 Section to Elementor HTML Widget Conversion
+- [x] Create `/src/lib/section-to-elementor.ts`
+  - [x] Function: `sectionToHtmlWidget(section)`
+  - [x] Combines HTML + CSS (in `<style>`) + JS (in `<script>`)
+  - [x] Maps section.settings to Elementor widget properties
+  - [x] Returns proper widget JSON structure
+  - [x] Additional conversion functions:
+    - [x] `sectionsToHtmlWidgets()` - Batch conversion
+    - [x] `sectionsToElementorContainer()` - Container structure
+    - [x] `sectionsToElementorTemplate()` - Complete template
+    - [x] `generateSectionsPreviewHTML()` - Preview generation
+    - [x] `validateElementorWidget()` - Validation
+    - [x] `elementorWidgetToSection()` - Reverse conversion
+
+### 6.3 Export All Sections to Playground
+- [x] "Preview All" button in Section Library
+  - [x] Converts all sections to Elementor JSON template
+  - [x] Generates preview HTML
+  - [x] Copies HTML to clipboard
+  - [x] Downloads Elementor JSON file
+  - [x] Success notification with instructions
+  - [ ] Integrate with playground.js iframe communication
+  - [ ] Real-time preview in WordPress Playground iframe
+
+### 6.4 Live Preview Updates
+- [ ] When editing a section, "Update Playground" button
+- [ ] Re-sends all sections to WordPress
+- [ ] WordPress page refreshes with changes
+
+---
+
+## ⏳ Phase 7: Vercel AI SDK Migration & Multi-Model Support (IN PROGRESS)
+
+### 7.1 Install Vercel AI SDK & Dependencies
+- [x] Install packages:
+  - [x] `npm install ai @ai-sdk/openai @ai-sdk/anthropic @ai-sdk/google`
+  - [x] Verify compatibility with Next.js 15 ✅
+
+### 7.2 Setup AI Generation with Multi-Model Support
+- [x] Updated `/src/app/api/generate-html/route.ts`
+  - [x] Replaced AI Gateway with direct provider integration
+  - [x] Implemented model selector function:
+    - [x] **Default:** `claude-3-5-haiku-20241022` (Haiku 4.5)
+    - [x] **Claude:** `claude-3-5-sonnet-20241022`, `claude-3-opus-20240229`
+    - [x] **OpenAI:** `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`
+    - [x] **Google:** `gemini-2.0-flash-exp`, `gemini-1.5-pro`, `gemini-1.5-flash`
+  - [x] Updated system prompt for better JSON generation
+  - [x] Configured maxTokens: 8000 for larger responses
+- [x] Updated HTML Generator UI
+  - [x] Changed default model to Claude 3.5 Haiku
+  - [x] Added model selector with grouped options (Claude, OpenAI, Google)
+  - [x] Removed reasoning effort selector (not needed for Claude/Gemini)
+  - [x] Updated API endpoint from `/api/generate-html-direct` to `/api/generate-html`
+
+### 7.3 Research Vercel AI SDK Documentation
+- [ ] **Core Concepts:**
+  - [ ] Read: https://sdk.vercel.ai/docs/ai-sdk-core/overview
+  - [ ] Understand `generateText()` vs `streamText()`
+  - [ ] Learn `generateObject()` for structured outputs
+- [ ] **Tool Calling:**
+  - [ ] Read: https://sdk.vercel.ai/docs/ai-sdk-core/tools-and-tool-calling
+  - [ ] Understand `tools` parameter structure
+  - [ ] Learn Zod schema integration for tool parameters
+  - [ ] Multi-step tool execution patterns
+- [ ] **Streaming:**
+  - [ ] Read: https://sdk.vercel.ai/docs/ai-sdk-rsc/streaming-react-components
+  - [ ] Understand `useChat()` hook
+  - [ ] StreamData API for custom payloads
+- [ ] **Provider Setup:**
+  - [ ] OpenAI: https://sdk.vercel.ai/providers/ai-sdk-providers/openai
+  - [ ] Anthropic: https://sdk.vercel.ai/providers/ai-sdk-providers/anthropic
+  - [ ] Google: https://sdk.vercel.ai/providers/ai-sdk-providers/google-generative-ai
+- [ ] **Best Practices:**
+  - [ ] Error handling patterns
+  - [ ] Rate limiting strategies
+  - [ ] Token usage tracking
+  - [ ] Caching strategies
+
+### 7.4 Create New AI Route with Vercel SDK
+- [ ] Create `/src/app/api/chat-elementor-v2/route.ts`
+  - [ ] Import Vercel AI SDK: `import { streamText } from 'ai'`
+  - [ ] Import providers: `anthropic`, `openai`, `google`
+  - [ ] Accept `model` parameter from request
+  - [ ] Dynamic model selection based on provider prefix
+  - [ ] Use `streamText()` for streaming responses
+
+### 7.5 Define Tool Schemas with Zod
+- [ ] Create `/src/lib/ai-tools.ts`
+  - [ ] Use Zod for type-safe tool definitions
+  - [ ] Tool: `update_section_html`
+    - [ ] Parameters: `sectionId` (string), `html` (string)
+    - [ ] Description: "Update the HTML content of a section"
+  - [ ] Tool: `update_section_css`
+    - [ ] Parameters: `sectionId` (string), `css` (string)
+  - [ ] Tool: `update_section_js`
+    - [ ] Parameters: `sectionId` (string), `js` (string)
+  - [ ] Tool: `update_section_settings`
+    - [ ] Parameters: `sectionId`, `margins`, `padding`, `background`, etc.
+  - [ ] Tool: `add_new_section`
+    - [ ] Parameters: `name` (string), `html`, `css`, `js`, `settings`
+  - [ ] Tool: `delete_section`
+    - [ ] Parameters: `sectionId` (string)
+  - [ ] Tool: `reorder_sections`
+    - [ ] Parameters: `sectionIds` (array of strings in new order)
+  - [ ] Tool: `update_global_stylesheet`
+    - [ ] Parameters: `css` (string)
+
+### 7.6 Update System Prompt
+- [ ] Create `/src/lib/ai-prompts.ts`
+  - [ ] HTML section editing prompt:
+    - [ ] "You are editing HTML/CSS/JS sections for WordPress Elementor"
+    - [ ] "Never output DOCTYPE, html, head, body tags"
+    - [ ] "Always output section-level semantic HTML"
+    - [ ] "Include `<style>` tags for scoped CSS"
+    - [ ] "Include `<script>` tags for JavaScript"
+    - [ ] "Reference global stylesheet variables using `var(--variable-name)`"
+    - [ ] "Use Elementor-compatible animations and properties"
+  - [ ] Tool usage guidelines
+  - [ ] Context format instructions
+
+### 7.7 Update ChatInterface Component
+- [ ] Update `/src/components/elementor/ChatInterface.tsx`
+  - [ ] Replace fetch to `/api/chat-elementor` with `/api/chat-elementor-v2`
+  - [ ] Use Vercel AI SDK's `useChat()` hook (optional)
+  - [ ] Add model selector dropdown in UI
+  - [ ] Display current model in chat header
+  - [ ] Handle streaming responses from new endpoint
+  - [ ] Parse tool calls from response
+  - [ ] Execute tool functions client-side
+
+### 7.8 Context Preparation
+- [ ] Update context builder to include:
+  - [ ] All sections (id, name, html, css, js, settings)
+  - [ ] Global stylesheet content
+  - [ ] Current selected section
+  - [ ] Section order
+  - [ ] Available CSS variables from global stylesheet
+  - [ ] WordPress Playground status
+
+### 7.9 Model Selection UI
+- [ ] Create `/src/components/elementor/ModelSelector.tsx`
+  - [ ] Dropdown grouped by provider:
+    - [ ] **Anthropic** (Default)
+      - [ ] Claude 3.5 Haiku (Default) - Fast, cost-effective
+      - [ ] Claude 3.5 Sonnet - Balanced
+      - [ ] Claude Opus 4 - Most capable
+    - [ ] **OpenAI**
+      - [ ] GPT-4o - Latest flagship
+      - [ ] GPT-4o Mini - Fast and cheap
+    - [ ] **Google**
+      - [ ] Gemini 2.0 Flash - Fastest
+      - [ ] Gemini Pro 1.5 - Balanced
+  - [ ] Show model metadata (speed indicator, cost tier)
+  - [ ] Persist selection in localStorage
+  - [ ] Display token usage stats per model
+
+### 7.10 Testing Multi-Model Setup
+- [ ] Test each model provider:
+  - [ ] Verify API keys work
+  - [ ] Test streaming responses
+  - [ ] Test tool calling functionality
+  - [ ] Compare response quality across models
+  - [ ] Measure response latency
+- [ ] Test fallback behavior if primary model fails
+- [ ] Test rate limiting handling
+- [ ] Verify structured output generation
+
+---
+
+## ✅ Phase 8: Global Stylesheet Preview Integration
+
+### 8.1 Apply Global Stylesheet to Previews
+- [ ] Section Editor preview injects global CSS
+- [ ] HTML Generator preview injects global CSS
+- [ ] Section Library thumbnails use global CSS
+- [ ] Playground import includes global CSS as custom stylesheet
+
+### 8.2 CSS Variable Usage
+- [ ] Parse CSS variables from global stylesheet
+- [ ] Make variables available in autocomplete for CSS editor
+- [ ] Show variable values in style guide
+- [ ] Example: `var(--primary-color)` suggestions
+
+### 8.3 Hot Reload on Stylesheet Changes
+- [ ] When global CSS changes in Style Guide tab
+- [ ] Auto-update all open previews
+- [ ] Re-render section thumbnails
+- [ ] Show "Updated" notification
+
+---
+
+## ✅ Phase 9: Testing & Polish
+
+### 9.1 Workflow Testing
+- [ ] Test: Generate HTML → Save as Section → Edit → Preview in Playground
+- [ ] Test: Create multiple sections → Reorder → Preview all in Playground
+- [ ] Test: Edit global stylesheet → See changes in section previews
+- [ ] Test: Chat assistant modifying sections
+- [ ] Test: Export/import section library
+
+### 9.2 Error Handling
+- [ ] Handle WordPress Playground not running
+- [ ] Handle invalid HTML/CSS/JS
+- [ ] Handle missing global stylesheet
+- [ ] Handle section conversion errors
+
+### 9.3 UI/UX Polish
+- [ ] Loading states for WordPress operations
+- [ ] Success/error notifications
+- [ ] Keyboard shortcuts (save, preview, etc.)
+- [ ] Responsive layout for smaller screens
+- [ ] Dark mode compatibility
+
+### 9.4 Documentation
+- [ ] Add inline help text/tooltips
+- [ ] Create user guide for HTML-only workflow
+- [ ] Document Elementor HTML widget properties
+- [ ] Add example sections to library
+
+---
+
+## 📊 Progress Tracking
+
+**Phase 1 (Cleanup):** ✅ 6/6 tasks - COMPLETE
+**Phase 2 (WordPress Stylesheet):** ✅ 5/5 tasks - COMPLETE
+**Phase 3 (Style Guide):** ✅ 5/5 tasks - COMPLETE (simplified, integrated)
+**Phase 4 (Section Editor):** ✅ 6/6 tasks - COMPLETE
+**Phase 5 (Section Library):** ✅ 5/5 tasks - COMPLETE
+**Phase 5.5 (Page Splitter):** ✅ 7/7 tasks - COMPLETE (integrated into Section Library)
+**Phase 6 (Playground Integration):** ✅ 6/8 tasks - IN PROGRESS (conversion lib complete, export working, iframe integration pending)
+**Phase 7 (Vercel AI SDK & Multi-Model):** ✅ 25/40 tasks - IN PROGRESS (Chat-based HTML generation complete with streaming, image analysis, and auto tab switching)
+**Phase 8 (Global CSS Integration):** ✅ 3/9 tasks - PARTIAL (global CSS working in previews)
+**Phase 9 (Testing):** ⬜️ 0/14 tasks
+
+**TOTAL:** 73/154 tasks completed (47%)
+
+---
+
+## 🎯 Implementation Order (Recommended)
+
+1. **Start with Phase 1** - Clean up old code
+2. **Phase 2** - Get WordPress stylesheet working (foundation for everything)
+3. **Phase 3** - Build Style Guide tab (makes global CSS visual)
+4. **Phase 4** - Build Section Editor (core editing experience)
+5. **Phase 5** - Build Section Library (multi-section management)
+6. **Phase 6** - Integrate with WordPress Playground
+7. **Phase 7** - Update Chat AI for HTML editing
+8. **Phase 8** - Connect everything with global CSS
+9. **Phase 9** - Test and polish
+
+---
+
+## ✅ Key Features Summary
+
+✨ **What You Get:**
+- Clean HTML/CSS/JS section builder
+- Visual style guide editor with live preview
+- Edit WordPress theme stylesheet directly
+- Multiple sections → Full page builder
+- Elementor HTML widget with all properties
+- Chat AI for HTML/CSS/JS editing
+- WordPress Playground integration
+- No complex Elementor JSON conversion
+
+🚀 **Much Simpler Than Before:**
+- No Elementor JSON structure headaches
+- Just HTML/CSS/JS (what you already know)
+- Visual settings panel for common properties
+- Global stylesheet for consistent design
+- Easy to understand and maintain
+
+---
+
+## 📝 Recent Updates (January 2025)
+
+### Chat-Based HTML Generation Tool (Phase 7 Enhancement)
+
+**Completed:** Chat integration for generating HTML/CSS/JS sections with AI
+
+**Implementation:**
+1. **New AI Tool: `generateHTML`** (`/src/lib/tools.ts`)
+   - Triggered by keywords: "generate", "create", "build", "make" + HTML-related terms
+   - Opens interactive dialog for user input and image upload
+   - Supports up to 3 reference images
+
+2. **Image Analysis API** (`/src/app/api/analyze-image/route.ts`)
+   - Uses Claude Haiku 4.5 vision via AI Gateway
+   - Analyzes layout, colors, typography, spacing, components, responsive design
+   - Provides detailed descriptions for code generation context
+
+3. **Streaming HTML/CSS/JS Generation** (`/src/app/api/generate-html-stream/route.ts`)
+   - Separate prompts for HTML, CSS, and JS
+   - **Section-focused prompts:**
+     - HTML: NO DOCTYPE, html, head, body tags - pure sections only
+     - CSS: NO style tags, pure CSS selectors only
+     - JS: NO script tags, pure JavaScript only
+   - Uses selected chat model for all generation
+   - Streams each part sequentially
+
+4. **Real-Time Streaming to Section Editor**
+   - Streams HTML → automatically switches to HTML tab
+   - Streams CSS → automatically switches to CSS tab
+   - Streams JS → automatically switches to JS tab
+   - User sees code appearing character by character
+
+5. **UI Components:**
+   - `HTMLGeneratorDialog` - Image upload, analysis progress, description input
+   - `HTMLGeneratorWidget` - Chat widget showing generation progress
+   - Integrated with `ToolResultRenderer` for consistent UI
+
+6. **Tab Removed:**
+   - Old "HTML Generator" tab removed from main interface
+   - All HTML generation now happens through chat
+
+**Key Files Modified:**
+- `/src/lib/tools.ts` - Added generateHTML tool
+- `/src/app/api/analyze-image/route.ts` - Created (vision analysis)
+- `/src/app/api/generate-html-stream/route.ts` - Created (streaming generation)
+- `/src/components/html-generator/HTMLGeneratorDialog.tsx` - Created
+- `/src/components/tool-ui/html-generator-widget.tsx` - Created
+- `/src/components/elementor/HtmlSectionEditor.tsx` - Added tab switching
+- `/src/app/elementor-editor/page.tsx` - Removed HTML Generator tab, added callbacks
+
+**Benefits:**
+- ✅ Natural language HTML/CSS/JS generation
+- ✅ Image-to-code with Claude vision
+- ✅ Real-time streaming with visual feedback
+- ✅ Automatic tab switching for better UX
+- ✅ Section-focused output (no full pages)
+- ✅ Uses selected chat model for consistency

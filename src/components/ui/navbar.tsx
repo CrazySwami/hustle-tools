@@ -45,6 +45,12 @@ export async function Navbar() {
           >
             Editor
           </Link>
+          <Link
+            href="/elementor-editor"
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
+            Elementor
+          </Link>
         </nav>
         <div className="flex items-center gap-4">
           <ModeToggle />

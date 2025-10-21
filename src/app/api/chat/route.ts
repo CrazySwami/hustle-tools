@@ -30,6 +30,14 @@ const REASONING_MODELS = {
     config: { reasoningSummary: 'detailed' }
   },
   // Anthropic models
+  'anthropic/claude-haiku-4.5-20251022': {
+    provider: 'anthropic',
+    config: { thinking: { type: 'enabled', budgetTokens: 12000 } }
+  },
+  'anthropic/claude-sonnet-4.5-20250514': {
+    provider: 'anthropic',
+    config: { thinking: { type: 'enabled', budgetTokens: 12000 } }
+  },
   'anthropic/claude-3-7-sonnet-20250219': {
     provider: 'anthropic',
     config: { thinking: { type: 'enabled', budgetTokens: 12000 } }

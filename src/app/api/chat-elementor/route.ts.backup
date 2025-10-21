@@ -1,0 +1,641 @@
+// OpenAI-style chat endpoint for Elementor JSON Editor
+// Based on original openai-client.js from migration package
+
+export const maxDuration = 60;
+
+export async function POST(req: Request) {
+  try {
+    const {
+      messages = [],
+      model = 'openai/gpt-4.1',
+      currentJson = {},
+      imageData,
+      webSearchEnabled = true,
+      reasoningEffort = 'medium', // minimal, low, medium, high
+      detailedMode = false, // Force full context
+    } = await req.json();
+
+    // Log request info
+    console.log('📨 Chat request received:', {
+      model,
+      webSearchEnabled,
+      reasoningEffort,
+      detailedMode,
+      messageCount: messages.length
+    });
+
+    // Get last user message
+    const lastMessage = messages[messages.length - 1];
+    const userMessage = lastMessage?.content;
+    if (!userMessage) {
+      return Response.json({ error: 'No message provided' }, { status: 400 });
+    }
+
+    // Strip conversation history to only last 2 messages, remove reasoning tokens and embedded JSON
+    const cleanHistory = messages.slice(-2).map((m: any) => {
+      let content = m.content;
+      if (typeof content === 'string') {
+        // Remove markdown code blocks (JSON patches, etc)
+        content = content.replace(/```[\s\S]*?```/g, '[code removed]');
+        // Limit to 500 chars
+        content = content.substring(0, 500);
+      }
+      return {
+        role: m.role,
+        content
+      };
+    });
+
+    const conversationContext = cleanHistory.slice(0, -1).map((m: any) =>
+      `${m.role}: ${m.content}`
+    ).join('\n');
+
+    // HYBRID APPROACH: Parallel execution with real-time streaming
+    let contextToUse = currentJson;
+    let contextSummary = '';
+    let contextType = 'full';
+    let contextOptimizationLog: string[] = [];
+    let intent: any = null;
+    let vectorDocsContext = '';
+    let relevantTools: any[] = [];
+
+    if (!detailedMode && Object.keys(currentJson).length > 0) {
+      try {
+        console.log('🚀 Starting parallel context optimization...');
+        contextOptimizationLog.push('🚀 **Starting parallel optimization...**');
+
+        // PARALLEL EXECUTION: Run classify + vector search + web pre-analysis simultaneously
+        const parallelPromises: Promise<any>[] = [];
+
+        // 1. Classify intent (always)
+        parallelPromises.push(
+          fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/classify-intent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: userMessage,
+              conversationHistory: cleanHistory
+            })
+          }).then(res => res.ok ? res.json() : null).catch(() => null)
+        );
+
+        // 2. Search vector store if query contains documentation keywords
+        const needsDocs = /how|what|property|properties|setting|settings|attribute|available|can i|does|support/i.test(userMessage);
+        if (needsDocs) {
+          console.log('📚 Pre-fetching vector store docs...');
+          contextOptimizationLog.push('📚 **Vector Store:** Searching documentation...');
+          parallelPromises.push(
+            fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/search-docs`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: userMessage })
+            }).then(res => res.ok ? res.json() : null).catch(() => null)
+          );
+        } else {
+          parallelPromises.push(Promise.resolve(null));
+        }
+
+        // Wait for all parallel operations
+        const [intentResult, vectorDocsResult] = await Promise.all(parallelPromises);
+
+        // Process intent classification
+        if (intentResult) {
+          intent = intentResult;
+          console.log('✅ Intent classified:', intent);
+          contextOptimizationLog.push(`✅ **Intent:** ${intent.category} (${Math.round(intent.confidence * 100)}% confidence)`);
+          if (intent.targetElements.length > 0) {
+            contextOptimizationLog.push(`🎯 **Targets:** ${intent.targetElements.join(', ')}`);
+          }
+
+          // Determine which tools to include based on intent
+          relevantTools = [];
+          if (intent.category === 'modify_json') {
+            relevantTools.push('generate_json_patch', 'open_template_in_playground');
+            contextOptimizationLog.push('🔧 **Tools:** Patch + Preview');
+          } else if (intent.category === 'documentation') {
+            relevantTools.push('search_elementor_docs');
+            contextOptimizationLog.push('📖 **Tools:** Documentation only');
+          } else if (intent.category === 'query_structure') {
+            // No tools needed, just analyze JSON
+            contextOptimizationLog.push('🔍 **Tools:** None (direct analysis)');
+          } else {
+            relevantTools.push('generate_json_patch', 'search_elementor_docs', 'open_template_in_playground');
+            contextOptimizationLog.push('🛠️ **Tools:** All tools available');
+          }
+
+          // TIER 2: Prepare optimized JSON context based on intent
+          if (intent.category === 'modify_json' && !intent.requiresFullJson) {
+            console.log('📦 TIER 2: Preparing targeted JSON context...');
+            contextOptimizationLog.push('📦 **TIER 2:** Preparing targeted JSON...');
+
+            const prepareResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/prepare-context`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fullJson: currentJson,
+                intent,
+                message: userMessage
+              })
+            });
+
+            if (prepareResponse.ok) {
+              const prepared = await prepareResponse.json();
+              console.log('✅ Context prepared:', {
+                type: prepared.contextType,
+                tokenEstimate: prepared.tokenEstimate
+              });
+
+              contextType = prepared.contextType;
+              const originalTokens = Math.ceil(JSON.stringify(currentJson).length / 4);
+              const reduction = Math.round((1 - prepared.tokenEstimate / originalTokens) * 100);
+
+              contextOptimizationLog.push(`✅ **JSON Context:** ${prepared.contextType}`);
+              contextOptimizationLog.push(`💰 **Token Savings:** ${originalTokens.toLocaleString()} → ${prepared.tokenEstimate.toLocaleString()} (${reduction}% reduction)`);
+
+              if (prepared.contextType !== 'full') {
+                contextToUse = prepared.json || {};
+                contextSummary = prepared.summary || '';
+              }
+            }
+          } else if (intent.category === 'documentation' || intent.category === 'general') {
+            // Don't send JSON at all for documentation queries
+            contextToUse = {};
+            contextType = 'none';
+            contextOptimizationLog.push('🚫 **JSON Context:** None (not needed for this query)');
+          } else if (intent.requiresFullJson) {
+            contextOptimizationLog.push('📋 **JSON Context:** Full (required for complex request)');
+          }
+        }
+
+        // Process vector store results
+        if (vectorDocsResult && vectorDocsResult.results) {
+          console.log('✅ Vector store docs retrieved:', vectorDocsResult.results.length, 'chunks');
+          vectorDocsContext = vectorDocsResult.results.slice(0, 3).map((r: any) => r.content).join('\n\n');
+          contextOptimizationLog.push(`✅ **Documentation:** ${vectorDocsResult.results.length} relevant chunks found`);
+        } else if (needsDocs) {
+          contextOptimizationLog.push('⚠️ **Documentation:** No matches found');
+        }
+
+        contextOptimizationLog.push('✅ **Parallel optimization complete!**');
+
+      } catch (contextError) {
+        console.warn('⚠️ Context optimization failed, using full JSON:', contextError);
+        contextOptimizationLog.push(`⚠️ **Warning:** Optimization failed, using full JSON`);
+        // Fallback to full JSON on any error
+      }
+    } else if (detailedMode) {
+      contextOptimizationLog.push('🔴 **Detailed Mode:** Smart context disabled, sending full JSON');
+    }
+
+    // System prompt with optimized context
+    let jsonContextSection = '';
+    if (contextType === 'summary') {
+      jsonContextSection = `Template Summary:\n${contextSummary}`;
+    } else if (contextType === 'targeted') {
+      jsonContextSection = `Relevant JSON Context (targeted extraction with dependencies):\n\`\`\`json\n${JSON.stringify(contextToUse, null, 2)}\n\`\`\`\n\nNote: ${contextSummary}`;
+    } else if (contextType === 'none') {
+      jsonContextSection = `Note: No JSON context needed for this query.`;
+    } else {
+      // Full context
+      jsonContextSection = `Current JSON structure (you can see this, analyze it directly):\n\`\`\`json\n${JSON.stringify(contextToUse, null, 2)}\n\`\`\``;
+    }
+
+    const systemPrompt = `You are an expert Elementor JSON editor assistant${webSearchEnabled ? ' with real-time web search capabilities' : ''}.
+
+${webSearchEnabled ? `WEB SEARCH CAPABILITY:
+- You HAVE ACCESS to the web_search tool to find current, up-to-date information
+- When users ask about CURRENT EVENTS, LATEST NEWS, SPORTS RESULTS, or anything requiring real-time data, USE the web_search tool
+- Use web search for: current trends, latest features, external resources, live data, sports scores, news, etc.
+- ALWAYS use web search when the question requires information beyond October 2024
+- Examples: "who won the super bowl", "latest Elementor features", "current design trends"
+- You can provide citations and links from web search results
+
+` : ''}${vectorDocsContext ? `ELEMENTOR DOCUMENTATION CONTEXT:
+The following documentation has been pre-fetched from the Elementor PHP widget source files to help answer your query:
+
+${vectorDocsContext}
+
+Use this documentation to inform your responses about widget properties, available settings, and how Elementor widgets work.
+
+` : ''}IMPORTANT INSTRUCTIONS:
+- When users want to MODIFY the JSON, use the generate_json_patch tool
+- When users ask about THEIR CURRENT JSON structure (what widgets they have, properties, etc), ANSWER DIRECTLY by analyzing the JSON provided below
+- When users ask about ELEMENTOR WIDGET DOCUMENTATION (what properties are available, how widgets work), use search_elementor_docs tool${vectorDocsContext ? ' (documentation is already provided above)' : ''}
+- When users want to CONVERT HTML/CSS/JS to Elementor, use convert_html_to_elementor_json tool
+- When users want to VIEW/PREVIEW, use open_template_in_playground tool
+- NEVER regenerate entire JSON - only use JSON Patch operations
+- Always validate paths exist before suggesting patches
+- The JSON structure is provided below - you can see it and should describe it directly when asked
+
+${jsonContextSection}
+
+Common Elementor widget properties:
+- Heading: title, title_color, typography_font_size, align
+- Button: text, button_color, button_text_color, button_size, link
+- Text Editor: editor (HTML content)
+- Image: image (url), image_size, align
+
+CRITICAL: Elementor Global Colors (MUST READ):
+When a property uses global colors, it has TWO locations in the JSON:
+1. settings.button_background_color: "globals/colors?id=primary"
+2. settings.__globals__.button_background_color: "globals/colors?id=primary"
+
+The __globals__ property OVERRIDES specific color values. To change a color from global to specific:
+- You MUST remove the property from __globals__
+- AND set the specific color value in the regular property
+
+Example: To change button color from global green to specific red:
+WRONG (won't work - global still overrides):
+{ "op": "replace", "path": "/content/0/settings/button_background_color", "value": "#ff0000" }
+
+CORRECT (removes global, sets specific color):
+[
+  { "op": "remove", "path": "/content/0/settings/__globals__/button_background_color" },
+  { "op": "replace", "path": "/content/0/settings/button_background_color", "value": "#ff0000" }
+]
+
+When user says "the global color is preventing my color from showing", you MUST:
+1. Check if __globals__ exists for that property
+2. Remove the __globals__ entry
+3. Set the specific color value
+
+When users ask "what's in the JSON", "can you see the JSON", "tell me about the template", etc:
+- Look at the JSON structure above
+- List the widgets you see (check the "content" array)
+- Describe their settings and properties
+- Check for __globals__ and mention if properties are using global colors
+- Answer directly without using any tools`;
+
+    // Build full prompt
+    let fullPrompt = systemPrompt;
+    if (conversationContext) {
+      fullPrompt += `\n\nRecent conversation:\n${conversationContext}`;
+    }
+    fullPrompt += `\n\nUser request: ${userMessage}`;
+
+    // Define tools in OpenAI format
+    const tools: any[] = [
+      {
+        type: 'function',
+        function: {
+          name: 'generate_json_patch',
+          description: 'Generates RFC 6902 JSON Patch operations to modify the Elementor JSON',
+          parameters: {
+            type: 'object',
+            properties: {
+              patches: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    op: { type: 'string', enum: ['replace', 'add', 'remove'] },
+                    path: { type: 'string' },
+                    value: {}
+                  },
+                  required: ['op', 'path']
+                }
+              },
+              summary: { type: 'string' }
+            },
+            required: ['patches', 'summary']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'search_elementor_docs',
+          description: 'Search Elementor widget documentation for properties, settings, and usage information. Use when user asks about widget capabilities, available properties, or how specific widgets work.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'The search query (e.g., "button widget properties", "heading typography settings")'
+              }
+            },
+            required: ['query']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'convert_html_to_elementor_json',
+          description: 'Convert HTML/CSS/JavaScript code into Elementor JSON format. Use when user wants to convert HTML to Elementor or import HTML designs.',
+          parameters: {
+            type: 'object',
+            properties: {
+              html_code: {
+                type: 'string',
+                description: 'The HTML code to convert'
+              },
+              css_code: {
+                type: 'string',
+                description: 'The CSS code (optional)'
+              },
+              js_code: {
+                type: 'string',
+                description: 'The JavaScript code (optional)'
+              }
+            },
+            required: ['html_code']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'open_template_in_playground',
+          description: 'Opens or refreshes template in WordPress Playground',
+          parameters: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', enum: ['launch', 'refresh', 'open_editor'] },
+              message: { type: 'string' }
+            },
+            required: ['action']
+          }
+        }
+      }
+    ];
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    const modelName = model.replace('openai/', '');
+
+    // Use Responses API for web search, Chat Completions otherwise
+    const useResponsesAPI = webSearchEnabled;
+
+    // Filter tools based on intent classification
+    let filteredTools = tools;
+    if (relevantTools.length > 0) {
+      filteredTools = tools.filter(t => relevantTools.includes(t.function.name));
+      console.log('🔧 Filtered tools:', filteredTools.map(t => t.function.name).join(', '));
+    }
+
+    // For Responses API, reformat tools and add web search
+    let responsesAPITools: any[] = [];
+    if (useResponsesAPI) {
+      // Add web search tool first (Responses API format)
+      responsesAPITools.push({
+        type: 'web_search_preview'
+      });
+      console.log('🌐 Web search tool added (web_search_preview)');
+
+      // Add filtered function tools with correct Responses API format
+      filteredTools.forEach(tool => {
+        if (tool.type === 'function') {
+          responsesAPITools.push({
+            type: 'function',
+            name: tool.function.name,
+            description: tool.function.description,
+            parameters: tool.function.parameters
+          });
+        }
+      });
+    }
+    const apiUrl = useResponsesAPI
+      ? 'https://api.openai.com/v1/responses'
+      : 'https://api.openai.com/v1/chat/completions';
+
+    console.log(`🔗 Using API: ${useResponsesAPI ? 'Responses API (with web search)' : 'Chat Completions'}`);
+
+    let requestBody: any;
+
+    if (useResponsesAPI) {
+      // Responses API format
+      // Build full input combining system prompt and user message
+      let fullInput = `${systemPrompt}\n\nRecent conversation:\n${conversationContext}\n\nUser request: ${userMessage}`;
+
+      requestBody = {
+        model: modelName,
+        input: fullInput,
+        tools: responsesAPITools,
+        tool_choice: 'auto',
+        max_output_tokens: 4000,
+      };
+
+      // Add reasoning for GPT-5
+      if (modelName.includes('gpt-5') || modelName.includes('o3') || modelName.includes('o1')) {
+        requestBody.reasoning = { effort: reasoningEffort };
+      }
+    } else {
+      // Chat Completions API format
+      let userMessageContent: any = userMessage;
+
+      // If image data is provided, format for OpenAI vision
+      if (imageData && imageData.url) {
+        console.log('📷 Image attached to message:', imageData.filename);
+        userMessageContent = [
+          {
+            type: 'text',
+            text: userMessage
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: imageData.url,
+              detail: 'high'
+            }
+          }
+        ];
+      }
+
+      requestBody = {
+        model: modelName,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessageContent }
+        ],
+        tools: filteredTools,
+        tool_choice: 'auto',
+        max_completion_tokens: 100000, // GPT-5 max output tokens
+        stream: true,
+        stream_options: { include_usage: true },
+      };
+
+      // Add reasoning effort for GPT-5
+      if (modelName.includes('gpt-5') || modelName.includes('o3') || modelName.includes('o1')) {
+        requestBody.reasoning_effort = reasoningEffort;
+      }
+    }
+
+    // For Responses API, we need to start streaming logs immediately while API call is in progress
+    if (useResponsesAPI) {
+      const encoder = new TextEncoder();
+
+      // Start the API request (don't await yet)
+      const apiPromise = fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      // Create a stream that sends logs immediately, then waits for API
+      const stream = new ReadableStream({
+        async start(controller) {
+          // IMMEDIATELY send context optimization logs (don't wait for API)
+          if (contextOptimizationLog.length > 0) {
+            const logContent = `**🔍 Smart Context Optimization**\n\n${contextOptimizationLog.join('\n')}\n\n---\n\n`;
+            const logChunk = JSON.stringify({
+              choices: [{
+                delta: {
+                  content: logContent
+                }
+              }]
+            });
+            controller.enqueue(encoder.encode(`data: ${logChunk}\n\n`));
+          }
+
+          // NOW wait for the API response
+          console.log('⏳ Waiting for OpenAI API response...');
+          const response = await apiPromise;
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error('OpenAI error:', error);
+            const errorChunk = JSON.stringify({
+              choices: [{
+                delta: {
+                  content: `\n\n❌ Error: ${error.error?.message || 'API request failed'}`
+                }
+              }]
+            });
+            controller.enqueue(encoder.encode(`data: ${errorChunk}\n\n`));
+            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+            controller.close();
+            return;
+          }
+
+          // Wait for API response (Responses API doesn't support streaming)
+          const data = await response.json();
+          console.log('✅ Response from Responses API');
+
+          // Extract output text and function calls from Responses API format
+          let outputText = '';
+          let citations: any[] = [];
+          let toolCalls: any[] = [];
+
+          if (data.output && Array.isArray(data.output)) {
+            // Look for message content
+            const messageItem = data.output.find((item: any) => item.type === 'message');
+            if (messageItem && messageItem.content && messageItem.content[0]) {
+              outputText = messageItem.content[0].text || '';
+              citations = messageItem.content[0].annotations || [];
+            }
+
+            // Look for function calls
+            const functionCalls = data.output.filter((item: any) => item.type === 'function_call');
+            if (functionCalls.length > 0) {
+              toolCalls = functionCalls.map((fc: any, index: number) => ({
+                id: fc.call_id || `call_${index}`,
+                type: 'function',
+                function: {
+                  name: fc.name,
+                  arguments: fc.arguments
+                }
+              }));
+              console.log('🔧 Found function calls:', toolCalls.length);
+            }
+          }
+
+          console.log('📝 Extracted output text:', outputText);
+          console.log('🔗 Citations:', citations);
+
+          // Send content if we have it
+          if (outputText) {
+            const contentChunk = JSON.stringify({
+              choices: [{
+                delta: {
+                  content: outputText
+                }
+              }]
+            });
+            controller.enqueue(encoder.encode(`data: ${contentChunk}\n\n`));
+          }
+
+          // Send tool calls if we have them
+          if (toolCalls.length > 0) {
+            toolCalls.forEach((toolCall, index) => {
+              const toolChunk = JSON.stringify({
+                choices: [{
+                  delta: {
+                    tool_calls: [{
+                      index,
+                      id: toolCall.id,
+                      type: 'function',
+                      function: {
+                        name: toolCall.function.name,
+                        arguments: toolCall.function.arguments
+                      }
+                    }]
+                  }
+                }]
+              });
+              controller.enqueue(encoder.encode(`data: ${toolChunk}\n\n`));
+            });
+          }
+
+          // Send citations if we have them
+          if (citations.length > 0) {
+            const citationChunk = JSON.stringify({
+              citations
+            });
+            controller.enqueue(encoder.encode(`data: ${citationChunk}\n\n`));
+          }
+
+          // Send done message
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.close();
+        }
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    } else {
+      // Chat Completions API - make the request
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('OpenAI error:', error);
+        return Response.json(
+          { error: error.error?.message || 'API request failed' },
+          { status: response.status }
+        );
+      }
+
+      // Return the stream directly for Chat Completions API
+      console.log('✅ Streaming response from Chat Completions API');
+      return new Response(response.body, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+
+  } catch (error: any) {
+    console.error('Chat error:', error);
+    return Response.json(
+      { error: error.message || 'Internal error' },
+      { status: 500 }
+    );
+  }
+}

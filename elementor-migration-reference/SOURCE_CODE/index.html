@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML to Elementor JSON Converter</title>
+    <link rel="stylesheet" href="converter-styles.css?v=2">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>HTML to Elementor JSON Converter</h1>
+            <p><span class="status-indicator"></span> Transform your HTML/CSS into Elementor-ready templates</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Left Panel: Input -->
+            <div class="section">
+                <h2 class="section-title">Input Code</h2>
+
+                <div id="statusMessage"></div>
+
+                <!-- Settings Button -->
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+                    <button type="button" onclick="openSettingsModal()" style="background: #6366f1; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        ⚙️ API Settings
+                    </button>
+                </div>
+
+                <!-- Image-to-HTML Generator -->
+                <div class="input-group" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 16px; border-radius: 8px; border: 2px solid #3b82f6;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <label style="font-weight: 700; color: #1e40af; font-size: 15px;">🖼️ Generate HTML from Image</label>
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #1e40af; cursor: pointer;">
+                            <input type="checkbox" id="autoConvertFromImage" style="width: 16px; height: 16px; cursor: pointer;">
+                            Auto-convert to Elementor
+                        </label>
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <input type="file" id="imageToHTMLInput" accept="image/*" style="display: none;">
+                        <button type="button" onclick="document.getElementById('imageToHTMLInput').click()" style="flex: 1; min-width: 200px; background: #3b82f6; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            📁 Upload Image
+                        </button>
+                        <button type="button" onclick="capturePreviewForHTML()" style="flex: 1; min-width: 200px; background: #8b5cf6; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            📸 Capture Preview
+                        </button>
+                    </div>
+                    <div id="imageToHTMLPreview" style="display: none; margin-top: 12px; padding: 12px; background: white; border-radius: 6px; border: 1px solid #3b82f6;">
+                        <img id="imageToHTMLImg" style="max-width: 100%; height: auto; border-radius: 4px; margin-bottom: 8px;">
+                        <button type="button" onclick="generateHTMLFromSelectedImage()" id="generateHTMLBtn" style="width: 100%; background: #10b981; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                            ✨ Generate HTML/CSS/JS from Image
+                        </button>
+                    </div>
+                    <small style="color: #1e40af; font-size: 11px; display: block; margin-top: 8px;">
+                        💡 <strong>Tip:</strong> Upload a design mockup or screenshot of a website, and AI will generate clean HTML/CSS/JS code for you!
+                    </small>
+                </div>
+
+                <!-- Code Input Section -->
+                <div class="input-group">
+                    <label class="input-label">HTML Code</label>
+                    <textarea id="htmlInput" rows="10" placeholder="Paste your HTML here... or generate from image above!" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-family: 'Monaco', 'Courier New', monospace; font-size: 13px; resize: vertical; min-height: 150px;"></textarea>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">CSS Code</label>
+                    <textarea id="cssInput" rows="10" placeholder="Paste your CSS here..." style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-family: 'Monaco', 'Courier New', monospace; font-size: 13px; resize: vertical; min-height: 150px;"></textarea>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">JavaScript Code (Optional)</label>
+                    <textarea id="jsInput" rows="6" placeholder="Paste your JavaScript here (for animations, interactions, etc.)..." style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-family: 'Monaco', 'Courier New', monospace; font-size: 13px; resize: vertical; min-height: 100px;"></textarea>
+                </div>
+
+                <!-- Vision Mode Toggle -->
+                <div class="input-group">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; background: #f9fafb; border-radius: 8px; border: 2px solid #e5e7eb;">
+                        <input type="checkbox" id="enableVision" onchange="toggleVisionPreview()" style="width: 20px; height: 20px; cursor: pointer;" />
+                        <div>
+                            <div style="font-weight: 600; color: #374151; font-size: 14px;">👁️ Enable Vision Mode</div>
+                            <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">Capture screenshot + AI visual analysis</div>
+                        </div>
+                    </label>
+                    
+                    <!-- Screenshot Preview Area -->
+                    <div id="visionPreviewArea" style="display: none; margin-top: 16px; padding: 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <label style="display: block; font-weight: 600; font-size: 14px; color: #374151;">📸 Screenshot Preview</label>
+                            <div style="display: flex; gap: 8px;">
+                                <button type="button" onclick="togglePromptEditor('description')" style="background: #6366f1; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                    ✏️ Edit Prompt
+                                </button>
+                                <button type="button" id="generateDescBtn" onclick="generateScreenshotDescription()" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                    🔍 Generate Description
+                                </button>
+                            </div>
+                        </div>
+                        <div id="screenshotPreview" style="margin-bottom: 12px; padding: 12px; background: white; border: 1px solid #e5e7eb; border-radius: 6px; min-height: 100px; display: flex; align-items: center; justify-content: center;">
+                            <p style="color: #9ca3af; text-align: center;">Screenshot will appear here...</p>
+                        </div>
+                        
+                        <!-- Prompt Editor Modal -->
+                        <div id="promptEditorDescription" style="display: none; margin-bottom: 12px; padding: 16px; background: #fef3c7; border: 2px solid #fcd34d; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <label style="font-weight: 600; font-size: 14px; color: #92400e;">✏️ Edit Prompt Before Sending</label>
+                                <button onclick="togglePromptEditor('description')" style="background: transparent; border: none; color: #92400e; cursor: pointer; font-size: 20px; line-height: 1;">×</button>
+                            </div>
+                            <textarea id="descriptionPromptEditor" rows="12" style="width: 100%; padding: 12px; border: 1px solid #fcd34d; border-radius: 6px; font-size: 12px; font-family: 'Monaco', 'Courier New', monospace; resize: vertical;"></textarea>
+                            <div style="margin-top: 8px; display: flex; gap: 8px; justify-content: flex-end;">
+                                <button onclick="resetDescriptionPrompt()" style="background: #6b7280; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                    🔄 Reset to Default
+                                </button>
+                                <button onclick="togglePromptEditor('description'); generateScreenshotDescription();" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                    ✅ Use This Prompt
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- AI Description Output -->
+                        <div style="margin-top: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <label style="display: block; font-weight: 600; font-size: 14px; color: #374151;">🤖 AI Description</label>
+                                <button id="toggleDescBtn" onclick="toggleDescription()" style="display: none; background: #6b7280; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">
+                                    ▼ Collapse
+                                </button>
+                            </div>
+                            <div id="screenshotDescription" style="padding: 12px; background: white; border: 1px solid #e5e7eb; border-radius: 6px; min-height: 60px; max-height: 400px; overflow-y: auto; font-size: 13px; line-height: 1.6; color: #4b5563; white-space: pre-wrap; display: flex; align-items: center; justify-content: center;">
+                                <span style="color: #9ca3af;">Click "Generate Description" to analyze screenshot with AI</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <small style="color: #6b7280; font-size: 12px; margin-top: 8px; display: block;">
+                        <strong>📸 Vision Mode:</strong> AI will analyze both the code AND a screenshot of the rendered preview for better accuracy. Uses GPT-5 vision capabilities.<br>
+                        <strong>💡 Tip:</strong> Enable this to capture a screenshot before converting, then optionally generate a description to guide the AI.
+                    </small>
+                </div>
+
+                <!-- Global Stylesheet -->
+                <div class="input-group">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; background: #fef3c7; border-radius: 8px; border: 2px solid #fcd34d;">
+                        <input type="checkbox" id="enableGlobalStylesheet" onchange="toggleGlobalStylesheet()" checked style="width: 20px; height: 20px; cursor: pointer;" />
+                        <div>
+                            <div style="font-weight: 600; color: #92400e; font-size: 14px;">🎨 Global Stylesheet</div>
+                            <div style="font-size: 12px; color: #92400e; margin-top: 2px;">Define brand defaults (colors, fonts, spacing)</div>
+                        </div>
+                    </label>
+                    <div id="globalStylesheetContainer" style="display: block; margin-top: 12px;">
+                        <textarea id="globalStylesheet" rows="6" placeholder="Define global styles..." style="width: 100%; padding: 12px; border: 1px solid #fcd34d; border-radius: 6px; font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; resize: vertical; background: #fffbeb;"></textarea>
+                    </div>
+                </div>
+
+                <!-- AI Conversion Prompt -->
+                <div class="input-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <label style="font-weight: 600; color: #374151; font-size: 14px;">📝 AI Conversion Prompt</label>
+                        <button type="button" onclick="togglePromptEditor('conversion')" style="background: #6366f1; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                            ✏️ Edit Prompt
+                        </button>
+                    </div>
+                    
+                    <!-- Editable Prompt -->
+                    <div id="promptEditorConversion" style="display: none; padding: 16px; background: #eff6ff; border: 2px solid #3b82f6; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <label style="font-weight: 600; font-size: 14px; color: #1e40af;">✏️ Customize Conversion Prompt</label>
+                            <button onclick="togglePromptEditor('conversion')" style="background: transparent; border: none; color: #1e40af; cursor: pointer; font-size: 20px; line-height: 1;">×</button>
+                        </div>
+                        <textarea id="conversionPromptEditor" rows="10" style="width: 100%; padding: 12px; border: 1px solid #3b82f6; border-radius: 6px; font-size: 12px; font-family: 'Monaco', 'Courier New', monospace; resize: vertical; background: white;"></textarea>
+                        <div style="margin-top: 8px; display: flex; gap: 8px; justify-content: flex-end;">
+                            <button onclick="resetConversionPrompt()" style="background: #6b7280; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                🔄 Reset to Default
+                            </button>
+                            <button onclick="togglePromptEditor('conversion')" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                ✅ Save Changes
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <small style="color: #6b7280; font-size: 11px; display: block;">
+                        This prompt is sent to AI for converting your HTML/CSS to Elementor JSON
+                    </small>
+                </div>
+
+                <!-- Quick Actions -->
+                <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <select id="exampleSelector" onchange="loadExample(this.value)" style="flex: 1; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white; cursor: pointer;">
+                        <option value="">📝 Load Example...</option>
+                        <option value="hero-gradient">Hero Section (Gradient)</option>
+                        <option value="pricing-cards">Pricing Cards</option>
+                        <option value="testimonial">Testimonial Section</option>
+                        <option value="feature-grid">Feature Grid</option>
+                        <option value="cta-banner">Call-to-Action Banner</option>
+                    </select>
+                    <button type="button" onclick="clearInputs()" style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                        🗑️ Clear
+                    </button>
+                </div>
+
+                <!-- API Mode Selection -->
+                <div style="margin: 20px 0; padding: 16px; background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%); border-radius: 8px; border: 2px solid #d1d5db;">
+                    <label style="display: block; font-weight: 700; color: #374151; font-size: 14px; margin-bottom: 12px;">
+                        🎯 Conversion Mode
+                    </label>
+                    <div style="display: flex; gap: 12px;">
+                        <label style="flex: 1; cursor: pointer;">
+                            <input type="radio" name="apiMode" value="chat" id="apiModeChat" checked style="display: none;">
+                            <div id="chatModeCard" style="padding: 16px; background: white; border: 3px solid #667eea; border-radius: 8px; transition: all 0.2s; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                    <span style="font-size: 20px;">⚡</span>
+                                    <strong style="color: #1f2937; font-size: 15px;">Fast Mode</strong>
+                                </div>
+                                <div style="font-size: 12px; color: #6b7280; line-height: 1.4;">
+                                    Quick conversion (~5-10s)<br>
+                                    Good accuracy (70-80%)
+                                </div>
+                            </div>
+                        </label>
+                        <label style="flex: 1; cursor: pointer;">
+                            <input type="radio" name="apiMode" value="assistant" id="apiModeAssistant" style="display: none;">
+                            <div id="assistantModeCard" style="padding: 16px; background: white; border: 3px solid #d1d5db; border-radius: 8px; transition: all 0.2s;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                    <span style="font-size: 20px;">🎯</span>
+                                    <strong style="color: #1f2937; font-size: 15px;">Accurate Mode</strong>
+                                    <span style="background: #10b981; color: white; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">NEW</span>
+                                </div>
+                                <div style="font-size: 12px; color: #6b7280; line-height: 1.4;">
+                                    Vector store search (~15-25s)<br>
+                                    High accuracy (90-95%) ✨
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 11px; color: #6b7280; text-align: center;">
+                        💡 <strong>Accurate Mode</strong> searches 48 Elementor source files for exact property names
+                    </div>
+                </div>
+
+                <script>
+                // Handle API mode selection UI
+                document.getElementById('apiModeChat').addEventListener('change', function() {
+                    document.getElementById('chatModeCard').style.borderColor = '#667eea';
+                    document.getElementById('chatModeCard').style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
+                    document.getElementById('assistantModeCard').style.borderColor = '#d1d5db';
+                    document.getElementById('assistantModeCard').style.boxShadow = 'none';
+                });
+                document.getElementById('apiModeAssistant').addEventListener('change', function() {
+                    document.getElementById('assistantModeCard').style.borderColor = '#10b981';
+                    document.getElementById('assistantModeCard').style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
+                    document.getElementById('chatModeCard').style.borderColor = '#d1d5db';
+                    document.getElementById('chatModeCard').style.boxShadow = 'none';
+                });
+                // Make cards clickable
+                document.getElementById('chatModeCard').addEventListener('click', function() {
+                    document.getElementById('apiModeChat').checked = true;
+                    document.getElementById('apiModeChat').dispatchEvent(new Event('change'));
+                });
+                document.getElementById('assistantModeCard').addEventListener('click', function() {
+                    document.getElementById('apiModeAssistant').checked = true;
+                    document.getElementById('apiModeAssistant').dispatchEvent(new Event('change'));
+                });
+                </script>
+
+                <!-- Convert Button -->
+                <button type="button" onclick="convertToElementor()" style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 16px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 700; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); transition: transform 0.2s;">
+                    🚀 CONVERT TO ELEMENTOR JSON
+                </button>
+
+                <!-- AI Progress Tracker -->
+                <div id="aiProgressTracker">
+                    <div class="progress-header">
+                        <div class="progress-title">
+                            <div class="progress-spinner"></div>
+                            <span>AI Processing</span>
+                        </div>
+                    </div>
+                    <div class="progress-steps" id="progressSteps">
+                        <!-- Steps will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Output -->
+            <div class="section">
+                <h2 class="section-title">Output & Preview</h2>
+
+                <div class="input-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label class="input-label" style="margin-bottom: 0;">Live Preview (Real-time)</label>
+                        <button type="button" onclick="screenshotPreview()" style="background: #8b5cf6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                            📸 Screenshot
+                        </button>
+                    </div>
+                    <iframe id="previewBox" style="width: 100%; min-height: 400px; border: 2px solid #e5e7eb; border-radius: 8px; background: white;"></iframe>
+                </div>
+
+                <div id="detectedFields"></div>
+
+                <div class="input-group">
+                    <label class="input-label">Elementor JSON</label>
+                    <div class="json-output" id="jsonOutput">Click "Convert" to generate JSON...</div>
+                </div>
+
+                <!-- JSON Edit/Refine Section (appears after generation) -->
+                <div id="jsonEditSection" style="display: none; margin-top: 16px; padding: 16px; background: #fef3c7; border: 2px solid #fcd34d; border-radius: 8px;">
+                    <div style="margin-bottom: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <label style="display: block; font-weight: 600; font-size: 14px; color: #92400e;">
+                                ✏️ Refine Generated JSON
+                            </label>
+                            <button type="button" onclick="togglePromptEditor('refine')" style="background: #d97706; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">
+                                ⚙️ Edit Prompt
+                            </button>
+                        </div>
+                        <textarea id="jsonEditInstructions" rows="3" placeholder="Example: Change button color to blue, increase heading size to 56px, add more spacing between sections..." style="width: 100%; padding: 10px; border: 1px solid #fcd34d; border-radius: 6px; font-size: 13px;"></textarea>
+                        <small style="color: #92400e; font-size: 11px; display: block; margin-top: 4px;">
+                            <strong>💡 How it works:</strong> Each refinement is a <strong>single AI request</strong> (not a chat). It receives: current JSON + your change request + original HTML/CSS context.<br>
+                            <strong>📸 Screenshot:</strong> <span id="refinementScreenshotStatus">Not included (enable Vision Mode first to include)</span>
+                        </small>
+                    </div>
+                    
+                    <!-- Loading Indicator -->
+                    <div id="refineLoadingIndicator" style="display: none; margin-bottom: 12px; padding: 12px; background: white; border: 1px solid #fcd34d; border-radius: 6px; text-align: center;">
+                        <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid #fcd34d; border-top-color: #f59e0b; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                        <p style="margin: 8px 0 0 0; color: #92400e; font-weight: 600; font-size: 13px;">🔄 AI is refining your JSON...</p>
+                    </div>
+                    
+                    <!-- Prompt Editor Modal -->
+                    <div id="promptEditorRefine" style="display: none; margin-bottom: 12px; padding: 16px; background: white; border: 2px solid #d97706; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <label style="font-weight: 600; font-size: 14px; color: #92400e;">⚙️ Edit Refinement Prompt Template</label>
+                            <button onclick="togglePromptEditor('refine')" style="background: transparent; border: none; color: #92400e; cursor: pointer; font-size: 20px; line-height: 1;">×</button>
+                        </div>
+                        <textarea id="refinePromptEditor" rows="10" style="width: 100%; padding: 12px; border: 1px solid #d97706; border-radius: 6px; font-size: 12px; font-family: 'Monaco', 'Courier New', monospace; resize: vertical;"></textarea>
+                        <small style="color: #92400e; font-size: 11px; display: block; margin-top: 4px;">
+                            <strong>Variables available:</strong> {{html}}, {{css}}, {{currentJSON}}, {{userInstructions}}, {{globalStyles}}, {{screenshot}}
+                        </small>
+                        <div style="margin-top: 8px; display: flex; gap: 8px; justify-content: flex-end;">
+                            <button onclick="resetRefinePrompt()" style="background: #6b7280; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                🔄 Reset to Default
+                            </button>
+                            <button onclick="togglePromptEditor('refine')" style="background: #f59e0b; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                                ✅ Save Changes
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button type="button" id="refineBtn" onclick="refineJSON()" style="background: #f59e0b; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                        🔄 Refine JSON with AI
+                    </button>
+                </div>
+
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                    <button type="button" id="downloadBtn" onclick="downloadJSON()" disabled style="min-width: 200px; background: #059669; color: white; border: none; padding: 14px 32px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 700; opacity: 0.5; transition: opacity 0.2s; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);">
+                        💾 Download JSON
+                    </button>
+                    <button type="button" onclick="testInPlayground()" style="min-width: 200px; background: #9333ea; color: white; border: none; padding: 14px 32px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 700; box-shadow: 0 2px 8px rgba(147, 51, 234, 0.3);">
+                        🚀 Test in Elementor
+                    </button>
+                </div>
+                
+                <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    
+                    <!-- Hidden debugging buttons -->
+                    <button type="button" onclick="testSchemaSystem()" style="display: none; background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                        🧪 Test Schema
+                    </button>
+                    <button type="button" onclick="directHTMLConvert()" style="display: none; background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                        ⚡ Direct Convert
+                    </button>
+                    <button type="button" onclick="logger.downloadLogs()" style="display: none; background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                        📊 Download Logs
+                    </button>
+                    <button type="button" onclick="logger.clear()" style="display: none; background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                        🧹 Clear Logs
+                    </button>
+                    <button type="button" onclick="debugJSON()" style="display: none; background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                        🔍 Debug JSON
+                    </button>
+                </div>
+
+                <!-- Quality Test Results Panel -->
+                <div id="qualityTestResults" style="display: none; margin-top: 20px; padding: 20px; background: #f9fafb; border-radius: 8px; border: 2px solid #e5e7eb;">
+                    <!-- Results will be inserted here -->
+                </div>
+
+                <div class="instructions">
+                    <h3>📥 How to Import to WordPress</h3>
+                    <ol>
+                        <li>Download the JSON file above</li>
+                        <li>Go to <strong>Elementor → Templates → Saved Templates</strong></li>
+                        <li>Click <strong>"Import Templates"</strong></li>
+                        <li>Upload the JSON file and click <strong>"Import Now"</strong></li>
+                        <li>Insert the template into any page and edit through Elementor!</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WordPress Playground Section (Full Width Below All Content) -->
+    <div id="playgroundPanel" style="display: none; width: 100%; background: #1f2937; margin-top: 0; padding: 0;">
+        <!-- Top Control Bar -->
+        <div style="background: #111827; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151;">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <h3 style="margin: 0; color: #9333ea; font-size: 18px; font-weight: 700;">
+                    🚀 Live WordPress + Elementor Preview
+                </h3>
+                <div id="playgroundStatus" style="padding: 8px 16px; background: #fef3c7; border-radius: 6px; font-size: 13px; color: #92400e; border: 1px solid #fcd34d;">
+                    <strong>Status:</strong> <span id="playgroundStatusText">Initializing...</span>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <button id="refreshTemplateBtn" onclick="refreshPlaygroundTemplate()" disabled style="background: #059669; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                    🔄 Refresh
+                </button>
+                <button id="openEditorBtn" onclick="openElementorEditor()" disabled style="background: #92400e; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                    ✏️ Editor
+                </button>
+                <button id="viewPageBtn" onclick="viewPage()" disabled style="background: #0369a1; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                    👁️ View
+                </button>
+                <button onclick="activateElementorPro()" style="background: #f59e0b; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                    🔌 Activate Pro
+                </button>
+                <button onclick="closePlayground()" style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700;">
+                    ✕ Close
+                </button>
+            </div>
+        </div>
+
+        <!-- Full Width iframe -->
+        <iframe id="playgroundIframe" style="width: 100%; height: 900px; border: none; background: white; display: block;" allow="clipboard-read; clipboard-write; cross-origin-isolated"></iframe>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; overflow-y: auto;">
+        <div style="min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 20px;">
+            <div style="background: white; border-radius: 12px; max-width: 600px; width: 100%; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="margin: 0; color: #111827; font-size: 24px;">⚙️ API Settings</h2>
+                    <button onclick="closeSettingsModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">✕</button>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">OpenAI API Key</label>
+                    <input type="password" id="apiKeyModal" placeholder="sk-..." style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" />
+                    <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">
+                        <strong>🔑 Get API Key:</strong> <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #667eea;">OpenAI Platform</a><br>
+                        <strong>💡 Tip:</strong> Leave empty to use .env file defaults. Override here only if using different API key.
+                    </small>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">🤖 GPT-5 Model</label>
+                    <select id="gpt5ModelSelector" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: white; cursor: pointer;">
+                        <option value="gpt-5-2025-08-07" selected>GPT-5 (Standard) - Best quality, $1.25/1M in</option>
+                        <option value="gpt-5-mini-2025-08-07">GPT-5 Mini - Faster, cheaper, $0.25/1M in</option>
+                        <option value="gpt-5-nano-2025-08-07">GPT-5 Nano - Ultra-fast, $0.05/1M in</option>
+                    </select>
+                    <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">
+                        <strong>💰 Cost vs Speed:</strong> Standard = Best accuracy | Mini = Good balance | Nano = Fastest/cheapest
+                    </small>
+                </div>
+                
+                <div style="border-top: 1px solid #e5e7eb; margin: 24px 0; padding-top: 24px;">
+                    <h3 style="margin: 0 0 16px 0; color: #374151; font-size: 16px;">🔬 Advanced Configuration (Optional)</h3>
+                    
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151; font-size: 13px;">Assistant ID</label>
+                        <input type="text" id="assistantIdModal" placeholder="asst_... (leave empty for default)" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" />
+                    </div>
+                    
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151; font-size: 13px;">Vector Store ID</label>
+                        <input type="text" id="vectorStoreIdModal" placeholder="vs_... (leave empty for default)" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" />
+                    </div>
+                    
+                    <small style="color: #6b7280; font-size: 12px; display: block;">
+                        <strong>📚 Info:</strong> By default, uses values from .env file. Override here only if testing with different Assistant/Vector Store. Leave empty to use standard GPT-5 API without assistants.
+                    </small>
+                </div>
+                
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button onclick="saveSettings()" style="flex: 1; background: #6366f1; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                        💾 Save Settings
+                    </button>
+                    <button onclick="closeSettingsModal()" style="background: #e5e7eb; color: #374151; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600;">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- html2canvas for screenshots -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Environment Variables Loader -->
+    <script src="env-loader.js?v=5"></script>
+
+    <!-- Main Converter App -->
+    <script src="main.js?v=6"></script>
+
+    <!-- AI Conversion Module -->
+    <script src="ai-converter.js?v=6"></script>
+
+    <!-- Assistants API Converter (Vector Store) -->
+    <script src="assistants-api-converter.js?v=7"></script>
+
+    <!-- Image-to-HTML Generator -->
+    <script src="image-to-html-generator.js?v=6"></script>
+
+    <!-- WordPress Playground Integration -->
+    <script type="module">
+        // Load Playground module with error handling to prevent network errors
+        try {
+            await import('./playground.js');
+            console.log('✅ WordPress Playground module loaded');
+        } catch (error) {
+            console.warn('⚠️ WordPress Playground not available:', error.message);
+            console.info('💡 The converter will still work without Playground features');
+            // Playground features disabled, but main converter still works
+        }
+    </script>
+</body>
+</html>

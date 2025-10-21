@@ -16,6 +16,7 @@ export async function middleware(request: NextRequest) {
     '/chat',
     '/chat-doc-editor',
     '/editor',
+    '/elementor-editor',
   ]
   const path = request.nextUrl.pathname
 
@@ -44,7 +45,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - auth/callback (auth routes)
+     * - *.js, *.css, *.png, *.jpg, etc. (public folder static files)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|auth/callback).*?)',
+    '/((?!api|_next/static|_next/image|favicon.ico|auth/callback|.*\\.js|.*\\.css|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.gif|.*\\.svg|.*\\.webp|.*\\.ico).*?)',
   ],
 }

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Editor Tools Registry</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .header p {
+            font-size: 20px;
+            opacity: 0.9;
+        }
+        
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+        
+        .tool-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .tool-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.2);
+        }
+        
+        .tool-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .tool-icon {
+            font-size: 32px;
+        }
+        
+        .tool-name {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1f2937;
+            font-family: 'Monaco', monospace;
+        }
+        
+        .tool-type {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        
+        .type-modification {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .type-query {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .type-action {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .tool-description {
+            color: #6b7280;
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+        
+        .tool-section {
+            margin-bottom: 16px;
+        }
+        
+        .tool-section-title {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .tool-examples {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #8b5cf6;
+        }
+        
+        .tool-example {
+            color: #4b5563;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        
+        .tool-example:last-child {
+            margin-bottom: 0;
+        }
+        
+        .tool-params {
+            background: #f3f4f6;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Monaco', monospace;
+            font-size: 12px;
+            color: #374151;
+            white-space: pre-wrap;
+        }
+        
+        .approval-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+        
+        .approval-required {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .approval-not-required {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .btn-back {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        
+        .btn-back:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛠️ Tool Registry</h1>
+            <p>All available AI tools in Chat Editor</p>
+        </div>
+        
+        <div class="tools-grid">
+            <!-- Tool 1: generate_json_patch -->
+            <div class="tool-card">
+                <div class="tool-header">
+                    <div class="tool-icon">🔧</div>
+                    <div class="tool-name">generate_json_patch</div>
+                </div>
+                
+                <span class="tool-type type-modification">Modification</span>
+                
+                <div class="tool-description">
+                    Generates RFC 6902 JSON Patch operations to apply specific changes to the Elementor JSON. 
+                    This is used for ALL JSON modifications - it creates surgical, line-level edits instead of rewriting the entire file.
+                </div>
+                
+                <div class="tool-section">
+                    <div class="tool-section-title">When AI Uses It:</div>
+                    <div class="tool-examples">
+                        <div class="tool-example">"Change the heading color to red"</div>
+                        <div class="tool-example">"Make the button text say 'Get Started'"</div>
+                        <div class="tool-example">"Add a new widget to the layout"</div>
+                        <div class="tool-example">"Remove the text editor widget"</div>
+                    </div>
+                </div>
+                
+                <div class="tool-section">
+                    <div class="tool-section-title">Parameters:</div>
+                    <div class="tool-params">{
+  "patches": [
+    {
+      "op": "replace",
+      "path": "/content/0/settings/title_color",
+      "value": "#ff0000"
+    }
+  ],
+  "summary": "Change heading color to red"
+}</div>
+                </div>
+                
+                <span class="approval-badge approval-required">✓ Requires Approval</span>
+            </div>
+            
+            <!-- Tool 2: analyze_json_structure -->
+            <div class="tool-card">
+                <div class="tool-header">
+                    <div class="tool-icon">🔍</div>
+                    <div class="tool-name">analyze_json_structure</div>
+                </div>
+                
+                <span class="tool-type type-query">Query</span>
+                
+                <div class="tool-description">
+                    Analyzes the current Elementor JSON structure and provides information about widgets, properties, and locations. 
+                    Used for answering questions without modifying anything.
+                </div>
+                
+                <div class="tool-section">
+                    <div class="tool-section-title">When AI Uses It:</div>
+                    <div class="tool-examples">
+                        <div class="tool-example">"What widgets do I have?"</div>
+                        <div class="tool-example">"Where is the button color defined?"</div>
+                        <div class="tool-example">"How many heading elements are there?"</div>
+                        <div class="tool-example">"Find all widgets with red colors"</div>
+                    </div>
+                </div>
+                
+                <div class="tool-section">
+                    <div class="tool-section-title">Parameters:</div>
+                    <div class="tool-params">{
+  "query_type": "find_property",
+  "target": "title_color"
+}
+
+Types:
+- "find_property"
+- "list_widgets"
+- "get_widget_info"
+- "search_value"</div>
+                </div>
+                
+                <span class="approval-badge approval-not-required">✗ No Approval Needed</span>
+            </div>
+            
+            <!-- Tool 3: open_template_in_playground -->
+            <div class="tool-card">
+                <div class="tool-header">
+                    <div class="tool-icon">🌐</div>
+                    <div class="tool-name">open_template_in_playground</div>
+                </div>
+                
+                <span class="tool-type type-action">Action</span>
+                
+                <div class="tool-description">
+                    Opens or refreshes the Elementor template in WordPress Playground. 
+                    Automatically switches to the Playground tab, launches WordPress if needed, and shows your template live.
+                </div>
+                
+                <div class="tool-section">
+                    <div class="tool-section-title">When AI Uses It:</div>
+                    <div class="tool-examples">
+                        <div class="tool-example">"Show me the template"</div>
+                        <div class="tool-example">"Open this in playground"</div>
+                        <div class="tool-example">"Preview these changes"</div>
+                        <div class="tool-example">"Refresh the preview"</div>
+                    </div>
+                </div>
+                
+                <div class="tool-section">
+                    <div class="tool-section-title">Parameters:</div>
+                    <div class="tool-params">{
+  "action": "launch",
+  "message": "Opening preview..."
+}
+
+Actions:
+- "launch" - Start playground
+- "refresh" - Update template
+- "open_editor" - Open Elementor</div>
+                </div>
+                
+                <span class="approval-badge approval-not-required">✗ No Approval Needed</span>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p style="font-size: 18px; margin-bottom: 12px;">
+                <strong>Total Tools:</strong> 3 active | <strong>Coming Soon:</strong> Image analysis, template library, AI suggestions
+            </p>
+            <p style="font-size: 14px; opacity: 0.8;">
+                Want to add a new tool? Check out <code>TOOL_CALLING_GUIDE.md</code>
+            </p>
+            <a href="chat-editor.html" class="btn-back">← Back to Chat Editor</a>
+        </div>
+    </div>
+</body>
+</html>

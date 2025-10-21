@@ -1,0 +1,613 @@
+{
+  "_metadata": {
+    "version": "1.0.0",
+    "source": "Elementor GitHub - includes/widgets/*.php",
+    "last_updated": "2025-01-09",
+    "note": "Exact control names extracted from Elementor source code"
+  },
+
+  "heading": {
+    "widget_type": "heading",
+    "content_controls": {
+      "title": {
+        "type": "textarea",
+        "default": "Add Your Heading Text Here",
+        "description": "The heading text content"
+      },
+      "link": {
+        "type": "url",
+        "structure": {
+          "url": "string",
+          "is_external": "boolean",
+          "nofollow": "boolean"
+        },
+        "description": "Link the heading text"
+      },
+      "size": {
+        "type": "select",
+        "options": ["default", "small", "medium", "large", "xl", "xxl"],
+        "default": "default",
+        "description": "Predefined heading sizes"
+      },
+      "header_size": {
+        "type": "select",
+        "options": ["h1", "h2", "h3", "h4", "h5", "h6", "div", "span", "p"],
+        "default": "h2",
+        "description": "HTML tag for the heading"
+      },
+      "align": {
+        "type": "choose",
+        "options": ["left", "center", "right", "justify"],
+        "responsive": true,
+        "description": "Text alignment"
+      }
+    },
+    "style_controls": {
+      "title_color": {
+        "type": "color",
+        "selector": ".elementor-heading-title",
+        "global_default": "COLOR_PRIMARY",
+        "description": "Heading text color (NORMAL state)"
+      },
+      "title_hover_color": {
+        "type": "color",
+        "selector": ".elementor-heading-title:hover",
+        "description": "Heading text color (HOVER state)"
+      },
+      "typography": {
+        "type": "group_control",
+        "group": "typography",
+        "note": "MUST set typography_typography: 'custom' to activate",
+        "properties": {
+          "typography_typography": {
+            "value": "custom",
+            "required": true,
+            "description": "Activates custom typography controls"
+          },
+          "typography_font_family": "string (e.g., 'Arial', 'Times New Roman')",
+          "typography_font_size": {
+            "unit": "px|em|rem|%",
+            "size": "number"
+          },
+          "typography_font_weight": "string|number (100-900, normal, bold)",
+          "typography_line_height": {
+            "unit": "px|em",
+            "size": "number"
+          },
+          "typography_letter_spacing": {
+            "unit": "px|em",
+            "size": "number"
+          }
+        }
+      },
+      "text_stroke": {
+        "type": "group_control",
+        "properties": {
+          "text_stroke_stroke_color": "hex",
+          "text_stroke_stroke_width": {
+            "unit": "px",
+            "size": "number"
+          }
+        }
+      },
+      "text_shadow": {
+        "type": "group_control",
+        "description": "Text shadow effects"
+      },
+      "blend_mode": {
+        "type": "select",
+        "description": "CSS mix-blend-mode"
+      },
+      "margin": {
+        "type": "dimensions",
+        "description": "Widget margin spacing",
+        "structure": {
+          "unit": "px|em|%",
+          "top": "number",
+          "right": "number",
+          "bottom": "number",
+          "left": "number",
+          "isLinked": "boolean"
+        }
+      }
+    }
+  },
+
+  "text-editor": {
+    "widget_type": "text-editor",
+    "content_controls": {
+      "editor": {
+        "type": "wysiwyg",
+        "default": "",
+        "description": "HTML content for text editor"
+      },
+      "drop_cap": {
+        "type": "switcher",
+        "options": ["yes", "no"],
+        "default": "no",
+        "description": "Enable drop cap for first letter"
+      },
+      "text_columns": {
+        "type": "number",
+        "description": "Number of text columns"
+      },
+      "column_gap": {
+        "type": "slider",
+        "description": "Gap between columns"
+      }
+    },
+    "style_controls": {
+      "align": {
+        "type": "choose",
+        "options": ["left", "center", "right", "justify"],
+        "responsive": true,
+        "description": "Text alignment"
+      },
+      "text_color": {
+        "type": "color",
+        "selector": ".elementor-text-editor",
+        "description": "Main text color"
+      },
+      "typography": {
+        "type": "group_control",
+        "note": "MUST set typography_typography: 'custom' to activate",
+        "properties": {
+          "typography_typography": "custom (required)",
+          "typography_font_family": "string",
+          "typography_font_size": {"unit": "px|em|rem", "size": "number"},
+          "typography_font_weight": "string|number",
+          "typography_line_height": {
+            "unit": "px|em",
+            "size": "number"
+          },
+          "typography_letter_spacing": {
+            "unit": "px|em",
+            "size": "number"
+          }
+        }
+      },
+      "link_color": {
+        "type": "color",
+        "description": "Color for links in content"
+      },
+      "link_hover_color": {
+        "type": "color",
+        "description": "Link hover color"
+      },
+      "text_shadow": {
+        "type": "group_control"
+      },
+      "paragraph_spacing": {
+        "type": "slider",
+        "description": "Space between paragraphs"
+      },
+      "drop_cap_view": {
+        "type": "select",
+        "condition": "drop_cap === 'yes'",
+        "options": ["default", "stacked", "framed"]
+      },
+      "drop_cap_primary_color": {
+        "type": "color",
+        "condition": "drop_cap === 'yes'"
+      },
+      "margin": {
+        "type": "dimensions",
+        "description": "Widget margin spacing",
+        "structure": {
+          "unit": "px|em|%",
+          "top": "number",
+          "right": "number",
+          "bottom": "number",
+          "left": "number",
+          "isLinked": "boolean"
+        }
+      }
+    }
+  },
+
+  "button": {
+    "widget_type": "button",
+    "note": "Button uses trait - exact properties need verification from button.php",
+    "content_controls": {
+      "text": {
+        "type": "text",
+        "default": "Click here",
+        "description": "Button text"
+      },
+      "link": {
+        "type": "url",
+        "structure": {
+          "url": "string",
+          "is_external": "boolean",
+          "nofollow": "boolean"
+        }
+      },
+      "align": {
+        "type": "choose",
+        "options": ["left", "center", "right", "justify"],
+        "responsive": true
+      },
+      "size": {
+        "type": "select",
+        "options": ["xs", "sm", "md", "lg", "xl"],
+        "default": "sm"
+      },
+      "icon": {
+        "type": "icons",
+        "description": "Button icon"
+      },
+      "icon_align": {
+        "type": "select",
+        "options": ["left", "right"],
+        "default": "left"
+      }
+    },
+    "style_controls": {
+      "typography": {
+        "type": "group_control",
+        "note": "MUST set typography_typography: 'custom'",
+        "properties": {
+          "typography_typography": "custom (required)",
+          "typography_font_family": "string",
+          "typography_font_size": {"unit": "px|em", "size": "number"},
+          "typography_font_weight": "string|number"
+        }
+      },
+      "button_text_color": {
+        "type": "color",
+        "description": "Button text color (NORMAL)"
+      },
+      "button_text_hover_color": {
+        "type": "color",
+        "description": "Button text color (HOVER)"
+      },
+      "background": {
+        "type": "group_control_background",
+        "note": "MUST set background_background first to activate",
+        "properties": {
+          "background_background": {
+            "value": "classic|gradient",
+            "required": true,
+            "description": "Activates background controls"
+          },
+          "background_color": {
+            "type": "color",
+            "for": "classic",
+            "description": "Button background (classic)"
+          },
+          "background_color_hover": {
+            "type": "color",
+            "description": "Hover background"
+          },
+          "background_gradient_type": {
+            "value": "linear|radial",
+            "for": "gradient"
+          },
+          "background_gradient_angle": {
+            "unit": "deg",
+            "size": "number (0-360)"
+          },
+          "background_gradient_color": {
+            "type": "color",
+            "description": "Gradient color A"
+          },
+          "background_gradient_color_b": {
+            "type": "color",
+            "description": "Gradient color B"
+          }
+        }
+      },
+      "border": {
+        "type": "group_control_border",
+        "note": "MUST set border_border first",
+        "properties": {
+          "border_border": {
+            "value": "solid|double|dotted|dashed|none",
+            "required": true
+          },
+          "border_width": {
+            "unit": "px",
+            "top": "number",
+            "right": "number",
+            "bottom": "number",
+            "left": "number"
+          },
+          "border_color": "hex"
+        }
+      },
+      "border_radius": {
+        "type": "dimensions",
+        "structure": {
+          "unit": "px|em|%",
+          "top": "number",
+          "right": "number",
+          "bottom": "number",
+          "left": "number",
+          "isLinked": "boolean"
+        }
+      },
+      "box_shadow": {
+        "type": "group_control"
+      },
+      "text_padding": {
+        "type": "dimensions",
+        "description": "Internal button padding (alternative name)",
+        "structure": {
+          "unit": "px|em|%",
+          "top": "number",
+          "right": "number",
+          "bottom": "number",
+          "left": "number",
+          "isLinked": "boolean"
+        }
+      },
+      "button_padding": {
+        "type": "dimensions",
+        "description": "Button padding (primary property name)",
+        "structure": {
+          "unit": "px|em|%",
+          "top": "number",
+          "right": "number",
+          "bottom": "number",
+          "left": "number",
+          "isLinked": "boolean"
+        }
+      },
+      "button_background_color": {
+        "type": "color",
+        "description": "Button background color (alternative to background_color)"
+      }
+    }
+  },
+
+  "container": {
+    "element_type": "container",
+    "layout_controls": {
+      "container_type": {
+        "type": "select",
+        "options": ["flex", "grid"],
+        "default": "flex"
+      },
+      "content_width": {
+        "type": "select",
+        "options": ["full", "boxed"]
+      },
+      "flex_direction": {
+        "type": "select",
+        "options": ["row", "column", "row-reverse", "column-reverse"]
+      },
+      "flex_align_items": {
+        "type": "select",
+        "options": ["flex-start", "center", "flex-end", "stretch"]
+      },
+      "flex_justify_content": {
+        "type": "select",
+        "options": ["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"]
+      },
+      "flex_gap": {
+        "type": "slider",
+        "structure": {
+          "unit": "px|em|%",
+          "size": "number"
+        }
+      }
+    },
+    "style_controls": {
+      "background": {
+        "type": "group_control_background",
+        "note": "CRITICAL: MUST set background_background first!",
+        "prefix": "background_",
+        "properties": {
+          "background_background": {
+            "type": "select",
+            "options": ["classic", "gradient", "video", "slideshow"],
+            "required": true,
+            "description": "MUST BE SET FIRST to activate other background controls"
+          },
+          "background_color": {
+            "type": "color",
+            "for": "classic",
+            "full_name": "background_color",
+            "description": "Solid background color"
+          },
+          "background_image": {
+            "type": "media",
+            "for": "classic",
+            "structure": {
+              "url": "string",
+              "id": "number"
+            }
+          },
+          "background_position": {
+            "type": "select",
+            "options": ["center center", "top left", "top center", "top right", "center left", "center right", "bottom left", "bottom center", "bottom right"]
+          },
+          "background_repeat": {
+            "type": "select",
+            "options": ["no-repeat", "repeat", "repeat-x", "repeat-y"]
+          },
+          "background_size": {
+            "type": "select",
+            "options": ["auto", "cover", "contain", "custom"]
+          },
+          "background_gradient_type": {
+            "type": "select",
+            "for": "gradient",
+            "options": ["linear", "radial"],
+            "full_name": "background_gradient_type",
+            "description": "Linear or radial gradient"
+          },
+          "background_gradient_angle": {
+            "type": "slider",
+            "for": "gradient (linear only)",
+            "full_name": "background_gradient_angle",
+            "structure": {
+              "unit": "deg",
+              "size": "number (0-360)"
+            },
+            "default": {"unit": "deg", "size": 180}
+          },
+          "background_gradient_position": {
+            "type": "select",
+            "for": "gradient (radial only)",
+            "options": ["center center", "top left", "etc"]
+          },
+          "background_gradient_color": {
+            "type": "color",
+            "for": "gradient",
+            "full_name": "background_gradient_color",
+            "description": "Gradient color A (start color)",
+            "note": "NOT color_start!"
+          },
+          "background_gradient_color_b": {
+            "type": "color",
+            "for": "gradient",
+            "full_name": "background_gradient_color_b",
+            "description": "Gradient color B (end color)",
+            "note": "NOT color_end or color_b_color!"
+          },
+          "background_gradient_color_stop": {
+            "type": "slider",
+            "for": "gradient",
+            "full_name": "background_gradient_color_stop",
+            "structure": {
+              "unit": "%",
+              "size": "number (0-100)"
+            },
+            "default": {"unit": "%", "size": 0},
+            "description": "Where gradient color A starts"
+          },
+          "background_gradient_color_b_stop": {
+            "type": "slider",
+            "for": "gradient",
+            "full_name": "background_gradient_color_b_stop",
+            "structure": {
+              "unit": "%",
+              "size": "number (0-100)"
+            },
+            "default": {"unit": "%", "size": 100},
+            "description": "Where gradient color B ends"
+          }
+        }
+      },
+      "border": {
+        "type": "group_control_border",
+        "properties": {
+          "border_border": {
+            "value": "solid|double|dotted|dashed|none",
+            "required": true
+          },
+          "border_width": {
+            "unit": "px",
+            "top": "number",
+            "right": "number",
+            "bottom": "number",
+            "left": "number"
+          },
+          "border_color": "hex"
+        }
+      },
+      "border_radius": {
+        "type": "dimensions",
+        "structure": {
+          "unit": "px|em|%",
+          "top": "number",
+          "right": "number",
+          "bottom": "number",
+          "left": "number",
+          "isLinked": "boolean"
+        }
+      },
+      "padding": {
+        "type": "dimensions",
+        "structure": {
+          "unit": "px|em|%",
+          "top": "number",
+          "right": "number",
+          "bottom": "number",
+          "left": "number",
+          "isLinked": "boolean"
+        }
+      },
+      "margin": {
+        "type": "dimensions",
+        "structure": {
+          "unit": "px|em|%",
+          "top": "number",
+          "right": "number",
+          "bottom": "number",
+          "left": "number",
+          "isLinked": "boolean"
+        }
+      },
+      "box_shadow": {
+        "type": "group_control"
+      }
+    }
+  },
+
+  "image": {
+    "widget_type": "image",
+    "content_controls": {
+      "image": {
+        "type": "media",
+        "structure": {
+          "url": "string",
+          "id": "number"
+        }
+      },
+      "image_size": {
+        "type": "select",
+        "options": ["thumbnail", "medium", "large", "full", "custom"]
+      },
+      "caption": {
+        "type": "select",
+        "options": ["none", "attachment", "custom"]
+      },
+      "link_to": {
+        "type": "select",
+        "options": ["none", "file", "custom"]
+      },
+      "link": {
+        "type": "url",
+        "condition": "link_to === 'custom'"
+      }
+    },
+    "style_controls": {
+      "width": {
+        "type": "slider",
+        "structure": {
+          "unit": "px|%|vw",
+          "size": "number"
+        }
+      },
+      "opacity": {
+        "type": "slider",
+        "range": "0-1"
+      },
+      "align": {
+        "type": "choose",
+        "options": ["left", "center", "right"]
+      },
+      "border_radius": {
+        "type": "dimensions"
+      }
+    }
+  },
+
+  "_critical_patterns": {
+    "group_control_activation": {
+      "typography": "MUST set typography_typography: 'custom' FIRST",
+      "background": "MUST set background_background: 'classic'|'gradient' FIRST",
+      "border": "MUST set border_border: 'solid'|etc FIRST"
+    },
+    "property_prefix_pattern": {
+      "description": "Group controls use prefix pattern",
+      "example": "Control name 'background' → properties 'background_color', 'background_gradient_type'",
+      "pattern": "{control_name}_{property_name}"
+    },
+    "color_format": "Always hex format: #RRGGBB (not rgb() or rgba())",
+    "font_names": "Use full font names: 'Arial', 'Times New Roman', 'Helvetica', 'Roboto' (not generic)",
+    "responsive": "Some controls have _mobile and _tablet variants for responsive design"
+  }
+}

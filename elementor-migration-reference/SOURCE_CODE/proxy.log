@@ -1,0 +1,2 @@
+✅ CORS Proxy running on http://localhost:3001
+   Update your app to use: http://localhost:3001/api/openai

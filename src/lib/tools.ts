@@ -170,6 +170,82 @@ export const scrapeUrlTool = tool({
   },
 });
 
+// HTML Generator tool - generates HTML/CSS/JS with optional image analysis
+export const htmlGeneratorTool = tool({
+  description: 'REQUIRED TOOL: Use this tool whenever a user asks to generate, create, build, or make HTML, CSS, JavaScript, or any web component (hero section, pricing table, contact form, navbar, footer, etc.). This tool opens an interactive UI for the user to provide details and upload optional images. DO NOT generate code yourself - always use this tool.',
+  inputSchema: z.object({
+    description: z.string().describe('Detailed description of what to build (layout, features, styling, functionality)'),
+    images: z.array(z.object({
+      url: z.string().describe('Base64 data URL or uploaded image URL'),
+      filename: z.string().describe('Original filename'),
+    })).max(3).optional().describe('Up to 3 reference images (mockups, designs, screenshots)'),
+  }),
+  execute: async ({ description, images = [] }) => {
+    // This tool will trigger generative UI on the frontend
+    // The actual generation happens via a separate API call
+    return {
+      description,
+      imageCount: images.length,
+      images,
+      timestamp: new Date().toISOString(),
+      status: 'ready_to_generate',
+      message: 'HTML generation tool activated. Opening generator interface...'
+    };
+  },
+});
+
+// Section editing tools for HTML/CSS/JS sections
+export const updateSectionHtmlTool = tool({
+  description: 'Update the HTML content of the current section. Use this when the user asks to modify, change, or update the HTML markup of the section they are viewing.',
+  inputSchema: z.object({
+    html: z.string().describe('The new HTML content for the section (NO DOCTYPE, html, head, or body tags - section-level content only)'),
+    reasoning: z.string().optional().describe('Brief explanation of what was changed and why'),
+  }),
+  execute: async ({ html, reasoning }) => {
+    return {
+      type: 'update_html',
+      html,
+      reasoning,
+      timestamp: new Date().toISOString(),
+      message: 'HTML updated successfully',
+    };
+  },
+});
+
+export const updateSectionCssTool = tool({
+  description: 'Update the CSS styles of the current section. Use this when the user asks to modify, change, or update the styling, colors, layout, or appearance of the section.',
+  inputSchema: z.object({
+    css: z.string().describe('The new CSS content for the section (NO <style> tags - pure CSS only)'),
+    reasoning: z.string().optional().describe('Brief explanation of what styles were changed and why'),
+  }),
+  execute: async ({ css, reasoning }) => {
+    return {
+      type: 'update_css',
+      css,
+      reasoning,
+      timestamp: new Date().toISOString(),
+      message: 'CSS updated successfully',
+    };
+  },
+});
+
+export const updateSectionJsTool = tool({
+  description: 'Update the JavaScript code of the current section. Use this when the user asks to modify, change, or update the interactivity, animations, or functionality of the section.',
+  inputSchema: z.object({
+    js: z.string().describe('The new JavaScript content for the section (NO <script> tags - pure JavaScript only)'),
+    reasoning: z.string().optional().describe('Brief explanation of what functionality was changed and why'),
+  }),
+  execute: async ({ js, reasoning }) => {
+    return {
+      type: 'update_js',
+      js,
+      reasoning,
+      timestamp: new Date().toISOString(),
+      message: 'JavaScript updated successfully',
+    };
+  },
+});
+
 // Export all tools
 export const tools = {
   getWeather: weatherTool,
@@ -178,4 +254,8 @@ export const tools = {
   manageTask: taskManagerTool,
   getDocumentContent: documentContentTool,
   scrapeUrl: scrapeUrlTool,
+  generateHTML: htmlGeneratorTool,
+  updateSectionHtml: updateSectionHtmlTool,
+  updateSectionCss: updateSectionCssTool,
+  updateSectionJs: updateSectionJsTool,
 };

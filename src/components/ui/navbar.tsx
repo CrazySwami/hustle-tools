@@ -6,7 +6,13 @@ import { ModeToggle } from "./mode-toggle"
 
 export async function Navbar() {
   const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+
+  // Handle case where Supabase is not configured
+  let user = null
+  if (supabase) {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  }
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm">

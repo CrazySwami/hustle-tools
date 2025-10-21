@@ -6,8 +6,13 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/'
 
+  // If Supabase not configured, redirect to home
+  const supabase = await createSupabaseServerClient()
+  if (!supabase) {
+    return NextResponse.redirect(`${origin}/`)
+  }
+
   if (code) {
-    const supabase = await createSupabaseServerClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`)

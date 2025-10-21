@@ -1,0 +1,29 @@
+name: Auto Merge to Development
+
+on:
+  push:
+    branches:
+      - 'html-only-no-elementor'
+      - 'claude/grapejs-*'  # Any grapejs branches
+
+jobs:
+  merge-to-development:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge to development
+        run: |
+          git fetch origin development
+          git checkout development
+          git merge --no-ff --no-edit origin/${{ github.ref_name }}
+          git push origin development

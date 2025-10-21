@@ -3,11 +3,11 @@ import OpenAI from 'openai';
 
 export const maxDuration = 60;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(req: NextRequest) {
+  // Initialize OpenAI client at runtime to avoid build-time errors
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
   try {
     const { prompt, logo, favicon, model = 'openai/gpt-5' } = await req.json();
 

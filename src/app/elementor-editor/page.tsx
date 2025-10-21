@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
 import '../elementor-editor.css';
+
+export const dynamic = 'force-dynamic';
 import { ElementorChat } from '@/components/elementor/ElementorChat';
 import { JsonEditor } from '@/components/elementor/JsonEditor';
 import { PlaygroundView } from '@/components/elementor/PlaygroundView';
@@ -11,11 +13,12 @@ import { SiteContentManager } from '@/components/elementor/SiteContentManager';
 import { StyleKitEditorNew } from '@/components/elementor/StyleKitEditorNew';
 import { StyleGuide } from '@/components/elementor/StyleGuide';
 import { HtmlSectionEditor } from '@/components/elementor/HtmlSectionEditor';
+import { VisualSectionEditor } from '@/components/elementor/VisualSectionEditor';
 import { SectionLibrary } from '@/components/elementor/SectionLibrary';
 import { PageSplitter } from '@/components/elementor/PageSplitter';
 import { useElementorState } from '@/lib/hooks/useElementorState';
 import { Section } from '@/lib/section-schema';
-import { FileIcon, PaletteIcon, ArrowRightIcon, GlobeIcon, SettingsIcon, XIcon, CodeIcon } from '@/components/ui/icons';
+import { FileIcon, PaletteIcon, ArrowRightIcon, GlobeIcon, SettingsIcon, XIcon, CodeIcon, EyeIcon } from '@/components/ui/icons';
 import Script from 'next/script';
 import { GlobalStylesheetProvider } from '@/lib/global-stylesheet-context';
 
@@ -767,8 +770,15 @@ export default function ElementorEditorPage() {
                 onClick={() => setActiveTab('json')}
                 style={{ whiteSpace: 'nowrap' }}
               >
-                <FileIcon size={16} /> {isMobile ? 'Editor' : 'Section Editor'}
+                <CodeIcon size={16} /> {isMobile ? 'Code' : 'Code Editor'}
               </div>
+            <div
+              className={`tab ${activeTab === 'visual' ? 'active' : ''}`}
+              onClick={() => setActiveTab('visual')}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              <EyeIcon size={16} /> {isMobile ? 'Visual' : 'Visual Editor'}
+            </div>
             <div
               className={`tab ${activeTab === 'sections' ? 'active' : ''}`}
               onClick={() => setActiveTab('sections')}
@@ -850,6 +860,21 @@ export default function ElementorEditorPage() {
                   });
                   setCurrentSection(section);
                 }}
+              />
+            </div>
+
+            <div className={`tab-panel ${activeTab === 'visual' ? 'active' : ''}`} id="visualPanel" style={{ display: activeTab === 'visual' ? 'flex' : 'none' }}>
+              <VisualSectionEditor
+                initialSection={currentSection || undefined}
+                onSectionChange={(section) => {
+                  console.log('🎨 Visual editor section updated:', {
+                    name: section.name,
+                    htmlLength: section.html?.length || 0,
+                    cssLength: section.css?.length || 0,
+                  });
+                  setCurrentSection(section);
+                }}
+                onSwitchToCodeEditor={() => setActiveTab('json')}
               />
             </div>
 

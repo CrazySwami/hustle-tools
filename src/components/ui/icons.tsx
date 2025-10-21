@@ -178,3 +178,10 @@ export const PlayIcon = ({ size = 16, className, style }: IconProps) => (
     <polygon points="5 3 19 12 5 21 5 3" />
   </svg>
 );
+
+export const EyeIcon = ({ size = 16, className, style }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);

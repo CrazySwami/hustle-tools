@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Editor } from '@grapesjs/react';
 import type grapesjs from 'grapesjs';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
@@ -14,6 +14,18 @@ interface VisualSectionEditorProps {
   onSwitchToCodeEditor?: () => void;
 }
 
+// Debounce helper
+function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+  return (...args: Parameters<T>) => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
 export function VisualSectionEditor({
   initialSection,
   onSectionChange,
@@ -25,10 +37,14 @@ export function VisualSectionEditor({
   const [selectedComponent, setSelectedComponent] = useState<grapesjs.Component | null>(null);
   const [inspectorVisible, setInspectorVisible] = useState(true);
 
-  // Dynamically import GrapeJS (client-side only)
+  // Dynamically import GrapeJS and plugins (client-side only)
   useEffect(() => {
-    import('grapesjs').then((module) => {
-      (window as any).grapesjs = module.default;
+    Promise.all([
+      import('grapesjs'),
+      import('grapesjs-blocks-basic')
+    ]).then(([gjsModule, blocksModule]) => {
+      (window as any).grapesjs = gjsModule.default;
+      (window as any).grapejsBlocksBasic = blocksModule.default;
       setGjsLoaded(true);
     });
   }, []);
@@ -56,7 +72,7 @@ export function VisualSectionEditor({
     }
   }, [initialSection?.id, initialSection?.updatedAt]);
 
-  const handleEditorInit = (editor: grapesjs.Editor) => {
+  const handleEditorInit = useCallback((editor: grapesjs.Editor) => {
     editorRef.current = editor;
 
     // Load initial section HTML/CSS if provided
@@ -67,8 +83,8 @@ export function VisualSectionEditor({
       }
     }
 
-    // Listen for changes
-    editor.on('update', () => {
+    // Debounced update handler to prevent jittery re-renders
+    const debouncedUpdate = debounce(() => {
       if (!onSectionChange) return;
 
       const html = editor.getHtml();
@@ -85,7 +101,10 @@ export function VisualSectionEditor({
         js: initialSection?.js || '',
         updatedAt: Date.now(),
       });
-    });
+    }, 1000); // Only update 1 second after user stops making changes
+
+    // Listen for changes with debouncing
+    editor.on('component:add component:remove component:update style:property:update', debouncedUpdate);
 
     // Component selection event for cascade inspector
     editor.on('component:selected', (component) => {
@@ -98,7 +117,7 @@ export function VisualSectionEditor({
       console.log('❌ Component deselected');
       setSelectedComponent(null);
     });
-  };
+  }, [initialSection, onSectionChange]);
 
   const handleExportToCode = () => {
     if (!editorRef.current) return;
@@ -231,6 +250,13 @@ ${html}
               height: '100%',
               width: '100%',
               storageManager: false,
+              plugins: [(window as any).grapejsBlocksBasic],
+              pluginsOpts: {
+                'grapesjs-blocks-basic': {
+                  flexGrid: true,
+                  stylePrefix: 'gjs-',
+                }
+              },
               canvas: {
                 styles: globalCssDataUrl ? [globalCssDataUrl] : [],
               },

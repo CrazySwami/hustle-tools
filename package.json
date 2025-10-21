@@ -59,6 +59,7 @@
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.23.12",
     "grapesjs": "^0.22.13",
+    "grapesjs-blocks-basic": "^1.0.2",
     "harden-react-markdown": "^1.0.4",
     "html2canvas": "^1.4.1",
     "jsoneditor": "^10.4.2",

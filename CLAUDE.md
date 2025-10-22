@@ -4,24 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Git Branching Strategy
 
-This project uses a three-tier deployment workflow:
+**⚠️ IMPORTANT: Claude Code Working Branch**
 
-- **`development`** - **PRIMARY WORKING BRANCH** - Active development and testing branch. All Claude Code sessions should:
-  1. Pull from `development` to start work
-  2. Create feature branches from `development` (with session IDs)
-  3. Merge completed work back to `development`
+**ALWAYS use this branch for all Claude Code work:**
 
-- **`staging`** - Pre-production testing with beta testers. Merge from `development` when ready for group testing.
+**`claude/grapejs-visual-editor-011CULKQ2LsnwPgcpmWrmkTA`**
 
-- **`main`** - Production branch deployed to main website URL. Merge from `staging` when ready for public release.
+- Start all work on this branch
+- Make all commits to this branch
+- Push all changes to this branch
+- Never create temporary session branches
 
-**Workflow**: `development` → `staging` → `main`
+---
 
-**Claude Code Sessions**:
-- Always branch from `development`
-- Feature branches use format: `claude/{feature-name}-{session-id}`
-- Merge completed features back to `development`
-- Session ID branches are temporary and can be deleted after merging
+This project also uses a three-tier deployment workflow for production releases:
+
+- **`development`** - Active development and testing branch
+- **`staging`** - Pre-production testing with beta testers
+- **`main`** - Production branch deployed to main website URL
+
+**Workflow for production**: `development` → `staging` → `main`
 
 On Vercel, each branch deploys to a separate URL for isolated testing.
 

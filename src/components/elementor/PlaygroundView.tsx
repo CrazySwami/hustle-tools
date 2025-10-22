@@ -203,11 +203,82 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
   };
 
   return (
-    <div className="playground-container" id="playgroundContainer">
-      {/* Playground Controls */}
-      <div className="playground-controls">
-        {/* Mobile: Options Menu */}
-        {isMobile ? (
+    <div className="playground-container" id="playgroundContainer" style={{ position: 'relative', height: '100%' }}>
+      {/* Desktop: Playground Controls Bar */}
+      {!isMobile && (
+        <div className="playground-controls">
+          <button
+            id="startPlaygroundBtn"
+            onClick={launchPlayground}
+            disabled={isLoading || !playgroundReady}
+            className="btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <ExternalLinkIcon style={{ width: '14px', height: '14px' }} />
+            <span>Launch</span>
+          </button>
+          <button
+            id="updatePlaygroundBtn"
+            onClick={refreshPlayground}
+            disabled={isLoading || !playgroundReady}
+            className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <RefreshCwIcon style={{ width: '14px', height: '14px' }} />
+            <span>Update & Open</span>
+          </button>
+          <button
+            id="viewPageBtn"
+            onClick={viewPage}
+            disabled={!playgroundReady}
+            className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <EyeIcon style={{ width: '14px', height: '14px' }} />
+            <span>View Live</span>
+          </button>
+          <button
+            id="pullFromPlaygroundBtn"
+            onClick={pullFromPlayground}
+            disabled={isLoading || !playgroundReady}
+            className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981', color: 'white', border: 'none' }}
+            title="Pull changes made in Elementor editor back to JSON"
+          >
+            <DownloadIcon style={{ width: '14px', height: '14px' }} />
+            <span>Pull Changes</span>
+          </button>
+          <button
+            id="exportSiteBtn"
+            onClick={exportSite}
+            disabled={isLoading || !playgroundReady}
+            className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981', color: 'white', border: 'none' }}
+            title="Export full WordPress site as ZIP"
+          >
+            <PackageIcon style={{ width: '14px', height: '14px' }} />
+            <span>Export Site</span>
+          </button>
+
+          <div id="playgroundStatus" className="playground-status" style={{ display: status ? 'block' : 'none' }}>
+            <span id="playgroundStatusText">{status}</span>
+          </div>
+          {!playgroundReady && (
+            <div className="playground-status" style={{ display: 'block', background: '#fef3c7', borderLeftColor: '#f59e0b' }}>
+              <span>Loading playground script...</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mobile: Floating Hamburger Options Button */}
+      {isMobile && (
+        <div style={{
+          position: 'absolute',
+          top: '12px',
+          right: '12px',
+          zIndex: 1000
+        }}>
           <OptionsButton
             size="large"
             options={[
@@ -243,73 +314,47 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
               }
             ]}
           />
-        ) : (
-          /* Desktop: Individual Buttons */
-          <>
-            <button
-              id="startPlaygroundBtn"
-              onClick={launchPlayground}
-              disabled={isLoading || !playgroundReady}
-              className="btn-primary"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              <ExternalLinkIcon style={{ width: '14px', height: '14px' }} />
-              <span>Launch</span>
-            </button>
-            <button
-              id="updatePlaygroundBtn"
-              onClick={refreshPlayground}
-              disabled={isLoading || !playgroundReady}
-              className="btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              <RefreshCwIcon style={{ width: '14px', height: '14px' }} />
-              <span>Update & Open</span>
-            </button>
-            <button
-              id="viewPageBtn"
-              onClick={viewPage}
-              disabled={!playgroundReady}
-              className="btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              <EyeIcon style={{ width: '14px', height: '14px' }} />
-              <span>View Live</span>
-            </button>
-            <button
-              id="pullFromPlaygroundBtn"
-              onClick={pullFromPlayground}
-              disabled={isLoading || !playgroundReady}
-              className="btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981', color: 'white', border: 'none' }}
-              title="Pull changes made in Elementor editor back to JSON"
-            >
-              <DownloadIcon style={{ width: '14px', height: '14px' }} />
-              <span>Pull Changes</span>
-            </button>
-            <button
-              id="exportSiteBtn"
-              onClick={exportSite}
-              disabled={isLoading || !playgroundReady}
-              className="btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981', color: 'white', border: 'none' }}
-              title="Export full WordPress site as ZIP"
-            >
-              <PackageIcon style={{ width: '14px', height: '14px' }} />
-              <span>Export Site</span>
-            </button>
-          </>
-        )}
-
-        <div id="playgroundStatus" className="playground-status" style={{ display: status ? 'block' : 'none' }}>
-          <span id="playgroundStatusText">{status}</span>
         </div>
-        {!playgroundReady && (
-          <div className="playground-status" style={{ display: 'block', background: '#fef3c7', borderLeftColor: '#f59e0b' }}>
-            <span>Loading playground script...</span>
-          </div>
-        )}
-      </div>
+      )}
+
+      {/* Mobile: Floating Status Messages */}
+      {isMobile && status && (
+        <div style={{
+          position: 'absolute',
+          bottom: '12px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'var(--card)',
+          color: 'var(--foreground)',
+          padding: '8px 16px',
+          borderRadius: '6px',
+          fontSize: '13px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          zIndex: 999,
+          border: '1px solid var(--border)'
+        }}>
+          {status}
+        </div>
+      )}
+
+      {isMobile && !playgroundReady && (
+        <div style={{
+          position: 'absolute',
+          bottom: '12px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#fef3c7',
+          color: '#92400e',
+          padding: '8px 16px',
+          borderRadius: '6px',
+          fontSize: '13px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          zIndex: 999,
+          border: '1px solid #f59e0b'
+        }}>
+          Loading playground script...
+        </div>
+      )}
 
       {/* Playground iframe */}
       <iframe

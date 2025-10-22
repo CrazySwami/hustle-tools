@@ -53,7 +53,7 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady, chatVis
         onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'fixed',
-          bottom: isMobile ? '20px' : '20px',
+          bottom: isMobile ? '80px' : '20px', // 60px chat drawer + 20px margin on mobile
           left: buttonLeft,
           width: '56px',
           height: '56px',
@@ -69,7 +69,7 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady, chatVis
           justifyContent: 'center',
           padding: '0',
           lineHeight: '1',
-          zIndex: 50, // Below chat (3000) but above content
+          zIndex: 3001, // Above chat drawer (3000)
           transition: 'all 0.2s ease'
         }}
         aria-label="Open tab menu"
@@ -82,13 +82,13 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady, chatVis
         <div
           style={{
             position: 'fixed',
-            bottom: '85px', // Above the button
+            bottom: isMobile ? '145px' : '85px', // Above the button (button height + button bottom + gap)
             left: buttonLeft,
             background: 'var(--card)',
             borderRadius: '12px',
             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
             minWidth: '220px',
-            zIndex: 51, // Just above button
+            zIndex: 3002, // Above button
             animation: 'slideUp 0.2s ease-out',
             overflow: 'hidden',
             border: '1px solid var(--border)'

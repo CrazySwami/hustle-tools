@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { StyleKit } from '@/lib/section-schema';
+import { useTheme } from 'next-themes';
 
 interface StyleKitViewerProps {
   styleKit: StyleKit;
@@ -14,6 +15,7 @@ export function StyleKitViewer({ styleKit, onUpdate }: StyleKitViewerProps) {
   const [isResizing, setIsResizing] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const { theme } = useTheme();
 
   // Mobile detection
   useEffect(() => {
@@ -128,7 +130,7 @@ export function StyleKitViewer({ styleKit, onUpdate }: StyleKitViewerProps) {
               language="css"
               value={styleKit.css}
               onChange={(value) => !styleKit.isDefault && onUpdate({ css: value || '' })}
-              theme="vs-dark"
+              theme={theme === 'dark' ? 'vs-dark' : 'light'}
               options={{
                 minimap: { enabled: false },
                 fontSize: 13,

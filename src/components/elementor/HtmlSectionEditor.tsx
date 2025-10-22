@@ -11,6 +11,7 @@ import {
   validateSection
 } from '@/lib/section-schema';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
+import { useTheme } from 'next-themes';
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -42,6 +43,7 @@ export function HtmlSectionEditor({
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { globalCss, cssVariables } = useGlobalStylesheet();
+  const { theme } = useTheme();
 
   // Track if this is a loaded section (has initial content)
   const hasInitialContent = !!(initialSection?.html || initialSection?.css || initialSection?.js);
@@ -705,7 +707,7 @@ export function HtmlSectionEditor({
             <Editor
               height="100%"
               language={activeCodeTab === 'js' ? 'javascript' : activeCodeTab}
-              theme="vs-dark"
+              theme={theme === 'dark' ? 'vs-dark' : 'light'}
               value={section[activeCodeTab]}
               onChange={(value) => updateSection({ [activeCodeTab]: value || '' })}
               onMount={(editor, monaco) => {

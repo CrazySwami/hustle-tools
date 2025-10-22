@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
+import { useTheme } from 'next-themes';
 import Editor from '@monaco-editor/react';
 
 export function StyleGuide() {
@@ -17,6 +18,7 @@ export function StyleGuide() {
     cssVariables,
     lastUpdated
   } = useGlobalStylesheet();
+  const { theme } = useTheme();
 
   const [leftPanelWidth, setLeftPanelWidth] = useState(60); // percentage
   const [isResizing, setIsResizing] = useState(false);
@@ -566,7 +568,7 @@ export function StyleGuide() {
           <Editor
             height="100%"
             defaultLanguage="css"
-            theme="vs-dark"
+            theme={theme === 'dark' ? 'vs-dark' : 'light'}
             value={globalCss}
             onChange={(value) => setGlobalCss(value || '')}
             onMount={(editor, monaco) => {

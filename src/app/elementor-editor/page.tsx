@@ -179,7 +179,7 @@ export default function ElementorEditorPage() {
     { key: 'k', modifiers: ['ctrl'], description: 'Show keyboard shortcuts', category: 'Help & Navigation' },
     { key: 'b', modifiers: ['ctrl'], description: 'Toggle chat panel', category: 'Help & Navigation' },
     { key: '1', modifiers: ['ctrl'], description: 'Go to Code Editor', category: 'Help & Navigation' },
-    { key: '2', modifiers: ['ctrl'], description: 'Go to Visual Editor', category: 'Help & Navigation' },
+    // { key: '2', modifiers: ['ctrl'], description: 'Go to Visual Editor', category: 'Help & Navigation' },
     { key: '3', modifiers: ['ctrl'], description: 'Go to Section Library', category: 'Help & Navigation' },
     { key: '4', modifiers: ['ctrl'], description: 'Go to WordPress Playground', category: 'Help & Navigation' },
     { key: '5', modifiers: ['ctrl'], description: 'Go to Site Content', category: 'Help & Navigation' },
@@ -228,14 +228,15 @@ export default function ElementorEditorPage() {
         toast.info('Switched to Code Editor');
       }
     },
-    {
-      key: '2',
-      modifiers: ['ctrl'],
-      handler: () => {
-        setActiveTab('visual');
-        toast.info('Switched to Visual Editor');
-      }
-    },
+    // Visual Editor disabled
+    // {
+    //   key: '2',
+    //   modifiers: ['ctrl'],
+    //   handler: () => {
+    //     setActiveTab('visual');
+    //     toast.info('Switched to Visual Editor');
+    //   }
+    // },
     {
       key: '3',
       modifiers: ['ctrl'],
@@ -924,13 +925,14 @@ export default function ElementorEditorPage() {
               >
                 <CodeIcon size={16} /> {isMobile ? 'Code' : 'Code Editor'}
               </div>
-            <div
+            {/* Visual Editor tab temporarily disabled */}
+            {/* <div
               className={`tab ${activeTab === 'visual' ? 'active' : ''}`}
               onClick={() => setActiveTab('visual')}
               style={{ whiteSpace: 'nowrap' }}
             >
               <EyeIcon size={16} /> {isMobile ? 'Visual' : 'Visual Editor'}
-            </div>
+            </div> */}
             <div
               className={`tab ${activeTab === 'sections' ? 'active' : ''}`}
               onClick={() => setActiveTab('sections')}

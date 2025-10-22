@@ -26,7 +26,7 @@ export function StyleGuide() {
   const [lastSavedCss, setLastSavedCss] = useState(globalCss);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [showPreview, setShowPreview] = useState(true); // For mobile toggle
+  const [showPreview, setShowPreview] = useState(false); // Start with editor visible
   const lastUpdateRef = useRef(lastUpdated);
 
   // Mobile detection
@@ -34,9 +34,6 @@ export function StyleGuide() {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (mobile) {
-        setShowPreview(false); // Hide preview by default on mobile
-      }
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -144,17 +141,51 @@ export function StyleGuide() {
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* Left Panel: Style Guide Preview (Hidden on mobile unless toggled) */}
-      {(!isMobile || showPreview) && (
+      {/* Left Panel: Style Guide Preview */}
+      {showPreview && (
         <div style={{
-          width: isMobile ? '100%' : `${leftPanelWidth}%`,
-          height: isMobile ? (showPreview ? '50%' : '0') : '100%',
-          overflowY: 'auto',
-          padding: '24px',
-          background: '#ffffff',
-          borderRight: isMobile ? 'none' : '1px solid #e5e7eb',
-          borderBottom: isMobile && showPreview ? '1px solid #e5e7eb' : 'none'
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'var(--background)'
         }}>
+          {/* Preview Header with Close Button */}
+          <div style={{
+            padding: '8px 12px',
+            background: 'var(--muted)',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--foreground)' }}>
+              Style Guide Preview
+            </span>
+            <button
+              onClick={() => setShowPreview(false)}
+              style={{
+                padding: '4px 8px',
+                background: '#000000',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '12px',
+                cursor: 'pointer',
+                fontWeight: 500
+              }}
+            >
+              ✕ Close
+            </button>
+          </div>
+
+          {/* Preview Content */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '24px',
+            background: 'var(--background)'
+          }}>
         {/* Apply global CSS */}
         <style>{globalCss}</style>
 
@@ -431,17 +462,18 @@ export function StyleGuide() {
             </div>
           </section>
         </div>
-      </div>
+          </div>
+        </div>
       )}
 
-      {/* Resize Handle (Hidden on mobile) */}
-      {!isMobile && (
+      {/* Resize Handle (Hidden on mobile or when preview is full-screen) */}
+      {!isMobile && !showPreview && (
         <div
           onMouseDown={handleMouseDown}
           style={{
             width: '4px',
             height: '100%',
-            background: isResizing ? '#3b82f6' : '#e5e7eb',
+            background: isResizing ? '#10b981' : 'var(--border)',
             cursor: 'col-resize',
             transition: 'background 0.15s',
             position: 'relative',
@@ -450,25 +482,26 @@ export function StyleGuide() {
         />
       )}
 
-      {/* Right Panel: CSS Editor (Full width on mobile) */}
-      <div style={{
-        width: isMobile ? '100%' : `${100 - leftPanelWidth}%`,
-        height: isMobile ? (showPreview ? '50%' : '100%') : '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        background: '#1e1e1e'
-      }}>
+      {/* Right Panel: CSS Editor (Hidden when preview is full-screen) */}
+      {!showPreview && (
+        <div style={{
+          width: isMobile ? '100%' : `${100 - leftPanelWidth}%`,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          background: theme === 'dark' ? '#1e1e1e' : '#f5f5f5'
+        }}>
         {/* Editor Header */}
         <div style={{
           padding: '12px 16px',
-          background: '#2d2d2d',
-          borderBottom: '1px solid #3e3e3e',
+          background: 'var(--muted)',
+          borderBottom: '1px solid var(--border)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#ffffff', fontSize: '14px', fontWeight: 500 }}>
+            <span style={{ color: 'var(--foreground)', fontSize: '14px', fontWeight: 500 }}>
               Global Stylesheet
             </span>
             {hasUnsavedChanges && (
@@ -477,30 +510,30 @@ export function StyleGuide() {
           </div>
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {/* Mobile: Toggle Preview Button */}
-            {isMobile && (
-              <button
-                onClick={() => setShowPreview(!showPreview)}
-                style={{
-                  padding: '6px 12px',
-                  background: showPreview ? '#10b981' : '#4b5563',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  cursor: 'pointer'
-                }}
-              >
-                {showPreview ? '👁️ Hide' : '👁️ Show'} Preview
-              </button>
-            )}
+            {/* Preview Toggle Button */}
+            <button
+              onClick={() => setShowPreview(!showPreview)}
+              style={{
+                padding: isMobile ? '8px 12px' : '6px 12px',
+                background: showPreview ? '#000000' : 'var(--muted)',
+                color: showPreview ? '#ffffff' : 'var(--foreground)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                fontSize: isMobile ? '14px' : '12px',
+                cursor: 'pointer',
+                fontWeight: 500,
+                minHeight: isMobile ? '44px' : 'auto'
+              }}
+            >
+              {isMobile ? (showPreview ? '📝' : '👁️') : (showPreview ? '✓ Preview' : 'Preview')}
+            </button>
 
             <button
               onClick={handlePullFromWordPress}
               disabled={isLoading}
               style={{
                 padding: '6px 12px',
-                background: '#3b82f6',
+                background: '#10b981',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '4px',
@@ -614,7 +647,8 @@ export function StyleGuide() {
             }}
           />
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Update Notification Toast */}
       {showUpdateNotification && (

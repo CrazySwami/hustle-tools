@@ -115,19 +115,39 @@ export function VisualSectionEditor({
     }, 1000); // Only update 1 second after user stops making changes
 
     // Listen for changes with debouncing
-    editor.on('component:add component:remove component:update style:property:update', debouncedUpdate);
+    editor.on('component:add component:remove component:update', debouncedUpdate);
 
-    // Component selection event for cascade inspector
+    // Component selection event for cascade inspector + force style manager refresh
     editor.on('component:selected', (component) => {
       console.log('🎯 Component selected:', component);
       setSelectedComponent(component);
       setInspectorVisible(true); // Auto-show inspector when component selected
+
+      // Force style manager refresh to show component's current styles
+      const styleManager = editor.StyleManager;
+      if (styleManager) {
+        styleManager.render();
+      }
     });
 
     editor.on('component:deselected', () => {
       console.log('❌ Component deselected');
       setSelectedComponent(null);
     });
+
+    // Force style manager update when component is toggled (selection changed)
+    editor.on('component:toggled', () => {
+      const styleManager = editor.StyleManager;
+      if (styleManager) {
+        styleManager.render();
+      }
+    });
+
+    // Ensure style manager updates when styles change
+    editor.on('style:property:update', debounce((property) => {
+      // Trigger component update to sync with code editor
+      debouncedUpdate();
+    }, 300));
   }, [initialSection, onSectionChange]);
 
   const handleExportToCode = () => {
@@ -321,7 +341,7 @@ ${html}
                   {
                     name: 'Typography',
                     open: true,
-                    properties: [
+                    buildProps: [
                       'font-family',
                       'font-size',
                       'font-weight',
@@ -336,7 +356,7 @@ ${html}
                   {
                     name: 'Dimension',
                     open: false,
-                    properties: [
+                    buildProps: [
                       'width',
                       'height',
                       'max-width',
@@ -348,7 +368,7 @@ ${html}
                   {
                     name: 'Background',
                     open: false,
-                    properties: [
+                    buildProps: [
                       'background-color',
                       'background-image',
                       'background-repeat',
@@ -360,7 +380,7 @@ ${html}
                   {
                     name: 'Border',
                     open: false,
-                    properties: [
+                    buildProps: [
                       'border-radius',
                       'border',
                       'box-shadow',
@@ -369,7 +389,7 @@ ${html}
                   {
                     name: 'Extra',
                     open: false,
-                    properties: [
+                    buildProps: [
                       'opacity',
                       'transition',
                       'perspective',

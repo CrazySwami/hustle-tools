@@ -578,7 +578,7 @@
   - [x] Icon + text for clarity
 
 - [ ] **Mobile-Optimized Views**
-  - [ ] Code Editor: Full-screen Monaco on mobile, hide settings panel
+  - [x] Code Editor: Full-screen Monaco on mobile, hide settings panel ✅
   - [x] Visual Editor: Collapsible blocks dropdown + bottom sheet styles ✅
   - [ ] Section Library: Grid → single column list
   - [ ] WordPress Playground: Full-screen iframe
@@ -662,10 +662,10 @@
 **Phase 6 (Playground Integration):** ✅ 6/8 tasks - IN PROGRESS (conversion lib complete, export working, iframe integration pending)
 **Phase 7 (Vercel AI SDK & Multi-Model):** ✅ 25/40 tasks - IN PROGRESS (Chat-based HTML generation complete with streaming, image analysis, and auto tab switching)
 **Phase 8 (Global CSS Integration):** ✅ 9/9 tasks - COMPLETE (global CSS in all previews, variable autocomplete, hot reload)
-**Phase 9 (GrapeJS Visual Editor & Mobile):** 🔄 54/76 tasks - IN PROGRESS (71% complete - Visual Editor + mobile chat/tabs/Visual Editor mobile done, Code Editor/Library/other views need mobile optimization)
+**Phase 9 (GrapeJS Visual Editor & Mobile):** 🔄 55/76 tasks - IN PROGRESS (72% complete - Visual Editor + mobile chat/tabs/Code Editor/Visual Editor mobile done, Library/Playground/SiteContent/StyleGuide need mobile optimization)
 **Phase 10 (Testing & Polish):** ⬜️ 0/14 tasks - NOT STARTED
 
-**TOTAL:** 136/230 tasks completed (59%) 🎉 OVER HALFWAY!
+**TOTAL:** 137/230 tasks completed (60%) 🎉 OVER HALFWAY!
 
 ---
 

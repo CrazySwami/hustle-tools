@@ -40,10 +40,19 @@ export function HtmlSectionEditor({
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { globalCss, cssVariables } = useGlobalStylesheet();
 
   // Track if this is a loaded section (has initial content)
   const hasInitialContent = !!(initialSection?.html || initialSection?.css || initialSection?.js);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Debug: Log when component mounts/remounts
   useEffect(() => {
@@ -209,21 +218,23 @@ export function HtmlSectionEditor({
             💾 Save to Library
           </button>
 
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            style={{
-              padding: '6px 12px',
-              background: showSettings ? '#3b82f6' : '#e5e7eb',
-              color: showSettings ? '#ffffff' : '#374151',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '13px',
-              cursor: 'pointer',
-              fontWeight: 500
-            }}
-          >
-            {showSettings ? '✓' : ''} Settings
-          </button>
+          {!isMobile && (
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              style={{
+                padding: '6px 12px',
+                background: showSettings ? '#3b82f6' : '#e5e7eb',
+                color: showSettings ? '#ffffff' : '#374151',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: 500
+              }}
+            >
+              {showSettings ? '✓' : ''} Settings
+            </button>
+          )}
 
           <button
             onClick={() => setShowPreview(!showPreview)}
@@ -281,8 +292,8 @@ export function HtmlSectionEditor({
           borderRight: showPreview ? '1px solid #e5e7eb' : 'none',
           transition: 'width 0.3s ease'
         }}>
-          {/* Settings Panel (Collapsible) */}
-          {showSettings && (
+          {/* Settings Panel (Collapsible - Hidden on mobile) */}
+          {!isMobile && showSettings && (
             <div style={{
               maxHeight: '300px',
               overflowY: 'auto',

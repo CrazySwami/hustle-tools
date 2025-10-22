@@ -1193,7 +1193,13 @@ export default function ElementorEditorPage() {
 
               {/* Chat Content */}
               {chatDrawerOpen && (
-                <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{
+                  flex: 1,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: 'calc(70vh - 60px)' // Full drawer height minus handle
+                }}>
                   <ElementorChat
                     messages={messages}
                     isLoading={isLoading}

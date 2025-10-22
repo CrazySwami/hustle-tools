@@ -909,7 +909,8 @@ export default function ElementorEditorPage() {
 
         {/* Right Panel: Tabs + Content */}
         <div className="right-panel" style={{ width: !isMobile && chatVisible ? `${100 - leftPanelWidth}%` : '100%' }}>
-          {/* Tab Bar */}
+          {/* Tab Bar - HIDDEN (using floating menu instead) */}
+          {false && (
           <div className="tab-bar" style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -993,6 +994,7 @@ export default function ElementorEditorPage() {
               </button>
             )}
           </div>
+          )}
 
           {/* Tab Content - Keep all tabs mounted, just hide inactive ones */}
           <div className="tab-content">
@@ -1160,7 +1162,7 @@ export default function ElementorEditorPage() {
                 height: chatDrawerOpen ? '95vh' : '60px',
                 background: 'var(--background)',
                 borderTop: '1px solid var(--border)',
-                zIndex: 2000,
+                zIndex: 3000, // Above floating buttons (z-index 100)
                 transition: 'height 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1239,14 +1241,12 @@ export default function ElementorEditorPage() {
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
 
-      {/* Mobile Tab Menu (Bottom-left floating button) */}
-      {isMobile && (
-        <MobileTabMenu
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          playgroundReady={playgroundReady}
-        />
-      )}
+      {/* Tab Menu (Bottom-left floating button) - All Screen Sizes */}
+      <MobileTabMenu
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        playgroundReady={playgroundReady}
+      />
 
       {/* Keyboard Shortcuts Help Button - Desktop Only */}
       {!isMobile && (

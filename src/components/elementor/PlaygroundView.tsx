@@ -16,6 +16,8 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
   const [playgroundReady, setPlaygroundReady] = useState(false);
   const [status, setStatus] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Mobile detection
   useEffect(() => {
@@ -24,6 +26,23 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Close menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen]);
 
   // Check if playground script is loaded and auto-launch
   useEffect(() => {
@@ -204,84 +223,60 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
 
   return (
     <div className="playground-container" id="playgroundContainer" style={{ position: 'relative', height: '100%' }}>
-      {/* Desktop: Playground Controls Bar */}
-      {!isMobile && (
-        <div className="playground-controls">
-          <button
-            id="startPlaygroundBtn"
-            onClick={launchPlayground}
-            disabled={isLoading || !playgroundReady}
-            className="btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <ExternalLinkIcon style={{ width: '14px', height: '14px' }} />
-            <span>Launch</span>
-          </button>
-          <button
-            id="updatePlaygroundBtn"
-            onClick={refreshPlayground}
-            disabled={isLoading || !playgroundReady}
-            className="btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <RefreshCwIcon style={{ width: '14px', height: '14px' }} />
-            <span>Update & Open</span>
-          </button>
-          <button
-            id="viewPageBtn"
-            onClick={viewPage}
-            disabled={!playgroundReady}
-            className="btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <EyeIcon style={{ width: '14px', height: '14px' }} />
-            <span>View Live</span>
-          </button>
-          <button
-            id="pullFromPlaygroundBtn"
-            onClick={pullFromPlayground}
-            disabled={isLoading || !playgroundReady}
-            className="btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981', color: 'white', border: 'none' }}
-            title="Pull changes made in Elementor editor back to JSON"
-          >
-            <DownloadIcon style={{ width: '14px', height: '14px' }} />
-            <span>Pull Changes</span>
-          </button>
-          <button
-            id="exportSiteBtn"
-            onClick={exportSite}
-            disabled={isLoading || !playgroundReady}
-            className="btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981', color: 'white', border: 'none' }}
-            title="Export full WordPress site as ZIP"
-          >
-            <PackageIcon style={{ width: '14px', height: '14px' }} />
-            <span>Export Site</span>
-          </button>
+      {/* Floating Circle Options Button - All Screen Sizes */}
+      <div ref={menuRef} style={{
+        position: 'fixed',
+        bottom: '80px', // Above tab menu (which is at ~20px)
+        left: '20px',
+        zIndex: 100
+      }}>
+        <button
+          onClick={() => setMenuOpen(!menuOpen)}
+          style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            background: menuOpen ? '#000000' : 'var(--card)',
+            border: '2px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            fontSize: '24px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            transition: 'all 0.2s ease',
+            color: menuOpen ? '#ffffff' : 'var(--foreground)'
+          }}
+          onMouseEnter={(e) => {
+            if (!menuOpen) {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+          }}
+        >
+          ⋮
+        </button>
 
-          <div id="playgroundStatus" className="playground-status" style={{ display: status ? 'block' : 'none' }}>
-            <span id="playgroundStatusText">{status}</span>
-          </div>
-          {!playgroundReady && (
-            <div className="playground-status" style={{ display: 'block', background: '#fef3c7', borderLeftColor: '#f59e0b' }}>
-              <span>Loading playground script...</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Mobile: Floating Hamburger Options Button */}
-      {isMobile && (
-        <div style={{
-          position: 'absolute',
-          top: '12px',
-          right: '12px',
-          zIndex: 1000
-        }}>
-          <OptionsButton
-            size="large"
-            options={[
+        {/* Dropdown Menu */}
+        {menuOpen && (
+          <div style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 8px)',
+            left: 0,
+            background: 'var(--card)',
+            borderRadius: '8px',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            minWidth: '200px',
+            zIndex: 1000,
+            overflow: 'hidden',
+            border: '1px solid var(--border)',
+            animation: 'slideUp 0.2s ease-out'
+          }}>
+            {[
               {
                 label: 'Launch',
                 icon: '🚀',
@@ -312,13 +307,65 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
                 onClick: exportSite,
                 disabled: isLoading || !playgroundReady
               }
-            ]}
-          />
-        </div>
-      )}
+            ].map((option, index, array) => (
+              <button
+                key={index}
+                onClick={() => {
+                  if (!option.disabled) {
+                    option.onClick();
+                    setMenuOpen(false);
+                  }
+                }}
+                disabled={option.disabled}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: index < array.length - 1 ? '1px solid var(--border)' : 'none',
+                  cursor: option.disabled ? 'not-allowed' : 'pointer',
+                  opacity: option.disabled ? 0.5 : 1,
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!option.disabled) {
+                    e.currentTarget.style.background = 'var(--muted)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span style={{ fontSize: '16px' }}>{option.icon}</span>
+                <span>{option.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
-      {/* Mobile: Floating Status Messages */}
-      {isMobile && status && (
+        <style jsx global>{`
+          @keyframes slideUp {
+            from {
+              transform: translateY(10px);
+              opacity: 0;
+            }
+            to {
+              transform: translateY(0);
+              opacity: 1;
+            }
+          }
+        `}</style>
+      </div>
+
+      {/* Floating Status Messages - All Screen Sizes */}
+      {status && (
         <div style={{
           position: 'absolute',
           bottom: '12px',
@@ -330,14 +377,14 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
           borderRadius: '6px',
           fontSize: '13px',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-          zIndex: 999,
+          zIndex: 99,
           border: '1px solid var(--border)'
         }}>
           {status}
         </div>
       )}
 
-      {isMobile && !playgroundReady && (
+      {!playgroundReady && (
         <div style={{
           position: 'absolute',
           bottom: '12px',
@@ -349,7 +396,7 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
           borderRadius: '6px',
           fontSize: '13px',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-          zIndex: 999,
+          zIndex: 99,
           border: '1px solid #f59e0b'
         }}>
           Loading playground script...

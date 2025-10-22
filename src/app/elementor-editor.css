@@ -2123,3 +2123,55 @@ button:disabled {
 .code-container:hover .copy-button {
   opacity: 1 !important;
 }
+
+/* ========== MOBILE OPTIMIZATIONS ========== */
+@media (max-width: 768px) {
+    /* WordPress Playground - Full-screen iframe, stacked controls */
+    .playground-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding: 10px;
+    }
+
+    .playground-controls button {
+        width: 100%;
+        justify-content: center;
+        padding: 10px;
+        font-size: 13px;
+    }
+
+    .playground-iframe {
+        /* Full screen on mobile */
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    /* Site Content Manager - Stack form fields */
+    .site-content-manager form {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .site-content-manager input,
+    .site-content-manager textarea,
+    .site-content-manager select {
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    /* General button improvements for mobile */
+    .btn-primary,
+    .btn-secondary,
+    .btn-small {
+        min-height: 44px; /* Touch-friendly */
+        padding: 12px 16px;
+    }
+
+    /* Modal adjustments for mobile */
+    .modal-content {
+        width: 95%;
+        max-height: 90vh;
+        margin: 20px;
+    }
+}

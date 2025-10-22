@@ -22,6 +22,15 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
   const [leftPanelWidth, setLeftPanelWidth] = useState(30); // percentage
   const [viewMode, setViewMode] = useState<'library' | 'split-page'>('library');
   const [libraryTab, setLibraryTab] = useState<'sections' | 'style-kits'>('sections');
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Load sections from localStorage on mount
   useEffect(() => {
@@ -303,18 +312,19 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
       display: 'flex',
       height: '100%',
       width: '100%',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      flexDirection: isMobile ? 'column' : 'row'
     }}>
-      {/* Left Sidebar: Section List */}
+      {/* Left Sidebar: Section List (Full width on mobile) */}
       <div style={{
-        width: `${leftPanelWidth}%`,
-        minWidth: '250px',
-        maxWidth: '400px',
+        width: isMobile ? '100%' : `${leftPanelWidth}%`,
+        minWidth: isMobile ? 'auto' : '250px',
+        maxWidth: isMobile ? 'none' : '400px',
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
         background: '#f9fafb',
-        borderRight: '1px solid #e5e7eb'
+        borderRight: isMobile ? 'none' : '1px solid #e5e7eb'
       }}>
         {/* Header */}
         <div style={{
@@ -891,13 +901,54 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
         </div>
       </div>
 
-      {/* Right Panel: Section Editor or Style Kit Viewer */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        background: '#ffffff'
-      }}>
+      {/* Right Panel: Section Editor or Style Kit Viewer (Hidden on mobile in list view) */}
+      {(!isMobile || (isMobile && (selectedSection || selectedStyleKit))) && (
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#ffffff',
+          position: isMobile ? 'fixed' : 'relative',
+          top: isMobile ? 0 : 'auto',
+          left: isMobile ? 0 : 'auto',
+          right: isMobile ? 0 : 'auto',
+          bottom: isMobile ? 0 : 'auto',
+          zIndex: isMobile ? 1000 : 'auto'
+        }}>
+        {/* Mobile Back Button */}
+        {isMobile && (selectedSection || selectedStyleKit) && (
+          <div style={{
+            padding: '12px 16px',
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: '#f9fafb'
+          }}>
+            <button
+              onClick={() => {
+                setSelectedSectionId(null);
+                setSelectedStyleKitId(null);
+              }}
+              style={{
+                padding: '6px 12px',
+                background: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '4px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              ← Back to List
+            </button>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#374151' }}>
+              {selectedSection?.name || selectedStyleKit?.name}
+            </span>
+          </div>
+        )}
         {libraryTab === 'sections' ? (
           selectedSection ? (
             <HtmlSectionEditor
@@ -956,6 +1007,7 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
           )
         )}
       </div>
+      )}
     </div>
   );
 }

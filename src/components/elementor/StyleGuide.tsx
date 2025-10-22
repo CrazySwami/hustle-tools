@@ -23,7 +23,23 @@ export function StyleGuide() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSavedCss, setLastSavedCss] = useState(globalCss);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showPreview, setShowPreview] = useState(true); // For mobile toggle
   const lastUpdateRef = useRef(lastUpdated);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setShowPreview(false); // Hide preview by default on mobile
+      }
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Resize handlers
   const handleMouseDown = () => {
@@ -120,20 +136,23 @@ export function StyleGuide() {
   return (
     <div style={{
       display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row',
       height: '100%',
       width: '100%',
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* Left Panel: Style Guide Preview */}
-      <div style={{
-        width: `${leftPanelWidth}%`,
-        height: '100%',
-        overflowY: 'auto',
-        padding: '24px',
-        background: '#ffffff',
-        borderRight: '1px solid #e5e7eb'
-      }}>
+      {/* Left Panel: Style Guide Preview (Hidden on mobile unless toggled) */}
+      {(!isMobile || showPreview) && (
+        <div style={{
+          width: isMobile ? '100%' : `${leftPanelWidth}%`,
+          height: isMobile ? (showPreview ? '50%' : '0') : '100%',
+          overflowY: 'auto',
+          padding: '24px',
+          background: '#ffffff',
+          borderRight: isMobile ? 'none' : '1px solid #e5e7eb',
+          borderBottom: isMobile && showPreview ? '1px solid #e5e7eb' : 'none'
+        }}>
         {/* Apply global CSS */}
         <style>{globalCss}</style>
 
@@ -411,25 +430,28 @@ export function StyleGuide() {
           </section>
         </div>
       </div>
+      )}
 
-      {/* Resize Handle */}
-      <div
-        onMouseDown={handleMouseDown}
-        style={{
-          width: '4px',
-          height: '100%',
-          background: isResizing ? '#3b82f6' : '#e5e7eb',
-          cursor: 'col-resize',
-          transition: 'background 0.15s',
-          position: 'relative',
-          zIndex: 10
-        }}
-      />
+      {/* Resize Handle (Hidden on mobile) */}
+      {!isMobile && (
+        <div
+          onMouseDown={handleMouseDown}
+          style={{
+            width: '4px',
+            height: '100%',
+            background: isResizing ? '#3b82f6' : '#e5e7eb',
+            cursor: 'col-resize',
+            transition: 'background 0.15s',
+            position: 'relative',
+            zIndex: 10
+          }}
+        />
+      )}
 
-      {/* Right Panel: CSS Editor */}
+      {/* Right Panel: CSS Editor (Full width on mobile) */}
       <div style={{
-        width: `${100 - leftPanelWidth}%`,
-        height: '100%',
+        width: isMobile ? '100%' : `${100 - leftPanelWidth}%`,
+        height: isMobile ? (showPreview ? '50%' : '100%') : '100%',
         display: 'flex',
         flexDirection: 'column',
         background: '#1e1e1e'
@@ -452,7 +474,25 @@ export function StyleGuide() {
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {/* Mobile: Toggle Preview Button */}
+            {isMobile && (
+              <button
+                onClick={() => setShowPreview(!showPreview)}
+                style={{
+                  padding: '6px 12px',
+                  background: showPreview ? '#10b981' : '#4b5563',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                {showPreview ? '👁️ Hide' : '👁️ Show'} Preview
+              </button>
+            )}
+
             <button
               onClick={handlePullFromWordPress}
               disabled={isLoading}
@@ -467,7 +507,7 @@ export function StyleGuide() {
                 opacity: isLoading ? 0.6 : 1
               }}
             >
-              {isLoading ? '⏳' : '⬇️'} Pull from WordPress
+              {isLoading ? '⏳' : '⬇️'} {isMobile ? 'Pull' : 'Pull from WordPress'}
             </button>
 
             <button
@@ -484,25 +524,27 @@ export function StyleGuide() {
                 opacity: isLoading || !hasUnsavedChanges ? 0.6 : 1
               }}
             >
-              {isLoading ? '⏳' : '⬆️'} Push to WordPress
+              {isLoading ? '⏳' : '⬆️'} {isMobile ? 'Push' : 'Push to WordPress'}
             </button>
 
-            <button
-              onClick={handleResetToDefault}
-              disabled={isLoading}
-              style={{
-                padding: '6px 12px',
-                background: '#ef4444',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '12px',
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                opacity: isLoading ? 0.6 : 1
-              }}
-            >
-              🔄 Reset
-            </button>
+            {!isMobile && (
+              <button
+                onClick={handleResetToDefault}
+                disabled={isLoading}
+                style={{
+                  padding: '6px 12px',
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  opacity: isLoading ? 0.6 : 1
+                }}
+              >
+                🔄 Reset
+              </button>
+            )}
           </div>
         </div>
 

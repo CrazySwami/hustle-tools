@@ -218,6 +218,56 @@ export function HtmlSectionEditor({
             💾 Save to Library
           </button>
 
+          <button
+            onClick={async () => {
+              try {
+                // Check if playground is running
+                if (!(window as any).playgroundClient) {
+                  alert('WordPress Playground is not running. Please launch it first from the WordPress Playground tab.');
+                  return;
+                }
+
+                const importToPage = (window as any).importHtmlSectionToPage;
+                if (!importToPage) {
+                  alert('WordPress Playground functions not loaded yet. Please wait a moment and try again.');
+                  return;
+                }
+
+                // Quick preview with default name if not set
+                const sectionName = section.name || 'Untitled Section';
+
+                const result = await importToPage({
+                  name: sectionName,
+                  html: section.html,
+                  css: section.css,
+                  js: section.js,
+                  globalCss: globalCss
+                });
+
+                if (result.success) {
+                  // Show brief success message - page already opens in playground
+                  console.log('✅ Section preview updated in WordPress Playground');
+                }
+              } catch (error: any) {
+                console.error('Preview error:', error);
+                alert(`❌ Failed to update preview: ${error.message}`);
+              }
+            }}
+            style={{
+              padding: '6px 12px',
+              background: '#f97316',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '13px',
+              cursor: 'pointer',
+              fontWeight: 500
+            }}
+            title="Quick preview this section in WordPress Playground"
+          >
+            🔄 Preview in WP
+          </button>
+
           {!isMobile && (
             <button
               onClick={() => setShowSettings(!showSettings)}

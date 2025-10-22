@@ -5,7 +5,7 @@ import { Editor } from '@grapesjs/react';
 import type grapesjs from 'grapesjs';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import { Section } from '@/lib/section-schema';
-import { DownloadIcon, CodeIcon, SaveIcon, EyeIcon, XIcon } from 'lucide-react';
+import { DownloadIcon, CodeIcon, SaveIcon, EyeIcon, XIcon, PaletteIcon } from 'lucide-react';
 import { CSSCascadeInspector } from './CSSCascadeInspector';
 
 interface VisualSectionEditorProps {
@@ -36,6 +36,17 @@ export function VisualSectionEditor({
   const [gjsLoaded, setGjsLoaded] = useState(false);
   const [selectedComponent, setSelectedComponent] = useState<grapesjs.Component | null>(null);
   const [inspectorVisible, setInspectorVisible] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [blocksOpen, setBlocksOpen] = useState(false);
+  const [stylesOpen, setStylesOpen] = useState(false);
+
+  // Detect mobile
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Dynamically import GrapeJS and plugins (client-side only)
   useEffect(() => {
@@ -202,23 +213,51 @@ ${html}
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setInspectorVisible(!inspectorVisible)}
-            className={`btn-secondary flex items-center gap-2 text-sm ${
-              inspectorVisible ? 'bg-primary/10' : ''
-            }`}
-            title={inspectorVisible ? 'Hide Inspector' : 'Show Inspector'}
-          >
-            <EyeIcon size={16} />
-            Inspector
-          </button>
+          {/* Mobile: Blocks Button */}
+          {isMobile && (
+            <button
+              onClick={() => setBlocksOpen(!blocksOpen)}
+              className={`btn-secondary flex items-center gap-2 text-sm ${blocksOpen ? 'bg-primary/10' : ''}`}
+              title="Add Elements"
+            >
+              <span className="text-lg">+</span>
+              {blocksOpen ? 'Close' : 'Add'}
+            </button>
+          )}
+
+          {/* Mobile: Styles Button */}
+          {isMobile && selectedComponent && (
+            <button
+              onClick={() => setStylesOpen(!stylesOpen)}
+              className={`btn-secondary flex items-center gap-2 text-sm ${stylesOpen ? 'bg-primary/10' : ''}`}
+              title="Edit Styles"
+            >
+              <PaletteIcon size={16} />
+              Styles
+            </button>
+          )}
+
+          {/* Desktop: Inspector Toggle */}
+          {!isMobile && (
+            <button
+              onClick={() => setInspectorVisible(!inspectorVisible)}
+              className={`btn-secondary flex items-center gap-2 text-sm ${
+                inspectorVisible ? 'bg-primary/10' : ''
+              }`}
+              title={inspectorVisible ? 'Hide Inspector' : 'Show Inspector'}
+            >
+              <EyeIcon size={16} />
+              Inspector
+            </button>
+          )}
+
           <button
             onClick={handleExportToCode}
             className="btn-secondary flex items-center gap-2 text-sm"
             title="Switch to Code Editor"
           >
             <CodeIcon size={16} />
-            Code View
+            {isMobile ? 'Code' : 'Code View'}
           </button>
           <button
             onClick={handleExportHTML}
@@ -226,22 +265,35 @@ ${html}
             title="Export HTML"
           >
             <DownloadIcon size={16} />
-            Export
+            {isMobile ? '' : 'Export'}
           </button>
         </div>
       </div>
 
-      {/* Main Content: 3-Column Layout */}
-      <div className="flex-1 overflow-hidden flex">
-        {/* Left Sidebar - Blocks */}
-        <div className="w-64 border-r bg-background overflow-hidden flex flex-col">
-          <div className="p-3 border-b bg-muted/30">
-            <h4 className="text-sm font-semibold">Blocks</h4>
+      {/* Main Content: Responsive Layout */}
+      <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+        {/* Mobile: Blocks Dropdown */}
+        {isMobile && blocksOpen && (
+          <div className="border-b bg-background" style={{ maxHeight: '40vh', overflowY: 'auto' }}>
+            <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+              <h4 className="text-sm font-semibold">Add Elements</h4>
+              <button onClick={() => setBlocksOpen(false)} className="text-sm">Close</button>
+            </div>
+            <div id="blocks-mobile" className="p-2"></div>
           </div>
-          <div id="blocks" className="flex-1 overflow-y-auto p-2"></div>
-        </div>
+        )}
 
-        {/* Center - GrapeJS Canvas */}
+        {/* Desktop: Left Sidebar - Blocks */}
+        {!isMobile && (
+          <div className="w-64 border-r bg-background overflow-hidden flex flex-col">
+            <div className="p-3 border-b bg-muted/30">
+              <h4 className="text-sm font-semibold">Blocks</h4>
+            </div>
+            <div id="blocks" className="flex-1 overflow-y-auto p-2"></div>
+          </div>
+        )}
+
+        {/* Center - GrapeJS Canvas (Full width on mobile) */}
         <div className="flex-1 overflow-hidden flex flex-col">
           <Editor
             grapesjs={(window as any).grapesjs}
@@ -261,10 +313,10 @@ ${html}
                 styles: globalCssDataUrl ? [globalCssDataUrl] : [],
               },
               blockManager: {
-                appendTo: '#blocks',
+                appendTo: isMobile ? '#blocks-mobile' : '#blocks',
               },
               styleManager: {
-                appendTo: '#styles-container',
+                appendTo: isMobile ? '#styles-container-mobile' : '#styles-container',
                 sectors: [
                   {
                     name: 'Typography',
@@ -333,7 +385,7 @@ ${html}
                 appendTo: '#traits',
               },
               selectorManager: {
-                appendTo: '#selectors',
+                appendTo: isMobile ? '#selectors-mobile' : '#selectors',
               },
               panels: {
                 defaults: [
@@ -400,54 +452,100 @@ ${html}
           />
         </div>
 
-        {/* Right Sidebar - Styles, Layers, Traits + CSS Inspector */}
-        <div className="w-80 border-l bg-background overflow-hidden flex flex-col">
-          {/* Tabs for Styles/Layers/Traits */}
-          <div className="border-b">
-            <div className="flex p-2 gap-1">
-              <button className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded">
-                Styles
-              </button>
-              <button className="text-xs px-3 py-1.5 hover:bg-muted rounded">
-                Layers
-              </button>
-              <button className="text-xs px-3 py-1.5 hover:bg-muted rounded">
-                Traits
-              </button>
-            </div>
-          </div>
-
-          {/* Styles Panel */}
-          <div className="flex-1 overflow-y-auto">
-            <div id="selectors" className="p-2"></div>
-            <div id="styles-container" className="p-2"></div>
-            <div id="traits" className="p-2 hidden"></div>
-            <div id="layers" className="p-2 hidden"></div>
-          </div>
-
-          {/* CSS Cascade Inspector */}
-          {inspectorVisible && selectedComponent && (
-            <div className="border-t">
-              <div className="flex items-center justify-between p-3 border-b bg-muted/30">
-                <h4 className="text-sm font-semibold">CSS Cascade</h4>
-                <button
-                  onClick={() => setInspectorVisible(false)}
-                  className="btn-secondary p-1"
-                  title="Close Inspector"
-                >
-                  <XIcon size={16} />
+        {/* Desktop: Right Sidebar */}
+        {!isMobile && (
+          <div className="w-80 border-l bg-background overflow-hidden flex flex-col">
+            {/* Tabs for Styles/Layers/Traits */}
+            <div className="border-b">
+              <div className="flex p-2 gap-1">
+                <button className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded">
+                  Styles
+                </button>
+                <button className="text-xs px-3 py-1.5 hover:bg-muted rounded">
+                  Layers
+                </button>
+                <button className="text-xs px-3 py-1.5 hover:bg-muted rounded">
+                  Traits
                 </button>
               </div>
-              <div className="h-64 overflow-y-auto">
-                <CSSCascadeInspector
-                  editor={editorRef.current}
-                  selectedComponent={selectedComponent}
-                  globalCss={globalCss || ''}
-                />
+            </div>
+
+            {/* Styles Panel */}
+            <div className="flex-1 overflow-y-auto">
+              <div id="selectors" className="p-2"></div>
+              <div id="styles-container" className="p-2"></div>
+              <div id="traits" className="p-2 hidden"></div>
+              <div id="layers" className="p-2 hidden"></div>
+            </div>
+
+            {/* CSS Cascade Inspector */}
+            {inspectorVisible && selectedComponent && (
+              <div className="border-t">
+                <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+                  <h4 className="text-sm font-semibold">CSS Cascade</h4>
+                  <button
+                    onClick={() => setInspectorVisible(false)}
+                    className="btn-secondary p-1"
+                    title="Close Inspector"
+                  >
+                    <XIcon size={16} />
+                  </button>
+                </div>
+                <div className="h-64 overflow-y-auto">
+                  <CSSCascadeInspector
+                    editor={editorRef.current}
+                    selectedComponent={selectedComponent}
+                    globalCss={globalCss || ''}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Mobile: Bottom Sheet for Styles */}
+        {isMobile && stylesOpen && selectedComponent && (
+          <>
+            {/* Overlay */}
+            <div
+              onClick={() => setStylesOpen(false)}
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0,0,0,0.5)',
+                zIndex: 1999,
+              }}
+            />
+            {/* Styles Bottom Sheet */}
+            <div
+              style={{
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: '60vh',
+                background: 'var(--background)',
+                borderTop: '1px solid var(--border)',
+                zIndex: 2000,
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 -4px 12px rgba(0,0,0,0.1)',
+              }}
+            >
+              <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+                <h4 className="text-sm font-semibold">Edit Styles</h4>
+                <button onClick={() => setStylesOpen(false)} className="text-sm">Close</button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <div id="selectors-mobile" className="p-2"></div>
+                <div id="styles-container-mobile" className="p-2"></div>
               </div>
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

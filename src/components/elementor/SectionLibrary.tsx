@@ -359,30 +359,30 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: '#f9fafb',
-        borderRight: isMobile ? 'none' : '1px solid #e5e7eb'
+        background: 'var(--muted)',
+        borderRight: isMobile ? 'none' : '1px solid var(--border)'
       }}>
         {/* Header */}
         <div style={{
           padding: '16px',
-          borderBottom: '1px solid #e5e7eb',
-          background: '#ffffff'
+          borderBottom: '1px solid var(--border)',
+          background: 'var(--card)'
         }}>
           {/* Tabs */}
           <div style={{
             display: 'flex',
             gap: '8px',
             marginBottom: '12px',
-            borderBottom: '1px solid #e5e7eb'
+            borderBottom: '1px solid var(--border)'
           }}>
             <button
               onClick={() => setLibraryTab('sections')}
               style={{
                 padding: '8px 16px',
-                background: libraryTab === 'sections' ? '#ffffff' : 'transparent',
-                color: libraryTab === 'sections' ? '#3b82f6' : '#6b7280',
+                background: libraryTab === 'sections' ? 'var(--card)' : 'transparent',
+                color: libraryTab === 'sections' ? '#10b981' : 'var(--muted-foreground)',
                 border: 'none',
-                borderBottom: libraryTab === 'sections' ? '2px solid #3b82f6' : '2px solid transparent',
+                borderBottom: libraryTab === 'sections' ? '2px solid #10b981' : '2px solid transparent',
                 cursor: 'pointer',
                 fontSize: '13px',
                 fontWeight: 600
@@ -394,10 +394,10 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
               onClick={() => setLibraryTab('style-kits')}
               style={{
                 padding: '8px 16px',
-                background: libraryTab === 'style-kits' ? '#ffffff' : 'transparent',
-                color: libraryTab === 'style-kits' ? '#3b82f6' : '#6b7280',
+                background: libraryTab === 'style-kits' ? 'var(--card)' : 'transparent',
+                color: libraryTab === 'style-kits' ? '#10b981' : 'var(--muted-foreground)',
                 border: 'none',
-                borderBottom: libraryTab === 'style-kits' ? '2px solid #3b82f6' : '2px solid transparent',
+                borderBottom: libraryTab === 'style-kits' ? '2px solid #10b981' : '2px solid transparent',
                 cursor: 'pointer',
                 fontSize: '13px',
                 fontWeight: 600

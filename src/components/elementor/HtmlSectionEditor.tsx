@@ -169,10 +169,10 @@ export function HtmlSectionEditor({
       overflow: 'hidden'
     }}>
       {/* Top Bar */}
-      <div style={{
+<div style={{
         padding: isMobile ? '6px 12px' : '8px 12px',
-        background: '#f9fafb',
-        borderBottom: '1px solid #e5e7eb',
+        background: 'var(--muted)',
+        borderBottom: '1px solid var(--border)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center'
@@ -193,8 +193,8 @@ export function HtmlSectionEditor({
             maxWidth: isMobile ? '150px' : 'none'
           }}
           onFocus={(e) => {
-            e.target.style.border = '1px solid #000000';
-            e.target.style.background = '#ffffff';
+            e.target.style.border = '1px solid var(--primary)';
+            e.target.style.background = 'var(--background)';
           }}
           onBlur={(e) => {
             e.target.style.border = '1px solid transparent';
@@ -260,7 +260,7 @@ export function HtmlSectionEditor({
               }}
               style={{
                 padding: '6px 12px',
-                background: '#f97316',
+                background: '#10b981',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '6px',
@@ -280,8 +280,8 @@ export function HtmlSectionEditor({
               onClick={() => setShowSettings(!showSettings)}
               style={{
                 padding: '6px 12px',
-                background: showSettings ? '#000000' : '#e5e7eb',
-                color: showSettings ? '#ffffff' : '#374151',
+                background: showSettings ? '#000000' : 'var(--muted)',
+                color: showSettings ? '#ffffff' : 'var(--foreground)',
                 border: 'none',
                 borderRadius: '6px',
                 fontSize: '13px',
@@ -298,8 +298,8 @@ export function HtmlSectionEditor({
             onClick={() => setShowPreview(!showPreview)}
             style={{
               padding: isMobile ? '8px 12px' : '6px 12px',
-              background: showPreview ? '#000000' : '#e5e7eb',
-              color: showPreview ? '#ffffff' : '#374151',
+              background: showPreview ? '#000000' : 'var(--muted)',
+              color: showPreview ? '#ffffff' : 'var(--foreground)',
               border: 'none',
               borderRadius: '6px',
               fontSize: isMobile ? '14px' : '13px',
@@ -323,7 +323,7 @@ export function HtmlSectionEditor({
               }}
               style={{
                 padding: '6px 12px',
-                background: '#8b5cf6',
+                background: '#10b981',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '6px',
@@ -349,7 +349,7 @@ export function HtmlSectionEditor({
           width: isMobile ? (showPreview ? '0%' : '100%') : (showPreview ? '50%' : '100%'),
           display: isMobile && showPreview ? 'none' : 'flex',
           flexDirection: 'column',
-          borderRight: showPreview && !isMobile ? '1px solid #e5e7eb' : 'none',
+          borderRight: showPreview && !isMobile ? '1px solid var(--border)' : 'none',
           transition: 'width 0.3s ease'
         }}>
           {/* Settings Panel (Collapsible - Hidden on mobile) */}
@@ -358,10 +358,10 @@ export function HtmlSectionEditor({
               maxHeight: '300px',
               overflowY: 'auto',
               padding: '16px',
-              background: '#f9fafb',
-              borderBottom: '1px solid #e5e7eb'
+              background: 'var(--muted)',
+              borderBottom: '1px solid var(--border)'
             }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, color: '#111827' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, color: 'var(--foreground)' }}>
                 Section Settings
               </h3>
 
@@ -762,15 +762,15 @@ export function HtmlSectionEditor({
             width: isMobile ? '100%' : '50%',
             display: 'flex',
             flexDirection: 'column',
-            background: '#ffffff'
+            background: 'var(--background)'
           }}>
             <div style={{
               padding: '8px 12px',
-              background: '#f9fafb',
-              borderBottom: '1px solid #e5e7eb',
+              background: 'var(--muted)',
+              borderBottom: '1px solid var(--border)',
               fontSize: '13px',
               fontWeight: 500,
-              color: '#374151'
+              color: 'var(--foreground)'
             }}>
               Live Preview
             </div>
@@ -804,7 +804,7 @@ export function HtmlSectionEditor({
           zIndex: 1000
         }}>
           <div style={{
-            background: '#ffffff',
+            background: 'var(--card)',
             borderRadius: '8px',
             padding: '24px',
             width: '90%',
@@ -834,8 +834,8 @@ export function HtmlSectionEditor({
               />
             </div>
 
-            <div style={{ marginBottom: '20px', padding: '12px', background: '#f9fafb', borderRadius: '6px' }}>
-              <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 8px 0', fontWeight: 500 }}>
+            <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--muted)', borderRadius: '6px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', margin: '0 0 8px 0', fontWeight: 500 }}>
                 {isMobile ? 'Save to local library:' : 'Choose where to save this section:'}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -933,7 +933,7 @@ export function HtmlSectionEditor({
                       }}
                       style={{
                         padding: '10px 16px',
-                        background: '#3b82f6',
+                        background: '#10b981',
                         color: '#ffffff',
                         border: 'none',
                         borderRadius: '6px',
@@ -1004,8 +1004,8 @@ export function HtmlSectionEditor({
                 onClick={() => setShowSaveDialog(false)}
                 style={{
                   padding: '8px 16px',
-                  background: '#e5e7eb',
-                  color: '#374151',
+                  background: 'var(--muted)',
+                  color: 'var(--foreground)',
                   border: 'none',
                   borderRadius: '4px',
                   fontSize: '14px',

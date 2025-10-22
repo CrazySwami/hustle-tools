@@ -151,10 +151,46 @@ export function StyleGuide() {
             </p>
           </section>
 
+          {/* CSS Variables Section */}
+          <section style={{ marginBottom: '48px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '16px', color: '#111827', borderBottom: '2px solid #e5e7eb', paddingBottom: '8px' }}>
+              CSS Variables
+            </h2>
+
+            {cssVariables.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                {cssVariables.map((variable, idx) => (
+                  <div key={idx} style={{
+                    display: 'grid',
+                    gridTemplateColumns: '200px 1fr',
+                    gap: '12px',
+                    padding: '8px 12px',
+                    background: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    fontFamily: 'monospace'
+                  }}>
+                    <div style={{ fontWeight: 600, color: '#059669' }}>
+                      {variable.name}
+                    </div>
+                    <div style={{ color: '#6b7280', wordBreak: 'break-all' }}>
+                      {variable.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: '#6b7280', fontSize: '14px' }}>
+                No CSS variables found. Add some to your stylesheet using <code>:root {'{ --primary-color: #0066cc; }'}</code>
+              </p>
+            )}
+          </section>
+
           {/* Colors Section */}
           <section style={{ marginBottom: '48px' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '16px', color: '#111827', borderBottom: '2px solid #e5e7eb', paddingBottom: '8px' }}>
-              Colors
+              Color Swatches
             </h2>
 
             {cssVariables.length > 0 ? (
@@ -179,7 +215,7 @@ export function StyleGuide() {
               </div>
             ) : (
               <p style={{ color: '#6b7280', fontSize: '14px' }}>
-                No CSS color variables found. Add some to your stylesheet using <code>:root {'{ --primary-color: #0066cc; }'}</code>
+                No CSS color variables found.
               </p>
             )}
           </section>
@@ -473,6 +509,35 @@ export function StyleGuide() {
             theme="vs-dark"
             value={globalCss}
             onChange={(value) => setGlobalCss(value || '')}
+            onMount={(editor, monaco) => {
+              // Register CSS variable autocomplete
+              monaco.languages.registerCompletionItemProvider('css', {
+                provideCompletionItems: (model, position) => {
+                  const textUntilPosition = model.getValueInRange({
+                    startLineNumber: position.lineNumber,
+                    startColumn: 1,
+                    endLineNumber: position.lineNumber,
+                    endColumn: position.column
+                  });
+
+                  // Trigger on "var(" or "--"
+                  const shouldTrigger = textUntilPosition.includes('var(') || textUntilPosition.match(/--[\w-]*$/);
+                  if (!shouldTrigger) return { suggestions: [] };
+
+                  const suggestions = cssVariables.map(variable => ({
+                    label: variable.name,
+                    kind: monaco.languages.CompletionItemKind.Variable,
+                    insertText: textUntilPosition.includes('var(')
+                      ? variable.name + ')'
+                      : variable.name,
+                    detail: variable.value,
+                    documentation: `CSS Variable: ${variable.name} = ${variable.value}`
+                  }));
+
+                  return { suggestions };
+                }
+              });
+            }}
             options={{
               fontSize: 14,
               minimap: { enabled: false },
@@ -481,7 +546,9 @@ export function StyleGuide() {
               wordWrap: 'on',
               automaticLayout: true,
               tabSize: 2,
-              insertSpaces: true
+              insertSpaces: true,
+              suggestOnTriggerCharacters: true,
+              quickSuggestions: true
             }}
           />
         </div>

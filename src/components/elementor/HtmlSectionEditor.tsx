@@ -40,7 +40,7 @@ export function HtmlSectionEditor({
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const { globalCss } = useGlobalStylesheet();
+  const { globalCss, cssVariables } = useGlobalStylesheet();
 
   // Track if this is a loaded section (has initial content)
   const hasInitialContent = !!(initialSection?.html || initialSection?.css || initialSection?.js);
@@ -638,6 +638,37 @@ export function HtmlSectionEditor({
               theme="vs-dark"
               value={section[activeCodeTab]}
               onChange={(value) => updateSection({ [activeCodeTab]: value || '' })}
+              onMount={(editor, monaco) => {
+                // Register CSS variable autocomplete (only for CSS tab)
+                if (activeCodeTab === 'css') {
+                  monaco.languages.registerCompletionItemProvider('css', {
+                    provideCompletionItems: (model, position) => {
+                      const textUntilPosition = model.getValueInRange({
+                        startLineNumber: position.lineNumber,
+                        startColumn: 1,
+                        endLineNumber: position.lineNumber,
+                        endColumn: position.column
+                      });
+
+                      // Trigger on "var(" or "--"
+                      const shouldTrigger = textUntilPosition.includes('var(') || textUntilPosition.match(/--[\w-]*$/);
+                      if (!shouldTrigger) return { suggestions: [] };
+
+                      const suggestions = cssVariables.map(variable => ({
+                        label: variable.name,
+                        kind: monaco.languages.CompletionItemKind.Variable,
+                        insertText: textUntilPosition.includes('var(')
+                          ? variable.name + ')'
+                          : variable.name,
+                        detail: variable.value,
+                        documentation: `CSS Variable: ${variable.name} = ${variable.value}`
+                      }));
+
+                      return { suggestions };
+                    }
+                  });
+                }
+              }}
               options={{
                 fontSize: 14,
                 minimap: { enabled: false },
@@ -646,7 +677,9 @@ export function HtmlSectionEditor({
                 wordWrap: 'on',
                 automaticLayout: true,
                 tabSize: 2,
-                insertSpaces: true
+                insertSpaces: true,
+                suggestOnTriggerCharacters: true,
+                quickSuggestions: activeCodeTab === 'css'
               }}
             />
           </div>

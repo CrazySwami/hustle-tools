@@ -506,11 +506,11 @@
 - [x] Section Library thumbnails use global CSS
 - [x] Playground import includes global CSS in combined HTML
 
-### 8.2 CSS Variable Usage
-- [ ] Parse CSS variables from global stylesheet
-- [ ] Make variables available in autocomplete for CSS editor
-- [ ] Show variable values in style guide
-- [ ] Example: `var(--primary-color)` suggestions
+### 8.2 CSS Variable Usage ✅ COMPLETE
+- [x] Parse CSS variables from global stylesheet
+- [x] Make variables available in autocomplete for CSS editor (StyleGuide + HtmlSectionEditor)
+- [x] Show variable values in style guide (comprehensive CSS Variables section)
+- [x] Autocomplete triggers on `var(` or `--` with variable name and value hints
 
 ### 8.3 Hot Reload on Stylesheet Changes
 - [ ] When global CSS changes in Style Guide tab
@@ -661,11 +661,11 @@
 **Phase 5.5 (Page Splitter):** ✅ 7/7 tasks - COMPLETE (integrated into Section Library)
 **Phase 6 (Playground Integration):** ✅ 6/8 tasks - IN PROGRESS (conversion lib complete, export working, iframe integration pending)
 **Phase 7 (Vercel AI SDK & Multi-Model):** ✅ 25/40 tasks - IN PROGRESS (Chat-based HTML generation complete with streaming, image analysis, and auto tab switching)
-**Phase 8 (Global CSS Integration):** ✅ 4/9 tasks - PARTIAL (8.1 complete: global CSS in all previews & Playground)
+**Phase 8 (Global CSS Integration):** ✅ 8/9 tasks - PARTIAL (8.1 & 8.2 complete: global CSS everywhere + variable autocomplete)
 **Phase 9 (GrapeJS Visual Editor & Mobile):** 🔄 54/76 tasks - IN PROGRESS (71% complete - Visual Editor + mobile chat/tabs/Visual Editor mobile done, Code Editor/Library/other views need mobile optimization)
 **Phase 10 (Testing & Polish):** ⬜️ 0/14 tasks - NOT STARTED
 
-**TOTAL:** 128/230 tasks completed (56%) 🎉 OVER HALFWAY!
+**TOTAL:** 132/230 tasks completed (57%) 🎉 OVER HALFWAY!
 
 ---
 

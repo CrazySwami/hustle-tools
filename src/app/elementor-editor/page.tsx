@@ -27,6 +27,7 @@ import type { Toast } from '@/components/ui/Toast';
 import { KeyboardShortcutsModal, type KeyboardShortcut } from '@/components/ui/KeyboardShortcutsModal';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useToast } from '@/hooks/useToast';
+import { MobileTabMenu } from '@/components/ui/MobileTabMenu';
 
 const SAMPLE_JSON = {
   widgetType: "custom_html_section",
@@ -1230,40 +1231,51 @@ export default function ElementorEditorPage() {
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
 
-      {/* Keyboard Shortcuts Help Button */}
-      <button
-        onClick={() => setShortcutsModalOpen(true)}
-        style={{
-          position: 'fixed',
-          bottom: isMobile ? '80px' : '20px',
-          right: '20px',
-          width: '48px',
-          height: '48px',
-          borderRadius: '50%',
-          background: '#3b82f6',
-          color: '#ffffff',
-          border: 'none',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
-          cursor: 'pointer',
-          fontSize: '20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9998,
-          transition: 'all 0.2s ease'
-        }}
-        onMouseOver={(e) => {
-          e.currentTarget.style.transform = 'scale(1.1)';
-          e.currentTarget.style.background = '#2563eb';
-        }}
-        onMouseOut={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.background = '#3b82f6';
-        }}
-        title="Keyboard shortcuts (? or Ctrl+K)"
-      >
-        ⌨️
-      </button>
+      {/* Mobile Tab Menu (Bottom-left floating button) */}
+      {isMobile && (
+        <MobileTabMenu
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          playgroundReady={playgroundReady}
+        />
+      )}
+
+      {/* Keyboard Shortcuts Help Button - Desktop Only */}
+      {!isMobile && (
+        <button
+          onClick={() => setShortcutsModalOpen(true)}
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            background: '#000000',
+            color: '#ffffff',
+            border: 'none',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
+            cursor: 'pointer',
+            fontSize: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9998,
+            transition: 'all 0.2s ease'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            e.currentTarget.style.background = '#333333';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.background = '#000000';
+          }}
+          title="Keyboard shortcuts (? or Ctrl+K)"
+        >
+          ⌨️
+        </button>
+      )}
 
       {/* Keyboard Shortcuts Modal */}
       <KeyboardShortcutsModal

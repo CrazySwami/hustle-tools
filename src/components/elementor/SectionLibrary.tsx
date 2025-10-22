@@ -8,6 +8,7 @@ import { StyleKitViewer } from './StyleKitViewer';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import { sectionsToElementorTemplate, generateSectionsPreviewHTML } from '@/lib/section-to-elementor';
 import { useToast } from '@/hooks/useToast';
+import { LoadingButton } from '@/components/ui/LoadingOverlay';
 
 interface SectionLibraryProps {
   onExportToPlayground?: (sections: Section[]) => void;
@@ -25,6 +26,7 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
   const [viewMode, setViewMode] = useState<'library' | 'split-page'>('library');
   const [libraryTab, setLibraryTab] = useState<'sections' | 'style-kits'>('sections');
   const [isMobile, setIsMobile] = useState(false);
+  const [isUpdatingPlayground, setIsUpdatingPlayground] = useState(false);
 
   // Mobile detection
   useEffect(() => {
@@ -236,7 +238,11 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
       return;
     }
 
+    if (isUpdatingPlayground) return; // Prevent double-clicks
+
     try {
+      setIsUpdatingPlayground(true);
+
       // Check if playground function exists
       if (typeof window === 'undefined' || !(window as any).updateAllSectionsPreview) {
         toast.error('WordPress Playground not available. Please launch it first from the WordPress Playground tab.');
@@ -252,6 +258,8 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
     } catch (error: any) {
       console.error('Update playground preview error:', error);
       toast.error(`Failed to update preview: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsUpdatingPlayground(false);
     }
   };
 
@@ -489,23 +497,25 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
                 📋 Preview
               </button>
 
-              <button
+              <LoadingButton
                 onClick={updatePlaygroundPreview}
                 disabled={sections.length === 0}
+                isLoading={isUpdatingPlayground}
+                loadingText="Updating..."
                 style={{
                   flex: '1 1 45%',
                   padding: '6px',
-                  background: sections.length > 0 ? '#f97316' : '#d1d5db',
+                  background: sections.length > 0 && !isUpdatingPlayground ? '#f97316' : '#d1d5db',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: sections.length > 0 ? 'pointer' : 'not-allowed',
+                  cursor: sections.length > 0 && !isUpdatingPlayground ? 'pointer' : 'not-allowed',
                   fontWeight: 500
                 }}
                 title="Send all sections to WordPress Playground and open live preview"
               >
                 🔄 Update Playground
-              </button>
+              </LoadingButton>
 
               <button
                 onClick={exportSections}

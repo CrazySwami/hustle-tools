@@ -148,8 +148,8 @@ ${Object.keys(currentJson).length > 0 ? 'Current page has: ' + JSON.stringify(cu
 
 After using a tool, provide a helpful text response that explains what the tool will do or what results it returned.`;
 
-    // Configure options based on model type
-    const options = model.startsWith('perplexity/') && webSearch ? { search: true } : undefined;
+    // Note: Perplexity models automatically enable search when webSearch=true is passed
+    // The AI Gateway handles this internally, so no explicit options needed
 
     const toolsConfig = {
       getWeather: tools.getWeather,
@@ -165,7 +165,6 @@ After using a tool, provide a helpful text response that explains what the tool 
     console.log('🚀 Calling streamText...', {
       model,
       webSearch,
-      options,
       toolsConfigured: Object.keys(toolsConfig),
       systemPromptLength: systemPrompt.length,
       systemPromptPreview: systemPrompt.substring(0, 500),

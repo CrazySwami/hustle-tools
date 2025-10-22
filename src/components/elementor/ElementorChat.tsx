@@ -100,7 +100,7 @@ export function ElementorChat({
   currentSection
 }: ElementorChatProps) {
   const [input, setInput] = useState('');
-  const [webSearch, setWebSearch] = useState(false);
+  const [webSearch, setWebSearch] = useState(true); // Enable web search by default to show citations
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

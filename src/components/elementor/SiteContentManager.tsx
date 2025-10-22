@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { SettingsIcon, FileTextIcon, UploadIcon, DownloadIcon, SaveIcon, TrashIcon, PlusIcon } from 'lucide-react';
+import { OptionsButton } from '@/components/ui/OptionsButton';
 
 interface SiteContentManagerProps {
   onPush: (config: any) => void;
@@ -38,6 +39,15 @@ interface PageData {
 export function SiteContentManager({ onPush, onPull, playgroundReady }: SiteContentManagerProps) {
   const [activeTab, setActiveTab] = useState<'settings' | 'pages'>('settings');
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // WordPress Settings State
   const [settings, setSettings] = useState({
@@ -139,22 +149,47 @@ export function SiteContentManager({ onPush, onPull, playgroundReady }: SiteCont
     <div className="tab-panel">
       {/* Header with tabs and actions */}
       <div className="tab-bar" style={{ justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            className={`tab ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
-          >
-            <SettingsIcon size={16} />
-            Settings
-          </button>
-          <button
-            className={`tab ${activeTab === 'pages' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pages')}
-          >
-            <FileTextIcon size={16} />
-            Pages ({pages.length})
-          </button>
-        </div>
+        {/* Mobile: Options Menu + Active Tab Label */}
+        {isMobile ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <OptionsButton
+              size="large"
+              options={[
+                {
+                  label: 'Settings',
+                  icon: '⚙️',
+                  onClick: () => setActiveTab('settings')
+                },
+                {
+                  label: `Pages (${pages.length})`,
+                  icon: '📄',
+                  onClick: () => setActiveTab('pages')
+                }
+              ]}
+            />
+            <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>
+              {activeTab === 'settings' ? 'Settings' : `Pages (${pages.length})`}
+            </span>
+          </div>
+        ) : (
+          /* Desktop: Tab Buttons */
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              className={`tab ${activeTab === 'settings' ? 'active' : ''}`}
+              onClick={() => setActiveTab('settings')}
+            >
+              <SettingsIcon size={16} />
+              Settings
+            </button>
+            <button
+              className={`tab ${activeTab === 'pages' ? 'active' : ''}`}
+              onClick={() => setActiveTab('pages')}
+            >
+              <FileTextIcon size={16} />
+              Pages ({pages.length})
+            </button>
+          </div>
+        )}
 
         <div className="tab-actions">
           <button

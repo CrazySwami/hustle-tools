@@ -577,6 +577,10 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
                               height: 400%;
                               overflow: hidden;
                             }
+                            /* Global CSS */
+                            ${globalCss || ''}
+
+                            /* Section CSS */
                             ${section.css || ''}
                           </style>
                         </head>

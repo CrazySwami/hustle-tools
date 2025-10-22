@@ -500,11 +500,11 @@
 
 ## ✅ Phase 8: Global Stylesheet Preview Integration
 
-### 8.1 Apply Global Stylesheet to Previews
-- [ ] Section Editor preview injects global CSS
-- [ ] HTML Generator preview injects global CSS
-- [ ] Section Library thumbnails use global CSS
-- [ ] Playground import includes global CSS as custom stylesheet
+### 8.1 Apply Global Stylesheet to Previews ✅ COMPLETE
+- [x] Section Editor preview injects global CSS
+- [x] HTML Generator preview injects global CSS
+- [x] Section Library thumbnails use global CSS
+- [x] Playground import includes global CSS in combined HTML
 
 ### 8.2 CSS Variable Usage
 - [ ] Parse CSS variables from global stylesheet
@@ -661,11 +661,11 @@
 **Phase 5.5 (Page Splitter):** ✅ 7/7 tasks - COMPLETE (integrated into Section Library)
 **Phase 6 (Playground Integration):** ✅ 6/8 tasks - IN PROGRESS (conversion lib complete, export working, iframe integration pending)
 **Phase 7 (Vercel AI SDK & Multi-Model):** ✅ 25/40 tasks - IN PROGRESS (Chat-based HTML generation complete with streaming, image analysis, and auto tab switching)
-**Phase 8 (Global CSS Integration):** ✅ 3/9 tasks - PARTIAL (global CSS working in previews)
+**Phase 8 (Global CSS Integration):** ✅ 4/9 tasks - PARTIAL (8.1 complete: global CSS in all previews & Playground)
 **Phase 9 (GrapeJS Visual Editor & Mobile):** 🔄 54/76 tasks - IN PROGRESS (71% complete - Visual Editor + mobile chat/tabs/Visual Editor mobile done, Code Editor/Library/other views need mobile optimization)
 **Phase 10 (Testing & Polish):** ⬜️ 0/14 tasks - NOT STARTED
 
-**TOTAL:** 127/230 tasks completed (55%) 🎉 OVER HALFWAY!
+**TOTAL:** 128/230 tasks completed (56%) 🎉 OVER HALFWAY!
 
 ---
 

@@ -1356,7 +1356,7 @@ window.saveHtmlSectionToLibrary = async function(section) {
         updatePlaygroundStatus('💾 Saving section to Elementor template library...');
         console.log('📝 Saving section:', section);
 
-        const { name, html, css, js } = section;
+        const { name, html, css, js, globalCss } = section;
 
         if (!name || !html) {
             throw new Error('Section must have a name and HTML content');
@@ -1378,13 +1378,21 @@ window.saveHtmlSectionToLibrary = async function(section) {
                     $html = isset($section['html']) ? $section['html'] : '';
                     $css = isset($section['css']) ? $section['css'] : '';
                     $js = isset($section['js']) ? $section['js'] : '';
+                    $global_css = isset($section['globalCss']) ? $section['globalCss'] : '';
 
                     // Combine HTML, CSS, and JS into a single HTML widget
                     $combined_html = $html;
 
-                    // Append CSS as <style> tag
-                    if (!empty($css)) {
-                        $combined_html .= "\n\n<style>\n" . $css . "\n</style>";
+                    // Append global CSS first, then section CSS as <style> tag
+                    if (!empty($global_css) || !empty($css)) {
+                        $combined_html .= "\n\n<style>\n";
+                        if (!empty($global_css)) {
+                            $combined_html .= "/* Global CSS */\n" . $global_css . "\n\n";
+                        }
+                        if (!empty($css)) {
+                            $combined_html .= "/* Section CSS */\n" . $css . "\n";
+                        }
+                        $combined_html .= "</style>";
                     }
 
                     // Append JS as <script> tag
@@ -1561,7 +1569,7 @@ window.importHtmlSectionToPage = async function(section) {
         updatePlaygroundStatus('📄 Creating preview page with section...');
         console.log('📝 Importing section to page:', section);
 
-        const { name, html, css, js } = section;
+        const { name, html, css, js, globalCss } = section;
 
         if (!html) {
             throw new Error('Section must have HTML content');
@@ -1583,13 +1591,21 @@ window.importHtmlSectionToPage = async function(section) {
                     $html = isset($section['html']) ? $section['html'] : '';
                     $css = isset($section['css']) ? $section['css'] : '';
                     $js = isset($section['js']) ? $section['js'] : '';
+                    $global_css = isset($section['globalCss']) ? $section['globalCss'] : '';
 
                     // Combine HTML, CSS, and JS into a single HTML widget
                     $combined_html = $html;
 
-                    // Append CSS as <style> tag
-                    if (!empty($css)) {
-                        $combined_html .= "\n\n<style>\n" . $css . "\n</style>";
+                    // Append global CSS first, then section CSS as <style> tag
+                    if (!empty($global_css) || !empty($css)) {
+                        $combined_html .= "\n\n<style>\n";
+                        if (!empty($global_css)) {
+                            $combined_html .= "/* Global CSS */\n" . $global_css . "\n\n";
+                        }
+                        if (!empty($css)) {
+                            $combined_html .= "/* Section CSS */\n" . $css . "\n";
+                        }
+                        $combined_html .= "</style>";
                     }
 
                     // Append JS as <script> tag

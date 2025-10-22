@@ -759,7 +759,8 @@ export function HtmlSectionEditor({
                         name: section.name,
                         html: section.html,
                         css: section.css,
-                        js: section.js
+                        js: section.js,
+                        globalCss: globalCss
                       });
 
                       if (result.success) {
@@ -811,7 +812,8 @@ export function HtmlSectionEditor({
                         name: section.name,
                         html: section.html,
                         css: section.css,
-                        js: section.js
+                        js: section.js,
+                        globalCss: globalCss
                       });
 
                       if (result.success) {

@@ -12,6 +12,16 @@ interface StyleKitViewerProps {
 export function StyleKitViewer({ styleKit, onUpdate }: StyleKitViewerProps) {
   const [leftPanelWidth, setLeftPanelWidth] = useState(60);
   const [isResizing, setIsResizing] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Resize handlers
   useEffect(() => {
@@ -51,9 +61,9 @@ export function StyleKitViewer({ styleKit, onUpdate }: StyleKitViewerProps) {
     }}>
       {/* Header */}
       <div style={{
-        padding: '16px',
-        borderBottom: '1px solid #e5e7eb',
-        background: '#ffffff'
+        padding: '12px 16px',
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--muted)'
       }}>
         <div style={{
           display: 'flex',
@@ -61,12 +71,28 @@ export function StyleKitViewer({ styleKit, onUpdate }: StyleKitViewerProps) {
           alignItems: 'center'
         }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--foreground)' }}>
               {styleKit.name}
               {styleKit.isDefault && <span style={{ marginLeft: '8px', fontSize: '12px', color: '#6366f1' }}>⭐ Default</span>}
               {styleKit.isActive && <span style={{ marginLeft: '8px', fontSize: '12px', color: '#10b981' }}>✓ Active</span>}
             </h3>
           </div>
+          <button
+            onClick={() => setShowPreview(!showPreview)}
+            style={{
+              padding: isMobile ? '8px 12px' : '6px 12px',
+              background: showPreview ? '#000000' : 'var(--muted)',
+              color: showPreview ? '#ffffff' : 'var(--foreground)',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              fontSize: isMobile ? '14px' : '13px',
+              cursor: 'pointer',
+              fontWeight: 500,
+              minHeight: isMobile ? '44px' : 'auto'
+            }}
+          >
+            {showPreview ? (isMobile ? '📝' : '✓ Preview') : (isMobile ? '👁️' : 'Preview')}
+          </button>
         </div>
       </div>
 
@@ -77,12 +103,13 @@ export function StyleKitViewer({ styleKit, onUpdate }: StyleKitViewerProps) {
         overflow: 'hidden'
       }}>
         {/* Left: CSS Editor */}
+        {!showPreview && (
         <div style={{
           width: `${leftPanelWidth}%`,
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          borderRight: '1px solid #e5e7eb'
+          borderRight: '1px solid var(--border)'
         }}>
           <div style={{
             padding: '12px 16px',
@@ -114,35 +141,59 @@ export function StyleKitViewer({ styleKit, onUpdate }: StyleKitViewerProps) {
             />
           </div>
         </div>
+        )}
 
         {/* Resizer */}
+        {!showPreview && (
         <div
           onMouseDown={() => setIsResizing(true)}
           style={{
             width: '4px',
             cursor: 'col-resize',
-            background: isResizing ? '#3b82f6' : '#e5e7eb',
+            background: isResizing ? '#10b981' : 'var(--border)',
             transition: 'background 0.2s'
           }}
         />
+        )}
 
         {/* Right: Style Guide Preview */}
         <div style={{
           flex: 1,
+          width: showPreview ? '100%' : 'auto',
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          background: '#ffffff'
+          background: 'var(--background)'
         }}>
           <div style={{
             padding: '12px 16px',
-            background: '#f9fafb',
-            borderBottom: '1px solid #e5e7eb',
+            background: 'var(--muted)',
+            borderBottom: '1px solid var(--border)',
             fontSize: '13px',
             fontWeight: 600,
-            color: '#374151'
+            color: 'var(--foreground)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
           }}>
-            Style Guide Preview
+            <span>Style Guide Preview</span>
+            {showPreview && (
+              <button
+                onClick={() => setShowPreview(false)}
+                style={{
+                  padding: '4px 8px',
+                  background: '#000000',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  fontWeight: 500
+                }}
+              >
+                ✕ Close
+              </button>
+            )}
           </div>
 
           <iframe

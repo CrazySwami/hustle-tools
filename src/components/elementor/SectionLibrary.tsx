@@ -352,16 +352,18 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
       overflow: 'hidden',
       flexDirection: isMobile ? 'column' : 'row'
     }}>
-      {/* Left Sidebar: Section List (Full width on mobile) */}
+      {/* Left Sidebar: Section List (Full width on mobile, toggleable on desktop) */}
+      {(isMobile || sidebarVisible) && (
       <div style={{
-        width: isMobile ? '100%' : `${leftPanelWidth}%`,
-        minWidth: isMobile ? 'auto' : '250px',
-        maxWidth: isMobile ? 'none' : '400px',
+        width: isMobile ? '100%' : (sidebarVisible ? `${leftPanelWidth}%` : '0'),
+        minWidth: isMobile ? 'auto' : (sidebarVisible ? '250px' : '0'),
+        maxWidth: isMobile ? 'none' : (sidebarVisible ? '400px' : '0'),
         height: '100%',
-        display: 'flex',
+        display: isMobile || sidebarVisible ? 'flex' : 'none',
         flexDirection: 'column',
         background: 'var(--muted)',
-        borderRight: isMobile ? 'none' : '1px solid var(--border)'
+        borderRight: isMobile ? 'none' : '1px solid var(--border)',
+        transition: 'width 0.3s ease'
       }}>
         {/* Header */}
         <div style={{
@@ -957,6 +959,7 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
           )}
         </div>
       </div>
+      )}
 
       {/* Right Panel: Section Editor or Style Kit Viewer (Hidden on mobile in list view) */}
       {(!isMobile || (isMobile && (selectedSection || selectedStyleKit))) && (
@@ -964,7 +967,7 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          background: '#ffffff',
+          background: 'var(--background)',
           position: isMobile ? 'fixed' : 'relative',
           top: isMobile ? 0 : 'auto',
           left: isMobile ? 0 : 'auto',
@@ -972,40 +975,68 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
           bottom: isMobile ? 0 : 'auto',
           zIndex: isMobile ? 1000 : 'auto'
         }}>
-        {/* Mobile Back Button */}
-        {isMobile && (selectedSection || selectedStyleKit) && (
+        {/* Desktop Sidebar Toggle + Mobile Back Button */}
+        {(isMobile && (selectedSection || selectedStyleKit)) || (!isMobile && (selectedSection || selectedStyleKit)) ? (
           <div style={{
             padding: '12px 16px',
-            borderBottom: '1px solid #e5e7eb',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            background: '#f9fafb'
+            background: 'var(--muted)'
           }}>
-            <button
-              onClick={() => {
-                setSelectedSectionId(null);
-                setSelectedStyleKitId(null);
-              }}
-              style={{
-                padding: '6px 12px',
-                background: '#ffffff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '4px',
-                fontSize: '13px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              ← Back to List
-            </button>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#374151' }}>
+            {/* Desktop: Sidebar Toggle */}
+            {!isMobile && (
+              <button
+                onClick={() => setSidebarVisible(!sidebarVisible)}
+                style={{
+                  padding: '6px 12px',
+                  background: sidebarVisible ? '#000000' : 'var(--muted)',
+                  color: sidebarVisible ? '#ffffff' : 'var(--foreground)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 500
+                }}
+              >
+                {sidebarVisible ? '◀' : '▶'} {sidebarVisible ? 'Hide' : 'Show'} List
+              </button>
+            )}
+
+            {/* Mobile: Back Button */}
+            {isMobile && (
+              <button
+                onClick={() => {
+                  setSelectedSectionId(null);
+                  setSelectedStyleKitId(null);
+                }}
+                style={{
+                  padding: '6px 12px',
+                  background: 'var(--card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontWeight: 500,
+                  color: 'var(--foreground)'
+                }}
+              >
+                ← Back to List
+              </button>
+            )}
+
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--foreground)' }}>
               {selectedSection?.name || selectedStyleKit?.name}
             </span>
           </div>
-        )}
+        ) : null}
         {libraryTab === 'sections' ? (
           selectedSection ? (
             <HtmlSectionEditor

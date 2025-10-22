@@ -346,10 +346,9 @@ export function HtmlSectionEditor({
       }}>
         {/* Code Editor Panel */}
         <div style={{
-          width: isMobile ? (showPreview ? '0%' : '100%') : (showPreview ? '50%' : '100%'),
-          display: isMobile && showPreview ? 'none' : 'flex',
+          width: showPreview ? '0%' : '100%',
+          display: showPreview ? 'none' : 'flex',
           flexDirection: 'column',
-          borderRight: showPreview && !isMobile ? '1px solid var(--border)' : 'none',
           transition: 'width 0.3s ease'
         }}>
           {/* Settings Panel (Collapsible - Hidden on mobile) */}
@@ -756,10 +755,10 @@ export function HtmlSectionEditor({
           </div>
         </div>
 
-        {/* Preview Panel */}
+        {/* Preview Panel - Full Screen */}
         {showPreview && (
           <div style={{
-            width: isMobile ? '100%' : '50%',
+            width: '100%',
             display: 'flex',
             flexDirection: 'column',
             background: 'var(--background)'
@@ -770,9 +769,27 @@ export function HtmlSectionEditor({
               borderBottom: '1px solid var(--border)',
               fontSize: '13px',
               fontWeight: 500,
-              color: 'var(--foreground)'
+              color: 'var(--foreground)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
             }}>
-              Live Preview
+              <span>Live Preview</span>
+              <button
+                onClick={() => setShowPreview(false)}
+                style={{
+                  padding: '4px 8px',
+                  background: '#000000',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  fontWeight: 500
+                }}
+              >
+                ✕ Close
+              </button>
             </div>
 
             <iframe

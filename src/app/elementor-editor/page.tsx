@@ -27,7 +27,6 @@ import type { Toast } from '@/components/ui/Toast';
 import { KeyboardShortcutsModal, type KeyboardShortcut } from '@/components/ui/KeyboardShortcutsModal';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useToast } from '@/hooks/useToast';
-import { MobileTabMenu } from '@/components/ui/MobileTabMenu';
 
 const SAMPLE_JSON = {
   widgetType: "custom_html_section",
@@ -905,86 +904,107 @@ export default function ElementorEditorPage() {
 
         {/* Right Panel: Tabs + Content */}
         <div className="right-panel" style={{ width: !isMobile && chatVisible ? `${100 - leftPanelWidth}%` : '100%' }}>
-          {/* Tab Bar - HIDDEN (using floating menu instead) */}
-          {false && (
+          {/* Tab Bar - Slim dropdown on mobile, full tabs on desktop */}
           <div className="tab-bar" style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            overflowX: isMobile ? 'auto' : 'visible',
-            flexWrap: isMobile ? 'nowrap' : 'wrap'
+            padding: isMobile ? '8px 12px' : '8px 20px',
+            minHeight: '48px'
           }}>
-            <div style={{ display: 'flex', flex: 1, overflowX: isMobile ? 'auto' : 'visible' }}>
-              <div
-                className={`tab ${activeTab === 'json' ? 'active' : ''}`}
-                onClick={() => setActiveTab('json')}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                <CodeIcon size={16} /> {isMobile ? 'Code' : 'Code Editor'}
-              </div>
-            {/* Visual Editor tab temporarily disabled */}
-            {/* <div
-              className={`tab ${activeTab === 'visual' ? 'active' : ''}`}
-              onClick={() => setActiveTab('visual')}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              <EyeIcon size={16} /> {isMobile ? 'Visual' : 'Visual Editor'}
-            </div> */}
-            <div
-              className={`tab ${activeTab === 'sections' ? 'active' : ''}`}
-              onClick={() => setActiveTab('sections')}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              <FileIcon size={16} /> {isMobile ? 'Library' : 'Section Library'}
-            </div>
-            <div
-              className={`tab ${activeTab === 'playground' ? 'active' : ''}`}
-              onClick={() => setActiveTab('playground')}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              <GlobeIcon size={16} /> {isMobile ? 'WP' : 'WordPress Playground'}
-            </div>
-            <div
-              className={`tab ${activeTab === 'site-content' ? 'active' : ''}`}
-              onClick={() => setActiveTab('site-content')}
-              style={{
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <LayoutIcon size={16} /> {isMobile ? 'Content' : 'Site Content'}
-            </div>
-            <div
-              className={`tab ${activeTab === 'style-guide' ? 'active' : ''}`}
-              onClick={() => setActiveTab('style-guide')}
-              style={{
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <PaletteIcon size={16} /> {isMobile ? 'Styles' : 'Style Guide'}
-            </div>
-            </div>
-
-            {/* Desktop: Chat Toggle Button */}
-            {!isMobile && (
-              <button
-                onClick={() => setChatVisible(!chatVisible)}
-                className="btn-secondary"
+            {isMobile ? (
+              // Mobile: Slim dropdown
+              <select
+                value={activeTab}
+                onChange={(e) => setActiveTab(e.target.value)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  fontSize: '13px',
-                  marginRight: '12px'
+                  flex: 1,
+                  padding: '8px 12px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  background: 'var(--card)',
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                  outline: 'none'
                 }}
-                title={chatVisible ? 'Hide Chat' : 'Show Chat'}
               >
-                {chatVisible ? <XIcon size={16} /> : <CodeIcon size={16} />}
-                {chatVisible ? 'Hide Chat' : 'Show Chat'}
-              </button>
+                <option value="json">Code Editor</option>
+                <option value="visual">Visual Editor</option>
+                <option value="sections">Section Library</option>
+                <option value="playground">WordPress Playground</option>
+                <option value="site-content">Site Content</option>
+                <option value="style-guide">Style Guide</option>
+              </select>
+            ) : (
+              // Desktop: Full tab buttons
+              <>
+                <div style={{ display: 'flex', flex: 1, overflowX: 'auto' }}>
+                  <div
+                    className={`tab ${activeTab === 'json' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('json')}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    <CodeIcon size={16} /> Code Editor
+                  </div>
+                  <div
+                    className={`tab ${activeTab === 'visual' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('visual')}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    <EyeIcon size={16} /> Visual Editor
+                  </div>
+                  <div
+                    className={`tab ${activeTab === 'sections' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('sections')}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    <FileIcon size={16} /> Section Library
+                  </div>
+                  <div
+                    className={`tab ${activeTab === 'playground' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('playground')}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    <GlobeIcon size={16} /> WordPress Playground
+                  </div>
+                  <div
+                    className={`tab ${activeTab === 'site-content' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('site-content')}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    <LayoutIcon size={16} /> Site Content
+                  </div>
+                  <div
+                    className={`tab ${activeTab === 'style-guide' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('style-guide')}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    <PaletteIcon size={16} /> Style Guide
+                  </div>
+                </div>
+
+                {/* Desktop: Chat Toggle Button */}
+                <button
+                  onClick={() => setChatVisible(!chatVisible)}
+                  className="btn-secondary"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    fontSize: '13px',
+                    marginRight: '12px'
+                  }}
+                  title={chatVisible ? 'Hide Chat' : 'Show Chat'}
+                >
+                  {chatVisible ? <XIcon size={16} /> : <CodeIcon size={16} />}
+                  {chatVisible ? 'Hide Chat' : 'Show Chat'}
+                </button>
+              </>
             )}
           </div>
-          )}
 
           {/* Tab Content - Keep all tabs mounted, just hide inactive ones */}
           <div className="tab-content">
@@ -1201,17 +1221,6 @@ export default function ElementorEditorPage() {
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
-
-      {/* Tab Menu (Bottom-left floating button) - All Screen Sizes */}
-      <MobileTabMenu
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        playgroundReady={playgroundReady}
-        chatVisible={chatVisible}
-        leftPanelWidth={leftPanelWidth}
-        isMobile={isMobile}
-      />
-
 
       {/* Keyboard Shortcuts Modal */}
       <KeyboardShortcutsModal

@@ -14,7 +14,7 @@ interface SectionLibraryProps {
 }
 
 export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: SectionLibraryProps) {
-  const { globalCss } = useGlobalStylesheet();
+  const { globalCss, lastUpdated } = useGlobalStylesheet();
   const [sections, setSections] = useState<Section[]>([]);
   const [styleKits, setStyleKits] = useState<StyleKit[]>([]);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
@@ -562,6 +562,7 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
                 }}>
                   {section.html ? (
                     <iframe
+                      key={`${section.id}-${lastUpdated}`}
                       srcDoc={`
                         <!DOCTYPE html>
                         <html>

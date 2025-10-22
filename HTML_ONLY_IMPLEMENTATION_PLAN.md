@@ -512,11 +512,11 @@
 - [x] Show variable values in style guide (comprehensive CSS Variables section)
 - [x] Autocomplete triggers on `var(` or `--` with variable name and value hints
 
-### 8.3 Hot Reload on Stylesheet Changes
-- [ ] When global CSS changes in Style Guide tab
-- [ ] Auto-update all open previews
-- [ ] Re-render section thumbnails
-- [ ] Show "Updated" notification
+### 8.3 Hot Reload on Stylesheet Changes ✅ COMPLETE
+- [x] When global CSS changes in Style Guide tab (via setGlobalCss wrapper)
+- [x] Auto-update all open previews (via React context reactivity)
+- [x] Re-render section thumbnails (key-based force re-render using lastUpdated)
+- [x] Show "Updated" notification (green toast with slide-in animation)
 
 ---
 
@@ -661,11 +661,11 @@
 **Phase 5.5 (Page Splitter):** ✅ 7/7 tasks - COMPLETE (integrated into Section Library)
 **Phase 6 (Playground Integration):** ✅ 6/8 tasks - IN PROGRESS (conversion lib complete, export working, iframe integration pending)
 **Phase 7 (Vercel AI SDK & Multi-Model):** ✅ 25/40 tasks - IN PROGRESS (Chat-based HTML generation complete with streaming, image analysis, and auto tab switching)
-**Phase 8 (Global CSS Integration):** ✅ 8/9 tasks - PARTIAL (8.1 & 8.2 complete: global CSS everywhere + variable autocomplete)
+**Phase 8 (Global CSS Integration):** ✅ 9/9 tasks - COMPLETE (global CSS in all previews, variable autocomplete, hot reload)
 **Phase 9 (GrapeJS Visual Editor & Mobile):** 🔄 54/76 tasks - IN PROGRESS (71% complete - Visual Editor + mobile chat/tabs/Visual Editor mobile done, Code Editor/Library/other views need mobile optimization)
 **Phase 10 (Testing & Polish):** ⬜️ 0/14 tasks - NOT STARTED
 
-**TOTAL:** 132/230 tasks completed (57%) 🎉 OVER HALFWAY!
+**TOTAL:** 136/230 tasks completed (59%) 🎉 OVER HALFWAY!
 
 ---
 

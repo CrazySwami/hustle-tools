@@ -14,13 +14,16 @@ export function StyleGuide() {
     error,
     themeName,
     themeVersion,
-    cssVariables
+    cssVariables,
+    lastUpdated
   } = useGlobalStylesheet();
 
   const [leftPanelWidth, setLeftPanelWidth] = useState(60); // percentage
   const [isResizing, setIsResizing] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSavedCss, setLastSavedCss] = useState(globalCss);
+  const [showUpdateNotification, setShowUpdateNotification] = useState(false);
+  const lastUpdateRef = useRef(lastUpdated);
 
   // Resize handlers
   const handleMouseDown = () => {
@@ -59,6 +62,21 @@ export function StyleGuide() {
   useEffect(() => {
     setHasUnsavedChanges(globalCss !== lastSavedCss);
   }, [globalCss, lastSavedCss]);
+
+  // Show notification when CSS updates (and propagates to previews)
+  useEffect(() => {
+    if (lastUpdated !== lastUpdateRef.current) {
+      lastUpdateRef.current = lastUpdated;
+      setShowUpdateNotification(true);
+
+      // Auto-hide after 3 seconds
+      const timer = setTimeout(() => {
+        setShowUpdateNotification(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [lastUpdated]);
 
   // Handlers
   const handlePullFromWordPress = async () => {
@@ -553,6 +571,43 @@ export function StyleGuide() {
           />
         </div>
       </div>
+
+      {/* Update Notification Toast */}
+      {showUpdateNotification && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          background: '#10b981',
+          color: '#ffffff',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          fontSize: '14px',
+          fontWeight: 500,
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          <span style={{ fontSize: '18px' }}>✓</span>
+          Previews updated with new stylesheet
+        </div>
+      )}
+
+      <style jsx>{`
+        @keyframes slideIn {
+          from {
+            transform: translateY(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
     </div>
   );
 }

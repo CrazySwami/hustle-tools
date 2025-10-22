@@ -1101,7 +1101,7 @@ export default function ElementorEditorPage() {
         {/* Status Indicator */}
         <div style={{
           position: 'fixed',
-          bottom: isMobile ? (chatDrawerOpen ? '70vh' : '60px') : 0,
+          bottom: isMobile ? (chatDrawerOpen ? '85vh' : '60px') : 0,
           left: !isMobile && chatVisible ? `${leftPanelWidth}%` : 0,
           right: 0,
           height: '32px',
@@ -1155,7 +1155,7 @@ export default function ElementorEditorPage() {
                 bottom: 0,
                 left: 0,
                 right: 0,
-                height: chatDrawerOpen ? '70vh' : '60px',
+                height: chatDrawerOpen ? '85vh' : '60px',
                 background: 'var(--background)',
                 borderTop: '1px solid var(--border)',
                 zIndex: 2000,
@@ -1198,7 +1198,7 @@ export default function ElementorEditorPage() {
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
-                  height: 'calc(70vh - 60px)' // Full drawer height minus handle
+                  height: 'calc(85vh - 60px)' // Full drawer height minus handle
                 }}>
                   <ElementorChat
                     messages={messages}

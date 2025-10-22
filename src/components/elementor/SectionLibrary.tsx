@@ -27,6 +27,7 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
   const [libraryTab, setLibraryTab] = useState<'sections' | 'style-kits'>('sections');
   const [isMobile, setIsMobile] = useState(false);
   const [isUpdatingPlayground, setIsUpdatingPlayground] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true); // Desktop sidebar visibility
 
   // Mobile detection
   useEffect(() => {

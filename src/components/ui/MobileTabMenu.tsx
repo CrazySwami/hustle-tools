@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { FileIcon, PaletteIcon, GlobeIcon, SettingsIcon, CodeIcon, EyeIcon } from '@/components/ui/icons';
+import { FileIcon, PaletteIcon, GlobeIcon, CodeIcon, EyeIcon, FileTextIcon } from '@/components/ui/icons';
 
 interface MobileTabMenuProps {
   activeTab: string;
@@ -31,12 +31,12 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady }: Mobil
   }, [isOpen]);
 
   const tabs = [
-    { id: 'json', label: 'Code Editor', icon: CodeIcon, enabled: true },
-    { id: 'sections', label: 'Section Library', icon: FileIcon, enabled: true },
-    { id: 'style-guide', label: 'Style Guide', icon: PaletteIcon, enabled: true },
-    { id: 'site-content', label: 'Site Content', icon: SettingsIcon, enabled: playgroundReady },
-    { id: 'visual', label: 'Visual Editor', icon: EyeIcon, enabled: false, mobileDisabled: true },
-    { id: 'playground', label: 'WordPress Playground', icon: GlobeIcon, enabled: false, mobileDisabled: true },
+    { id: 'json', label: 'Code Editor', icon: CodeIcon },
+    { id: 'visual', label: 'Visual Editor', icon: EyeIcon },
+    { id: 'sections', label: 'Section Library', icon: FileIcon },
+    { id: 'playground', label: 'WordPress Playground', icon: GlobeIcon },
+    { id: 'site-content', label: 'Site Content', icon: FileTextIcon },
+    { id: 'style-guide', label: 'Style Guide', icon: PaletteIcon },
   ];
 
   const activeTabData = tabs.find(t => t.id === activeTab);
@@ -89,18 +89,14 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady }: Mobil
           {tabs.map((tab, index) => {
             const Icon = tab.icon;
             const isActive = tab.id === activeTab;
-            const isDisabled = tab.mobileDisabled || !tab.enabled;
 
             return (
               <button
                 key={tab.id}
                 onClick={() => {
-                  if (!isDisabled) {
-                    onTabChange(tab.id);
-                    setIsOpen(false);
-                  }
+                  onTabChange(tab.id);
+                  setIsOpen(false);
                 }}
-                disabled={isDisabled}
                 style={{
                   width: '100%',
                   padding: '16px 20px',
@@ -110,8 +106,7 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady }: Mobil
                   background: isActive ? '#f3f4f6' : 'transparent',
                   border: 'none',
                   borderBottom: index < tabs.length - 1 ? '1px solid #e5e7eb' : 'none',
-                  cursor: isDisabled ? 'not-allowed' : 'pointer',
-                  opacity: isDisabled ? 0.4 : 1,
+                  cursor: 'pointer',
                   fontSize: '15px',
                   fontWeight: isActive ? 600 : 400,
                   color: isActive ? '#000000' : '#6b7280',
@@ -121,16 +116,6 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady }: Mobil
               >
                 <Icon size={20} />
                 <span>{tab.label}</span>
-                {tab.mobileDisabled && (
-                  <span style={{
-                    marginLeft: 'auto',
-                    fontSize: '11px',
-                    color: '#9ca3af',
-                    fontStyle: 'italic'
-                  }}>
-                    Desktop only
-                  </span>
-                )}
               </button>
             );
           })}

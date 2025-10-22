@@ -26,7 +26,7 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/source';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
-import { CopyIcon, RotateCcwIcon, GlobeIcon } from 'lucide-react';
+import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -377,7 +377,7 @@ export function ElementorChat({
             </PromptInputModelSelect>
           </PromptInputTools>
           <PromptInputSubmit disabled={isLoading || !input.trim()} status={status}>
-            {isLoading ? 'Sending...' : 'Send'}
+            <SendIcon size={16} />
           </PromptInputSubmit>
         </PromptInputToolbar>
       </PromptInput>

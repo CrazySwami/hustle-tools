@@ -520,9 +520,110 @@
 
 ---
 
-## ✅ Phase 9: Testing & Polish
+## ✅ Phase 9: GrapeJS Visual Editor & Mobile Optimization
 
-### 9.1 Workflow Testing
+### 9.1 GrapeJS Visual Editor Integration ✅ COMPLETE
+- [x] Install grapesjs and @grapesjs/react packages
+- [x] Create VisualSectionEditor component with 3-column layout
+- [x] Implement blocks panel (left) with drag-and-drop elements
+- [x] Configure GrapeJS canvas (center) with responsive preview
+- [x] Add styles panel (right) with property editors
+- [x] Integrate grapesjs-blocks-basic plugin for default blocks
+- [x] Add global CSS loading into GrapeJS canvas
+- [x] Implement bidirectional sync (Code ↔ Visual editors)
+- [x] Add navigation buttons between Code and Visual editors
+- [x] Create comprehensive documentation (docs/grapejs-visual-editor.md)
+
+### 9.2 CSS Cascade Inspector ✅ COMPLETE
+- [x] Create CSSCascadeInspector component (451 lines)
+- [x] Parse inline styles from selected component
+- [x] Parse class-based styles from GrapeJS CSS rules
+- [x] Parse global CSS and match to component
+- [x] Calculate CSS specificity for each rule
+- [x] Display cascade hierarchy (inline → class → global)
+- [x] Show computed final values
+- [x] Integrate inspector into Visual Editor right panel
+
+### 9.3 Performance Optimizations ✅ COMPLETE
+- [x] Add debounced update handler (1-second delay)
+- [x] Replace generic 'update' event with specific events
+- [x] Optimize React rendering with useCallback
+- [x] Prevent jittery re-renders during editing
+- [x] Smooth element selection and manipulation
+
+### 9.4 WordPress Import Enhancements ✅ COMPLETE
+- [x] Set section content_width to 'full' by default
+- [x] Set section padding to 0px all around
+- [x] Set section margin to 0px all around
+- [x] Set column padding to 0px all around
+- [x] Set column margin to 0px all around
+- [x] Apply to saveSectionToTemplateLibrary() function
+- [x] Apply to importHtmlSectionToPage() function
+
+### 9.5 Mobile Optimization 🔄 IN PROGRESS
+- [ ] **Bottom Chat Drawer (Mobile)**
+  - [ ] Swipeable drawer from bottom (like native apps)
+  - [ ] Collapsed state: 60px handle with "Chat" button
+  - [ ] Expanded state: 70vh height with chat interface
+  - [ ] Smooth slide-up/down animation
+  - [ ] Touch-friendly drag handle
+  - [ ] Auto-collapse when switching tabs
+
+- [ ] **Simplified Mobile Tabs**
+  - [ ] Horizontal scrolling tabs at top
+  - [ ] Larger touch targets (min 44px height)
+  - [ ] Abbreviated labels for space (e.g., "Code" not "Code Editor")
+  - [ ] Visual active indicator
+  - [ ] Snap-to-tab scrolling
+  - [ ] Icon + text for clarity
+
+- [ ] **Mobile-Optimized Views**
+  - [ ] Code Editor: Full-screen Monaco on mobile, hide settings panel
+  - [ ] Visual Editor: Stack blocks panel above canvas (not side-by-side)
+  - [ ] Section Library: Grid → single column list
+  - [ ] WordPress Playground: Full-screen iframe
+  - [ ] Site Content: Stacked form fields
+  - [ ] Style Guide: Single column layout
+
+- [ ] **Touch Interactions**
+  - [ ] Add touch-friendly buttons (min 44x44px)
+  - [ ] Larger drag handles for section reordering
+  - [ ] Swipe gestures for tab navigation
+  - [ ] Pull-to-refresh for WordPress sync
+  - [ ] Long-press for context menus
+
+- [ ] **Responsive Breakpoints**
+  - [ ] Mobile: < 768px (current implementation)
+  - [ ] Tablet: 768px - 1024px
+  - [ ] Desktop: > 1024px
+  - [ ] Apply different layouts per breakpoint
+
+- [ ] **Mobile Status Bar**
+  - [ ] Fixed top bar with current tab name
+  - [ ] Back button to close chat/panels
+  - [ ] WordPress status indicator
+  - [ ] Settings/menu button
+
+### 9.6 Documentation Updates ✅ COMPLETE
+- [x] Update CLAUDE.md with GrapeJS features
+- [x] Update CLAUDE.md with branching strategy
+- [x] Create comprehensive GrapeJS documentation
+- [x] Document WordPress import defaults
+- [x] Add mobile optimization notes (this section)
+
+### 9.7 Branch Management & CI/CD ✅ COMPLETE
+- [x] Create GitHub Actions auto-merge workflow
+- [x] Configure workflow for claude/grapejs-* branches
+- [x] Test auto-merge to development
+- [x] Delete obsolete html-only-no-elementor branch
+
+**Phase 9 Progress:** 35/56 tasks completed (62%)
+
+---
+
+## ⏳ Phase 10: Testing & Polish (formerly Phase 9)
+
+### 10.1 Workflow Testing
 - [ ] Test: Generate HTML → Save as Section → Edit → Preview in Playground
 - [ ] Test: Create multiple sections → Reorder → Preview all in Playground
 - [ ] Test: Edit global stylesheet → See changes in section previews
@@ -561,9 +662,10 @@
 **Phase 6 (Playground Integration):** ✅ 6/8 tasks - IN PROGRESS (conversion lib complete, export working, iframe integration pending)
 **Phase 7 (Vercel AI SDK & Multi-Model):** ✅ 25/40 tasks - IN PROGRESS (Chat-based HTML generation complete with streaming, image analysis, and auto tab switching)
 **Phase 8 (Global CSS Integration):** ✅ 3/9 tasks - PARTIAL (global CSS working in previews)
-**Phase 9 (Testing):** ⬜️ 0/14 tasks
+**Phase 9 (GrapeJS Visual Editor & Mobile):** 🔄 35/56 tasks - IN PROGRESS (Visual Editor complete, mobile optimization in progress)
+**Phase 10 (Testing & Polish):** ⬜️ 0/14 tasks - NOT STARTED
 
-**TOTAL:** 73/154 tasks completed (47%)
+**TOTAL:** 108/210 tasks completed (51%) 🎉 OVER HALFWAY!
 
 ---
 

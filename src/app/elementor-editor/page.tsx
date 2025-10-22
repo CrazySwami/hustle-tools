@@ -702,8 +702,7 @@ export default function ElementorEditorPage() {
       {/* Main container - using exact class names from original CSS */}
       <div className="chat-editor-container" style={{
         marginTop: '64px',
-        height: 'calc(100vh - 64px)',
-        paddingBottom: isMobile ? '60px' : '0'
+        height: 'calc(100vh - 64px)'
       }}>
         {/* Desktop: Left Panel Chat */}
         {!isMobile && chatVisible && (
@@ -784,26 +783,20 @@ export default function ElementorEditorPage() {
               <GlobeIcon size={16} /> {isMobile ? 'WP' : 'WordPress Playground'}
             </div>
             <div
-              className={`tab ${activeTab === 'site-content' ? 'active' : ''} ${!playgroundReady ? 'disabled' : ''}`}
-              onClick={() => playgroundReady && setActiveTab('site-content')}
+              className={`tab ${activeTab === 'site-content' ? 'active' : ''}`}
+              onClick={() => setActiveTab('site-content')}
               style={{
-                opacity: playgroundReady ? 1 : 0.5,
-                cursor: playgroundReady ? 'pointer' : 'not-allowed',
                 whiteSpace: 'nowrap'
               }}
-              title={!playgroundReady ? 'Waiting for WordPress Playground to initialize...' : ''}
             >
               <SettingsIcon size={16} /> {isMobile ? 'Content' : 'Site Content'}
             </div>
             <div
-              className={`tab ${activeTab === 'style-guide' ? 'active' : ''} ${!playgroundReady ? 'disabled' : ''}`}
-              onClick={() => playgroundReady && setActiveTab('style-guide')}
+              className={`tab ${activeTab === 'style-guide' ? 'active' : ''}`}
+              onClick={() => setActiveTab('style-guide')}
               style={{
-                opacity: playgroundReady ? 1 : 0.5,
-                cursor: playgroundReady ? 'pointer' : 'not-allowed',
                 whiteSpace: 'nowrap'
               }}
-              title={!playgroundReady ? 'Waiting for WordPress Playground to initialize...' : ''}
             >
               <PaletteIcon size={16} /> {isMobile ? 'Styles' : 'Style Guide'}
             </div>
@@ -920,35 +913,6 @@ export default function ElementorEditorPage() {
           </div>
         </div>
 
-        {/* Status Indicator */}
-        <div style={{
-          position: 'fixed',
-          bottom: isMobile ? (chatDrawerOpen ? '70vh' : '60px') : 0,
-          left: !isMobile && chatVisible ? `${leftPanelWidth}%` : 0,
-          right: 0,
-          height: '32px',
-          background: playgroundReady ? '#10b98133' : '#f59e0b33',
-          borderTop: `1px solid ${playgroundReady ? '#10b981' : '#f59e0b'}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '12px',
-          fontWeight: 500,
-          color: playgroundReady ? '#10b981' : '#f59e0b',
-          zIndex: 1000,
-          transition: 'all 0.3s ease'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: playgroundReady ? '#10b981' : '#f59e0b',
-              animation: playgroundReady ? 'none' : 'pulse 2s infinite'
-            }} />
-            {!isMobile && (playgroundReady ? 'WordPress Playground Ready' : 'Initializing WordPress Playground...')}
-          </div>
-        </div>
 
         {/* Mobile: Chat Drawer */}
         {isMobile && (

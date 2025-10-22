@@ -7,9 +7,12 @@ interface MobileTabMenuProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   playgroundReady: boolean;
+  chatVisible?: boolean;
+  leftPanelWidth?: number;
+  isMobile?: boolean;
 }
 
-export function MobileTabMenu({ activeTab, onTabChange, playgroundReady }: MobileTabMenuProps) {
+export function MobileTabMenu({ activeTab, onTabChange, playgroundReady, chatVisible = false, leftPanelWidth = 25, isMobile = false }: MobileTabMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -32,14 +35,16 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady }: Mobil
 
   const tabs = [
     { id: 'json', label: 'Code Editor', icon: CodeIcon },
-    { id: 'visual', label: 'Visual Editor', icon: EyeIcon },
     { id: 'sections', label: 'Section Library', icon: FileIcon },
     { id: 'playground', label: 'WordPress Playground', icon: GlobeIcon },
-    { id: 'site-content', label: 'Site Content', icon: FileTextIcon },
-    { id: 'style-guide', label: 'Style Guide', icon: PaletteIcon },
+    { id: 'site-content', label: 'Site Content', icon: FileTextIcon, disabled: !playgroundReady },
+    { id: 'style-guide', label: 'Style Guide', icon: PaletteIcon, disabled: !playgroundReady },
   ];
 
   const activeTabData = tabs.find(t => t.id === activeTab);
+
+  // Calculate left position based on chat visibility (desktop only)
+  const buttonLeft = isMobile || !chatVisible ? '20px' : `calc(${leftPanelWidth}% + 20px)`;
 
   return (
     <div ref={menuRef} style={{ position: 'relative' }}>
@@ -48,8 +53,8 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady }: Mobil
         onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'fixed',
-          bottom: '80px', // Above chat drawer
-          left: '20px',
+          bottom: isMobile ? '20px' : '20px',
+          left: buttonLeft,
           width: '56px',
           height: '56px',
           borderRadius: '50%',
@@ -62,7 +67,7 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady }: Mobil
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 9998,
+          zIndex: 50, // Below chat (3000) but above content
           transition: 'all 0.2s ease'
         }}
         aria-label="Open tab menu"
@@ -75,43 +80,59 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady }: Mobil
         <div
           style={{
             position: 'fixed',
-            bottom: '145px', // Above the button
-            left: '20px',
-            background: '#ffffff',
+            bottom: '85px', // Above the button
+            left: buttonLeft,
+            background: 'var(--card)',
             borderRadius: '12px',
             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
             minWidth: '220px',
-            zIndex: 9999,
+            zIndex: 51, // Just above button
             animation: 'slideUp 0.2s ease-out',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            border: '1px solid var(--border)'
           }}
         >
           {tabs.map((tab, index) => {
             const Icon = tab.icon;
             const isActive = tab.id === activeTab;
+            const isDisabled = tab.disabled || false;
 
             return (
               <button
                 key={tab.id}
                 onClick={() => {
-                  onTabChange(tab.id);
-                  setIsOpen(false);
+                  if (!isDisabled) {
+                    onTabChange(tab.id);
+                    setIsOpen(false);
+                  }
                 }}
+                disabled={isDisabled}
                 style={{
                   width: '100%',
                   padding: '16px 20px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px',
-                  background: isActive ? '#f3f4f6' : 'transparent',
+                  background: isActive ? 'var(--muted)' : 'transparent',
                   border: 'none',
-                  borderBottom: index < tabs.length - 1 ? '1px solid #e5e7eb' : 'none',
-                  cursor: 'pointer',
+                  borderBottom: index < tabs.length - 1 ? '1px solid var(--border)' : 'none',
+                  cursor: isDisabled ? 'not-allowed' : 'pointer',
                   fontSize: '15px',
                   fontWeight: isActive ? 600 : 400,
-                  color: isActive ? '#000000' : '#6b7280',
+                  color: isDisabled ? 'var(--muted-foreground)' : (isActive ? 'var(--foreground)' : 'var(--muted-foreground)'),
                   textAlign: 'left',
+                  opacity: isDisabled ? 0.5 : 1,
                   transition: 'background 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isDisabled && !isActive) {
+                    e.currentTarget.style.background = 'var(--muted)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'transparent';
+                  }
                 }}
               >
                 <Icon size={20} />

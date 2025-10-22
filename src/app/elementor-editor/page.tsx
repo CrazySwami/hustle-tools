@@ -1246,6 +1246,9 @@ export default function ElementorEditorPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         playgroundReady={playgroundReady}
+        chatVisible={chatVisible}
+        leftPanelWidth={leftPanelWidth}
+        isMobile={isMobile}
       />
 
       {/* Keyboard Shortcuts Help Button - Desktop Only */}

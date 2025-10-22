@@ -38,7 +38,6 @@ export function Navbar() {
     { href: "/firecrawl", label: "Firecrawl" },
     { href: "/image-alterations", label: "Image Alterations" },
     { href: "/chat", label: "Chat" },
-    { href: "/chat-doc-editor", label: "Doc Editor" },
     { href: "/editor", label: "Editor" },
     { href: "/elementor-editor", label: "Elementor" },
   ];
@@ -83,9 +82,9 @@ export function Navbar() {
                 width: '44px',
                 height: '44px',
                 borderRadius: '6px',
-                background: menuOpen ? '#000000' : 'transparent',
-                color: menuOpen ? '#ffffff' : '#000000',
-                border: '1px solid #e5e7eb',
+                background: menuOpen ? '#000000' : 'var(--muted)',
+                color: menuOpen ? '#ffffff' : 'var(--foreground)',
+                border: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -105,13 +104,14 @@ export function Navbar() {
                   position: 'absolute',
                   top: '50px',
                   right: '0',
-                  background: '#ffffff',
+                  background: 'var(--card)',
                   borderRadius: '8px',
                   boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
                   minWidth: '200px',
                   overflow: 'hidden',
                   animation: 'slideDown 0.2s ease-out',
-                  zIndex: 100
+                  zIndex: 100,
+                  border: '1px solid var(--border)'
                 }}
               >
                 {navLinks.map((link, index) => (
@@ -124,13 +124,13 @@ export function Navbar() {
                       padding: '14px 20px',
                       fontSize: '15px',
                       fontWeight: 500,
-                      color: '#374151',
+                      color: 'var(--foreground)',
                       textDecoration: 'none',
-                      borderBottom: index < navLinks.length - 1 ? '1px solid #e5e7eb' : 'none',
+                      borderBottom: index < navLinks.length - 1 ? '1px solid var(--border)' : 'none',
                       transition: 'background 0.15s ease'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#f3f4f6';
+                      e.currentTarget.style.background = 'var(--muted)';
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background = 'transparent';

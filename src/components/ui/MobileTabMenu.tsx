@@ -37,8 +37,8 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady, chatVis
     { id: 'json', label: 'Code Editor', icon: CodeIcon },
     { id: 'sections', label: 'Section Library', icon: FileIcon },
     { id: 'playground', label: 'WordPress Playground', icon: GlobeIcon },
-    { id: 'site-content', label: 'Site Content', icon: FileTextIcon, disabled: !playgroundReady },
-    { id: 'style-guide', label: 'Style Guide', icon: PaletteIcon, disabled: !playgroundReady },
+    { id: 'site-content', label: 'Site Content', icon: FileTextIcon },
+    { id: 'style-guide', label: 'Style Guide', icon: PaletteIcon },
   ];
 
   const activeTabData = tabs.find(t => t.id === activeTab);
@@ -58,15 +58,17 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady, chatVis
           width: '56px',
           height: '56px',
           borderRadius: '50%',
-          background: '#000000',
-          color: '#ffffff',
-          border: 'none',
+          background: isOpen ? 'var(--foreground)' : 'var(--muted)',
+          color: isOpen ? 'var(--background)' : 'var(--foreground)',
+          border: '1px solid var(--border)',
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
           cursor: 'pointer',
           fontSize: '24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          padding: '0',
+          lineHeight: '1',
           zIndex: 50, // Below chat (3000) but above content
           transition: 'all 0.2s ease'
         }}
@@ -95,18 +97,14 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady, chatVis
           {tabs.map((tab, index) => {
             const Icon = tab.icon;
             const isActive = tab.id === activeTab;
-            const isDisabled = tab.disabled || false;
 
             return (
               <button
                 key={tab.id}
                 onClick={() => {
-                  if (!isDisabled) {
-                    onTabChange(tab.id);
-                    setIsOpen(false);
-                  }
+                  onTabChange(tab.id);
+                  setIsOpen(false);
                 }}
-                disabled={isDisabled}
                 style={{
                   width: '100%',
                   padding: '16px 20px',
@@ -116,16 +114,15 @@ export function MobileTabMenu({ activeTab, onTabChange, playgroundReady, chatVis
                   background: isActive ? 'var(--muted)' : 'transparent',
                   border: 'none',
                   borderBottom: index < tabs.length - 1 ? '1px solid var(--border)' : 'none',
-                  cursor: isDisabled ? 'not-allowed' : 'pointer',
+                  cursor: 'pointer',
                   fontSize: '15px',
                   fontWeight: isActive ? 600 : 400,
-                  color: isDisabled ? 'var(--muted-foreground)' : (isActive ? 'var(--foreground)' : 'var(--muted-foreground)'),
+                  color: isActive ? 'var(--foreground)' : 'var(--muted-foreground)',
                   textAlign: 'left',
-                  opacity: isDisabled ? 0.5 : 1,
                   transition: 'background 0.15s ease'
                 }}
                 onMouseEnter={(e) => {
-                  if (!isDisabled && !isActive) {
+                  if (!isActive) {
                     e.currentTarget.style.background = 'var(--muted)';
                   }
                 }}

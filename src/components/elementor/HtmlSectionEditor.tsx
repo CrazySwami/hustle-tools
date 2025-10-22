@@ -192,7 +192,7 @@ export function HtmlSectionEditor({
     }}>
       {/* Floating Circle Options Button */}
       <div ref={menuRef} style={{
-        position: 'fixed',
+        position: 'absolute',
         bottom: '80px',
         left: '20px',
         zIndex: 100
@@ -985,7 +985,7 @@ export function HtmlSectionEditor({
       {/* Save to Library Dialog */}
       {showSaveDialog && (
         <div style={{
-          position: 'fixed',
+          position: 'absolute',
           top: 0,
           left: 0,
           right: 0,

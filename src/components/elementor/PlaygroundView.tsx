@@ -225,7 +225,7 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
     <div className="playground-container" id="playgroundContainer" style={{ position: 'relative', height: '100%' }}>
       {/* Floating Circle Options Button - All Screen Sizes */}
       <div ref={menuRef} style={{
-        position: 'fixed',
+        position: 'absolute',
         bottom: '80px', // Above tab menu (which is at ~20px)
         left: '20px',
         zIndex: 100

@@ -170,7 +170,7 @@ export function HtmlSectionEditor({
     }}>
       {/* Top Bar */}
       <div style={{
-        padding: isMobile ? '8px 12px' : '12px 16px',
+        padding: isMobile ? '6px 12px' : '8px 12px',
         background: '#f9fafb',
         borderBottom: '1px solid #e5e7eb',
         display: 'flex',

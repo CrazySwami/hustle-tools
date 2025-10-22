@@ -24,6 +24,9 @@ import { GlobalStylesheetProvider } from '@/lib/global-stylesheet-context';
 import { ToastContainer } from '@/components/ui/Toast';
 import { useToastListener } from '@/hooks/useToast';
 import type { Toast } from '@/components/ui/Toast';
+import { KeyboardShortcutsModal, type KeyboardShortcut } from '@/components/ui/KeyboardShortcutsModal';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useToast } from '@/hooks/useToast';
 
 const SAMPLE_JSON = {
   widgetType: "custom_html_section",
@@ -81,6 +84,8 @@ export default function ElementorEditorPage() {
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+  const toast = useToast();
 
   // Toast listener
   useEffect(() => {
@@ -165,6 +170,137 @@ export default function ElementorEditorPage() {
       document.body.style.cursor = '';
     };
   }, [isResizing]);
+
+  // Define all keyboard shortcuts
+  const keyboardShortcuts: KeyboardShortcut[] = [
+    // Help & Navigation
+    { key: '?', description: 'Show keyboard shortcuts', category: 'Help & Navigation' },
+    { key: 'k', modifiers: ['ctrl'], description: 'Show keyboard shortcuts', category: 'Help & Navigation' },
+    { key: 'b', modifiers: ['ctrl'], description: 'Toggle chat panel', category: 'Help & Navigation' },
+    { key: '1', modifiers: ['ctrl'], description: 'Go to Code Editor', category: 'Help & Navigation' },
+    { key: '2', modifiers: ['ctrl'], description: 'Go to Visual Editor', category: 'Help & Navigation' },
+    { key: '3', modifiers: ['ctrl'], description: 'Go to Section Library', category: 'Help & Navigation' },
+    { key: '4', modifiers: ['ctrl'], description: 'Go to WordPress Playground', category: 'Help & Navigation' },
+    { key: '5', modifiers: ['ctrl'], description: 'Go to Site Content', category: 'Help & Navigation' },
+    { key: '6', modifiers: ['ctrl'], description: 'Go to Style Guide', category: 'Help & Navigation' },
+
+    // Editing
+    { key: 's', modifiers: ['ctrl'], description: 'Save current section', category: 'Editing' },
+    { key: 'z', modifiers: ['ctrl'], description: 'Undo', category: 'Editing' },
+    { key: 'y', modifiers: ['ctrl'], description: 'Redo', category: 'Editing' },
+    { key: 'z', modifiers: ['ctrl', 'shift'], description: 'Redo (alternative)', category: 'Editing' },
+
+    // Preview & WordPress
+    { key: 'p', modifiers: ['ctrl'], description: 'Preview in WordPress', category: 'Preview & WordPress' },
+    { key: 'u', modifiers: ['ctrl'], description: 'Update Playground preview', category: 'Preview & WordPress' },
+
+    // Mobile
+    { key: 'm', modifiers: ['ctrl'], description: 'Toggle mobile chat drawer', category: 'Mobile' },
+  ];
+
+  // Keyboard shortcuts handlers
+  useKeyboardShortcuts([
+    {
+      key: '?',
+      handler: () => setShortcutsModalOpen(true)
+    },
+    {
+      key: 'k',
+      modifiers: ['ctrl'],
+      handler: () => setShortcutsModalOpen(true)
+    },
+    {
+      key: 'b',
+      modifiers: ['ctrl'],
+      handler: () => {
+        if (!isMobile) {
+          setChatVisible(prev => !prev);
+          toast.info(chatVisible ? 'Chat panel hidden' : 'Chat panel shown');
+        }
+      }
+    },
+    {
+      key: '1',
+      modifiers: ['ctrl'],
+      handler: () => {
+        setActiveTab('json');
+        toast.info('Switched to Code Editor');
+      }
+    },
+    {
+      key: '2',
+      modifiers: ['ctrl'],
+      handler: () => {
+        setActiveTab('visual');
+        toast.info('Switched to Visual Editor');
+      }
+    },
+    {
+      key: '3',
+      modifiers: ['ctrl'],
+      handler: () => {
+        setActiveTab('sections');
+        toast.info('Switched to Section Library');
+      }
+    },
+    {
+      key: '4',
+      modifiers: ['ctrl'],
+      handler: () => {
+        setActiveTab('playground');
+        toast.info('Switched to WordPress Playground');
+      }
+    },
+    {
+      key: '5',
+      modifiers: ['ctrl'],
+      handler: () => {
+        if (playgroundReady) {
+          setActiveTab('site-content');
+          toast.info('Switched to Site Content');
+        } else {
+          toast.warning('Launch WordPress Playground first');
+        }
+      }
+    },
+    {
+      key: '6',
+      modifiers: ['ctrl'],
+      handler: () => {
+        setActiveTab('style-guide');
+        toast.info('Switched to Style Guide');
+      }
+    },
+    {
+      key: 'z',
+      modifiers: ['ctrl'],
+      handler: () => {
+        if (canUndo) {
+          undo();
+          toast.success('Undo');
+        }
+      }
+    },
+    {
+      key: 'y',
+      modifiers: ['ctrl'],
+      handler: () => {
+        if (canRedo) {
+          redo();
+          toast.success('Redo');
+        }
+      }
+    },
+    {
+      key: 'm',
+      modifiers: ['ctrl'],
+      handler: () => {
+        if (isMobile) {
+          setChatDrawerOpen(prev => !prev);
+        }
+      }
+    }
+  ]);
 
   const handleSendMessage = async (content: string, imageData?: { url: string; filename: string }, settings?: { webSearchEnabled: boolean; reasoningEffort: string; detailedMode?: boolean }) => {
     if (!content.trim() || isLoading) return;
@@ -1093,6 +1229,48 @@ export default function ElementorEditorPage() {
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
+
+      {/* Keyboard Shortcuts Help Button */}
+      <button
+        onClick={() => setShortcutsModalOpen(true)}
+        style={{
+          position: 'fixed',
+          bottom: isMobile ? '80px' : '20px',
+          right: '20px',
+          width: '48px',
+          height: '48px',
+          borderRadius: '50%',
+          background: '#3b82f6',
+          color: '#ffffff',
+          border: 'none',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
+          cursor: 'pointer',
+          fontSize: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9998,
+          transition: 'all 0.2s ease'
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.transform = 'scale(1.1)';
+          e.currentTarget.style.background = '#2563eb';
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.background = '#3b82f6';
+        }}
+        title="Keyboard shortcuts (? or Ctrl+K)"
+      >
+        ⌨️
+      </button>
+
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={shortcutsModalOpen}
+        onClose={() => setShortcutsModalOpen(false)}
+        shortcuts={keyboardShortcuts}
+      />
       </>
     </GlobalStylesheetProvider>
   );

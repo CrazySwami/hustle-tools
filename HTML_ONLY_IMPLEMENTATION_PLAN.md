@@ -561,25 +561,25 @@
 - [x] Apply to importHtmlSectionToPage() function
 
 ### 9.5 Mobile Optimization 🔄 IN PROGRESS
-- [ ] **Bottom Chat Drawer (Mobile)**
-  - [ ] Swipeable drawer from bottom (like native apps)
-  - [ ] Collapsed state: 60px handle with "Chat" button
-  - [ ] Expanded state: 70vh height with chat interface
-  - [ ] Smooth slide-up/down animation
-  - [ ] Touch-friendly drag handle
-  - [ ] Auto-collapse when switching tabs
+- [x] **Bottom Chat Drawer (Mobile)** ✅ COMPLETE
+  - [x] Swipeable drawer from bottom (like native apps)
+  - [x] Collapsed state: 60px handle with "Chat" button
+  - [x] Expanded state: 70vh height with chat interface
+  - [x] Smooth slide-up/down animation
+  - [x] Touch-friendly drag handle
+  - [x] Auto-collapse when switching tabs
 
-- [ ] **Simplified Mobile Tabs**
-  - [ ] Horizontal scrolling tabs at top
-  - [ ] Larger touch targets (min 44px height)
-  - [ ] Abbreviated labels for space (e.g., "Code" not "Code Editor")
-  - [ ] Visual active indicator
-  - [ ] Snap-to-tab scrolling
-  - [ ] Icon + text for clarity
+- [x] **Simplified Mobile Tabs** ✅ COMPLETE
+  - [x] Horizontal scrolling tabs at top
+  - [x] Larger touch targets (min 44px height)
+  - [x] Abbreviated labels for space (e.g., "Code" not "Code Editor")
+  - [x] Visual active indicator
+  - [x] Snap-to-tab scrolling
+  - [x] Icon + text for clarity
 
 - [ ] **Mobile-Optimized Views**
   - [ ] Code Editor: Full-screen Monaco on mobile, hide settings panel
-  - [ ] Visual Editor: Stack blocks panel above canvas (not side-by-side)
+  - [x] Visual Editor: Collapsible blocks dropdown + bottom sheet styles ✅
   - [ ] Section Library: Grid → single column list
   - [ ] WordPress Playground: Full-screen iframe
   - [ ] Site Content: Stacked form fields
@@ -617,7 +617,7 @@
 - [x] Test auto-merge to development
 - [x] Delete obsolete html-only-no-elementor branch
 
-**Phase 9 Progress:** 35/56 tasks completed (62%)
+**Phase 9 Progress:** 54/76 tasks completed (71%)
 
 ---
 
@@ -662,10 +662,10 @@
 **Phase 6 (Playground Integration):** ✅ 6/8 tasks - IN PROGRESS (conversion lib complete, export working, iframe integration pending)
 **Phase 7 (Vercel AI SDK & Multi-Model):** ✅ 25/40 tasks - IN PROGRESS (Chat-based HTML generation complete with streaming, image analysis, and auto tab switching)
 **Phase 8 (Global CSS Integration):** ✅ 3/9 tasks - PARTIAL (global CSS working in previews)
-**Phase 9 (GrapeJS Visual Editor & Mobile):** 🔄 35/56 tasks - IN PROGRESS (Visual Editor complete, mobile optimization in progress)
+**Phase 9 (GrapeJS Visual Editor & Mobile):** 🔄 54/76 tasks - IN PROGRESS (71% complete - Visual Editor + mobile chat/tabs/Visual Editor mobile done, Code Editor/Library/other views need mobile optimization)
 **Phase 10 (Testing & Polish):** ⬜️ 0/14 tasks - NOT STARTED
 
-**TOTAL:** 108/210 tasks completed (51%) 🎉 OVER HALFWAY!
+**TOTAL:** 127/230 tasks completed (55%) 🎉 OVER HALFWAY!
 
 ---
 

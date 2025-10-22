@@ -7,6 +7,7 @@ import { PageSplitter } from './PageSplitter';
 import { StyleKitViewer } from './StyleKitViewer';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import { sectionsToElementorTemplate, generateSectionsPreviewHTML } from '@/lib/section-to-elementor';
+import { useToast } from '@/hooks/useToast';
 
 interface SectionLibraryProps {
   onExportToPlayground?: (sections: Section[]) => void;
@@ -15,6 +16,7 @@ interface SectionLibraryProps {
 
 export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: SectionLibraryProps) {
   const { globalCss, lastUpdated } = useGlobalStylesheet();
+  const toast = useToast();
   const [sections, setSections] = useState<Section[]>([]);
   const [styleKits, setStyleKits] = useState<StyleKit[]>([]);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
@@ -230,14 +232,14 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
   // Update WordPress Playground with all sections (live preview)
   const updatePlaygroundPreview = async () => {
     if (sections.length === 0) {
-      alert('No sections to preview');
+      toast.warning('No sections to preview');
       return;
     }
 
     try {
       // Check if playground function exists
       if (typeof window === 'undefined' || !(window as any).updateAllSectionsPreview) {
-        alert('❌ WordPress Playground not available. Please launch it first from the WordPress Playground tab.');
+        toast.error('WordPress Playground not available. Please launch it first from the WordPress Playground tab.');
         return;
       }
 
@@ -245,11 +247,11 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
       const result = await (window as any).updateAllSectionsPreview(sections, globalCss);
 
       if (result.success) {
-        alert(`✅ Preview updated!\n\n${result.sectionsCount} section(s) sent to WordPress Playground.\n\nThe preview page is now open in the WordPress tab.`);
+        toast.success(`Preview updated with ${result.sectionsCount} section(s)!\n\nThe preview page is now open in the WordPress tab.`);
       }
     } catch (error: any) {
       console.error('Update playground preview error:', error);
-      alert(`❌ Failed to update preview: ${error.message || 'Unknown error'}`);
+      toast.error(`Failed to update preview: ${error.message || 'Unknown error'}`);
     }
   };
 

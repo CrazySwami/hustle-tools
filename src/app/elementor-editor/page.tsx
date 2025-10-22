@@ -21,6 +21,9 @@ import { Section } from '@/lib/section-schema';
 import { FileIcon, PaletteIcon, ArrowRightIcon, GlobeIcon, SettingsIcon, XIcon, CodeIcon, EyeIcon } from '@/components/ui/icons';
 import Script from 'next/script';
 import { GlobalStylesheetProvider } from '@/lib/global-stylesheet-context';
+import { ToastContainer } from '@/components/ui/Toast';
+import { useToastListener } from '@/hooks/useToast';
+import type { Toast } from '@/components/ui/Toast';
 
 const SAMPLE_JSON = {
   widgetType: "custom_html_section",
@@ -77,6 +80,18 @@ export default function ElementorEditorPage() {
   const [loadedSection, setLoadedSection] = useState<Section | null>(null);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Toast listener
+  useEffect(() => {
+    return useToastListener((toast) => {
+      setToasts(prev => [...prev, toast]);
+    });
+  }, []);
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   // Detect mobile on mount
   useEffect(() => {
@@ -1075,6 +1090,9 @@ export default function ElementorEditorPage() {
           50% { opacity: 0.5; }
         }
       `}</style>
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
       </>
     </GlobalStylesheetProvider>
   );

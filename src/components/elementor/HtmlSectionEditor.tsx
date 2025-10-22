@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import {
   Section,
@@ -42,6 +42,8 @@ export function HtmlSectionEditor({
   const [showSettings, setShowSettings] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { globalCss, cssVariables } = useGlobalStylesheet();
   const { theme } = useTheme();
 
@@ -55,6 +57,23 @@ export function HtmlSectionEditor({
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Close menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen]);
 
   // Debug: Log when component mounts/remounts
   useEffect(() => {
@@ -168,10 +187,164 @@ export function HtmlSectionEditor({
       flexDirection: 'column',
       height: '100%',
       width: '100%',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'relative'
     }}>
-      {/* Top Bar */}
-<div style={{
+      {/* Floating Circle Options Button */}
+      <div ref={menuRef} style={{
+        position: 'fixed',
+        bottom: '80px',
+        left: '20px',
+        zIndex: 100
+      }}>
+        <button
+          onClick={() => setMenuOpen(!menuOpen)}
+          style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            background: menuOpen ? '#000000' : 'var(--card)',
+            border: '2px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            fontSize: '24px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            transition: 'all 0.2s ease',
+            color: menuOpen ? '#ffffff' : 'var(--foreground)'
+          }}
+          onMouseEnter={(e) => {
+            if (!menuOpen) {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+          }}
+        >
+          ⋮
+        </button>
+
+        {/* Dropdown Menu */}
+        {menuOpen && (
+          <div style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 8px)',
+            left: 0,
+            background: 'var(--card)',
+            borderRadius: '8px',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            minWidth: '200px',
+            zIndex: 1000,
+            overflow: 'hidden',
+            border: '1px solid var(--border)',
+            animation: 'slideUp 0.2s ease-out'
+          }}>
+            <button
+              onClick={() => {
+                setShowSaveDialog(true);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: '1px solid var(--border)',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: 'var(--foreground)',
+                textAlign: 'left',
+                transition: 'background 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--muted)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{ fontSize: '16px' }}>💾</span>
+              <span>Save to Library</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setShowSettings(!showSettings);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: '1px solid var(--border)',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: 'var(--foreground)',
+                textAlign: 'left',
+                transition: 'background 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--muted)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{ fontSize: '16px' }}>⚙️</span>
+              <span>{showSettings ? '✓ ' : ''}Settings</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setShowPreview(!showPreview);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: 'var(--foreground)',
+                textAlign: 'left',
+                transition: 'background 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--muted)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{ fontSize: '16px' }}>👁️</span>
+              <span>{showPreview ? '✓ ' : ''}Preview</span>
+            </button>
+          </div>
+        )}
+
+        <style jsx global>{`
+          @keyframes slideUp {
+            from {
+              transform: translateY(10px);
+              opacity: 0;
+            }
+            to {
+              transform: translateY(0);
+              opacity: 1;
+            }
+          }
+        `}</style>
+      </div>
+
+      {/* Top Bar - HIDDEN */}
+      {false && (
+      <div style={{
         padding: isMobile ? '6px 12px' : '8px 12px',
         background: 'var(--muted)',
         borderBottom: '1px solid var(--border)',
@@ -339,6 +512,7 @@ export function HtmlSectionEditor({
           )}
         </div>
       </div>
+      )}
 
       {/* Main Content Area */}
       <div style={{

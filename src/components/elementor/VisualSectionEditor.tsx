@@ -40,6 +40,10 @@ export function VisualSectionEditor({
   const [blocksOpen, setBlocksOpen] = useState(false);
   const [stylesOpen, setStylesOpen] = useState(false);
 
+  // Desktop panel visibility
+  const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
+  const [rightSidebarVisible, setRightSidebarVisible] = useState(true);
+
   // Detect mobile
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -257,18 +261,40 @@ ${html}
             </button>
           )}
 
-          {/* Desktop: Inspector Toggle */}
+          {/* Desktop: Panel Toggles */}
           {!isMobile && (
-            <button
-              onClick={() => setInspectorVisible(!inspectorVisible)}
-              className={`btn-secondary flex items-center gap-2 text-sm ${
-                inspectorVisible ? 'bg-primary/10' : ''
-              }`}
-              title={inspectorVisible ? 'Hide Inspector' : 'Show Inspector'}
-            >
-              <EyeIcon size={16} />
-              Inspector
-            </button>
+            <>
+              <button
+                onClick={() => setLeftSidebarVisible(!leftSidebarVisible)}
+                className={`btn-secondary flex items-center gap-2 text-sm ${
+                  leftSidebarVisible ? 'bg-primary/10' : ''
+                }`}
+                title={leftSidebarVisible ? 'Hide Blocks Panel' : 'Show Blocks Panel'}
+              >
+                <span className="text-lg">+</span>
+                {leftSidebarVisible ? '' : 'Blocks'}
+              </button>
+              <button
+                onClick={() => setRightSidebarVisible(!rightSidebarVisible)}
+                className={`btn-secondary flex items-center gap-2 text-sm ${
+                  rightSidebarVisible ? 'bg-primary/10' : ''
+                }`}
+                title={rightSidebarVisible ? 'Hide Styles Panel' : 'Show Styles Panel'}
+              >
+                <PaletteIcon size={16} />
+                {rightSidebarVisible ? '' : 'Styles'}
+              </button>
+              <button
+                onClick={() => setInspectorVisible(!inspectorVisible)}
+                className={`btn-secondary flex items-center gap-2 text-sm ${
+                  inspectorVisible ? 'bg-primary/10' : ''
+                }`}
+                title={inspectorVisible ? 'Hide Inspector' : 'Show Inspector'}
+              >
+                <EyeIcon size={16} />
+                {inspectorVisible ? '' : 'Inspector'}
+              </button>
+            </>
           )}
 
           <button
@@ -304,7 +330,7 @@ ${html}
         )}
 
         {/* Desktop: Left Sidebar - Blocks */}
-        {!isMobile && (
+        {!isMobile && leftSidebarVisible && (
           <div className="w-64 border-r bg-background overflow-hidden flex flex-col">
             <div className="p-3 border-b bg-muted/30">
               <h4 className="text-sm font-semibold">Blocks</h4>
@@ -473,7 +499,7 @@ ${html}
         </div>
 
         {/* Desktop: Right Sidebar */}
-        {!isMobile && (
+        {!isMobile && rightSidebarVisible && (
           <div className="w-80 border-l bg-background overflow-hidden flex flex-col">
             {/* Tabs for Styles/Layers/Traits */}
             <div className="border-b">

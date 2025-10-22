@@ -6,11 +6,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This project uses a three-tier deployment workflow:
 
-- **`development`** - Active development and testing branch. Push all work-in-progress here.
-- **`staging`** - Pre-production testing with beta testers. Merge from development when ready for group testing.
-- **`main`** - Production branch deployed to main website URL. Merge from staging when ready for public release.
+- **`development`** - **PRIMARY WORKING BRANCH** - Active development and testing branch. All Claude Code sessions should:
+  1. Pull from `development` to start work
+  2. Create feature branches from `development` (with session IDs)
+  3. Merge completed work back to `development`
+
+- **`staging`** - Pre-production testing with beta testers. Merge from `development` when ready for group testing.
+
+- **`main`** - Production branch deployed to main website URL. Merge from `staging` when ready for public release.
 
 **Workflow**: `development` → `staging` → `main`
+
+**Claude Code Sessions**:
+- Always branch from `development`
+- Feature branches use format: `claude/{feature-name}-{session-id}`
+- Merge completed features back to `development`
+- Session ID branches are temporary and can be deleted after merging
 
 On Vercel, each branch deploys to a separate URL for isolated testing.
 

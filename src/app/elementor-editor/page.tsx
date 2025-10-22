@@ -18,7 +18,7 @@ import { SectionLibrary } from '@/components/elementor/SectionLibrary';
 import { PageSplitter } from '@/components/elementor/PageSplitter';
 import { useElementorState } from '@/lib/hooks/useElementorState';
 import { Section } from '@/lib/section-schema';
-import { FileIcon, PaletteIcon, ArrowRightIcon, GlobeIcon, SettingsIcon, XIcon, CodeIcon, EyeIcon } from '@/components/ui/icons';
+import { FileIcon, PaletteIcon, ArrowRightIcon, GlobeIcon, LayoutIcon, XIcon, CodeIcon, EyeIcon } from '@/components/ui/icons';
 import Script from 'next/script';
 import { GlobalStylesheetProvider } from '@/lib/global-stylesheet-context';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -955,7 +955,7 @@ export default function ElementorEditorPage() {
               }}
               title={!playgroundReady ? 'Waiting for WordPress Playground to initialize...' : ''}
             >
-              <SettingsIcon size={16} /> {isMobile ? 'Content' : 'Site Content'}
+              <LayoutIcon size={16} /> {isMobile ? 'Content' : 'Site Content'}
             </div>
             <div
               className={`tab ${activeTab === 'style-guide' ? 'active' : ''} ${!playgroundReady ? 'disabled' : ''}`}

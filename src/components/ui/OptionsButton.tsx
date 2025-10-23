@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { SettingsIcon } from '@/components/ui/icons';
+import { MenuIcon } from '@/components/ui/icons';
 
 export interface OptionItem {
   label: string;
@@ -21,7 +21,7 @@ interface OptionsButtonProps {
 export function OptionsButton({ options, position, isMobile = false }: OptionsButtonProps) {
   // Smart default positioning: account for mobile chat drawer
   const defaultPosition = {
-    bottom: isMobile ? '68px' : '20px', // Higher on mobile to clear smaller chat drawer (48px + 20px margin)
+    bottom: isMobile ? '56px' : '20px', // Lower on mobile to clear chat drawer (48px + 8px margin)
     left: '20px'
   };
   const finalPosition = position || defaultPosition;
@@ -77,7 +77,7 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
         }}
         aria-label="Options menu"
       >
-        <SettingsIcon size={24} />
+        <MenuIcon size={24} />
       </button>
 
       {/* Dropdown Menu */}

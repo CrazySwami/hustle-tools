@@ -2136,8 +2136,9 @@ button:disabled {
 
     /* ===== TAB CONTENT MOBILE ===== */
     .tab-content {
-        height: calc(100vh - 52px - 48px - 48px) !important; /* viewport - navbar(52) - tab-bar(48) - chat-drawer(48) */
+        flex: 1 !important;
         overflow: hidden !important;
+        min-height: 0 !important;
     }
 
     .tab-panel {
@@ -2149,9 +2150,10 @@ button:disabled {
     /* ===== RIGHT PANEL MOBILE ===== */
     .right-panel {
         width: 100% !important;
-        height: calc(100vh - 52px - 48px) !important; /* viewport - navbar(52) - chat-drawer(48) */
+        flex: 1 !important;
         display: flex !important;
         flex-direction: column !important;
+        min-height: 0 !important;
     }
 
     /* ===== CHAT EDITOR CONTAINER MOBILE ===== */

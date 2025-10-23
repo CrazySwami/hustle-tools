@@ -1250,12 +1250,14 @@ export default function ElementorEditorPage() {
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
 
-      {/* Keyboard Shortcuts Modal */}
-      <KeyboardShortcutsModal
-        isOpen={shortcutsModalOpen}
-        onClose={() => setShortcutsModalOpen(false)}
-        shortcuts={keyboardShortcuts}
-      />
+      {/* Keyboard Shortcuts Modal - Desktop Only */}
+      {!isMobile && (
+        <KeyboardShortcutsModal
+          isOpen={shortcutsModalOpen}
+          onClose={() => setShortcutsModalOpen(false)}
+          shortcuts={keyboardShortcuts}
+        />
+      )}
       </>
     </GlobalStylesheetProvider>
   );

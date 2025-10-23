@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Section, createSection, StyleKit, createStyleKit } from '@/lib/section-schema';
-import { HtmlSectionEditor } from './HtmlSectionEditor';
 import { PageSplitter } from './PageSplitter';
 import { StyleKitViewer } from './StyleKitViewer';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
@@ -822,14 +821,99 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
         ) : null}
         {libraryTab === 'sections' ? (
           selectedSection ? (
-            <HtmlSectionEditor
-              key={selectedSection.id}
-              initialSection={selectedSection}
-              activeStyleKitCss={activeStyleKit?.css || ''}
-              onSectionChange={(updatedSection) => {
-                updateSection(selectedSection.id, updatedSection);
-              }}
-            />
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%',
+              background: 'var(--background)'
+            }}>
+              {/* Header with Load in Editor button */}
+              <div style={{
+                padding: '12px 16px',
+                background: 'var(--muted)',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'var(--foreground)'
+                }}>
+                  {selectedSection.name}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => {
+                      if (onLoadInEditor) {
+                        onLoadInEditor(selectedSection);
+                      }
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#000000',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      fontWeight: 500
+                    }}
+                  >
+                    📝 Load in Editor
+                  </button>
+                  <button
+                    onClick={() => deleteSection(selectedSection.id)}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#ef4444',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      fontWeight: 500
+                    }}
+                  >
+                    🗑️ Delete
+                  </button>
+                </div>
+              </div>
+
+              {/* Preview */}
+              <iframe
+                srcDoc={(() => {
+                  const css = activeStyleKit?.css || globalCss;
+                  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    ${css}
+    ${selectedSection.css}
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; }
+  </style>
+</head>
+<body>
+  ${selectedSection.html}
+  <script>${selectedSection.js}</script>
+</body>
+</html>
+                  `.trim();
+                })()}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  width: '100%'
+                }}
+                sandbox="allow-scripts"
+                title="Section Preview"
+              />
+            </div>
           ) : (
             <div style={{
               display: 'flex',
@@ -842,8 +926,8 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
               gap: '12px'
             }}>
               <div style={{ fontSize: '48px' }}>📄</div>
-              <div>Select a section to edit</div>
-              <div style={{ fontSize: '12px' }}>or create a new one</div>
+              <div>Select a section to view</div>
+              <div style={{ fontSize: '12px' }}>Click "Load in Editor" to edit</div>
             </div>
           )
         ) : (

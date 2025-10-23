@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import { useTheme } from 'next-themes';
-import Editor from '@monaco-editor/react';
 import { OptionsButton, type OptionItem } from '@/components/ui/OptionsButton';
 
 interface StyleGuideProps {
@@ -28,13 +27,8 @@ export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabB
   } = useGlobalStylesheet();
   const { theme } = useTheme();
 
-  const [leftPanelWidth, setLeftPanelWidth] = useState(60); // percentage
-  const [isResizing, setIsResizing] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [lastSavedCss, setLastSavedCss] = useState(globalCss);
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [showPreview, setShowPreview] = useState(false); // Start with editor visible
   const lastUpdateRef = useRef(lastUpdated);
 
   // Mobile detection
@@ -48,43 +42,6 @@ export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabB
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Resize handlers
-  const handleMouseDown = () => {
-    setIsResizing(true);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-
-      const containerWidth = window.innerWidth;
-      const newWidth = (e.clientX / containerWidth) * 100;
-
-      // Constrain between 40% and 70%
-      if (newWidth >= 40 && newWidth <= 70) {
-        setLeftPanelWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing]);
-
-  // Track unsaved changes
-  useEffect(() => {
-    setHasUnsavedChanges(globalCss !== lastSavedCss);
-  }, [globalCss, lastSavedCss]);
 
   // Show notification when CSS updates (and propagates to previews)
   useEffect(() => {
@@ -105,8 +62,6 @@ export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabB
   const handlePullFromWordPress = async () => {
     try {
       await pullFromWordPress();
-      setLastSavedCss(globalCss);
-      setHasUnsavedChanges(false);
     } catch (err: any) {
       console.error('Pull error:', err);
       alert(`Failed to pull stylesheet: ${err.message}`);
@@ -116,8 +71,6 @@ export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabB
   const handlePushToWordPress = async () => {
     try {
       await pushToWordPress();
-      setLastSavedCss(globalCss);
-      setHasUnsavedChanges(false);
       alert('✅ Stylesheet pushed to WordPress successfully!');
     } catch (err: any) {
       console.error('Push error:', err);
@@ -132,8 +85,6 @@ export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabB
 
     try {
       await pullFromWordPress();
-      setLastSavedCss(globalCss);
-      setHasUnsavedChanges(false);
     } catch (err: any) {
       console.error('Reset error:', err);
       alert(`Failed to reset: ${err.message}`);
@@ -143,48 +94,30 @@ export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabB
   return (
     <div style={{
       display: 'flex',
-      flexDirection: isMobile ? 'column' : 'row',
+      flexDirection: 'column',
       height: '100%',
       width: '100%',
       position: 'relative',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      background: 'var(--background)'
     }}>
-      {/* Left Panel: Style Guide Preview */}
-      {showPreview && (
-        <div style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'var(--background)'
-        }}>
-          {/* Preview Header with Close Button */}
+          {/* Preview Header */}
           <div style={{
-            padding: '8px 12px',
+            padding: '12px 16px',
             background: 'var(--muted)',
             borderBottom: '1px solid var(--border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
           }}>
-            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--foreground)' }}>
-              Style Guide Preview
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--foreground)' }}>
+              Global Stylesheet Preview
             </span>
-            <button
-              onClick={() => setShowPreview(false)}
-              style={{
-                padding: '4px 8px',
-                background: '#000000',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '12px',
-                cursor: 'pointer',
-                fontWeight: 500
-              }}
-            >
-              ✕ Close
-            </button>
+            {themeName && (
+              <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                {themeName} {themeVersion && `v${themeVersion}`}
+              </span>
+            )}
           </div>
 
           {/* Preview Content */}
@@ -472,118 +405,6 @@ export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabB
         </div>
           </div>
         </div>
-      )}
-
-      {/* Resize Handle (Hidden on mobile or when preview is full-screen) */}
-      {!isMobile && !showPreview && (
-        <div
-          onMouseDown={handleMouseDown}
-          style={{
-            width: '4px',
-            height: '100%',
-            background: isResizing ? '#10b981' : 'var(--border)',
-            cursor: 'col-resize',
-            transition: 'background 0.15s',
-            position: 'relative',
-            zIndex: 10
-          }}
-        />
-      )}
-
-      {/* Right Panel: CSS Editor (Hidden when preview is full-screen) */}
-      {!showPreview && (
-        <div style={{
-          width: isMobile ? '100%' : `${100 - leftPanelWidth}%`,
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          background: theme === 'dark' ? '#1e1e1e' : '#f5f5f5'
-        }}>
-        {/* Editor Header */}
-        <div style={{
-          padding: '12px 16px',
-          background: 'var(--muted)',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: 'var(--foreground)', fontSize: '14px', fontWeight: 500 }}>
-              Global Stylesheet
-            </span>
-            {hasUnsavedChanges && (
-              <span style={{ color: '#f59e0b', fontSize: '12px' }}>● Unsaved</span>
-            )}
-          </div>
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div style={{
-            padding: '12px 16px',
-            background: '#fee2e2',
-            color: '#991b1b',
-            fontSize: '14px',
-            borderBottom: '1px solid #fca5a5'
-          }}>
-            ❌ {error}
-          </div>
-        )}
-
-        {/* Monaco Editor */}
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <Editor
-            height="100%"
-            defaultLanguage="css"
-            theme={theme === 'dark' ? 'vs-dark' : 'light'}
-            value={globalCss}
-            onChange={(value) => setGlobalCss(value || '')}
-            onMount={(editor, monaco) => {
-              // Register CSS variable autocomplete
-              monaco.languages.registerCompletionItemProvider('css', {
-                provideCompletionItems: (model, position) => {
-                  const textUntilPosition = model.getValueInRange({
-                    startLineNumber: position.lineNumber,
-                    startColumn: 1,
-                    endLineNumber: position.lineNumber,
-                    endColumn: position.column
-                  });
-
-                  // Trigger on "var(" or "--"
-                  const shouldTrigger = textUntilPosition.includes('var(') || textUntilPosition.match(/--[\w-]*$/);
-                  if (!shouldTrigger) return { suggestions: [] };
-
-                  const suggestions = cssVariables.map(variable => ({
-                    label: variable.name,
-                    kind: monaco.languages.CompletionItemKind.Variable,
-                    insertText: textUntilPosition.includes('var(')
-                      ? variable.name + ')'
-                      : variable.name,
-                    detail: variable.value,
-                    documentation: `CSS Variable: ${variable.name} = ${variable.value}`
-                  }));
-
-                  return { suggestions };
-                }
-              });
-            }}
-            options={{
-              fontSize: 14,
-              minimap: { enabled: false },
-              lineNumbers: 'on',
-              scrollBeyondLastLine: false,
-              wordWrap: 'on',
-              automaticLayout: true,
-              tabSize: 2,
-              insertSpaces: true,
-              suggestOnTriggerCharacters: true,
-              quickSuggestions: true
-            }}
-          />
-        </div>
-        </div>
-      )}
 
       {/* Update Notification Toast */}
       {showUpdateNotification && (
@@ -613,14 +434,6 @@ export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabB
       <OptionsButton
         isMobile={isMobile}
         options={[
-          // Preview toggle
-          {
-            label: showPreview ? '📝 Show Editor' : '👁️ Show Preview',
-            onClick: () => setShowPreview(!showPreview),
-            type: 'toggle' as const,
-            active: showPreview,
-            divider: true
-          },
           // Pull from WordPress
           {
             label: '⬇️ Pull from WordPress',
@@ -631,7 +444,7 @@ export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabB
           {
             label: '⬆️ Push to WordPress',
             onClick: handlePushToWordPress,
-            disabled: isLoading || !hasUnsavedChanges
+            disabled: isLoading
           },
           // Reset
           {

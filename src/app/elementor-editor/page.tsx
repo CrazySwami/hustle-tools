@@ -1170,7 +1170,7 @@ export default function ElementorEditorPage() {
                 height: chatDrawerOpen ? '95vh' : '48px', // Smaller handle
                 background: 'var(--background)',
                 borderTop: '1px solid var(--border)',
-                zIndex: 3000, // Above regular elements, below options button (3100)
+                zIndex: 3200, // Above options button (3000)
                 transition: 'height 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',

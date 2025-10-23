@@ -1,20 +1,24 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { SettingsIcon } from '@/components/ui/icons';
 
-interface OptionItem {
+export interface OptionItem {
   label: string;
-  icon?: string;
   onClick: () => void;
   disabled?: boolean;
+  divider?: boolean; // Add divider after this item
+  type?: 'toggle'; // For toggle items (shows checkmark when active)
+  active?: boolean; // For toggle items
 }
 
 interface OptionsButtonProps {
   options: OptionItem[];
-  size?: 'small' | 'medium' | 'large';
+  position?: { bottom?: string; left?: string; right?: string; top?: string };
+  isMobile?: boolean;
 }
 
-export function OptionsButton({ options, size = 'medium' }: OptionsButtonProps) {
+export function OptionsButton({ options, position = { bottom: '20px', left: '20px' }, isMobile = false }: OptionsButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -35,98 +39,113 @@ export function OptionsButton({ options, size = 'medium' }: OptionsButtonProps) 
     };
   }, [isOpen]);
 
-  const buttonSize = size === 'small' ? '32px' : size === 'large' ? '48px' : '40px';
-  const fontSize = size === 'small' ? '16px' : size === 'large' ? '22px' : '20px';
+  const handleOptionClick = (option: OptionItem) => {
+    if (!option.disabled) {
+      option.onClick();
+      setIsOpen(false);
+    }
+  };
 
   return (
     <div ref={menuRef} style={{ position: 'relative' }}>
-      {/* Options Button */}
+      {/* Floating Options Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          width: buttonSize,
-          height: buttonSize,
-          borderRadius: '6px',
-          background: isOpen ? '#000000' : 'var(--muted)',
-          color: isOpen ? '#ffffff' : 'var(--foreground)',
+          position: 'fixed',
+          ...position,
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          background: isOpen ? 'var(--foreground)' : 'var(--muted)',
+          color: isOpen ? 'var(--background)' : 'var(--foreground)',
           border: '1px solid var(--border)',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
+          cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          cursor: 'pointer',
-          fontSize: fontSize,
-          transition: 'all 0.2s ease',
-          fontWeight: 600
+          padding: '0',
+          zIndex: 100,
+          transition: 'all 0.2s ease'
         }}
-        aria-label="Options"
+        aria-label="Options menu"
       >
-        ⋮
+        <SettingsIcon size={24} />
       </button>
 
       {/* Dropdown Menu */}
       {isOpen && (
         <div
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            right: '0',
+            position: 'fixed',
+            bottom: position.bottom ? `calc(${position.bottom} + 65px)` : undefined,
+            top: position.top ? `calc(${position.top} + 65px)` : undefined,
+            left: position.left,
+            right: position.right,
             background: 'var(--card)',
-            borderRadius: '8px',
+            borderRadius: '12px',
             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-            minWidth: '200px',
-            zIndex: 1000,
-            animation: 'slideDown 0.2s ease-out',
+            minWidth: isMobile ? '240px' : '260px',
+            maxWidth: isMobile ? '90vw' : '320px',
+            zIndex: 101,
+            animation: 'slideUp 0.2s ease-out',
             overflow: 'hidden',
             border: '1px solid var(--border)'
           }}
         >
           {options.map((option, index) => (
-            <button
-              key={index}
-              onClick={() => {
-                if (!option.disabled) {
-                  option.onClick();
-                  setIsOpen(false);
-                }
-              }}
-              disabled={option.disabled}
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                background: 'transparent',
-                border: 'none',
-                borderBottom: index < options.length - 1 ? '1px solid var(--border)' : 'none',
-                cursor: option.disabled ? 'not-allowed' : 'pointer',
-                opacity: option.disabled ? 0.5 : 1,
-                fontSize: '14px',
-                fontWeight: 500,
-                color: 'var(--foreground)',
-                textAlign: 'left',
-                transition: 'background 0.15s ease'
-              }}
-              onMouseEnter={(e) => {
-                if (!option.disabled) {
-                  e.currentTarget.style.background = 'var(--muted)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              {option.icon && <span style={{ fontSize: '16px' }}>{option.icon}</span>}
-              <span>{option.label}</span>
-            </button>
+            <div key={index}>
+              <button
+                onClick={() => handleOptionClick(option)}
+                disabled={option.disabled}
+                style={{
+                  width: '100%',
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: option.disabled ? 'not-allowed' : 'pointer',
+                  fontSize: '15px',
+                  fontWeight: 500,
+                  color: option.disabled ? 'var(--muted-foreground)' : 'var(--foreground)',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease',
+                  opacity: option.disabled ? 0.5 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!option.disabled) {
+                    e.currentTarget.style.background = 'var(--muted)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span>{option.label}</span>
+                {option.type === 'toggle' && option.active && (
+                  <span style={{ color: 'var(--primary)' }}>✓</span>
+                )}
+              </button>
+              {option.divider && index < options.length - 1 && (
+                <div style={{
+                  height: '1px',
+                  background: 'var(--border)',
+                  margin: '0'
+                }} />
+              )}
+            </div>
           ))}
         </div>
       )}
 
       <style jsx global>{`
-        @keyframes slideDown {
+        @keyframes slideUp {
           from {
-            transform: translateY(-10px);
+            transform: translateY(10px);
             opacity: 0;
           }
           to {

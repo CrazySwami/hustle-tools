@@ -77,6 +77,7 @@ export default function ElementorEditorPage() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(40); // percentage
   const [isResizing, setIsResizing] = useState(false);
   const [chatVisible, setChatVisible] = useState(true);
+  const [tabBarVisible, setTabBarVisible] = useState(true);
   const [streamedCode, setStreamedCode] = useState<{ html: string; css: string; js: string }>({ html: '', css: '', js: '' });
   const [activeCodeTab, setActiveCodeTab] = useState<'html' | 'css' | 'js'>('html');
   const [currentSection, setCurrentSection] = useState<Section | null>(null);
@@ -905,7 +906,8 @@ export default function ElementorEditorPage() {
         {/* Right Panel: Tabs + Content */}
         <div className="right-panel" style={{ width: !isMobile && chatVisible ? `${100 - leftPanelWidth}%` : '100%' }}>
           {/* Tab Bar */}
-          <div className="tab-bar" style={{
+          {tabBarVisible && (
+            <div className="tab-bar" style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -977,27 +979,42 @@ export default function ElementorEditorPage() {
                 </div>
               </div>
             )}
+            </div>
+          )}
 
-            {/* Desktop: Chat Toggle Button */}
-            {!isMobile && (
-              <button
-                onClick={() => setChatVisible(!chatVisible)}
-                className="btn-secondary"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  fontSize: '13px',
-                  marginRight: '12px'
-                }}
-                title={chatVisible ? 'Hide Chat' : 'Show Chat'}
-              >
-                {chatVisible ? <XIcon size={16} /> : <CodeIcon size={16} />}
-                {chatVisible ? 'Hide Chat' : 'Show Chat'}
-              </button>
-            )}
-          </div>
+          {/* Show Tab Bar Button - appears when tab bar is hidden */}
+          {!tabBarVisible && (
+            <button
+              onClick={() => setTabBarVisible(true)}
+              style={{
+                position: 'fixed',
+                top: '80px',
+                right: '20px',
+                padding: '8px 16px',
+                background: 'var(--muted)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                zIndex: 100,
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--foreground)';
+                e.currentTarget.style.color = 'var(--background)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--muted)';
+                e.currentTarget.style.color = 'var(--foreground)';
+              }}
+            >
+              ⬆️ Show Tabs
+            </button>
+          )}
 
           {/* Tab Content - Keep all tabs mounted, just hide inactive ones */}
           <div className="tab-content">
@@ -1042,6 +1059,10 @@ export default function ElementorEditorPage() {
               <PlaygroundView
                 json={currentJson}
                 isActive={activeTab === 'playground'}
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
                 onJsonUpdate={(updatedJson) => {
                   console.log('📥 JSON updated from playground:', updatedJson);
                   setCurrentJson(updatedJson);
@@ -1055,6 +1076,11 @@ export default function ElementorEditorPage() {
 
             <div className={`tab-panel ${activeTab === 'sections' ? 'active' : ''}`} id="sectionsPanel" style={{ display: activeTab === 'sections' ? 'flex' : 'none' }}>
               <SectionLibrary
+                key={activeTab === 'sections' ? 'active' : 'inactive'} // Force remount when tab becomes active
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
                 onExportToPlayground={(sections) => {
                   console.log('📋 Exporting sections to playground:', sections.length);
                   alert(`✨ Coming soon: Export ${sections.length} sections to WordPress Playground`);
@@ -1079,6 +1105,10 @@ export default function ElementorEditorPage() {
             <div className={`tab-panel ${activeTab === 'site-content' ? 'active' : ''}`} id="siteContentPanel" style={{ display: activeTab === 'site-content' ? 'flex' : 'none' }}>
               <SiteContentManager
                 playgroundReady={playgroundReady}
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
                 onPush={(config) => {
                   console.log('⚙️ Pushing to WordPress:', config);
                   if (typeof window !== 'undefined' && (window as any).applySiteConfig) {
@@ -1100,7 +1130,12 @@ export default function ElementorEditorPage() {
             </div>
 
             <div className={`tab-panel ${activeTab === 'style-guide' ? 'active' : ''}`} id="styleGuidePanel" style={{ display: activeTab === 'style-guide' ? 'flex' : 'none' }}>
-              <StyleGuide />
+              <StyleGuide
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
+              />
             </div>
           </div>
         </div>

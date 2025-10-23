@@ -9,15 +9,17 @@ interface PlaygroundViewProps {
   isActive?: boolean;
   onJsonUpdate?: (json: any) => void;
   onPlaygroundReady?: () => void;
+  chatVisible?: boolean;
+  setChatVisible?: (visible: boolean) => void;
+  tabBarVisible?: boolean;
+  setTabBarVisible?: (visible: boolean) => void;
 }
 
-export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygroundReady }: PlaygroundViewProps) {
+export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygroundReady, chatVisible, setChatVisible, tabBarVisible, setTabBarVisible }: PlaygroundViewProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [playgroundReady, setPlaygroundReady] = useState(false);
   const [status, setStatus] = useState('');
   const [isMobile, setIsMobile] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   // Mobile detection
   useEffect(() => {
@@ -26,23 +28,6 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-
-  // Close menu on click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-
-    if (menuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [menuOpen]);
 
   // Check if playground script is loaded and auto-launch
   useEffect(() => {
@@ -223,146 +208,52 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
 
   return (
     <div className="playground-container" id="playgroundContainer" style={{ position: 'relative', height: '100%' }}>
-      {/* Floating Circle Options Button - All Screen Sizes */}
-      <div ref={menuRef} style={{
-        position: 'absolute',
-        bottom: '80px', // Above tab menu (which is at ~20px)
-        left: '20px',
-        zIndex: 100
-      }}>
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          style={{
-            width: '56px',
-            height: '56px',
-            borderRadius: '50%',
-            background: menuOpen ? '#000000' : 'var(--card)',
-            border: '2px solid var(--border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            fontSize: '24px',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-            transition: 'all 0.2s ease',
-            color: menuOpen ? '#ffffff' : 'var(--foreground)'
-          }}
-          onMouseEnter={(e) => {
-            if (!menuOpen) {
-              e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-          }}
-        >
-          ⋮
-        </button>
-
-        {/* Dropdown Menu */}
-        {menuOpen && (
-          <div style={{
-            position: 'absolute',
-            bottom: 'calc(100% + 8px)',
-            left: 0,
-            background: 'var(--card)',
-            borderRadius: '8px',
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-            minWidth: '200px',
-            zIndex: 1000,
-            overflow: 'hidden',
-            border: '1px solid var(--border)',
-            animation: 'slideUp 0.2s ease-out'
-          }}>
-            {[
-              {
-                label: 'Launch',
-                icon: '🚀',
-                onClick: launchPlayground,
-                disabled: isLoading || !playgroundReady
-              },
-              {
-                label: 'Update & Open',
-                icon: '🔄',
-                onClick: refreshPlayground,
-                disabled: isLoading || !playgroundReady
-              },
-              {
-                label: 'View Live',
-                icon: '👁️',
-                onClick: viewPage,
-                disabled: !playgroundReady
-              },
-              {
-                label: 'Pull Changes',
-                icon: '⬇️',
-                onClick: pullFromPlayground,
-                disabled: isLoading || !playgroundReady
-              },
-              {
-                label: 'Export Site',
-                icon: '📦',
-                onClick: exportSite,
-                disabled: isLoading || !playgroundReady
-              }
-            ].map((option, index, array) => (
-              <button
-                key={index}
-                onClick={() => {
-                  if (!option.disabled) {
-                    option.onClick();
-                    setMenuOpen(false);
-                  }
-                }}
-                disabled={option.disabled}
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: index < array.length - 1 ? '1px solid var(--border)' : 'none',
-                  cursor: option.disabled ? 'not-allowed' : 'pointer',
-                  opacity: option.disabled ? 0.5 : 1,
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  textAlign: 'left',
-                  transition: 'background 0.15s ease'
-                }}
-                onMouseEnter={(e) => {
-                  if (!option.disabled) {
-                    e.currentTarget.style.background = 'var(--muted)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <span style={{ fontSize: '16px' }}>{option.icon}</span>
-                <span>{option.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        <style jsx global>{`
-          @keyframes slideUp {
-            from {
-              transform: translateY(10px);
-              opacity: 0;
-            }
-            to {
-              transform: translateY(0);
-              opacity: 1;
-            }
-          }
-        `}</style>
-      </div>
+      {/* Options Button */}
+      <OptionsButton
+        isMobile={isMobile}
+        options={[
+          {
+            label: '🚀 Launch',
+            onClick: launchPlayground,
+            disabled: isLoading || !playgroundReady
+          },
+          {
+            label: '🔄 Update & Open',
+            onClick: refreshPlayground,
+            disabled: isLoading || !playgroundReady
+          },
+          {
+            label: '👁️ View Live',
+            onClick: viewPage,
+            disabled: !playgroundReady
+          },
+          {
+            label: '⬇️ Pull Changes',
+            onClick: pullFromPlayground,
+            disabled: isLoading || !playgroundReady
+          },
+          {
+            label: '📦 Export Site',
+            onClick: exportSite,
+            disabled: isLoading || !playgroundReady,
+            divider: true
+          },
+          // Chat toggle
+          ...(setChatVisible ? [{
+            label: chatVisible ? 'Hide Chat' : 'Show Chat',
+            onClick: () => setChatVisible(!chatVisible),
+            type: 'toggle' as const,
+            active: chatVisible
+          }] : []),
+          // Tab bar toggle
+          ...(setTabBarVisible ? [{
+            label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
+            onClick: () => setTabBarVisible(!tabBarVisible),
+            type: 'toggle' as const,
+            active: tabBarVisible
+          }] : [])
+        ]}
+      />
 
       {/* Floating Status Messages - All Screen Sizes */}
       {status && (

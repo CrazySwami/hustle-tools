@@ -9,13 +9,18 @@ import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import { sectionsToElementorTemplate, generateSectionsPreviewHTML } from '@/lib/section-to-elementor';
 import { useToast } from '@/hooks/useToast';
 import { LoadingButton } from '@/components/ui/LoadingOverlay';
+import { OptionsButton, type OptionItem } from '@/components/ui/OptionsButton';
 
 interface SectionLibraryProps {
   onExportToPlayground?: (sections: Section[]) => void;
   onLoadInEditor?: (section: Section) => void;
+  chatVisible?: boolean;
+  setChatVisible?: (visible: boolean) => void;
+  tabBarVisible?: boolean;
+  setTabBarVisible?: (visible: boolean) => void;
 }
 
-export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: SectionLibraryProps) {
+export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisible, setChatVisible, tabBarVisible, setTabBarVisible }: SectionLibraryProps) {
   const { globalCss, lastUpdated } = useGlobalStylesheet();
   const toast = useToast();
   const [sections, setSections] = useState<Section[]>([]);
@@ -365,215 +370,6 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
         borderRight: isMobile ? 'none' : '1px solid var(--border)',
         transition: 'width 0.3s ease'
       }}>
-        {/* Header */}
-        <div style={{
-          padding: '16px',
-          borderBottom: '1px solid var(--border)',
-          background: 'var(--card)'
-        }}>
-          {/* Tabs */}
-          <div style={{
-            display: 'flex',
-            gap: '8px',
-            marginBottom: '12px',
-            borderBottom: '1px solid var(--border)'
-          }}>
-            <button
-              onClick={() => setLibraryTab('sections')}
-              style={{
-                padding: '8px 16px',
-                background: libraryTab === 'sections' ? 'var(--card)' : 'transparent',
-                color: libraryTab === 'sections' ? '#10b981' : 'var(--muted-foreground)',
-                border: 'none',
-                borderBottom: libraryTab === 'sections' ? '2px solid #10b981' : '2px solid transparent',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 600
-              }}
-            >
-              📄 Sections ({sections.length})
-            </button>
-            <button
-              onClick={() => setLibraryTab('style-kits')}
-              style={{
-                padding: '8px 16px',
-                background: libraryTab === 'style-kits' ? 'var(--card)' : 'transparent',
-                color: libraryTab === 'style-kits' ? '#10b981' : 'var(--muted-foreground)',
-                border: 'none',
-                borderBottom: libraryTab === 'style-kits' ? '2px solid #10b981' : '2px solid transparent',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 600
-              }}
-            >
-              🎨 Style Kits ({styleKits.length})
-            </button>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '12px'
-          }}>
-            <h2 style={{
-              margin: 0,
-              fontSize: '16px',
-              fontWeight: 600,
-              color: '#111827'
-            }}>
-              {libraryTab === 'sections' ? `Sections (${sections.length})` : `Style Kits (${styleKits.length})`}
-            </h2>
-
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {libraryTab === 'sections' ? (
-                <>
-                  <button
-                    onClick={createNewSection}
-                    style={{
-                      padding: '6px 12px',
-                      background: '#3b82f6',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      fontWeight: 500
-                    }}
-                  >
-                    + New
-                  </button>
-
-                  <button
-                    onClick={() => setViewMode('split-page')}
-                    style={{
-                      padding: '6px 12px',
-                      background: '#8b5cf6',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      fontWeight: 500
-                    }}
-                  >
-                    ✂️ Split
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={createNewStyleKit}
-                  style={{
-                    padding: '6px 12px',
-                    background: '#3b82f6',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    fontWeight: 500
-                  }}
-                >
-                  + New Kit
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          {libraryTab === 'sections' ? (
-            <div style={{ display: 'flex', gap: '6px', fontSize: '12px', flexWrap: 'wrap' }}>
-              <button
-                onClick={previewAllInPlayground}
-                disabled={sections.length === 0}
-                style={{
-                  flex: '1 1 45%',
-                  padding: '6px',
-                  background: sections.length > 0 ? '#10b981' : '#d1d5db',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: sections.length > 0 ? 'pointer' : 'not-allowed',
-                  fontWeight: 500
-                }}
-              >
-                📋 Preview
-              </button>
-
-              <LoadingButton
-                onClick={updatePlaygroundPreview}
-                disabled={sections.length === 0}
-                isLoading={isUpdatingPlayground}
-                loadingText="Updating..."
-                style={{
-                  flex: '1 1 45%',
-                  padding: '6px',
-                  background: sections.length > 0 && !isUpdatingPlayground ? '#f97316' : '#d1d5db',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: sections.length > 0 && !isUpdatingPlayground ? 'pointer' : 'not-allowed',
-                  fontWeight: 500
-                }}
-                title="Send all sections to WordPress Playground and open live preview"
-              >
-                🔄 Update Playground
-              </LoadingButton>
-
-              <button
-                onClick={exportSections}
-                disabled={sections.length === 0}
-                style={{
-                  flex: '1 1 45%',
-                  padding: '6px',
-                  background: sections.length > 0 ? '#6366f1' : '#d1d5db',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: sections.length > 0 ? 'pointer' : 'not-allowed',
-                  fontWeight: 500
-                }}
-              >
-                ⬇️ Export
-              </button>
-
-              <button
-                onClick={importSections}
-                style={{
-                  flex: '1 1 45%',
-                  padding: '6px',
-                  background: '#8b5cf6',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: 500
-                }}
-              >
-                ⬆️ Import
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: '6px', fontSize: '12px' }}>
-              <button
-                onClick={importStyleKit}
-                style={{
-                  flex: 1,
-                  padding: '6px',
-                  background: '#8b5cf6',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: 500
-                }}
-              >
-                ⬆️ Import CSS
-              </button>
-            </div>
-          )}
-        </div>
-
         {/* List (Sections or Style Kits) */}
         <div style={{
           flex: 1,
@@ -1096,6 +892,83 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor }: Section
         )}
       </div>
       )}
+
+      {/* Options Button */}
+      <OptionsButton
+        isMobile={isMobile}
+        options={[
+          // Library view toggle
+          {
+            label: libraryTab === 'sections' ? '🎨 Switch to Style Kits' : '📄 Switch to Sections',
+            onClick: () => setLibraryTab(libraryTab === 'sections' ? 'style-kits' : 'sections'),
+            divider: true
+          },
+          // Sections actions (only show when on sections tab)
+          ...(libraryTab === 'sections' ? [
+            {
+              label: '+ New Section',
+              onClick: createNewSection
+            },
+            {
+              label: '✂️ Split Page',
+              onClick: () => setViewMode('split-page')
+            },
+            {
+              label: '📋 Preview All',
+              onClick: previewAllInPlayground,
+              disabled: sections.length === 0
+            },
+            {
+              label: '🔄 Update Playground',
+              onClick: updatePlaygroundPreview,
+              disabled: sections.length === 0 || isUpdatingPlayground
+            },
+            {
+              label: '⬇️ Export Sections',
+              onClick: exportSections,
+              disabled: sections.length === 0
+            },
+            {
+              label: '⬆️ Import Sections',
+              onClick: importSections,
+              divider: true
+            }
+          ] : [
+            // Style kits actions (only show when on style-kits tab)
+            {
+              label: '+ New Style Kit',
+              onClick: createNewStyleKit
+            },
+            {
+              label: '⬆️ Import CSS',
+              onClick: importStyleKit,
+              divider: true
+            }
+          ]),
+          // Desktop-only sidebar toggle
+          ...(!isMobile ? [{
+            label: sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar',
+            onClick: () => setSidebarVisible(!sidebarVisible),
+            type: 'toggle' as const,
+            active: sidebarVisible,
+            divider: true
+          }] : []),
+          // Chat toggle
+          ...(setChatVisible ? [{
+            label: chatVisible ? 'Hide Chat' : 'Show Chat',
+            onClick: () => setChatVisible(!chatVisible),
+            type: 'toggle' as const,
+            active: chatVisible
+          }] : []),
+          // Tab bar toggle
+          ...(setTabBarVisible ? [{
+            label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
+            onClick: () => setTabBarVisible(!tabBarVisible),
+            type: 'toggle' as const,
+            active: tabBarVisible
+          }] : [])
+        ]}
+      />
     </div>
   );
 }

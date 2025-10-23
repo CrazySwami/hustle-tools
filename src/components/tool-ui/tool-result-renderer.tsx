@@ -4,6 +4,7 @@ import { CodeWidget } from './code-widget';
 import { ScrapeResultWidget } from './scrape-result-widget';
 import { HTMLGeneratorWidget } from './html-generator-widget';
 import { CodeEditToolResult } from './CodeEditToolResult';
+import { UpdateSectionToolResult } from './UpdateSectionToolResult';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckSquare, Clock } from 'lucide-react';
@@ -129,32 +130,8 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
 
     case 'updateSectionHtml':
     case 'updateSectionCss':
-    case 'updateSectionJs': {
-      const updateType = toolName.replace('updateSection', '').toLowerCase();
-      return (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckSquare className="h-5 w-5 text-green-600" />
-              {updateType.toUpperCase()} Updated
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">{result.message}</p>
-              {result.reasoning && (
-                <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                  <strong>Changes:</strong> {result.reasoning}
-                </div>
-              )}
-              <Badge variant="outline" className="text-xs">
-                {result.type.replace('_', ' ').toUpperCase()}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
+    case 'updateSectionJs':
+      return <UpdateSectionToolResult toolName={toolName} result={result} />;
 
     case 'getEditorContent':
       // This tool is handled silently - content is injected into context

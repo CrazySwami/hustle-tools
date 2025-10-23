@@ -853,8 +853,8 @@ export default function ElementorEditorPage() {
 
       {/* Main container - using exact class names from original CSS */}
       <div className="chat-editor-container" style={{
-        marginTop: isMobile ? '52px' : '64px', // Thinner navbar on mobile
-        height: isMobile ? 'calc(100vh - 52px)' : 'calc(100vh - 64px)',
+        marginTop: '48px', // Unified thinner navbar (h-12)
+        height: 'calc(100vh - 48px)',
         paddingBottom: isMobile ? '48px' : '0' // Smaller chat drawer on mobile
       }}>
         {/* Desktop: Left Panel Chat */}
@@ -911,8 +911,8 @@ export default function ElementorEditorPage() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            padding: isMobile ? '8px 12px' : '8px 20px',
-            minHeight: isMobile ? '48px' : 'auto',
+            padding: isMobile ? '8px 12px' : '6px 20px',
+            minHeight: isMobile ? '48px' : '40px',
             gap: '8px'
           }}>
             {/* Mobile: Dropdown Select */}
@@ -1046,6 +1046,10 @@ export default function ElementorEditorPage() {
                   setCurrentSection(section);
                 }}
                 onSwitchToVisualEditor={() => setActiveTab('visual')}
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
               />
             </div>
 

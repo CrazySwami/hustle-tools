@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import Editor from '@monaco-editor/react';
+import { useState, useEffect, useRef } from "react";
+import Editor from "@monaco-editor/react";
 import {
   Section,
   createSection,
   sectionSettingsToCSS,
   getAnimationCSS,
   getAnimationClassName,
-  validateSection
-} from '@/lib/section-schema';
-import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
-import { useTheme } from 'next-themes';
-import { OptionsButton } from '@/components/ui/OptionsButton';
+  validateSection,
+} from "@/lib/section-schema";
+import { useGlobalStylesheet } from "@/lib/global-stylesheet-context";
+import { useTheme } from "next-themes";
+import { OptionsButton } from "@/components/ui/OptionsButton";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -21,42 +21,59 @@ interface HtmlSectionEditorProps {
   streamedHtml?: string;
   streamedCss?: string;
   streamedJs?: string;
-  activeCodeTab?: 'html' | 'css' | 'js';
-  onCodeTabChange?: (tab: 'html' | 'css' | 'js') => void;
+  activeCodeTab?: "html" | "css" | "js";
+  onCodeTabChange?: (tab: "html" | "css" | "js") => void;
   onSwitchToVisualEditor?: () => void;
+  chatVisible?: boolean;
+  setChatVisible?: (visible: boolean) => void;
+  tabBarVisible?: boolean;
+  setTabBarVisible?: (visible: boolean) => void;
 }
 
 export function HtmlSectionEditor({
   initialSection,
   onSectionChange,
-  activeStyleKitCss = '',
+  activeStyleKitCss = "",
   streamedHtml,
   streamedCss,
   streamedJs,
   activeCodeTab: externalActiveCodeTab,
   onCodeTabChange,
-  onSwitchToVisualEditor
+  onSwitchToVisualEditor,
+  chatVisible,
+  setChatVisible,
+  tabBarVisible,
+  setTabBarVisible,
 }: HtmlSectionEditorProps) {
-  const [section, setSection] = useState<Section>(initialSection || createSection());
-  const [internalActiveCodeTab, setInternalActiveCodeTab] = useState<'html' | 'css' | 'js'>('html');
+  const [section, setSection] = useState<Section>(
+    initialSection || createSection(),
+  );
+  const [internalActiveCodeTab, setInternalActiveCodeTab] = useState<
+    "html" | "css" | "js"
+  >("html");
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showFileTree, setShowFileTree] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { globalCss, cssVariables } = useGlobalStylesheet();
   const { theme } = useTheme();
 
   // Track if this is a loaded section (has initial content)
-  const hasInitialContent = !!(initialSection?.html || initialSection?.css || initialSection?.js);
+  const hasInitialContent = !!(
+    initialSection?.html ||
+    initialSection?.css ||
+    initialSection?.js
+  );
 
   // Mobile detection
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   // Close menu on click outside
@@ -68,36 +85,36 @@ export function HtmlSectionEditor({
     };
 
     if (menuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [menuOpen]);
 
   // Debug: Log when component mounts/remounts
   useEffect(() => {
-    console.log('🔄 HtmlSectionEditor mounted with initialSection:', {
-      name: initialSection?.name || 'New Section',
-      id: initialSection?.id || 'default',
+    console.log("🔄 HtmlSectionEditor mounted with initialSection:", {
+      name: initialSection?.name || "New Section",
+      id: initialSection?.id || "default",
       htmlLength: initialSection?.html?.length || 0,
       cssLength: initialSection?.css?.length || 0,
-      jsLength: initialSection?.js?.length || 0
+      jsLength: initialSection?.js?.length || 0,
     });
-    console.log('🔄 Section state after mount:', {
+    console.log("🔄 Section state after mount:", {
       name: section.name,
       id: section.id,
       htmlLength: section.html?.length || 0,
       cssLength: section.css?.length || 0,
-      jsLength: section.js?.length || 0
+      jsLength: section.js?.length || 0,
     });
   }, []);
 
   // Use external activeCodeTab if provided, otherwise use internal
   const activeCodeTab = externalActiveCodeTab ?? internalActiveCodeTab;
 
-  const handleCodeTabChange = (tab: 'html' | 'css' | 'js') => {
+  const handleCodeTabChange = (tab: "html" | "css" | "js") => {
     if (onCodeTabChange) {
       onCodeTabChange(tab);
     } else {
@@ -110,7 +127,7 @@ export function HtmlSectionEditor({
     const updatedSection = {
       ...section,
       ...updates,
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     };
     setSection(updatedSection);
     onSectionChange?.(updatedSection);
@@ -120,7 +137,7 @@ export function HtmlSectionEditor({
   useEffect(() => {
     // Don't apply streaming if we loaded a section from library (has initial content)
     if (hasInitialContent) {
-      console.log('⏭️ Skipping streamed updates - section loaded from library');
+      console.log("⏭️ Skipping streamed updates - section loaded from library");
       return;
     }
 
@@ -132,11 +149,11 @@ export function HtmlSectionEditor({
 
     // Only update if we have actual content to apply
     if (Object.keys(updates).length > 0) {
-      console.log('📥 Applying streamed updates:', Object.keys(updates));
-      setSection(prev => ({
+      console.log("📥 Applying streamed updates:", Object.keys(updates));
+      setSection((prev) => ({
         ...prev,
         ...updates,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       }));
     }
   }, [streamedHtml, streamedCss, streamedJs, hasInitialContent]);
@@ -145,8 +162,10 @@ export function HtmlSectionEditor({
   const generatePreviewHTML = (): string => {
     const inlineStyles = sectionSettingsToCSS(section.settings);
     const animationClass = getAnimationClassName(section.settings.animation);
-    const customClasses = section.settings.advanced.customClasses.join(' ');
-    const allClasses = [animationClass, customClasses].filter(Boolean).join(' ');
+    const customClasses = section.settings.advanced.customClasses.join(" ");
+    const allClasses = [animationClass, customClasses]
+      .filter(Boolean)
+      .join(" ");
 
     return `
 <!DOCTYPE html>
@@ -183,672 +202,927 @@ export function HtmlSectionEditor({
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      width: '100%',
-      overflow: 'hidden',
-      position: 'relative'
-    }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        width: "100%",
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
       {/* OptionsButton - Universal floating button */}
       <OptionsButton
         isMobile={isMobile}
         options={[
           {
-            label: '💾 Save to Library',
-            onClick: () => setShowSaveDialog(true)
+            label: "💾 Save to Library",
+            onClick: () => setShowSaveDialog(true),
           },
           {
-            label: 'Settings',
+            label: "File Tree",
+            onClick: () => setShowFileTree(!showFileTree),
+            type: "toggle",
+            active: showFileTree,
+            divider: true,
+          },
+          {
+            label: "Settings",
             onClick: () => setShowSettings(!showSettings),
-            type: 'toggle',
-            active: showSettings
+            type: "toggle",
+            active: showSettings,
           },
           {
-            label: 'Preview',
+            label: "Preview",
             onClick: () => setShowPreview(!showPreview),
-            type: 'toggle',
-            active: showPreview
-          }
+            type: "toggle",
+            active: showPreview,
+          },
+          // Add conditional options only if props are provided
+          ...(setChatVisible
+            ? [
+                {
+                  label: chatVisible ? "Hide Chat" : "Show Chat",
+                  onClick: () => setChatVisible(!chatVisible),
+                  divider: true,
+                },
+              ]
+            : []),
+          ...(setTabBarVisible
+            ? [
+                {
+                  label: tabBarVisible ? "Hide Tab Bar" : "Show Tab Bar",
+                  onClick: () => setTabBarVisible(!tabBarVisible),
+                },
+              ]
+            : []),
         ]}
       />
 
       {/* Top Bar - HIDDEN */}
       {false && (
-      <div style={{
-        padding: isMobile ? '6px 12px' : '8px 12px',
-        background: 'var(--muted)',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <input
-          type="text"
-          value={section.name}
-          onChange={(e) => updateSection({ name: e.target.value })}
+        <div
           style={{
-            fontSize: '16px',
-            fontWeight: 600,
-            border: '1px solid transparent',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            background: 'transparent',
-            outline: 'none',
-            transition: 'all 0.2s',
-            maxWidth: isMobile ? '150px' : 'none'
+            padding: isMobile ? "6px 12px" : "8px 12px",
+            background: "var(--muted)",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
-          onFocus={(e) => {
-            e.target.style.border = '1px solid var(--primary)';
-            e.target.style.background = 'var(--background)';
-          }}
-          onBlur={(e) => {
-            e.target.style.border = '1px solid transparent';
-            e.target.style.background = 'transparent';
-          }}
-        />
-
-        <div style={{ display: 'flex', gap: isMobile ? '6px' : '8px' }}>
-          {/* Save to Library - Always visible */}
-          <button
-            onClick={() => setShowSaveDialog(true)}
+        >
+          <input
+            type="text"
+            value={section.name}
+            onChange={(e) => updateSection({ name: e.target.value })}
             style={{
-              padding: isMobile ? '8px 12px' : '6px 12px',
-              background: '#000000',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: isMobile ? '14px' : '13px',
-              cursor: 'pointer',
-              fontWeight: 500,
-              minHeight: isMobile ? '44px' : 'auto'
+              fontSize: "16px",
+              fontWeight: 600,
+              border: "1px solid transparent",
+              padding: "4px 8px",
+              borderRadius: "4px",
+              background: "transparent",
+              outline: "none",
+              transition: "all 0.2s",
+              maxWidth: isMobile ? "150px" : "none",
             }}
-          >
-            💾 {isMobile ? '' : 'Save to Library'}
-          </button>
-
-          {/* Preview in WP - Desktop only */}
-          {!isMobile && (
-            <button
-              onClick={async () => {
-                try {
-                  // Check if playground is running
-                  if (!(window as any).playgroundClient) {
-                    alert('WordPress Playground is not running. Please launch it first from the WordPress Playground tab.');
-                    return;
-                  }
-
-                  const importToPage = (window as any).importHtmlSectionToPage;
-                  if (!importToPage) {
-                    alert('WordPress Playground functions not loaded yet. Please wait a moment and try again.');
-                    return;
-                  }
-
-                  // Quick preview with default name if not set
-                  const sectionName = section.name || 'Untitled Section';
-
-                  const result = await importToPage({
-                    name: sectionName,
-                    html: section.html,
-                    css: section.css,
-                    js: section.js,
-                    globalCss: globalCss
-                  });
-
-                  if (result.success) {
-                    // Show brief success message - page already opens in playground
-                    console.log('✅ Section preview updated in WordPress Playground');
-                  }
-                } catch (error: any) {
-                  console.error('Preview error:', error);
-                  alert(`❌ Failed to update preview: ${error.message}`);
-                }
-              }}
-              style={{
-                padding: '6px 12px',
-                background: '#10b981',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '13px',
-                cursor: 'pointer',
-                fontWeight: 500
-              }}
-              title="Quick preview this section in WordPress Playground"
-            >
-              🔄 Preview in WP
-            </button>
-          )}
-
-          {/* Settings - Desktop only */}
-          {!isMobile && (
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              style={{
-                padding: '6px 12px',
-                background: showSettings ? '#000000' : 'var(--muted)',
-                color: showSettings ? '#ffffff' : 'var(--foreground)',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '13px',
-                cursor: 'pointer',
-                fontWeight: 500
-              }}
-            >
-              {showSettings ? '✓' : ''} Settings
-            </button>
-          )}
-
-          {/* Preview Toggle - Different behavior on mobile */}
-          <button
-            onClick={() => setShowPreview(!showPreview)}
-            style={{
-              padding: isMobile ? '8px 12px' : '6px 12px',
-              background: showPreview ? '#000000' : 'var(--muted)',
-              color: showPreview ? '#ffffff' : 'var(--foreground)',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: isMobile ? '14px' : '13px',
-              cursor: 'pointer',
-              fontWeight: 500,
-              minHeight: isMobile ? '44px' : 'auto'
+            onFocus={(e) => {
+              e.target.style.border = "1px solid var(--primary)";
+              e.target.style.background = "var(--background)";
             }}
-          >
-            {showPreview ? (isMobile ? '📝' : '✓ Preview') : (isMobile ? '👁️' : 'Preview')}
-          </button>
+            onBlur={(e) => {
+              e.target.style.border = "1px solid transparent";
+              e.target.style.background = "transparent";
+            }}
+          />
 
-          {/* Visual Editor - Desktop only */}
-          {!isMobile && onSwitchToVisualEditor && (
+          <div style={{ display: "flex", gap: isMobile ? "6px" : "8px" }}>
+            {/* Save to Library - Always visible */}
             <button
-              onClick={() => {
-                // Save current changes before switching
-                if (onSectionChange) {
-                  onSectionChange(section);
-                }
-                onSwitchToVisualEditor();
-              }}
+              onClick={() => setShowSaveDialog(true)}
               style={{
-                padding: '6px 12px',
-                background: '#10b981',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '13px',
-                cursor: 'pointer',
-                fontWeight: 500
+                padding: isMobile ? "8px 12px" : "6px 12px",
+                background: "#000000",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: isMobile ? "14px" : "13px",
+                cursor: "pointer",
+                fontWeight: 500,
+                minHeight: isMobile ? "44px" : "auto",
               }}
             >
-              👁️ Visual Editor
+              💾 {isMobile ? "" : "Save to Library"}
             </button>
-          )}
+
+            {/* Preview in WP - Desktop only */}
+            {!isMobile && (
+              <button
+                onClick={async () => {
+                  try {
+                    // Check if playground is running
+                    if (!(window as any).playgroundClient) {
+                      alert(
+                        "WordPress Playground is not running. Please launch it first from the WordPress Playground tab.",
+                      );
+                      return;
+                    }
+
+                    const importToPage = (window as any)
+                      .importHtmlSectionToPage;
+                    if (!importToPage) {
+                      alert(
+                        "WordPress Playground functions not loaded yet. Please wait a moment and try again.",
+                      );
+                      return;
+                    }
+
+                    // Quick preview with default name if not set
+                    const sectionName = section.name || "Untitled Section";
+
+                    const result = await importToPage({
+                      name: sectionName,
+                      html: section.html,
+                      css: section.css,
+                      js: section.js,
+                      globalCss: globalCss,
+                    });
+
+                    if (result.success) {
+                      // Show brief success message - page already opens in playground
+                      console.log(
+                        "✅ Section preview updated in WordPress Playground",
+                      );
+                    }
+                  } catch (error: any) {
+                    console.error("Preview error:", error);
+                    alert(`❌ Failed to update preview: ${error.message}`);
+                  }
+                }}
+                style={{
+                  padding: "6px 12px",
+                  background: "#10b981",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+                title="Quick preview this section in WordPress Playground"
+              >
+                🔄 Preview in WP
+              </button>
+            )}
+
+            {/* Settings - Desktop only */}
+            {!isMobile && (
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                style={{
+                  padding: "6px 12px",
+                  background: showSettings ? "#000000" : "var(--muted)",
+                  color: showSettings ? "#ffffff" : "var(--foreground)",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                {showSettings ? "✓" : ""} Settings
+              </button>
+            )}
+
+            {/* Preview Toggle - Different behavior on mobile */}
+            <button
+              onClick={() => setShowPreview(!showPreview)}
+              style={{
+                padding: isMobile ? "8px 12px" : "6px 12px",
+                background: showPreview ? "#000000" : "var(--muted)",
+                color: showPreview ? "#ffffff" : "var(--foreground)",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: isMobile ? "14px" : "13px",
+                cursor: "pointer",
+                fontWeight: 500,
+                minHeight: isMobile ? "44px" : "auto",
+              }}
+            >
+              {showPreview
+                ? isMobile
+                  ? "📝"
+                  : "✓ Preview"
+                : isMobile
+                  ? "👁️"
+                  : "Preview"}
+            </button>
+
+            {/* Visual Editor - Desktop only */}
+            {!isMobile && onSwitchToVisualEditor && (
+              <button
+                onClick={() => {
+                  // Save current changes before switching
+                  if (onSectionChange) {
+                    onSectionChange(section);
+                  }
+                  onSwitchToVisualEditor();
+                }}
+                style={{
+                  padding: "6px 12px",
+                  background: "#10b981",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                👁️ Visual Editor
+              </button>
+            )}
+          </div>
         </div>
-      </div>
       )}
 
       {/* Main Content Area */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        overflow: 'hidden'
-      }}>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          overflow: "hidden",
+        }}
+      >
         {/* Code Editor Panel */}
-        <div style={{
-          width: showPreview ? '0%' : '100%',
-          display: showPreview ? 'none' : 'flex',
-          flexDirection: 'column',
-          transition: 'width 0.3s ease'
-        }}>
-          {/* Settings Panel (Collapsible - Hidden on mobile) */}
-          {!isMobile && showSettings && (
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              padding: '16px',
-              background: 'var(--muted)',
-              borderBottom: '1px solid var(--border)'
-            }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, color: 'var(--foreground)' }}>
-                Section Settings
-              </h3>
-
-              {/* Layout Settings */}
-              <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: 500, color: '#374151' }}>
-                  Layout
-                </h4>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
-                  {/* Padding */}
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '4px', color: '#6b7280' }}>Padding</label>
-                    <input
-                      type="number"
-                      placeholder="All sides"
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0;
-                        updateSection({
-                          settings: {
-                            ...section.settings,
-                            layout: {
-                              ...section.settings.layout,
-                              padding: {
-                                top: val,
-                                right: val,
-                                bottom: val,
-                                left: val,
-                                unit: 'px'
-                              }
-                            }
-                          }
-                        });
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '4px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px'
-                      }}
-                    />
-                  </div>
-
-                  {/* Margin */}
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '4px', color: '#6b7280' }}>Margin</label>
-                    <input
-                      type="number"
-                      placeholder="All sides"
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0;
-                        updateSection({
-                          settings: {
-                            ...section.settings,
-                            layout: {
-                              ...section.settings.layout,
-                              margin: {
-                                top: val,
-                                right: val,
-                                bottom: val,
-                                left: val,
-                                unit: 'px'
-                              }
-                            }
-                          }
-                        });
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '4px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px'
-                      }}
-                    />
-                  </div>
-                </div>
+        <div
+          style={{
+            width: showPreview ? "0%" : "100%",
+            display: showPreview ? "none" : "flex",
+            flexDirection: "row",
+            transition: "width 0.3s ease",
+          }}
+        >
+          {/* File Tree Sidebar */}
+          {showFileTree && (
+            <div
+              style={{
+                width: "200px",
+                minWidth: "200px",
+                background: "#252526",
+                borderRight: "1px solid #3e3e3e",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  padding: "8px 12px",
+                  background: "#2d2d2d",
+                  borderBottom: "1px solid #3e3e3e",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "#cccccc",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Files
               </div>
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: "auto",
+                }}
+              >
+                {(["html", "css", "js"] as const).map((fileType) => {
+                  const isActive = activeCodeTab === fileType;
+                  const fileIcons = {
+                    html: "📄",
+                    css: "🎨",
+                    js: "⚡",
+                  };
+                  const fileNames = {
+                    html: "index.html",
+                    css: "styles.css",
+                    js: "script.js",
+                  };
 
-              {/* Background Settings */}
-              <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: 500, color: '#374151' }}>
-                  Background
-                </h4>
-
-                <div style={{ display: 'flex', gap: '8px', fontSize: '12px' }}>
-                  <select
-                    value={section.settings.background.type}
-                    onChange={(e) => {
-                      updateSection({
-                        settings: {
-                          ...section.settings,
-                          background: {
-                            ...section.settings.background,
-                            type: e.target.value as any
-                          }
+                  return (
+                    <div
+                      key={fileType}
+                      onClick={() => handleCodeTabChange(fileType)}
+                      style={{
+                        padding: "8px 16px",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        color: isActive ? "#ffffff" : "#cccccc",
+                        background: isActive ? "#37373d" : "transparent",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        transition: "all 0.15s",
+                        borderLeft: isActive
+                          ? "2px solid #007acc"
+                          : "2px solid transparent",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.background = "#2a2d2e";
                         }
-                      });
-                    }}
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.background = "transparent";
+                        }
+                      }}
+                    >
+                      <span>{fileIcons[fileType]}</span>
+                      <span>{fileNames[fileType]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Code Editor Container */}
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {/* Settings Panel (Collapsible - Hidden on mobile) */}
+            {!isMobile && showSettings && (
+              <div
+                style={{
+                  maxHeight: "300px",
+                  overflowY: "auto",
+                  padding: "16px",
+                  background: "var(--muted)",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <h3
+                  style={{
+                    margin: "0 0 16px 0",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "var(--foreground)",
+                  }}
+                >
+                  Section Settings
+                </h3>
+
+                {/* Layout Settings */}
+                <div style={{ marginBottom: "16px" }}>
+                  <h4
                     style={{
-                      flex: 1,
-                      padding: '4px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px'
+                      margin: "0 0 8px 0",
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      color: "#374151",
                     }}
                   >
-                    <option value="none">None</option>
-                    <option value="color">Color</option>
-                    <option value="gradient">Gradient</option>
-                    <option value="image">Image</option>
-                  </select>
+                    Layout
+                  </h4>
 
-                  {section.settings.background.type === 'color' && (
-                    <input
-                      type="color"
-                      value={section.settings.background.color || '#ffffff'}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "8px",
+                      fontSize: "12px",
+                    }}
+                  >
+                    {/* Padding */}
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          marginBottom: "4px",
+                          color: "#6b7280",
+                        }}
+                      >
+                        Padding
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="All sides"
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          updateSection({
+                            settings: {
+                              ...section.settings,
+                              layout: {
+                                ...section.settings.layout,
+                                padding: {
+                                  top: val,
+                                  right: val,
+                                  bottom: val,
+                                  left: val,
+                                  unit: "px",
+                                },
+                              },
+                            },
+                          });
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "4px 8px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                        }}
+                      />
+                    </div>
+
+                    {/* Margin */}
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          marginBottom: "4px",
+                          color: "#6b7280",
+                        }}
+                      >
+                        Margin
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="All sides"
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          updateSection({
+                            settings: {
+                              ...section.settings,
+                              layout: {
+                                ...section.settings.layout,
+                                margin: {
+                                  top: val,
+                                  right: val,
+                                  bottom: val,
+                                  left: val,
+                                  unit: "px",
+                                },
+                              },
+                            },
+                          });
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "4px 8px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Background Settings */}
+                <div style={{ marginBottom: "16px" }}>
+                  <h4
+                    style={{
+                      margin: "0 0 8px 0",
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      color: "#374151",
+                    }}
+                  >
+                    Background
+                  </h4>
+
+                  <div
+                    style={{ display: "flex", gap: "8px", fontSize: "12px" }}
+                  >
+                    <select
+                      value={section.settings.background.type}
                       onChange={(e) => {
                         updateSection({
                           settings: {
                             ...section.settings,
                             background: {
                               ...section.settings.background,
-                              color: e.target.value
-                            }
-                          }
+                              type: e.target.value as any,
+                            },
+                          },
                         });
                       }}
                       style={{
-                        width: '40px',
-                        height: '28px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
+                        flex: 1,
+                        padding: "4px 8px",
+                        border: "1px solid #d1d5db",
+                        borderRadius: "4px",
+                        fontSize: "12px",
                       }}
-                    />
-                  )}
-                </div>
-              </div>
+                    >
+                      <option value="none">None</option>
+                      <option value="color">Color</option>
+                      <option value="gradient">Gradient</option>
+                      <option value="image">Image</option>
+                    </select>
 
-              {/* Border Settings */}
-              <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: 500, color: '#374151' }}>
-                  Border
-                </h4>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', fontSize: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '4px', color: '#6b7280' }}>Width</label>
-                    <input
-                      type="number"
-                      placeholder="0"
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0;
-                        updateSection({
-                          settings: {
-                            ...section.settings,
-                            border: {
-                              ...section.settings.border,
-                              width: {
-                                top: val,
-                                right: val,
-                                bottom: val,
-                                left: val,
-                                unit: 'px'
-                              }
-                            }
-                          }
-                        });
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '4px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px'
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '4px', color: '#6b7280' }}>Color</label>
-                    <input
-                      type="color"
-                      value={section.settings.border.color}
-                      onChange={(e) => {
-                        updateSection({
-                          settings: {
-                            ...section.settings,
-                            border: {
-                              ...section.settings.border,
-                              color: e.target.value
-                            }
-                          }
-                        });
-                      }}
-                      style={{
-                        width: '100%',
-                        height: '28px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '4px', color: '#6b7280' }}>Radius</label>
-                    <input
-                      type="number"
-                      placeholder="0"
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0;
-                        updateSection({
-                          settings: {
-                            ...section.settings,
-                            border: {
-                              ...section.settings.border,
-                              radius: {
-                                topLeft: val,
-                                topRight: val,
-                                bottomRight: val,
-                                bottomLeft: val,
-                                unit: 'px'
-                              }
-                            }
-                          }
-                        });
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '4px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px'
-                      }}
-                    />
+                    {section.settings.background.type === "color" && (
+                      <input
+                        type="color"
+                        value={section.settings.background.color || "#ffffff"}
+                        onChange={(e) => {
+                          updateSection({
+                            settings: {
+                              ...section.settings,
+                              background: {
+                                ...section.settings.background,
+                                color: e.target.value,
+                              },
+                            },
+                          });
+                        }}
+                        style={{
+                          width: "40px",
+                          height: "28px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* Animation Settings */}
-              <div>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: 500, color: '#374151' }}>
-                  Animation
-                </h4>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px', fontSize: '12px' }}>
-                  <select
-                    value={section.settings.animation.type}
-                    onChange={(e) => {
-                      updateSection({
-                        settings: {
-                          ...section.settings,
-                          animation: {
-                            ...section.settings.animation,
-                            type: e.target.value as any
-                          }
-                        }
-                      });
-                    }}
+                {/* Border Settings */}
+                <div style={{ marginBottom: "16px" }}>
+                  <h4
                     style={{
-                      padding: '4px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px'
+                      margin: "0 0 8px 0",
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      color: "#374151",
                     }}
                   >
-                    <option value="none">None</option>
-                    <option value="fadeIn">Fade In</option>
-                    <option value="fadeInUp">Fade In Up</option>
-                    <option value="fadeInDown">Fade In Down</option>
-                    <option value="slideInLeft">Slide In Left</option>
-                    <option value="slideInRight">Slide In Right</option>
-                    <option value="zoomIn">Zoom In</option>
-                    <option value="bounce">Bounce</option>
-                  </select>
+                    Border
+                  </h4>
 
-                  <select
-                    value={section.settings.animation.duration}
-                    onChange={(e) => {
-                      updateSection({
-                        settings: {
-                          ...section.settings,
-                          animation: {
-                            ...section.settings.animation,
-                            duration: e.target.value as any
-                          }
-                        }
-                      });
-                    }}
+                  <div
                     style={{
-                      padding: '4px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      fontSize: '12px'
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr 1fr",
+                      gap: "8px",
+                      fontSize: "12px",
                     }}
                   >
-                    <option value="fast">Fast</option>
-                    <option value="normal">Normal</option>
-                    <option value="slow">Slow</option>
-                  </select>
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          marginBottom: "4px",
+                          color: "#6b7280",
+                        }}
+                      >
+                        Width
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          updateSection({
+                            settings: {
+                              ...section.settings,
+                              border: {
+                                ...section.settings.border,
+                                width: {
+                                  top: val,
+                                  right: val,
+                                  bottom: val,
+                                  left: val,
+                                  unit: "px",
+                                },
+                              },
+                            },
+                          });
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "4px 8px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          marginBottom: "4px",
+                          color: "#6b7280",
+                        }}
+                      >
+                        Color
+                      </label>
+                      <input
+                        type="color"
+                        value={section.settings.border.color}
+                        onChange={(e) => {
+                          updateSection({
+                            settings: {
+                              ...section.settings,
+                              border: {
+                                ...section.settings.border,
+                                color: e.target.value,
+                              },
+                            },
+                          });
+                        }}
+                        style={{
+                          width: "100%",
+                          height: "28px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          marginBottom: "4px",
+                          color: "#6b7280",
+                        }}
+                      >
+                        Radius
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          updateSection({
+                            settings: {
+                              ...section.settings,
+                              border: {
+                                ...section.settings.border,
+                                radius: {
+                                  topLeft: val,
+                                  topRight: val,
+                                  bottomRight: val,
+                                  bottomLeft: val,
+                                  unit: "px",
+                                },
+                              },
+                            },
+                          });
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "4px 8px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Animation Settings */}
+                <div>
+                  <h4
+                    style={{
+                      margin: "0 0 8px 0",
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      color: "#374151",
+                    }}
+                  >
+                    Animation
+                  </h4>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "2fr 1fr",
+                      gap: "8px",
+                      fontSize: "12px",
+                    }}
+                  >
+                    <select
+                      value={section.settings.animation.type}
+                      onChange={(e) => {
+                        updateSection({
+                          settings: {
+                            ...section.settings,
+                            animation: {
+                              ...section.settings.animation,
+                              type: e.target.value as any,
+                            },
+                          },
+                        });
+                      }}
+                      style={{
+                        padding: "4px 8px",
+                        border: "1px solid #d1d5db",
+                        borderRadius: "4px",
+                        fontSize: "12px",
+                      }}
+                    >
+                      <option value="none">None</option>
+                      <option value="fadeIn">Fade In</option>
+                      <option value="fadeInUp">Fade In Up</option>
+                      <option value="fadeInDown">Fade In Down</option>
+                      <option value="slideInLeft">Slide In Left</option>
+                      <option value="slideInRight">Slide In Right</option>
+                      <option value="zoomIn">Zoom In</option>
+                      <option value="bounce">Bounce</option>
+                    </select>
+
+                    <select
+                      value={section.settings.animation.duration}
+                      onChange={(e) => {
+                        updateSection({
+                          settings: {
+                            ...section.settings,
+                            animation: {
+                              ...section.settings.animation,
+                              duration: e.target.value as any,
+                            },
+                          },
+                        });
+                      }}
+                      style={{
+                        padding: "4px 8px",
+                        border: "1px solid #d1d5db",
+                        borderRadius: "4px",
+                        fontSize: "12px",
+                      }}
+                    >
+                      <option value="fast">Fast</option>
+                      <option value="normal">Normal</option>
+                      <option value="slow">Slow</option>
+                    </select>
+                  </div>
                 </div>
               </div>
+            )}
+
+            {/* Code Editor Tabs */}
+            <div
+              style={{
+                display: "flex",
+                gap: "4px",
+                padding: "8px 12px",
+                background: "#2d2d2d",
+                borderBottom: "1px solid #3e3e3e",
+              }}
+            >
+              {(["html", "css", "js"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => handleCodeTabChange(tab)}
+                  style={{
+                    padding: "6px 16px",
+                    background:
+                      activeCodeTab === tab ? "#1e1e1e" : "transparent",
+                    color: activeCodeTab === tab ? "#ffffff" : "#9ca3af",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    fontWeight: activeCodeTab === tab ? 500 : 400,
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {tab.toUpperCase()}
+                </button>
+              ))}
             </div>
-          )}
 
-          {/* Code Editor Tabs */}
-          <div style={{
-            display: 'flex',
-            gap: '4px',
-            padding: '8px 12px',
-            background: '#2d2d2d',
-            borderBottom: '1px solid #3e3e3e'
-          }}>
-            {(['html', 'css', 'js'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => handleCodeTabChange(tab)}
-                style={{
-                  padding: '6px 16px',
-                  background: activeCodeTab === tab ? '#1e1e1e' : 'transparent',
-                  color: activeCodeTab === tab ? '#ffffff' : '#9ca3af',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  fontWeight: activeCodeTab === tab ? 500 : 400,
-                  transition: 'all 0.2s'
-                }}
-              >
-                {tab.toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          {/* Code Editor */}
-          <div style={{ flex: 1, overflow: 'hidden', background: '#1e1e1e' }}>
-            {/* Debug: Log editor value */}
-            {console.log(`📝 Editor rendering - ${activeCodeTab}:`, section[activeCodeTab]?.substring(0, 100) || '(empty)')}
-            <Editor
-              height="100%"
-              language={activeCodeTab === 'js' ? 'javascript' : activeCodeTab}
-              theme={theme === 'dark' ? 'vs-dark' : 'light'}
-              value={section[activeCodeTab]}
-              onChange={(value) => updateSection({ [activeCodeTab]: value || '' })}
-              onMount={(editor, monaco) => {
-                // Register CSS variable autocomplete (only for CSS tab)
-                if (activeCodeTab === 'css') {
-                  monaco.languages.registerCompletionItemProvider('css', {
-                    provideCompletionItems: (model, position) => {
-                      const textUntilPosition = model.getValueInRange({
-                        startLineNumber: position.lineNumber,
-                        startColumn: 1,
-                        endLineNumber: position.lineNumber,
-                        endColumn: position.column
-                      });
-
-                      // Trigger on "var(" or "--"
-                      const shouldTrigger = textUntilPosition.includes('var(') || textUntilPosition.match(/--[\w-]*$/);
-                      if (!shouldTrigger) return { suggestions: [] };
-
-                      const suggestions = cssVariables.map(variable => ({
-                        label: variable.name,
-                        kind: monaco.languages.CompletionItemKind.Variable,
-                        insertText: textUntilPosition.includes('var(')
-                          ? variable.name + ')'
-                          : variable.name,
-                        detail: variable.value,
-                        documentation: `CSS Variable: ${variable.name} = ${variable.value}`
-                      }));
-
-                      return { suggestions };
-                    }
-                  });
+            {/* Code Editor */}
+            <div style={{ flex: 1, overflow: "hidden", background: "#1e1e1e" }}>
+              {/* Debug: Log editor value */}
+              {console.log(
+                `📝 Editor rendering - ${activeCodeTab}:`,
+                section[activeCodeTab]?.substring(0, 100) || "(empty)",
+              )}
+              <Editor
+                height="100%"
+                language={activeCodeTab === "js" ? "javascript" : activeCodeTab}
+                theme={theme === "dark" ? "vs-dark" : "light"}
+                value={section[activeCodeTab]}
+                onChange={(value) =>
+                  updateSection({ [activeCodeTab]: value || "" })
                 }
-              }}
-              options={{
-                fontSize: isMobile ? 16 : 14, // Larger font on mobile for better readability
-                minimap: { enabled: false },
-                lineNumbers: isMobile ? 'off' : 'on', // Hide line numbers on mobile to save space
-                scrollBeyondLastLine: false,
-                wordWrap: 'on',
-                automaticLayout: true,
-                tabSize: 2,
-                insertSpaces: true,
-                suggestOnTriggerCharacters: !isMobile, // Disable auto-suggestions on mobile
-                quickSuggestions: activeCodeTab === 'css' && !isMobile,
-                // Mobile-specific improvements
-                scrollbar: {
-                  vertical: isMobile ? 'auto' : 'visible',
-                  horizontal: isMobile ? 'auto' : 'visible',
-                  verticalScrollbarSize: isMobile ? 10 : 14,
-                  horizontalScrollbarSize: isMobile ? 10 : 14
-                },
-                padding: { top: isMobile ? 12 : 8, bottom: isMobile ? 12 : 8 },
-                lineDecorationsWidth: isMobile ? 0 : 10, // Remove left gutter decoration on mobile
-                lineNumbersMinChars: isMobile ? 0 : 3,
-                glyphMargin: !isMobile, // Remove glyph margin on mobile
-                folding: !isMobile, // Disable code folding on mobile
-                renderLineHighlight: isMobile ? 'none' : 'line', // Cleaner look on mobile
-                occurrencesHighlight: !isMobile, // Reduce visual noise on mobile
-                overviewRulerLanes: isMobile ? 0 : 3 // Hide overview ruler on mobile
-              }}
-            />
+                onMount={(editor, monaco) => {
+                  // Register CSS variable autocomplete (only for CSS tab)
+                  if (activeCodeTab === "css") {
+                    monaco.languages.registerCompletionItemProvider("css", {
+                      provideCompletionItems: (model, position) => {
+                        const textUntilPosition = model.getValueInRange({
+                          startLineNumber: position.lineNumber,
+                          startColumn: 1,
+                          endLineNumber: position.lineNumber,
+                          endColumn: position.column,
+                        });
+
+                        // Trigger on "var(" or "--"
+                        const shouldTrigger =
+                          textUntilPosition.includes("var(") ||
+                          textUntilPosition.match(/--[\w-]*$/);
+                        if (!shouldTrigger) return { suggestions: [] };
+
+                        const suggestions = cssVariables.map((variable) => ({
+                          label: variable.name,
+                          kind: monaco.languages.CompletionItemKind.Variable,
+                          insertText: textUntilPosition.includes("var(")
+                            ? variable.name + ")"
+                            : variable.name,
+                          detail: variable.value,
+                          documentation: `CSS Variable: ${variable.name} = ${variable.value}`,
+                        }));
+
+                        return { suggestions };
+                      },
+                    });
+                  }
+                }}
+                options={{
+                  fontSize: isMobile ? 16 : 14, // Larger font on mobile for better readability
+                  minimap: { enabled: false },
+                  lineNumbers: isMobile ? "off" : "on", // Hide line numbers on mobile to save space
+                  scrollBeyondLastLine: false,
+                  wordWrap: "on",
+                  automaticLayout: true,
+                  tabSize: 2,
+                  insertSpaces: true,
+                  suggestOnTriggerCharacters: !isMobile, // Disable auto-suggestions on mobile
+                  quickSuggestions: activeCodeTab === "css" && !isMobile,
+                  // Mobile-specific improvements
+                  scrollbar: {
+                    vertical: isMobile ? "auto" : "visible",
+                    horizontal: isMobile ? "auto" : "visible",
+                    verticalScrollbarSize: isMobile ? 10 : 14,
+                    horizontalScrollbarSize: isMobile ? 10 : 14,
+                  },
+                  padding: {
+                    top: isMobile ? 12 : 8,
+                    bottom: isMobile ? 12 : 8,
+                  },
+                  lineDecorationsWidth: isMobile ? 0 : 10, // Remove left gutter decoration on mobile
+                  lineNumbersMinChars: isMobile ? 0 : 3,
+                  glyphMargin: !isMobile, // Remove glyph margin on mobile
+                  folding: !isMobile, // Disable code folding on mobile
+                  renderLineHighlight: isMobile ? "none" : "line", // Cleaner look on mobile
+                  occurrencesHighlight: !isMobile, // Reduce visual noise on mobile
+                  overviewRulerLanes: isMobile ? 0 : 3, // Hide overview ruler on mobile
+                }}
+              />
+            </div>
           </div>
         </div>
 
         {/* Preview Panel - Full Screen */}
         {showPreview && (
-          <div style={{
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'var(--background)'
-          }}>
-            <div style={{
-              padding: '8px 12px',
-              background: 'var(--muted)',
-              borderBottom: '1px solid var(--border)',
-              fontSize: '13px',
-              fontWeight: 500,
-              color: 'var(--foreground)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
+          <div
+            style={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              background: "var(--background)",
+            }}
+          >
+            <div
+              style={{
+                padding: "8px 12px",
+                background: "var(--muted)",
+                borderBottom: "1px solid var(--border)",
+                fontSize: "13px",
+                fontWeight: 500,
+                color: "var(--foreground)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <span>Live Preview</span>
               <button
                 onClick={() => setShowPreview(false)}
                 style={{
-                  padding: '4px 8px',
-                  background: '#000000',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  fontWeight: 500
+                  padding: "4px 8px",
+                  background: "#000000",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  fontWeight: 500,
                 }}
               >
                 ✕ Close
@@ -859,8 +1133,8 @@ export function HtmlSectionEditor({
               srcDoc={generatePreviewHTML()}
               style={{
                 flex: 1,
-                border: 'none',
-                width: '100%'
+                border: "none",
+                width: "100%",
               }}
               sandbox="allow-scripts"
               title="Section Preview"
@@ -871,32 +1145,49 @@ export function HtmlSectionEditor({
 
       {/* Save to Library Dialog */}
       {showSaveDialog && (
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: 'var(--card)',
-            borderRadius: '8px',
-            padding: '24px',
-            width: '90%',
-            maxWidth: '550px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: "var(--card)",
+              borderRadius: "8px",
+              padding: "24px",
+              width: "90%",
+              maxWidth: "550px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+            }}
+          >
+            <h2
+              style={{
+                margin: "0 0 16px 0",
+                fontSize: "18px",
+                fontWeight: 600,
+              }}
+            >
               Save Section
             </h2>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "8px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                }}
+              >
                 Section Name
               </label>
               <input
@@ -905,20 +1196,38 @@ export function HtmlSectionEditor({
                 onChange={(e) => updateSection({ name: e.target.value })}
                 placeholder="e.g., Pricing Table, Hero Section"
                 style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '14px'
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  fontSize: "14px",
                 }}
               />
             </div>
 
-            <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--muted)', borderRadius: '6px' }}>
-              <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', margin: '0 0 8px 0', fontWeight: 500 }}>
-                {isMobile ? 'Save to local library:' : 'Choose where to save this section:'}
+            <div
+              style={{
+                marginBottom: "20px",
+                padding: "12px",
+                background: "var(--muted)",
+                borderRadius: "6px",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "13px",
+                  color: "var(--muted-foreground)",
+                  margin: "0 0 8px 0",
+                  fontWeight: 500,
+                }}
+              >
+                {isMobile
+                  ? "Save to local library:"
+                  : "Choose where to save this section:"}
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
                 {/* Desktop-only save options */}
                 {!isMobile && (
                   <>
@@ -926,19 +1235,24 @@ export function HtmlSectionEditor({
                       onClick={async () => {
                         try {
                           if (!section.name.trim()) {
-                            alert('Please enter a section name');
+                            alert("Please enter a section name");
                             return;
                           }
 
                           // Check if playground is running
                           if (!(window as any).playgroundClient) {
-                            alert('WordPress Playground is not running. Please launch it first from the WordPress Playground tab.');
+                            alert(
+                              "WordPress Playground is not running. Please launch it first from the WordPress Playground tab.",
+                            );
                             return;
                           }
 
-                          const saveToLibrary = (window as any).saveHtmlSectionToLibrary;
+                          const saveToLibrary = (window as any)
+                            .saveHtmlSectionToLibrary;
                           if (!saveToLibrary) {
-                            alert('WordPress Playground functions not loaded yet. Please wait a moment and try again.');
+                            alert(
+                              "WordPress Playground functions not loaded yet. Please wait a moment and try again.",
+                            );
                             return;
                           }
 
@@ -947,29 +1261,33 @@ export function HtmlSectionEditor({
                             html: section.html,
                             css: section.css,
                             js: section.js,
-                            globalCss: globalCss
+                            globalCss: globalCss,
                           });
 
                           if (result.success) {
                             const debug = result.debug || {};
-                            const debugInfo = `\n\nDebug Info:\n- HTML: ${debug.html_length || 0} chars\n- CSS: ${debug.css_length || 0} chars\n- JS: ${debug.js_length || 0} chars\n- Combined: ${debug.combined_length || 0} chars\n- Has <style>: ${debug.has_style_tag ? 'Yes' : 'No'}\n- Has <script>: ${debug.has_script_tag ? 'Yes' : 'No'}`;
-                            alert(`✅ Section "${section.name}" saved to Elementor template library!\n\nTemplate ID: ${result.templateId}\n\nYou can now access it in WordPress > Templates > Saved Templates.${debugInfo}`);
+                            const debugInfo = `\n\nDebug Info:\n- HTML: ${debug.html_length || 0} chars\n- CSS: ${debug.css_length || 0} chars\n- JS: ${debug.js_length || 0} chars\n- Combined: ${debug.combined_length || 0} chars\n- Has <style>: ${debug.has_style_tag ? "Yes" : "No"}\n- Has <script>: ${debug.has_script_tag ? "Yes" : "No"}`;
+                            alert(
+                              `✅ Section "${section.name}" saved to Elementor template library!\n\nTemplate ID: ${result.templateId}\n\nYou can now access it in WordPress > Templates > Saved Templates.${debugInfo}`,
+                            );
                             setShowSaveDialog(false);
                           }
                         } catch (error: any) {
-                          alert(`❌ Failed to save to template library:\n\n${error.message}`);
+                          alert(
+                            `❌ Failed to save to template library:\n\n${error.message}`,
+                          );
                         }
                       }}
                       style={{
-                        padding: '10px 16px',
-                        background: '#000000',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        cursor: 'pointer',
+                        padding: "10px 16px",
+                        background: "#000000",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "6px",
+                        fontSize: "13px",
+                        cursor: "pointer",
                         fontWeight: 500,
-                        textAlign: 'left'
+                        textAlign: "left",
                       }}
                     >
                       📚 Save to Elementor Template Library
@@ -979,19 +1297,24 @@ export function HtmlSectionEditor({
                       onClick={async () => {
                         try {
                           if (!section.name.trim()) {
-                            alert('Please enter a section name');
+                            alert("Please enter a section name");
                             return;
                           }
 
                           // Check if playground is running
                           if (!(window as any).playgroundClient) {
-                            alert('WordPress Playground is not running. Please launch it first from the WordPress Playground tab.');
+                            alert(
+                              "WordPress Playground is not running. Please launch it first from the WordPress Playground tab.",
+                            );
                             return;
                           }
 
-                          const importToPage = (window as any).importHtmlSectionToPage;
+                          const importToPage = (window as any)
+                            .importHtmlSectionToPage;
                           if (!importToPage) {
-                            alert('WordPress Playground functions not loaded yet. Please wait a moment and try again.');
+                            alert(
+                              "WordPress Playground functions not loaded yet. Please wait a moment and try again.",
+                            );
                             return;
                           }
 
@@ -1000,27 +1323,31 @@ export function HtmlSectionEditor({
                             html: section.html,
                             css: section.css,
                             js: section.js,
-                            globalCss: globalCss
+                            globalCss: globalCss,
                           });
 
                           if (result.success) {
-                            alert(`✅ Section "${section.name}" imported to preview page!\n\nPage ID: ${result.pageId}\n\nThe page is now open in WordPress Playground.`);
+                            alert(
+                              `✅ Section "${section.name}" imported to preview page!\n\nPage ID: ${result.pageId}\n\nThe page is now open in WordPress Playground.`,
+                            );
                             setShowSaveDialog(false);
                           }
                         } catch (error: any) {
-                          alert(`❌ Failed to import to page:\n\n${error.message}`);
+                          alert(
+                            `❌ Failed to import to page:\n\n${error.message}`,
+                          );
                         }
                       }}
                       style={{
-                        padding: '10px 16px',
-                        background: '#10b981',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        cursor: 'pointer',
+                        padding: "10px 16px",
+                        background: "#10b981",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "6px",
+                        fontSize: "13px",
+                        cursor: "pointer",
                         fontWeight: 500,
-                        textAlign: 'left'
+                        textAlign: "left",
                       }}
                     >
                       🌐 Import to WordPress Page Preview
@@ -1033,12 +1360,12 @@ export function HtmlSectionEditor({
                   onClick={() => {
                     try {
                       if (!section.name.trim()) {
-                        alert('Please enter a section name');
+                        alert("Please enter a section name");
                         return;
                       }
 
                       // Load existing sections from localStorage
-                      const saved = localStorage.getItem('html-sections');
+                      const saved = localStorage.getItem("html-sections");
                       const sections = saved ? JSON.parse(saved) : [];
 
                       // Add current section
@@ -1046,32 +1373,39 @@ export function HtmlSectionEditor({
                         ...section,
                         id: `section-${Date.now()}`,
                         createdAt: Date.now(),
-                        updatedAt: Date.now()
+                        updatedAt: Date.now(),
                       });
 
                       // Save to localStorage
-                      localStorage.setItem('html-sections', JSON.stringify(sections));
+                      localStorage.setItem(
+                        "html-sections",
+                        JSON.stringify(sections),
+                      );
 
                       // Dispatch storage event for other components
-                      window.dispatchEvent(new Event('storage'));
+                      window.dispatchEvent(new Event("storage"));
 
-                      alert(`✅ Section "${section.name}" saved to local library!\n\nYou can access it in the Section Library tab.`);
+                      alert(
+                        `✅ Section "${section.name}" saved to local library!\n\nYou can access it in the Section Library tab.`,
+                      );
                       setShowSaveDialog(false);
                     } catch (error: any) {
-                      alert(`❌ Failed to save to local library:\n\n${error.message}`);
+                      alert(
+                        `❌ Failed to save to local library:\n\n${error.message}`,
+                      );
                     }
                   }}
                   style={{
-                    padding: isMobile ? '14px 16px' : '10px 16px',
-                    background: '#10b981',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontSize: isMobile ? '14px' : '13px',
-                    cursor: 'pointer',
+                    padding: isMobile ? "14px 16px" : "10px 16px",
+                    background: "#10b981",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: isMobile ? "14px" : "13px",
+                    cursor: "pointer",
                     fontWeight: 500,
-                    textAlign: 'left',
-                    minHeight: isMobile ? '48px' : 'auto'
+                    textAlign: "left",
+                    minHeight: isMobile ? "48px" : "auto",
                   }}
                 >
                   💾 Save to Local Section Library
@@ -1079,18 +1413,24 @@ export function HtmlSectionEditor({
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                justifyContent: "flex-end",
+              }}
+            >
               <button
                 onClick={() => setShowSaveDialog(false)}
                 style={{
-                  padding: '8px 16px',
-                  background: 'var(--muted)',
-                  color: 'var(--foreground)',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  fontWeight: 500
+                  padding: "8px 16px",
+                  background: "var(--muted)",
+                  color: "var(--foreground)",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  fontWeight: 500,
                 }}
               >
                 Cancel

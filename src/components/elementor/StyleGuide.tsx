@@ -2,9 +2,18 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
+import { useTheme } from 'next-themes';
 import Editor from '@monaco-editor/react';
+import { OptionsButton, type OptionItem } from '@/components/ui/OptionsButton';
 
-export function StyleGuide() {
+interface StyleGuideProps {
+  chatVisible?: boolean;
+  setChatVisible?: (visible: boolean) => void;
+  tabBarVisible?: boolean;
+  setTabBarVisible?: (visible: boolean) => void;
+}
+
+export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabBarVisible }: StyleGuideProps = {}) {
   const {
     globalCss,
     setGlobalCss,
@@ -14,13 +23,30 @@ export function StyleGuide() {
     error,
     themeName,
     themeVersion,
-    cssVariables
+    cssVariables,
+    lastUpdated
   } = useGlobalStylesheet();
+  const { theme } = useTheme();
 
   const [leftPanelWidth, setLeftPanelWidth] = useState(60); // percentage
   const [isResizing, setIsResizing] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSavedCss, setLastSavedCss] = useState(globalCss);
+  const [showUpdateNotification, setShowUpdateNotification] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showPreview, setShowPreview] = useState(false); // Start with editor visible
+  const lastUpdateRef = useRef(lastUpdated);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Resize handlers
   const handleMouseDown = () => {
@@ -59,6 +85,21 @@ export function StyleGuide() {
   useEffect(() => {
     setHasUnsavedChanges(globalCss !== lastSavedCss);
   }, [globalCss, lastSavedCss]);
+
+  // Show notification when CSS updates (and propagates to previews)
+  useEffect(() => {
+    if (lastUpdated !== lastUpdateRef.current) {
+      lastUpdateRef.current = lastUpdated;
+      setShowUpdateNotification(true);
+
+      // Auto-hide after 3 seconds
+      const timer = setTimeout(() => {
+        setShowUpdateNotification(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [lastUpdated]);
 
   // Handlers
   const handlePullFromWordPress = async () => {
@@ -102,20 +143,57 @@ export function StyleGuide() {
   return (
     <div style={{
       display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row',
       height: '100%',
       width: '100%',
       position: 'relative',
       overflow: 'hidden'
     }}>
       {/* Left Panel: Style Guide Preview */}
-      <div style={{
-        width: `${leftPanelWidth}%`,
-        height: '100%',
-        overflowY: 'auto',
-        padding: '24px',
-        background: '#ffffff',
-        borderRight: '1px solid #e5e7eb'
-      }}>
+      {showPreview && (
+        <div style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'var(--background)'
+        }}>
+          {/* Preview Header with Close Button */}
+          <div style={{
+            padding: '8px 12px',
+            background: 'var(--muted)',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--foreground)' }}>
+              Style Guide Preview
+            </span>
+            <button
+              onClick={() => setShowPreview(false)}
+              style={{
+                padding: '4px 8px',
+                background: '#000000',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '12px',
+                cursor: 'pointer',
+                fontWeight: 500
+              }}
+            >
+              ✕ Close
+            </button>
+          </div>
+
+          {/* Preview Content */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '24px',
+            background: 'var(--background)'
+          }}>
         {/* Apply global CSS */}
         <style>{globalCss}</style>
 
@@ -151,10 +229,46 @@ export function StyleGuide() {
             </p>
           </section>
 
+          {/* CSS Variables Section */}
+          <section style={{ marginBottom: '48px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '16px', color: '#111827', borderBottom: '2px solid #e5e7eb', paddingBottom: '8px' }}>
+              CSS Variables
+            </h2>
+
+            {cssVariables.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                {cssVariables.map((variable, idx) => (
+                  <div key={idx} style={{
+                    display: 'grid',
+                    gridTemplateColumns: '200px 1fr',
+                    gap: '12px',
+                    padding: '8px 12px',
+                    background: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    fontFamily: 'monospace'
+                  }}>
+                    <div style={{ fontWeight: 600, color: '#059669' }}>
+                      {variable.name}
+                    </div>
+                    <div style={{ color: '#6b7280', wordBreak: 'break-all' }}>
+                      {variable.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: '#6b7280', fontSize: '14px' }}>
+                No CSS variables found. Add some to your stylesheet using <code>:root {'{ --primary-color: #0066cc; }'}</code>
+              </p>
+            )}
+          </section>
+
           {/* Colors Section */}
           <section style={{ marginBottom: '48px' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '16px', color: '#111827', borderBottom: '2px solid #e5e7eb', paddingBottom: '8px' }}>
-              Colors
+              Color Swatches
             </h2>
 
             {cssVariables.length > 0 ? (
@@ -179,7 +293,7 @@ export function StyleGuide() {
               </div>
             ) : (
               <p style={{ color: '#6b7280', fontSize: '14px' }}>
-                No CSS color variables found. Add some to your stylesheet using <code>:root {'{ --primary-color: #0066cc; }'}</code>
+                No CSS color variables found.
               </p>
             )}
           </section>
@@ -356,99 +470,51 @@ export function StyleGuide() {
             </div>
           </section>
         </div>
-      </div>
+          </div>
+        </div>
+      )}
 
-      {/* Resize Handle */}
-      <div
-        onMouseDown={handleMouseDown}
-        style={{
-          width: '4px',
+      {/* Resize Handle (Hidden on mobile or when preview is full-screen) */}
+      {!isMobile && !showPreview && (
+        <div
+          onMouseDown={handleMouseDown}
+          style={{
+            width: '4px',
+            height: '100%',
+            background: isResizing ? '#10b981' : 'var(--border)',
+            cursor: 'col-resize',
+            transition: 'background 0.15s',
+            position: 'relative',
+            zIndex: 10
+          }}
+        />
+      )}
+
+      {/* Right Panel: CSS Editor (Hidden when preview is full-screen) */}
+      {!showPreview && (
+        <div style={{
+          width: isMobile ? '100%' : `${100 - leftPanelWidth}%`,
           height: '100%',
-          background: isResizing ? '#3b82f6' : '#e5e7eb',
-          cursor: 'col-resize',
-          transition: 'background 0.15s',
-          position: 'relative',
-          zIndex: 10
-        }}
-      />
-
-      {/* Right Panel: CSS Editor */}
-      <div style={{
-        width: `${100 - leftPanelWidth}%`,
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        background: '#1e1e1e'
-      }}>
+          display: 'flex',
+          flexDirection: 'column',
+          background: theme === 'dark' ? '#1e1e1e' : '#f5f5f5'
+        }}>
         {/* Editor Header */}
         <div style={{
           padding: '12px 16px',
-          background: '#2d2d2d',
-          borderBottom: '1px solid #3e3e3e',
+          background: 'var(--muted)',
+          borderBottom: '1px solid var(--border)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#ffffff', fontSize: '14px', fontWeight: 500 }}>
+            <span style={{ color: 'var(--foreground)', fontSize: '14px', fontWeight: 500 }}>
               Global Stylesheet
             </span>
             {hasUnsavedChanges && (
               <span style={{ color: '#f59e0b', fontSize: '12px' }}>● Unsaved</span>
             )}
-          </div>
-
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={handlePullFromWordPress}
-              disabled={isLoading}
-              style={{
-                padding: '6px 12px',
-                background: '#3b82f6',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '12px',
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                opacity: isLoading ? 0.6 : 1
-              }}
-            >
-              {isLoading ? '⏳' : '⬇️'} Pull from WordPress
-            </button>
-
-            <button
-              onClick={handlePushToWordPress}
-              disabled={isLoading || !hasUnsavedChanges}
-              style={{
-                padding: '6px 12px',
-                background: hasUnsavedChanges ? '#10b981' : '#4b5563',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '12px',
-                cursor: isLoading || !hasUnsavedChanges ? 'not-allowed' : 'pointer',
-                opacity: isLoading || !hasUnsavedChanges ? 0.6 : 1
-              }}
-            >
-              {isLoading ? '⏳' : '⬆️'} Push to WordPress
-            </button>
-
-            <button
-              onClick={handleResetToDefault}
-              disabled={isLoading}
-              style={{
-                padding: '6px 12px',
-                background: '#ef4444',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '12px',
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                opacity: isLoading ? 0.6 : 1
-              }}
-            >
-              🔄 Reset
-            </button>
           </div>
         </div>
 
@@ -470,9 +536,38 @@ export function StyleGuide() {
           <Editor
             height="100%"
             defaultLanguage="css"
-            theme="vs-dark"
+            theme={theme === 'dark' ? 'vs-dark' : 'light'}
             value={globalCss}
             onChange={(value) => setGlobalCss(value || '')}
+            onMount={(editor, monaco) => {
+              // Register CSS variable autocomplete
+              monaco.languages.registerCompletionItemProvider('css', {
+                provideCompletionItems: (model, position) => {
+                  const textUntilPosition = model.getValueInRange({
+                    startLineNumber: position.lineNumber,
+                    startColumn: 1,
+                    endLineNumber: position.lineNumber,
+                    endColumn: position.column
+                  });
+
+                  // Trigger on "var(" or "--"
+                  const shouldTrigger = textUntilPosition.includes('var(') || textUntilPosition.match(/--[\w-]*$/);
+                  if (!shouldTrigger) return { suggestions: [] };
+
+                  const suggestions = cssVariables.map(variable => ({
+                    label: variable.name,
+                    kind: monaco.languages.CompletionItemKind.Variable,
+                    insertText: textUntilPosition.includes('var(')
+                      ? variable.name + ')'
+                      : variable.name,
+                    detail: variable.value,
+                    documentation: `CSS Variable: ${variable.name} = ${variable.value}`
+                  }));
+
+                  return { suggestions };
+                }
+              });
+            }}
             options={{
               fontSize: 14,
               minimap: { enabled: false },
@@ -481,11 +576,99 @@ export function StyleGuide() {
               wordWrap: 'on',
               automaticLayout: true,
               tabSize: 2,
-              insertSpaces: true
+              insertSpaces: true,
+              suggestOnTriggerCharacters: true,
+              quickSuggestions: true
             }}
           />
         </div>
-      </div>
+        </div>
+      )}
+
+      {/* Update Notification Toast */}
+      {showUpdateNotification && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          background: '#10b981',
+          color: '#ffffff',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          fontSize: '14px',
+          fontWeight: 500,
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          <span style={{ fontSize: '18px' }}>✓</span>
+          Previews updated with new stylesheet
+        </div>
+      )}
+
+      {/* Options Button */}
+      <OptionsButton
+        isMobile={isMobile}
+        options={[
+          // Preview toggle
+          {
+            label: showPreview ? '📝 Show Editor' : '👁️ Show Preview',
+            onClick: () => setShowPreview(!showPreview),
+            type: 'toggle' as const,
+            active: showPreview,
+            divider: true
+          },
+          // Pull from WordPress
+          {
+            label: '⬇️ Pull from WordPress',
+            onClick: handlePullFromWordPress,
+            disabled: isLoading
+          },
+          // Push to WordPress
+          {
+            label: '⬆️ Push to WordPress',
+            onClick: handlePushToWordPress,
+            disabled: isLoading || !hasUnsavedChanges
+          },
+          // Reset
+          {
+            label: '🔄 Reset to Default',
+            onClick: handleResetToDefault,
+            disabled: isLoading,
+            divider: true
+          },
+          // Chat toggle
+          ...(setChatVisible ? [{
+            label: chatVisible ? 'Hide Chat' : 'Show Chat',
+            onClick: () => setChatVisible(!chatVisible),
+            type: 'toggle' as const,
+            active: chatVisible
+          }] : []),
+          // Tab bar toggle
+          ...(setTabBarVisible ? [{
+            label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
+            onClick: () => setTabBarVisible(!tabBarVisible),
+            type: 'toggle' as const,
+            active: tabBarVisible
+          }] : [])
+        ]}
+      />
+
+      <style jsx>{`
+        @keyframes slideIn {
+          from {
+            transform: translateY(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
     </div>
   );
 }

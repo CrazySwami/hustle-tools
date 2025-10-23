@@ -1356,7 +1356,7 @@ window.saveHtmlSectionToLibrary = async function(section) {
         updatePlaygroundStatus('💾 Saving section to Elementor template library...');
         console.log('📝 Saving section:', section);
 
-        const { name, html, css, js } = section;
+        const { name, html, css, js, globalCss } = section;
 
         if (!name || !html) {
             throw new Error('Section must have a name and HTML content');
@@ -1378,13 +1378,21 @@ window.saveHtmlSectionToLibrary = async function(section) {
                     $html = isset($section['html']) ? $section['html'] : '';
                     $css = isset($section['css']) ? $section['css'] : '';
                     $js = isset($section['js']) ? $section['js'] : '';
+                    $global_css = isset($section['globalCss']) ? $section['globalCss'] : '';
 
                     // Combine HTML, CSS, and JS into a single HTML widget
                     $combined_html = $html;
 
-                    // Append CSS as <style> tag
-                    if (!empty($css)) {
-                        $combined_html .= "\n\n<style>\n" . $css . "\n</style>";
+                    // Append global CSS first, then section CSS as <style> tag
+                    if (!empty($global_css) || !empty($css)) {
+                        $combined_html .= "\n\n<style>\n";
+                        if (!empty($global_css)) {
+                            $combined_html .= "/* Global CSS */\n" . $global_css . "\n\n";
+                        }
+                        if (!empty($css)) {
+                            $combined_html .= "/* Section CSS */\n" . $css . "\n";
+                        }
+                        $combined_html .= "</style>";
                     }
 
                     // Append JS as <script> tag
@@ -1405,13 +1413,47 @@ window.saveHtmlSectionToLibrary = async function(section) {
                         array(
                             'id' => 'section_' . substr(md5(uniqid()), 0, 8),
                             'elType' => 'section',
-                            'settings' => array(),
+                            'settings' => array(
+                                'content_width' => 'full',
+                                'padding' => array(
+                                    'unit' => 'px',
+                                    'top' => '0',
+                                    'right' => '0',
+                                    'bottom' => '0',
+                                    'left' => '0',
+                                    'isLinked' => true
+                                ),
+                                'margin' => array(
+                                    'unit' => 'px',
+                                    'top' => '0',
+                                    'right' => '0',
+                                    'bottom' => '0',
+                                    'left' => '0',
+                                    'isLinked' => true
+                                )
+                            ),
                             'elements' => array(
                                 array(
                                     'id' => 'column_' . substr(md5(uniqid()), 0, 8),
                                     'elType' => 'column',
                                     'settings' => array(
-                                        '_column_size' => 100
+                                        '_column_size' => 100,
+                                        'padding' => array(
+                                            'unit' => 'px',
+                                            'top' => '0',
+                                            'right' => '0',
+                                            'bottom' => '0',
+                                            'left' => '0',
+                                            'isLinked' => true
+                                        ),
+                                        'margin' => array(
+                                            'unit' => 'px',
+                                            'top' => '0',
+                                            'right' => '0',
+                                            'bottom' => '0',
+                                            'left' => '0',
+                                            'isLinked' => true
+                                        )
                                     ),
                                     'elements' => array(
                                         array(
@@ -1527,7 +1569,7 @@ window.importHtmlSectionToPage = async function(section) {
         updatePlaygroundStatus('📄 Creating preview page with section...');
         console.log('📝 Importing section to page:', section);
 
-        const { name, html, css, js } = section;
+        const { name, html, css, js, globalCss } = section;
 
         if (!html) {
             throw new Error('Section must have HTML content');
@@ -1549,13 +1591,21 @@ window.importHtmlSectionToPage = async function(section) {
                     $html = isset($section['html']) ? $section['html'] : '';
                     $css = isset($section['css']) ? $section['css'] : '';
                     $js = isset($section['js']) ? $section['js'] : '';
+                    $global_css = isset($section['globalCss']) ? $section['globalCss'] : '';
 
                     // Combine HTML, CSS, and JS into a single HTML widget
                     $combined_html = $html;
 
-                    // Append CSS as <style> tag
-                    if (!empty($css)) {
-                        $combined_html .= "\n\n<style>\n" . $css . "\n</style>";
+                    // Append global CSS first, then section CSS as <style> tag
+                    if (!empty($global_css) || !empty($css)) {
+                        $combined_html .= "\n\n<style>\n";
+                        if (!empty($global_css)) {
+                            $combined_html .= "/* Global CSS */\n" . $global_css . "\n\n";
+                        }
+                        if (!empty($css)) {
+                            $combined_html .= "/* Section CSS */\n" . $css . "\n";
+                        }
+                        $combined_html .= "</style>";
                     }
 
                     // Append JS as <script> tag
@@ -1568,13 +1618,47 @@ window.importHtmlSectionToPage = async function(section) {
                         array(
                             'id' => 'section_' . substr(md5(uniqid()), 0, 8),
                             'elType' => 'section',
-                            'settings' => array(),
+                            'settings' => array(
+                                'content_width' => 'full',
+                                'padding' => array(
+                                    'unit' => 'px',
+                                    'top' => '0',
+                                    'right' => '0',
+                                    'bottom' => '0',
+                                    'left' => '0',
+                                    'isLinked' => true
+                                ),
+                                'margin' => array(
+                                    'unit' => 'px',
+                                    'top' => '0',
+                                    'right' => '0',
+                                    'bottom' => '0',
+                                    'left' => '0',
+                                    'isLinked' => true
+                                )
+                            ),
                             'elements' => array(
                                 array(
                                     'id' => 'column_' . substr(md5(uniqid()), 0, 8),
                                     'elType' => 'column',
                                     'settings' => array(
-                                        '_column_size' => 100
+                                        '_column_size' => 100,
+                                        'padding' => array(
+                                            'unit' => 'px',
+                                            'top' => '0',
+                                            'right' => '0',
+                                            'bottom' => '0',
+                                            'left' => '0',
+                                            'isLinked' => true
+                                        ),
+                                        'margin' => array(
+                                            'unit' => 'px',
+                                            'top' => '0',
+                                            'right' => '0',
+                                            'bottom' => '0',
+                                            'left' => '0',
+                                            'isLinked' => true
+                                        )
                                     ),
                                     'elements' => array(
                                         array(
@@ -1700,34 +1784,37 @@ window.importHtmlSectionToPage = async function(section) {
     }
 };
 
-// Import multiple HTML sections to create a full page preview
-window.importMultipleSectionsToPage = async function(sections, pageName = 'Multi-Section Preview') {
+/**
+ * Update WordPress Playground with all sections from Section Library
+ * Creates or updates a preview page with all sections combined
+ */
+window.updateAllSectionsPreview = async function(sections, globalCss = '') {
     if (!playgroundClient) {
         throw new Error('Playground not running. Launch it first.');
     }
 
-    if (!Array.isArray(sections) || sections.length === 0) {
-        throw new Error('Please provide an array of sections');
+    if (!sections || sections.length === 0) {
+        throw new Error('No sections provided');
     }
 
     try {
-        updatePlaygroundStatus(`📄 Creating page with ${sections.length} sections...`);
-        console.log('📝 Importing multiple sections to page:', sections);
+        updatePlaygroundStatus(`📄 Creating preview page with ${sections.length} section(s)...`);
+        console.log('📝 Updating preview with all sections:', sections.length);
 
         // Write sections data to temp file
-        const sectionsJson = JSON.stringify({ pageName, sections });
-        await playgroundClient.writeFile('/tmp/sections_preview.json', sectionsJson);
+        const sectionsJson = JSON.stringify({ sections, globalCss });
+        await playgroundClient.writeFile('/tmp/all_sections_preview.json', sectionsJson);
 
         const phpCode = `<?php
             require_once '/wordpress/wp-load.php';
 
             try {
-                $sections_json = file_get_contents('/tmp/sections_preview.json');
-                $data = json_decode($sections_json, true);
+                $data_json = file_get_contents('/tmp/all_sections_preview.json');
+                $data = json_decode($data_json, true);
 
                 if ($data && json_last_error() === JSON_ERROR_NONE) {
-                    $page_name = isset($data['pageName']) ? $data['pageName'] : 'Multi-Section Preview';
                     $sections = isset($data['sections']) ? $data['sections'] : array();
+                    $global_css = isset($data['globalCss']) ? $data['globalCss'] : '';
 
                     if (empty($sections)) {
                         echo json_encode(array(
@@ -1737,40 +1824,84 @@ window.importMultipleSectionsToPage = async function(sections, pageName = 'Multi
                         exit;
                     }
 
-                    // Build Elementor data structure with all sections
+                    // Build Elementor data array with all sections
                     $elementor_data = array();
 
-                    foreach ($sections as $index => $section) {
+                    foreach ($sections as $section) {
+                        $name = isset($section['name']) ? $section['name'] : 'Untitled Section';
                         $html = isset($section['html']) ? $section['html'] : '';
                         $css = isset($section['css']) ? $section['css'] : '';
                         $js = isset($section['js']) ? $section['js'] : '';
 
-                        // Combine HTML, CSS, and JS
+                        // Combine HTML, CSS, and JS into a single HTML widget
                         $combined_html = $html;
 
-                        if (!empty($css)) {
-                            $combined_html .= "\n\n<style>\n" . $css . "\n</style>";
+                        // Append global CSS first, then section CSS as <style> tag
+                        if (!empty($global_css) || !empty($css)) {
+                            $combined_html .= "\\n\\n<style>\\n";
+                            if (!empty($global_css)) {
+                                $combined_html .= "/* Global CSS */\\n" . $global_css . "\\n\\n";
+                            }
+                            if (!empty($css)) {
+                                $combined_html .= "/* Section CSS */\\n" . $css . "\\n";
+                            }
+                            $combined_html .= "</style>";
                         }
 
+                        // Append JS as <script> tag
                         if (!empty($js)) {
-                            $combined_html .= "\n\n<script>\n" . $js . "\n</script>";
+                            $combined_html .= "\\n\\n<script>\\n" . $js . "\\n</script>";
                         }
 
-                        // Create section with HTML widget
+                        // Create Elementor section structure
                         $elementor_data[] = array(
-                            'id' => 'section_' . $index . '_' . substr(md5(uniqid()), 0, 8),
+                            'id' => 'section_' . substr(md5(uniqid()), 0, 8),
                             'elType' => 'section',
-                            'settings' => array(),
+                            'settings' => array(
+                                'content_width' => 'full',
+                                'padding' => array(
+                                    'unit' => 'px',
+                                    'top' => '0',
+                                    'right' => '0',
+                                    'bottom' => '0',
+                                    'left' => '0',
+                                    'isLinked' => true
+                                ),
+                                'margin' => array(
+                                    'unit' => 'px',
+                                    'top' => '0',
+                                    'right' => '0',
+                                    'bottom' => '0',
+                                    'left' => '0',
+                                    'isLinked' => true
+                                )
+                            ),
                             'elements' => array(
                                 array(
-                                    'id' => 'column_' . $index . '_' . substr(md5(uniqid()), 0, 8),
+                                    'id' => 'column_' . substr(md5(uniqid()), 0, 8),
                                     'elType' => 'column',
                                     'settings' => array(
-                                        '_column_size' => 100
+                                        '_column_size' => 100,
+                                        'padding' => array(
+                                            'unit' => 'px',
+                                            'top' => '0',
+                                            'right' => '0',
+                                            'bottom' => '0',
+                                            'left' => '0',
+                                            'isLinked' => true
+                                        ),
+                                        'margin' => array(
+                                            'unit' => 'px',
+                                            'top' => '0',
+                                            'right' => '0',
+                                            'bottom' => '0',
+                                            'left' => '0',
+                                            'isLinked' => true
+                                        )
                                     ),
                                     'elements' => array(
                                         array(
-                                            'id' => 'widget_' . $index . '_' . substr(md5(uniqid()), 0, 8),
+                                            'id' => 'widget_' . substr(md5(uniqid()), 0, 8),
                                             'elType' => 'widget',
                                             'widgetType' => 'html',
                                             'settings' => array(
@@ -1784,19 +1915,19 @@ window.importMultipleSectionsToPage = async function(sections, pageName = 'Multi
                     }
 
                     // Check if preview page already exists
-                    $page_slug = 'multi-section-preview';
+                    $page_slug = 'sections-preview-all';
                     $existing_page = get_page_by_path($page_slug, OBJECT, 'page');
 
                     if ($existing_page) {
                         $page_id = $existing_page->ID;
                         wp_update_post(array(
                             'ID' => $page_id,
-                            'post_title' => $page_name,
+                            'post_title' => 'Preview: All Sections (' . count($sections) . ')',
                             'post_status' => 'publish'
                         ));
                     } else {
                         $page_id = wp_insert_post(array(
-                            'post_title' => $page_name,
+                            'post_title' => 'Preview: All Sections (' . count($sections) . ')',
                             'post_name' => $page_slug,
                             'post_status' => 'publish',
                             'post_type' => 'page',
@@ -1809,18 +1940,27 @@ window.importMultipleSectionsToPage = async function(sections, pageName = 'Multi
                         update_post_meta($page_id, '_elementor_data', $elementor_data);
                         update_post_meta($page_id, '_elementor_edit_mode', 'builder');
                         update_post_meta($page_id, '_elementor_template_type', 'wp-page');
-                        update_post_meta($page_id, '_elementor_page_settings', array());
+                        update_post_meta($page_id, '_wp_page_template', 'elementor_canvas');
 
-                        $page_url = get_permalink($page_id);
-                        $edit_url = admin_url('post.php?post=' . $page_id . '&action=elementor');
+                        // Clear Elementor cache
+                        delete_post_meta($page_id, '_elementor_css');
+                        if (class_exists('\\\\Elementor\\\\Plugin')) {
+                            \\\\Elementor\\\\Plugin::instance()->files_manager->clear_cache();
+                        }
+
+                        // Publish the page
+                        wp_update_post(array(
+                            'ID' => $page_id,
+                            'post_status' => 'publish'
+                        ));
 
                         echo json_encode(array(
                             'success' => true,
                             'page_id' => $page_id,
-                            'page_url' => $page_url,
-                            'edit_url' => $edit_url,
+                            'page_url' => get_permalink($page_id),
+                            'edit_url' => '/wp-admin/post.php?post=' . $page_id . '&action=elementor',
                             'sections_count' => count($sections),
-                            'message' => 'Page created with ' . count($sections) . ' sections'
+                            'message' => count($sections) . ' section(s) imported to preview page'
                         ));
                     } else {
                         echo json_encode(array(
@@ -1831,7 +1971,7 @@ window.importMultipleSectionsToPage = async function(sections, pageName = 'Multi
                 } else {
                     echo json_encode(array(
                         'success' => false,
-                        'error' => 'Invalid JSON - ' . json_last_error_msg()
+                        'error' => 'Invalid sections JSON - ' . json_last_error_msg()
                     ));
                 }
             } catch (Exception $e) {
@@ -1841,17 +1981,17 @@ window.importMultipleSectionsToPage = async function(sections, pageName = 'Multi
                 ));
             }
 
-            @unlink('/tmp/sections_preview.json');
+            @unlink('/tmp/all_sections_preview.json');
         ?>`;
 
-        console.log('Running PHP to create multi-section page...');
+        console.log('Running PHP to create/update preview page with all sections...');
         const result = await playgroundClient.run({ code: phpCode });
-        console.log('Multi-section page result:', result.text);
+        console.log('Preview page result:', result.text);
 
         const response = JSON.parse(result.text);
 
         if (response.success) {
-            updatePlaygroundStatus(`✅ Page created with ${response.sections_count} sections! Opening...`, 'success');
+            updatePlaygroundStatus(`✅ Preview updated with ${response.sections_count} section(s)! Opening...`, 'success');
             console.log('✅ Page ID:', response.page_id);
 
             // Navigate to the live page
@@ -1866,11 +2006,11 @@ window.importMultipleSectionsToPage = async function(sections, pageName = 'Multi
                 message: response.message
             };
         } else {
-            throw new Error(response.error || 'Failed to create multi-section page');
+            throw new Error(response.error || 'Failed to create preview page');
         }
 
     } catch (error) {
-        console.error('❌ Import multi-section page error:', error);
+        console.error('❌ Update all sections preview error:', error);
         updatePlaygroundStatus('❌ Error: ' + error.message, 'error');
         throw error;
     }

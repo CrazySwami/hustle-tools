@@ -2,11 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { SettingsIcon, FileTextIcon, UploadIcon, DownloadIcon, SaveIcon, TrashIcon, PlusIcon } from 'lucide-react';
+import { OptionsButton } from '@/components/ui/OptionsButton';
 
 interface SiteContentManagerProps {
   onPush: (config: any) => void;
   onPull: () => Promise<any>;
   playgroundReady?: boolean;
+  chatVisible?: boolean;
+  setChatVisible?: (visible: boolean) => void;
+  tabBarVisible?: boolean;
+  setTabBarVisible?: (visible: boolean) => void;
 }
 
 interface PageData {
@@ -35,9 +40,18 @@ interface PageData {
   };
 }
 
-export function SiteContentManager({ onPush, onPull, playgroundReady }: SiteContentManagerProps) {
+export function SiteContentManager({ onPush, onPull, playgroundReady, chatVisible, setChatVisible, tabBarVisible, setTabBarVisible }: SiteContentManagerProps) {
   const [activeTab, setActiveTab] = useState<'settings' | 'pages'>('settings');
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // WordPress Settings State
   const [settings, setSettings] = useState({
@@ -137,59 +151,6 @@ export function SiteContentManager({ onPush, onPull, playgroundReady }: SiteCont
 
   return (
     <div className="tab-panel">
-      {/* Header with tabs and actions */}
-      <div className="tab-bar" style={{ justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            className={`tab ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
-          >
-            <SettingsIcon size={16} />
-            Settings
-          </button>
-          <button
-            className={`tab ${activeTab === 'pages' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pages')}
-          >
-            <FileTextIcon size={16} />
-            Pages ({pages.length})
-          </button>
-        </div>
-
-        <div className="tab-actions">
-          <button
-            className="btn-secondary"
-            onClick={handlePull}
-            disabled={loading}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              fontSize: '13px'
-            }}
-          >
-            <DownloadIcon size={14} />
-            Pull from WP
-          </button>
-          <button
-            className="btn-primary"
-            onClick={handlePush}
-            disabled={loading}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              fontSize: '13px'
-            }}
-          >
-            <UploadIcon size={14} />
-            Push to WP
-          </button>
-        </div>
-      </div>
-
       {/* Content Area */}
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--background)' }}>
         {activeTab === 'settings' && (
@@ -982,6 +943,46 @@ export function SiteContentManager({ onPush, onPull, playgroundReady }: SiteCont
           </div>
         )}
       </div>
+
+      {/* Options Button */}
+      <OptionsButton
+        isMobile={isMobile}
+        options={[
+          // Settings/Pages toggle
+          {
+            label: activeTab === 'settings' ? `📄 Switch to Pages (${pages.length})` : '⚙️ Switch to Settings',
+            onClick: () => setActiveTab(activeTab === 'settings' ? 'pages' : 'settings'),
+            divider: true
+          },
+          // Pull from WordPress
+          {
+            label: '⬇️ Pull from WordPress',
+            onClick: handlePull,
+            disabled: loading
+          },
+          // Push to WordPress
+          {
+            label: '⬆️ Push to WordPress',
+            onClick: handlePush,
+            disabled: loading,
+            divider: true
+          },
+          // Chat toggle
+          ...(setChatVisible ? [{
+            label: chatVisible ? 'Hide Chat' : 'Show Chat',
+            onClick: () => setChatVisible(!chatVisible),
+            type: 'toggle' as const,
+            active: chatVisible
+          }] : []),
+          // Tab bar toggle
+          ...(setTabBarVisible ? [{
+            label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
+            onClick: () => setTabBarVisible(!tabBarVisible),
+            type: 'toggle' as const,
+            active: tabBarVisible
+          }] : [])
+        ]}
+      />
     </div>
   );
 }

@@ -16,6 +16,7 @@ interface GlobalStylesheetContextType {
   themeVersion: string;
   isLoading: boolean;
   error: string | null;
+  lastUpdated: number; // Timestamp for forcing re-renders
 
   // Actions
   setGlobalCss: (css: string) => void;
@@ -53,12 +54,25 @@ function parseCssVars(css: string): CSSVariable[] {
 
 // Provider component
 export function GlobalStylesheetProvider({ children }: { children: React.ReactNode }) {
-  const [globalCss, setGlobalCss] = useState<string>('');
+  const [globalCss, setGlobalCssInternal] = useState<string>('');
   const [cssVariables, setCssVariables] = useState<CSSVariable[]>([]);
   const [themeName, setThemeName] = useState<string>('');
   const [themeVersion, setThemeVersion] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
+
+  // Wrapper for setGlobalCss that also updates timestamp
+  const setGlobalCss = useCallback((css: string) => {
+    setGlobalCssInternal(css);
+    setLastUpdated(Date.now());
+
+    // Auto-parse variables when CSS changes
+    const vars = parseCssVars(css);
+    setCssVariables(vars);
+
+    console.log('📊 Global CSS updated - previews will refresh');
+  }, []);
 
   // Parse CSS variables from current CSS
   const parseCssVariables = useCallback(() => {
@@ -83,9 +97,10 @@ export function GlobalStylesheetProvider({ children }: { children: React.ReactNo
       // Call WordPress Playground function
       const result = await (window as any).getWordPressStylesheet();
 
-      setGlobalCss(result.css);
+      setGlobalCssInternal(result.css);
       setThemeName(result.themeName);
       setThemeVersion(result.themeVersion);
+      setLastUpdated(Date.now());
 
       // Auto-parse variables
       const vars = parseCssVars(result.css);
@@ -143,6 +158,7 @@ export function GlobalStylesheetProvider({ children }: { children: React.ReactNo
     themeVersion,
     isLoading,
     error,
+    lastUpdated,
     setGlobalCss,
     pullFromWordPress,
     pushToWordPress,

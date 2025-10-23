@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import {
   Section,
@@ -11,6 +11,8 @@ import {
   validateSection
 } from '@/lib/section-schema';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
+import { useTheme } from 'next-themes';
+import { OptionsButton } from '@/components/ui/OptionsButton';
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -21,6 +23,7 @@ interface HtmlSectionEditorProps {
   streamedJs?: string;
   activeCodeTab?: 'html' | 'css' | 'js';
   onCodeTabChange?: (tab: 'html' | 'css' | 'js') => void;
+  onSwitchToVisualEditor?: () => void;
 }
 
 export function HtmlSectionEditor({
@@ -31,17 +34,45 @@ export function HtmlSectionEditor({
   streamedCss,
   streamedJs,
   activeCodeTab: externalActiveCodeTab,
-  onCodeTabChange
+  onCodeTabChange,
+  onSwitchToVisualEditor
 }: HtmlSectionEditorProps) {
   const [section, setSection] = useState<Section>(initialSection || createSection());
   const [internalActiveCodeTab, setInternalActiveCodeTab] = useState<'html' | 'css' | 'js'>('html');
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const { globalCss } = useGlobalStylesheet();
+  const [isMobile, setIsMobile] = useState(false);
+  const { globalCss, cssVariables } = useGlobalStylesheet();
+  const { theme } = useTheme();
 
   // Track if this is a loaded section (has initial content)
   const hasInitialContent = !!(initialSection?.html || initialSection?.css || initialSection?.js);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Close menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen]);
 
   // Debug: Log when component mounts/remounts
   useEffect(() => {
@@ -155,13 +186,38 @@ export function HtmlSectionEditor({
       flexDirection: 'column',
       height: '100%',
       width: '100%',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'relative'
     }}>
-      {/* Top Bar */}
+      {/* OptionsButton - Universal floating button */}
+      <OptionsButton
+        isMobile={isMobile}
+        options={[
+          {
+            label: '💾 Save to Library',
+            onClick: () => setShowSaveDialog(true)
+          },
+          {
+            label: 'Settings',
+            onClick: () => setShowSettings(!showSettings),
+            type: 'toggle',
+            active: showSettings
+          },
+          {
+            label: 'Preview',
+            onClick: () => setShowPreview(!showPreview),
+            type: 'toggle',
+            active: showPreview
+          }
+        ]}
+      />
+
+      {/* Top Bar - HIDDEN */}
+      {false && (
       <div style={{
-        padding: '12px 16px',
-        background: '#f9fafb',
-        borderBottom: '1px solid #e5e7eb',
+        padding: isMobile ? '6px 12px' : '8px 12px',
+        background: 'var(--muted)',
+        borderBottom: '1px solid var(--border)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center'
@@ -178,11 +234,12 @@ export function HtmlSectionEditor({
             borderRadius: '4px',
             background: 'transparent',
             outline: 'none',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            maxWidth: isMobile ? '150px' : 'none'
           }}
           onFocus={(e) => {
-            e.target.style.border = '1px solid #3b82f6';
-            e.target.style.background = '#ffffff';
+            e.target.style.border = '1px solid var(--primary)';
+            e.target.style.background = 'var(--background)';
           }}
           onBlur={(e) => {
             e.target.style.border = '1px solid transparent';
@@ -190,56 +247,142 @@ export function HtmlSectionEditor({
           }}
         />
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: isMobile ? '6px' : '8px' }}>
+          {/* Save to Library - Always visible */}
           <button
             onClick={() => setShowSaveDialog(true)}
             style={{
-              padding: '6px 12px',
-              background: '#8b5cf6',
+              padding: isMobile ? '8px 12px' : '6px 12px',
+              background: '#000000',
               color: '#ffffff',
               border: 'none',
-              borderRadius: '4px',
-              fontSize: '13px',
+              borderRadius: '6px',
+              fontSize: isMobile ? '14px' : '13px',
               cursor: 'pointer',
-              fontWeight: 500
+              fontWeight: 500,
+              minHeight: isMobile ? '44px' : 'auto'
             }}
           >
-            💾 Save to Library
+            💾 {isMobile ? '' : 'Save to Library'}
           </button>
 
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            style={{
-              padding: '6px 12px',
-              background: showSettings ? '#3b82f6' : '#e5e7eb',
-              color: showSettings ? '#ffffff' : '#374151',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '13px',
-              cursor: 'pointer',
-              fontWeight: 500
-            }}
-          >
-            {showSettings ? '✓' : ''} Settings
-          </button>
+          {/* Preview in WP - Desktop only */}
+          {!isMobile && (
+            <button
+              onClick={async () => {
+                try {
+                  // Check if playground is running
+                  if (!(window as any).playgroundClient) {
+                    alert('WordPress Playground is not running. Please launch it first from the WordPress Playground tab.');
+                    return;
+                  }
 
+                  const importToPage = (window as any).importHtmlSectionToPage;
+                  if (!importToPage) {
+                    alert('WordPress Playground functions not loaded yet. Please wait a moment and try again.');
+                    return;
+                  }
+
+                  // Quick preview with default name if not set
+                  const sectionName = section.name || 'Untitled Section';
+
+                  const result = await importToPage({
+                    name: sectionName,
+                    html: section.html,
+                    css: section.css,
+                    js: section.js,
+                    globalCss: globalCss
+                  });
+
+                  if (result.success) {
+                    // Show brief success message - page already opens in playground
+                    console.log('✅ Section preview updated in WordPress Playground');
+                  }
+                } catch (error: any) {
+                  console.error('Preview error:', error);
+                  alert(`❌ Failed to update preview: ${error.message}`);
+                }
+              }}
+              style={{
+                padding: '6px 12px',
+                background: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: 500
+              }}
+              title="Quick preview this section in WordPress Playground"
+            >
+              🔄 Preview in WP
+            </button>
+          )}
+
+          {/* Settings - Desktop only */}
+          {!isMobile && (
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              style={{
+                padding: '6px 12px',
+                background: showSettings ? '#000000' : 'var(--muted)',
+                color: showSettings ? '#ffffff' : 'var(--foreground)',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: 500
+              }}
+            >
+              {showSettings ? '✓' : ''} Settings
+            </button>
+          )}
+
+          {/* Preview Toggle - Different behavior on mobile */}
           <button
             onClick={() => setShowPreview(!showPreview)}
             style={{
-              padding: '6px 12px',
-              background: showPreview ? '#3b82f6' : '#e5e7eb',
-              color: showPreview ? '#ffffff' : '#374151',
+              padding: isMobile ? '8px 12px' : '6px 12px',
+              background: showPreview ? '#000000' : 'var(--muted)',
+              color: showPreview ? '#ffffff' : 'var(--foreground)',
               border: 'none',
-              borderRadius: '4px',
-              fontSize: '13px',
+              borderRadius: '6px',
+              fontSize: isMobile ? '14px' : '13px',
               cursor: 'pointer',
-              fontWeight: 500
+              fontWeight: 500,
+              minHeight: isMobile ? '44px' : 'auto'
             }}
           >
-            {showPreview ? '✓' : ''} Preview
+            {showPreview ? (isMobile ? '📝' : '✓ Preview') : (isMobile ? '👁️' : 'Preview')}
           </button>
+
+          {/* Visual Editor - Desktop only */}
+          {!isMobile && onSwitchToVisualEditor && (
+            <button
+              onClick={() => {
+                // Save current changes before switching
+                if (onSectionChange) {
+                  onSectionChange(section);
+                }
+                onSwitchToVisualEditor();
+              }}
+              style={{
+                padding: '6px 12px',
+                background: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: 500
+              }}
+            >
+              👁️ Visual Editor
+            </button>
+          )}
         </div>
       </div>
+      )}
 
       {/* Main Content Area */}
       <div style={{
@@ -249,22 +392,21 @@ export function HtmlSectionEditor({
       }}>
         {/* Code Editor Panel */}
         <div style={{
-          width: showPreview ? '50%' : '100%',
-          display: 'flex',
+          width: showPreview ? '0%' : '100%',
+          display: showPreview ? 'none' : 'flex',
           flexDirection: 'column',
-          borderRight: showPreview ? '1px solid #e5e7eb' : 'none',
           transition: 'width 0.3s ease'
         }}>
-          {/* Settings Panel (Collapsible) */}
-          {showSettings && (
+          {/* Settings Panel (Collapsible - Hidden on mobile) */}
+          {!isMobile && showSettings && (
             <div style={{
               maxHeight: '300px',
               overflowY: 'auto',
               padding: '16px',
-              background: '#f9fafb',
-              borderBottom: '1px solid #e5e7eb'
+              background: 'var(--muted)',
+              borderBottom: '1px solid var(--border)'
             }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, color: '#111827' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, color: 'var(--foreground)' }}>
                 Section Settings
               </h3>
 
@@ -609,40 +751,106 @@ export function HtmlSectionEditor({
             <Editor
               height="100%"
               language={activeCodeTab === 'js' ? 'javascript' : activeCodeTab}
-              theme="vs-dark"
+              theme={theme === 'dark' ? 'vs-dark' : 'light'}
               value={section[activeCodeTab]}
               onChange={(value) => updateSection({ [activeCodeTab]: value || '' })}
+              onMount={(editor, monaco) => {
+                // Register CSS variable autocomplete (only for CSS tab)
+                if (activeCodeTab === 'css') {
+                  monaco.languages.registerCompletionItemProvider('css', {
+                    provideCompletionItems: (model, position) => {
+                      const textUntilPosition = model.getValueInRange({
+                        startLineNumber: position.lineNumber,
+                        startColumn: 1,
+                        endLineNumber: position.lineNumber,
+                        endColumn: position.column
+                      });
+
+                      // Trigger on "var(" or "--"
+                      const shouldTrigger = textUntilPosition.includes('var(') || textUntilPosition.match(/--[\w-]*$/);
+                      if (!shouldTrigger) return { suggestions: [] };
+
+                      const suggestions = cssVariables.map(variable => ({
+                        label: variable.name,
+                        kind: monaco.languages.CompletionItemKind.Variable,
+                        insertText: textUntilPosition.includes('var(')
+                          ? variable.name + ')'
+                          : variable.name,
+                        detail: variable.value,
+                        documentation: `CSS Variable: ${variable.name} = ${variable.value}`
+                      }));
+
+                      return { suggestions };
+                    }
+                  });
+                }
+              }}
               options={{
-                fontSize: 14,
+                fontSize: isMobile ? 16 : 14, // Larger font on mobile for better readability
                 minimap: { enabled: false },
-                lineNumbers: 'on',
+                lineNumbers: isMobile ? 'off' : 'on', // Hide line numbers on mobile to save space
                 scrollBeyondLastLine: false,
                 wordWrap: 'on',
                 automaticLayout: true,
                 tabSize: 2,
-                insertSpaces: true
+                insertSpaces: true,
+                suggestOnTriggerCharacters: !isMobile, // Disable auto-suggestions on mobile
+                quickSuggestions: activeCodeTab === 'css' && !isMobile,
+                // Mobile-specific improvements
+                scrollbar: {
+                  vertical: isMobile ? 'auto' : 'visible',
+                  horizontal: isMobile ? 'auto' : 'visible',
+                  verticalScrollbarSize: isMobile ? 10 : 14,
+                  horizontalScrollbarSize: isMobile ? 10 : 14
+                },
+                padding: { top: isMobile ? 12 : 8, bottom: isMobile ? 12 : 8 },
+                lineDecorationsWidth: isMobile ? 0 : 10, // Remove left gutter decoration on mobile
+                lineNumbersMinChars: isMobile ? 0 : 3,
+                glyphMargin: !isMobile, // Remove glyph margin on mobile
+                folding: !isMobile, // Disable code folding on mobile
+                renderLineHighlight: isMobile ? 'none' : 'line', // Cleaner look on mobile
+                occurrencesHighlight: !isMobile, // Reduce visual noise on mobile
+                overviewRulerLanes: isMobile ? 0 : 3 // Hide overview ruler on mobile
               }}
             />
           </div>
         </div>
 
-        {/* Preview Panel */}
+        {/* Preview Panel - Full Screen */}
         {showPreview && (
           <div style={{
-            width: '50%',
+            width: '100%',
             display: 'flex',
             flexDirection: 'column',
-            background: '#ffffff'
+            background: 'var(--background)'
           }}>
             <div style={{
               padding: '8px 12px',
-              background: '#f9fafb',
-              borderBottom: '1px solid #e5e7eb',
+              background: 'var(--muted)',
+              borderBottom: '1px solid var(--border)',
               fontSize: '13px',
               fontWeight: 500,
-              color: '#374151'
+              color: 'var(--foreground)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
             }}>
-              Live Preview
+              <span>Live Preview</span>
+              <button
+                onClick={() => setShowPreview(false)}
+                style={{
+                  padding: '4px 8px',
+                  background: '#000000',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  fontWeight: 500
+                }}
+              >
+                ✕ Close
+              </button>
             </div>
 
             <iframe
@@ -662,7 +870,7 @@ export function HtmlSectionEditor({
       {/* Save to Library Dialog */}
       {showSaveDialog && (
         <div style={{
-          position: 'fixed',
+          position: 'absolute',
           top: 0,
           left: 0,
           right: 0,
@@ -674,7 +882,7 @@ export function HtmlSectionEditor({
           zIndex: 1000
         }}>
           <div style={{
-            background: '#ffffff',
+            background: 'var(--card)',
             borderRadius: '8px',
             padding: '24px',
             width: '90%',
@@ -704,113 +912,121 @@ export function HtmlSectionEditor({
               />
             </div>
 
-            <div style={{ marginBottom: '20px', padding: '12px', background: '#f9fafb', borderRadius: '6px' }}>
-              <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 8px 0', fontWeight: 500 }}>
-                Choose where to save this section:
+            <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--muted)', borderRadius: '6px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', margin: '0 0 8px 0', fontWeight: 500 }}>
+                {isMobile ? 'Save to local library:' : 'Choose where to save this section:'}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <button
-                  onClick={async () => {
-                    try {
-                      if (!section.name.trim()) {
-                        alert('Please enter a section name');
-                        return;
-                      }
+                {/* Desktop-only save options */}
+                {!isMobile && (
+                  <>
+                    <button
+                      onClick={async () => {
+                        try {
+                          if (!section.name.trim()) {
+                            alert('Please enter a section name');
+                            return;
+                          }
 
-                      // Check if playground is running
-                      if (!(window as any).playgroundClient) {
-                        alert('WordPress Playground is not running. Please launch it first from the WordPress Playground tab.');
-                        return;
-                      }
+                          // Check if playground is running
+                          if (!(window as any).playgroundClient) {
+                            alert('WordPress Playground is not running. Please launch it first from the WordPress Playground tab.');
+                            return;
+                          }
 
-                      const saveToLibrary = (window as any).saveHtmlSectionToLibrary;
-                      if (!saveToLibrary) {
-                        alert('WordPress Playground functions not loaded yet. Please wait a moment and try again.');
-                        return;
-                      }
+                          const saveToLibrary = (window as any).saveHtmlSectionToLibrary;
+                          if (!saveToLibrary) {
+                            alert('WordPress Playground functions not loaded yet. Please wait a moment and try again.');
+                            return;
+                          }
 
-                      const result = await saveToLibrary({
-                        name: section.name,
-                        html: section.html,
-                        css: section.css,
-                        js: section.js
-                      });
+                          const result = await saveToLibrary({
+                            name: section.name,
+                            html: section.html,
+                            css: section.css,
+                            js: section.js,
+                            globalCss: globalCss
+                          });
 
-                      if (result.success) {
-                        const debug = result.debug || {};
-                        const debugInfo = `\n\nDebug Info:\n- HTML: ${debug.html_length || 0} chars\n- CSS: ${debug.css_length || 0} chars\n- JS: ${debug.js_length || 0} chars\n- Combined: ${debug.combined_length || 0} chars\n- Has <style>: ${debug.has_style_tag ? 'Yes' : 'No'}\n- Has <script>: ${debug.has_script_tag ? 'Yes' : 'No'}`;
-                        alert(`✅ Section "${section.name}" saved to Elementor template library!\n\nTemplate ID: ${result.templateId}\n\nYou can now access it in WordPress > Templates > Saved Templates.${debugInfo}`);
-                        setShowSaveDialog(false);
-                      }
-                    } catch (error: any) {
-                      alert(`❌ Failed to save to template library:\n\n${error.message}`);
-                    }
-                  }}
-                  style={{
-                    padding: '10px 16px',
-                    background: '#8b5cf6',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    fontWeight: 500,
-                    textAlign: 'left'
-                  }}
-                >
-                  📚 Save to Elementor Template Library
-                </button>
+                          if (result.success) {
+                            const debug = result.debug || {};
+                            const debugInfo = `\n\nDebug Info:\n- HTML: ${debug.html_length || 0} chars\n- CSS: ${debug.css_length || 0} chars\n- JS: ${debug.js_length || 0} chars\n- Combined: ${debug.combined_length || 0} chars\n- Has <style>: ${debug.has_style_tag ? 'Yes' : 'No'}\n- Has <script>: ${debug.has_script_tag ? 'Yes' : 'No'}`;
+                            alert(`✅ Section "${section.name}" saved to Elementor template library!\n\nTemplate ID: ${result.templateId}\n\nYou can now access it in WordPress > Templates > Saved Templates.${debugInfo}`);
+                            setShowSaveDialog(false);
+                          }
+                        } catch (error: any) {
+                          alert(`❌ Failed to save to template library:\n\n${error.message}`);
+                        }
+                      }}
+                      style={{
+                        padding: '10px 16px',
+                        background: '#000000',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        fontWeight: 500,
+                        textAlign: 'left'
+                      }}
+                    >
+                      📚 Save to Elementor Template Library
+                    </button>
 
-                <button
-                  onClick={async () => {
-                    try {
-                      if (!section.name.trim()) {
-                        alert('Please enter a section name');
-                        return;
-                      }
+                    <button
+                      onClick={async () => {
+                        try {
+                          if (!section.name.trim()) {
+                            alert('Please enter a section name');
+                            return;
+                          }
 
-                      // Check if playground is running
-                      if (!(window as any).playgroundClient) {
-                        alert('WordPress Playground is not running. Please launch it first from the WordPress Playground tab.');
-                        return;
-                      }
+                          // Check if playground is running
+                          if (!(window as any).playgroundClient) {
+                            alert('WordPress Playground is not running. Please launch it first from the WordPress Playground tab.');
+                            return;
+                          }
 
-                      const importToPage = (window as any).importHtmlSectionToPage;
-                      if (!importToPage) {
-                        alert('WordPress Playground functions not loaded yet. Please wait a moment and try again.');
-                        return;
-                      }
+                          const importToPage = (window as any).importHtmlSectionToPage;
+                          if (!importToPage) {
+                            alert('WordPress Playground functions not loaded yet. Please wait a moment and try again.');
+                            return;
+                          }
 
-                      const result = await importToPage({
-                        name: section.name,
-                        html: section.html,
-                        css: section.css,
-                        js: section.js
-                      });
+                          const result = await importToPage({
+                            name: section.name,
+                            html: section.html,
+                            css: section.css,
+                            js: section.js,
+                            globalCss: globalCss
+                          });
 
-                      if (result.success) {
-                        alert(`✅ Section "${section.name}" imported to preview page!\n\nPage ID: ${result.pageId}\n\nThe page is now open in WordPress Playground.`);
-                        setShowSaveDialog(false);
-                      }
-                    } catch (error: any) {
-                      alert(`❌ Failed to import to page:\n\n${error.message}`);
-                    }
-                  }}
-                  style={{
-                    padding: '10px 16px',
-                    background: '#3b82f6',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    fontWeight: 500,
-                    textAlign: 'left'
-                  }}
-                >
-                  🌐 Import to WordPress Page Preview
-                </button>
+                          if (result.success) {
+                            alert(`✅ Section "${section.name}" imported to preview page!\n\nPage ID: ${result.pageId}\n\nThe page is now open in WordPress Playground.`);
+                            setShowSaveDialog(false);
+                          }
+                        } catch (error: any) {
+                          alert(`❌ Failed to import to page:\n\n${error.message}`);
+                        }
+                      }}
+                      style={{
+                        padding: '10px 16px',
+                        background: '#10b981',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        fontWeight: 500,
+                        textAlign: 'left'
+                      }}
+                    >
+                      🌐 Import to WordPress Page Preview
+                    </button>
+                  </>
+                )}
 
+                {/* Local library save - always available */}
                 <button
                   onClick={() => {
                     try {
@@ -844,15 +1060,16 @@ export function HtmlSectionEditor({
                     }
                   }}
                   style={{
-                    padding: '10px 16px',
+                    padding: isMobile ? '14px 16px' : '10px 16px',
                     background: '#10b981',
                     color: '#ffffff',
                     border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '13px',
+                    borderRadius: '6px',
+                    fontSize: isMobile ? '14px' : '13px',
                     cursor: 'pointer',
                     fontWeight: 500,
-                    textAlign: 'left'
+                    textAlign: 'left',
+                    minHeight: isMobile ? '48px' : 'auto'
                   }}
                 >
                   💾 Save to Local Section Library
@@ -865,8 +1082,8 @@ export function HtmlSectionEditor({
                 onClick={() => setShowSaveDialog(false)}
                 style={{
                   padding: '8px 16px',
-                  background: '#e5e7eb',
-                  color: '#374151',
+                  background: 'var(--muted)',
+                  color: 'var(--foreground)',
                   border: 'none',
                   borderRadius: '4px',
                   fontSize: '14px',

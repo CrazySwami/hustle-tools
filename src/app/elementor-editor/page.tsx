@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
 import '../elementor-editor.css';
+
+export const dynamic = 'force-dynamic';
 import { ElementorChat } from '@/components/elementor/ElementorChat';
 import { JsonEditor } from '@/components/elementor/JsonEditor';
 import { PlaygroundView } from '@/components/elementor/PlaygroundView';
@@ -11,13 +13,20 @@ import { SiteContentManager } from '@/components/elementor/SiteContentManager';
 import { StyleKitEditorNew } from '@/components/elementor/StyleKitEditorNew';
 import { StyleGuide } from '@/components/elementor/StyleGuide';
 import { HtmlSectionEditor } from '@/components/elementor/HtmlSectionEditor';
+import { VisualSectionEditor } from '@/components/elementor/VisualSectionEditor';
 import { SectionLibrary } from '@/components/elementor/SectionLibrary';
 import { PageSplitter } from '@/components/elementor/PageSplitter';
 import { useElementorState } from '@/lib/hooks/useElementorState';
 import { Section } from '@/lib/section-schema';
-import { FileIcon, PaletteIcon, ArrowRightIcon, GlobeIcon, SettingsIcon, XIcon, CodeIcon } from '@/components/ui/icons';
+import { FileIcon, PaletteIcon, ArrowRightIcon, GlobeIcon, LayoutIcon, XIcon, CodeIcon, EyeIcon } from '@/components/ui/icons';
 import Script from 'next/script';
 import { GlobalStylesheetProvider } from '@/lib/global-stylesheet-context';
+import { ToastContainer } from '@/components/ui/Toast';
+import { useToastListener } from '@/hooks/useToast';
+import type { Toast } from '@/components/ui/Toast';
+import { KeyboardShortcutsModal, type KeyboardShortcut } from '@/components/ui/KeyboardShortcutsModal';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useToast } from '@/hooks/useToast';
 
 const SAMPLE_JSON = {
   widgetType: "custom_html_section",
@@ -68,12 +77,27 @@ export default function ElementorEditorPage() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(40); // percentage
   const [isResizing, setIsResizing] = useState(false);
   const [chatVisible, setChatVisible] = useState(true);
+  const [tabBarVisible, setTabBarVisible] = useState(true);
   const [streamedCode, setStreamedCode] = useState<{ html: string; css: string; js: string }>({ html: '', css: '', js: '' });
   const [activeCodeTab, setActiveCodeTab] = useState<'html' | 'css' | 'js'>('html');
   const [currentSection, setCurrentSection] = useState<Section | null>(null);
   const [loadedSection, setLoadedSection] = useState<Section | null>(null);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+  const toast = useToast();
+
+  // Toast listener
+  useEffect(() => {
+    return useToastListener((toast) => {
+      setToasts(prev => [...prev, toast]);
+    });
+  }, []);
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   // Detect mobile on mount
   useEffect(() => {
@@ -147,6 +171,134 @@ export default function ElementorEditorPage() {
       document.body.style.cursor = '';
     };
   }, [isResizing]);
+
+  // Define all keyboard shortcuts
+  const keyboardShortcuts: KeyboardShortcut[] = [
+    // Help & Navigation
+    { key: '?', description: 'Show keyboard shortcuts', category: 'Help & Navigation' },
+    { key: 'k', modifiers: ['ctrl'], description: 'Show keyboard shortcuts', category: 'Help & Navigation' },
+    { key: 'b', modifiers: ['ctrl'], description: 'Toggle chat panel', category: 'Help & Navigation' },
+    { key: '1', modifiers: ['ctrl'], description: 'Go to Code Editor', category: 'Help & Navigation' },
+    // { key: '2', modifiers: ['ctrl'], description: 'Go to Visual Editor', category: 'Help & Navigation' },
+    { key: '3', modifiers: ['ctrl'], description: 'Go to Section Library', category: 'Help & Navigation' },
+    { key: '4', modifiers: ['ctrl'], description: 'Go to WordPress Playground', category: 'Help & Navigation' },
+    { key: '5', modifiers: ['ctrl'], description: 'Go to Site Content', category: 'Help & Navigation' },
+    { key: '6', modifiers: ['ctrl'], description: 'Go to Style Guide', category: 'Help & Navigation' },
+
+    // Editing
+    { key: 's', modifiers: ['ctrl'], description: 'Save current section', category: 'Editing' },
+    { key: 'z', modifiers: ['ctrl'], description: 'Undo', category: 'Editing' },
+    { key: 'y', modifiers: ['ctrl'], description: 'Redo', category: 'Editing' },
+    { key: 'z', modifiers: ['ctrl', 'shift'], description: 'Redo (alternative)', category: 'Editing' },
+
+    // Preview & WordPress
+    { key: 'p', modifiers: ['ctrl'], description: 'Preview in WordPress', category: 'Preview & WordPress' },
+    { key: 'u', modifiers: ['ctrl'], description: 'Update Playground preview', category: 'Preview & WordPress' },
+
+    // Mobile
+    { key: 'm', modifiers: ['ctrl'], description: 'Toggle mobile chat drawer', category: 'Mobile' },
+  ];
+
+  // Keyboard shortcuts handlers
+  useKeyboardShortcuts([
+    {
+      key: '?',
+      handler: () => setShortcutsModalOpen(true)
+    },
+    {
+      key: 'k',
+      modifiers: ['ctrl'],
+      handler: () => setShortcutsModalOpen(true)
+    },
+    {
+      key: 'b',
+      modifiers: ['ctrl'],
+      handler: () => {
+        if (!isMobile) {
+          setChatVisible(prev => !prev);
+          toast.info(chatVisible ? 'Chat panel hidden' : 'Chat panel shown');
+        }
+      }
+    },
+    {
+      key: '1',
+      modifiers: ['ctrl'],
+      handler: () => {
+        setActiveTab('json');
+        toast.info('Switched to Code Editor');
+      }
+    },
+    // Visual Editor disabled
+    // {
+    //   key: '2',
+    //   modifiers: ['ctrl'],
+    //   handler: () => {
+    //     setActiveTab('visual');
+    //     toast.info('Switched to Visual Editor');
+    //   }
+    // },
+    {
+      key: '3',
+      modifiers: ['ctrl'],
+      handler: () => {
+        setActiveTab('sections');
+        toast.info('Switched to Section Library');
+      }
+    },
+    {
+      key: '4',
+      modifiers: ['ctrl'],
+      handler: () => {
+        setActiveTab('playground');
+        toast.info('Switched to WordPress Playground');
+      }
+    },
+    {
+      key: '5',
+      modifiers: ['ctrl'],
+      handler: () => {
+        setActiveTab('site-content');
+        toast.info('Switched to Site Content');
+      }
+    },
+    {
+      key: '6',
+      modifiers: ['ctrl'],
+      handler: () => {
+        setActiveTab('style-guide');
+        toast.info('Switched to Style Guide');
+      }
+    },
+    {
+      key: 'z',
+      modifiers: ['ctrl'],
+      handler: () => {
+        if (canUndo) {
+          undo();
+          toast.success('Undo');
+        }
+      }
+    },
+    {
+      key: 'y',
+      modifiers: ['ctrl'],
+      handler: () => {
+        if (canRedo) {
+          redo();
+          toast.success('Redo');
+        }
+      }
+    },
+    {
+      key: 'm',
+      modifiers: ['ctrl'],
+      handler: () => {
+        if (isMobile) {
+          setChatDrawerOpen(prev => !prev);
+        }
+      }
+    }
+  ]);
 
   const handleSendMessage = async (content: string, imageData?: { url: string; filename: string }, settings?: { webSearchEnabled: boolean; reasoningEffort: string; detailedMode?: boolean }) => {
     if (!content.trim() || isLoading) return;
@@ -701,9 +853,9 @@ export default function ElementorEditorPage() {
 
       {/* Main container - using exact class names from original CSS */}
       <div className="chat-editor-container" style={{
-        marginTop: '64px',
-        height: isMobile ? 'calc(100vh - 64px - 60px)' : 'calc(100vh - 64px)',
-        overflow: 'hidden'
+        marginTop: isMobile ? '52px' : '64px', // Thinner navbar on mobile
+        height: isMobile ? 'calc(100vh - 52px)' : 'calc(100vh - 64px)',
+        paddingBottom: isMobile ? '48px' : '0' // Smaller chat drawer on mobile
       }}>
         {/* Desktop: Left Panel Chat */}
         {!isMobile && chatVisible && (
@@ -754,81 +906,115 @@ export default function ElementorEditorPage() {
         {/* Right Panel: Tabs + Content */}
         <div className="right-panel" style={{ width: !isMobile && chatVisible ? `${100 - leftPanelWidth}%` : '100%' }}>
           {/* Tab Bar */}
-          <div className="tab-bar" style={{
+          {tabBarVisible && (
+            <div className="tab-bar" style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            overflowX: isMobile ? 'auto' : 'visible',
-            flexWrap: isMobile ? 'nowrap' : 'wrap'
+            padding: isMobile ? '8px 12px' : '8px 20px',
+            minHeight: isMobile ? '48px' : 'auto',
+            gap: '8px'
           }}>
-            <div style={{ display: 'flex', flex: 1, overflowX: isMobile ? 'auto' : 'visible' }}>
-              <div
-                className={`tab ${activeTab === 'json' ? 'active' : ''}`}
-                onClick={() => setActiveTab('json')}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                <FileIcon size={16} /> {isMobile ? 'Editor' : 'Section Editor'}
-              </div>
-            <div
-              className={`tab ${activeTab === 'sections' ? 'active' : ''}`}
-              onClick={() => setActiveTab('sections')}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              <FileIcon size={16} /> {isMobile ? 'Library' : 'Section Library'}
-            </div>
-            <div
-              className={`tab ${activeTab === 'playground' ? 'active' : ''}`}
-              onClick={() => setActiveTab('playground')}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              <GlobeIcon size={16} /> {isMobile ? 'WP' : 'WordPress Playground'}
-            </div>
-            <div
-              className={`tab ${activeTab === 'site-content' ? 'active' : ''} ${!playgroundReady ? 'disabled' : ''}`}
-              onClick={() => playgroundReady && setActiveTab('site-content')}
-              style={{
-                opacity: playgroundReady ? 1 : 0.5,
-                cursor: playgroundReady ? 'pointer' : 'not-allowed',
-                whiteSpace: 'nowrap'
-              }}
-              title={!playgroundReady ? 'Waiting for WordPress Playground to initialize...' : ''}
-            >
-              <SettingsIcon size={16} /> {isMobile ? 'Content' : 'Site Content'}
-            </div>
-            <div
-              className={`tab ${activeTab === 'style-guide' ? 'active' : ''} ${!playgroundReady ? 'disabled' : ''}`}
-              onClick={() => playgroundReady && setActiveTab('style-guide')}
-              style={{
-                opacity: playgroundReady ? 1 : 0.5,
-                cursor: playgroundReady ? 'pointer' : 'not-allowed',
-                whiteSpace: 'nowrap'
-              }}
-              title={!playgroundReady ? 'Waiting for WordPress Playground to initialize...' : ''}
-            >
-              <PaletteIcon size={16} /> {isMobile ? 'Styles' : 'Style Guide'}
-            </div>
-            </div>
-
-            {/* Desktop: Chat Toggle Button */}
-            {!isMobile && (
-              <button
-                onClick={() => setChatVisible(!chatVisible)}
-                className="btn-secondary"
+            {/* Mobile: Dropdown Select */}
+            {isMobile ? (
+              <select
+                value={activeTab}
+                onChange={(e) => setActiveTab(e.target.value)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  fontSize: '13px',
-                  marginRight: '12px'
+                  flex: 1,
+                  padding: '10px 12px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  background: 'var(--card)',
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                  outline: 'none'
                 }}
-                title={chatVisible ? 'Hide Chat' : 'Show Chat'}
               >
-                {chatVisible ? <XIcon size={16} /> : <CodeIcon size={16} />}
-                {chatVisible ? 'Hide Chat' : 'Show Chat'}
-              </button>
+                <option value="json">Code Editor</option>
+                <option value="sections">Section Library</option>
+                <option value="playground">WordPress Playground</option>
+                <option value="site-content">Site Content</option>
+                <option value="style-guide">Style Guide</option>
+              </select>
+            ) : (
+              /* Desktop: Horizontal Tabs */
+              <div style={{ display: 'flex', flex: 1, gap: '8px' }}>
+                <div
+                  className={`tab ${activeTab === 'json' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('json')}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <CodeIcon size={16} /> Code Editor
+                </div>
+                <div
+                  className={`tab ${activeTab === 'sections' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('sections')}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <FileIcon size={16} /> Section Library
+                </div>
+                <div
+                  className={`tab ${activeTab === 'playground' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('playground')}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <GlobeIcon size={16} /> WordPress Playground
+                </div>
+                <div
+                  className={`tab ${activeTab === 'site-content' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('site-content')}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <LayoutIcon size={16} /> Site Content
+                </div>
+                <div
+                  className={`tab ${activeTab === 'style-guide' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('style-guide')}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <PaletteIcon size={16} /> Style Guide
+                </div>
+              </div>
             )}
-          </div>
+            </div>
+          )}
+
+          {/* Show Tab Bar Button - appears when tab bar is hidden */}
+          {!tabBarVisible && (
+            <button
+              onClick={() => setTabBarVisible(true)}
+              style={{
+                position: 'fixed',
+                top: '80px',
+                right: '20px',
+                padding: '8px 16px',
+                background: 'var(--muted)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                zIndex: 100,
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--foreground)';
+                e.currentTarget.style.color = 'var(--background)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--muted)';
+                e.currentTarget.style.color = 'var(--foreground)';
+              }}
+            >
+              ⬆️ Show Tabs
+            </button>
+          )}
 
           {/* Tab Content - Keep all tabs mounted, just hide inactive ones */}
           <div className="tab-content">
@@ -850,6 +1036,22 @@ export default function ElementorEditorPage() {
                   });
                   setCurrentSection(section);
                 }}
+                onSwitchToVisualEditor={() => setActiveTab('visual')}
+              />
+            </div>
+
+            <div className={`tab-panel ${activeTab === 'visual' ? 'active' : ''}`} id="visualPanel" style={{ display: activeTab === 'visual' ? 'flex' : 'none' }}>
+              <VisualSectionEditor
+                initialSection={currentSection || undefined}
+                onSectionChange={(section) => {
+                  console.log('🎨 Visual editor section updated:', {
+                    name: section.name,
+                    htmlLength: section.html?.length || 0,
+                    cssLength: section.css?.length || 0,
+                  });
+                  setCurrentSection(section);
+                }}
+                onSwitchToCodeEditor={() => setActiveTab('json')}
               />
             </div>
 
@@ -857,6 +1059,10 @@ export default function ElementorEditorPage() {
               <PlaygroundView
                 json={currentJson}
                 isActive={activeTab === 'playground'}
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
                 onJsonUpdate={(updatedJson) => {
                   console.log('📥 JSON updated from playground:', updatedJson);
                   setCurrentJson(updatedJson);
@@ -870,6 +1076,10 @@ export default function ElementorEditorPage() {
 
             <div className={`tab-panel ${activeTab === 'sections' ? 'active' : ''}`} id="sectionsPanel" style={{ display: activeTab === 'sections' ? 'flex' : 'none' }}>
               <SectionLibrary
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
                 onExportToPlayground={(sections) => {
                   console.log('📋 Exporting sections to playground:', sections.length);
                   alert(`✨ Coming soon: Export ${sections.length} sections to WordPress Playground`);
@@ -894,6 +1104,10 @@ export default function ElementorEditorPage() {
             <div className={`tab-panel ${activeTab === 'site-content' ? 'active' : ''}`} id="siteContentPanel" style={{ display: activeTab === 'site-content' ? 'flex' : 'none' }}>
               <SiteContentManager
                 playgroundReady={playgroundReady}
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
                 onPush={(config) => {
                   console.log('⚙️ Pushing to WordPress:', config);
                   if (typeof window !== 'undefined' && (window as any).applySiteConfig) {
@@ -915,40 +1129,16 @@ export default function ElementorEditorPage() {
             </div>
 
             <div className={`tab-panel ${activeTab === 'style-guide' ? 'active' : ''}`} id="styleGuidePanel" style={{ display: activeTab === 'style-guide' ? 'flex' : 'none' }}>
-              <StyleGuide />
+              <StyleGuide
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
+              />
             </div>
           </div>
         </div>
 
-        {/* Status Indicator */}
-        <div style={{
-          position: 'fixed',
-          bottom: isMobile ? (chatDrawerOpen ? '70vh' : '60px') : 0,
-          left: !isMobile && chatVisible ? `${leftPanelWidth}%` : 0,
-          right: 0,
-          height: '32px',
-          background: playgroundReady ? '#10b98133' : '#f59e0b33',
-          borderTop: `1px solid ${playgroundReady ? '#10b981' : '#f59e0b'}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '12px',
-          fontWeight: 500,
-          color: playgroundReady ? '#10b981' : '#f59e0b',
-          zIndex: 1000,
-          transition: 'all 0.3s ease'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: playgroundReady ? '#10b981' : '#f59e0b',
-              animation: playgroundReady ? 'none' : 'pulse 2s infinite'
-            }} />
-            {!isMobile && (playgroundReady ? 'WordPress Playground Ready' : 'Initializing WordPress Playground...')}
-          </div>
-        </div>
 
         {/* Mobile: Chat Drawer */}
         {isMobile && (
@@ -977,10 +1167,10 @@ export default function ElementorEditorPage() {
                 bottom: 0,
                 left: 0,
                 right: 0,
-                height: chatDrawerOpen ? '70vh' : '60px',
+                height: chatDrawerOpen ? '95vh' : '48px', // Smaller handle
                 background: 'var(--background)',
                 borderTop: '1px solid var(--border)',
-                zIndex: 2000,
+                zIndex: 3000, // Above regular elements, below options button (3100)
                 transition: 'height 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',
@@ -991,7 +1181,7 @@ export default function ElementorEditorPage() {
               <div
                 onClick={() => setChatDrawerOpen(!chatDrawerOpen)}
                 style={{
-                  height: '60px',
+                  height: '48px', // Smaller handle
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1008,14 +1198,20 @@ export default function ElementorEditorPage() {
                   background: 'var(--muted)',
                   borderRadius: '2px'
                 }} />
-                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--foreground)' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--foreground)' }}>
                   {chatDrawerOpen ? '▼ Close Chat' : '▲ Open Chat'}
                 </span>
               </div>
 
               {/* Chat Content */}
               {chatDrawerOpen && (
-                <div style={{ flex: 1, overflow: 'hidden', height: 0 }}>
+                <div style={{
+                  flex: 1,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: 'calc(95vh - 48px)' // Full drawer height minus smaller handle
+                }}>
                   <ElementorChat
                     messages={messages}
                     isLoading={isLoading}
@@ -1049,6 +1245,18 @@ export default function ElementorEditorPage() {
           50% { opacity: 0.5; }
         }
       `}</style>
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
+
+      {/* Keyboard Shortcuts Modal - Desktop Only */}
+      {!isMobile && (
+        <KeyboardShortcutsModal
+          isOpen={shortcutsModalOpen}
+          onClose={() => setShortcutsModalOpen(false)}
+          shortcuts={keyboardShortcuts}
+        />
+      )}
       </>
     </GlobalStylesheetProvider>
   );

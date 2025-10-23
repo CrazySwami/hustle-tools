@@ -2,6 +2,8 @@ import { GalleryVerticalEnd } from "lucide-react"
 import { LoginForm } from "@/components/login-form"
 import { redirect } from "next/navigation"
 
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
   // Redirect to home if Supabase is not configured
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {

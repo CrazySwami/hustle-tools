@@ -26,7 +26,7 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/source';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
-import { CopyIcon, RotateCcwIcon, GlobeIcon } from 'lucide-react';
+import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -124,29 +124,14 @@ export function ElementorChat({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Top Bar - Match tab-bar styling exactly */}
-      <div style={{
-        padding: '8px 20px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--muted)',
-        display: 'flex',
-        alignItems: 'center',
-        flexShrink: 0
-      }}>
-        <h2 style={{
-          margin: 0,
-          padding: '6px 0',
-          fontSize: '14px',
-          fontWeight: 500,
-          color: 'var(--foreground)'
-        }}>
-          Chat
-        </h2>
-      </div>
-
-      <Conversation className="flex-1 !overflow-hidden" style={{ minHeight: 0 }}>
-        <ConversationContent className="!overflow-y-auto !h-full">
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      overflow: 'hidden'
+    }}>
+      <Conversation className="flex-1" style={{ overflow: 'hidden' }}>
+        <ConversationContent style={{ flex: 1, overflow: 'auto' }}>
           {messages.map((message, index) => (
             <div key={message.id}>
               {/* Show sources for assistant messages - OUTSIDE Message component */}
@@ -336,7 +321,7 @@ export function ElementorChat({
         <ConversationScrollButton />
       </Conversation>
 
-      <PromptInput onSubmit={handleSubmit} className="mt-4" style={{ flexShrink: 0 }}>
+      <PromptInput onSubmit={handleSubmit} style={{ flexShrink: 0, marginTop: '16px' }}>
         <PromptInputTextarea
           onChange={(e) => setInput(e.target.value)}
           value={input}
@@ -371,7 +356,9 @@ export function ElementorChat({
               </PromptInputModelSelectContent>
             </PromptInputModelSelect>
           </PromptInputTools>
-          <PromptInputSubmit disabled={isLoading || !input.trim()} status={status} />
+          <PromptInputSubmit disabled={isLoading || !input.trim()} status={status}>
+            <SendIcon size={16} />
+          </PromptInputSubmit>
         </PromptInputToolbar>
       </PromptInput>
     </div>

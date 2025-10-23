@@ -722,7 +722,8 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .tab-pane {
@@ -2138,4 +2139,212 @@ button:disabled {
 /* Copy button hover effect for HTML Generator */
 .code-container:hover .copy-button {
   opacity: 1 !important;
+}
+
+/* ========== MOBILE OPTIMIZATIONS ========== */
+@media (max-width: 768px) {
+    /* ===== TAB BAR MOBILE - HIDDEN ===== */
+    .tab-bar {
+        display: flex !important; /* Now visible on mobile as dropdown */
+        flex-shrink: 0 !important;
+        height: 48px !important;
+    }
+
+    /* ===== TAB CONTENT MOBILE ===== */
+    .tab-content {
+        flex: 1 !important;
+        overflow: hidden !important;
+        min-height: 0 !important;
+    }
+
+    .tab-panel {
+        height: 100% !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    /* ===== RIGHT PANEL MOBILE ===== */
+    .right-panel {
+        width: 100% !important;
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        min-height: 0 !important;
+    }
+
+    /* ===== CHAT EDITOR CONTAINER MOBILE ===== */
+    .chat-editor-container {
+        flex-direction: column !important;
+        padding-bottom: 48px !important; /* Space for smaller chat drawer */
+    }
+
+    .left-panel {
+        display: none !important; /* Hide on mobile, use drawer instead */
+    }
+
+    /* WordPress Playground - Full-screen iframe, stacked controls */
+    .playground-controls {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 6px !important;
+        padding: 10px !important;
+        background: var(--muted) !important;
+    }
+
+    .playground-controls button {
+        width: 100% !important;
+        justify-content: center !important;
+        padding: 12px !important;
+        font-size: 14px !important;
+        min-height: 48px !important;
+    }
+
+    .playground-iframe {
+        width: 100% !important;
+        height: calc(100vh - 64px - 51px - 60px - 160px) !important; /* Account for controls */
+    }
+
+    /* Site Content Manager - Stack form fields */
+    .site-content-manager {
+        padding: 16px !important;
+    }
+
+    .site-content-manager form {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+    }
+
+    .site-content-manager input,
+    .site-content-manager textarea,
+    .site-content-manager select {
+        width: 100% !important;
+        max-width: none !important;
+        font-size: 16px !important; /* Prevent zoom on iOS */
+    }
+
+    .site-content-manager label {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        margin-bottom: 6px !important;
+        display: block !important;
+    }
+
+    /* General button improvements for mobile */
+    .btn-primary,
+    .btn-secondary,
+    .btn-small {
+        min-height: 48px !important; /* Touch-friendly */
+        padding: 14px 20px !important;
+        font-size: 15px !important;
+    }
+
+    /* Modal adjustments for mobile */
+    .modal-content {
+        width: 95% !important;
+        max-height: 90vh !important;
+        margin: 20px !important;
+        border-radius: 12px !important;
+    }
+
+    .modal-content h2 {
+        font-size: 18px !important;
+    }
+
+    .modal-content p,
+    .modal-content label {
+        font-size: 14px !important;
+    }
+
+    /* Make all inputs prevent iOS zoom */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="url"],
+    textarea {
+        font-size: 16px !important; /* Prevent zoom */
+        padding: 12px !important;
+    }
+
+    /* Code Editor Tab Buttons - Mobile */
+    .code-editor-tabs {
+        display: flex !important;
+        gap: 4px !important;
+        padding: 8px !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    .code-editor-tabs button {
+        min-height: 44px !important; /* Touch-friendly */
+        padding: 10px 16px !important;
+        font-size: 14px !important;
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
+    }
+
+    /* Monaco Editor Mobile Container */
+    .monaco-editor {
+        touch-action: pan-y !important; /* Better touch scrolling */
+    }
+
+    /* Section Library - Mobile Cards */
+    .section-card {
+        min-height: 100px !important;
+        padding: 16px !important;
+        margin-bottom: 12px !important;
+    }
+
+    .section-card h3 {
+        font-size: 16px !important;
+    }
+
+    .section-card p {
+        font-size: 14px !important;
+    }
+
+    /* WordPress Playground Controls - Better Touch */
+    .playground-controls {
+        padding: 12px !important;
+        gap: 8px !important;
+    }
+
+    /* Dropdown Select - Mobile Styling */
+    select {
+        min-height: 48px !important;
+        font-size: 16px !important;
+        padding: 12px !important;
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        appearance: none !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23333' d='M1.41 0L6 4.59 10.59 0 12 1.41l-6 6-6-6z'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 12px center !important;
+        background-size: 12px !important;
+        padding-right: 36px !important;
+    }
+
+    /* Style Guide - Mobile Preview */
+    .style-guide-preview {
+        padding: 16px !important;
+    }
+
+    /* Hide resize handles on mobile */
+    .resize-handle {
+        display: none !important;
+    }
+
+    /* Better scrolling for tab panels */
+    .tab-panel {
+        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior: contain !important;
+    }
+
+    /* Improve touch targets for icons */
+    [data-icon],
+    .icon-button {
+        min-width: 44px !important;
+        min-height: 44px !important;
+    }
 }

@@ -324,10 +324,12 @@
 ## ✅ Phase 6: WordPress Playground Integration
 
 ### 6.1 Update Playground Import Functions
-- [ ] Update `/public/playground.js`
-  - [ ] Modify `importElementorTemplate()` to accept array of HTML widgets
-  - [ ] Each section = 1 HTML widget with all settings
-  - [ ] Build proper Elementor HTML widget JSON structure
+- [x] Update `/public/playground.js`
+  - [x] Created `updateAllSectionsPreview()` function for live preview
+  - [x] Each section = 1 HTML widget with all settings
+  - [x] Builds proper Elementor HTML widget JSON structure
+  - [x] Includes global CSS from Style Guide
+  - [x] Creates/updates preview page dynamically
 
 ### 6.2 Section to Elementor HTML Widget Conversion
 - [x] Create `/src/lib/section-to-elementor.ts`
@@ -350,13 +352,16 @@
   - [x] Copies HTML to clipboard
   - [x] Downloads Elementor JSON file
   - [x] Success notification with instructions
-  - [ ] Integrate with playground.js iframe communication
-  - [ ] Real-time preview in WordPress Playground iframe
+  - [x] Integrate with playground.js iframe communication
+  - [x] Real-time preview in WordPress Playground iframe
 
 ### 6.4 Live Preview Updates
-- [ ] When editing a section, "Update Playground" button
-- [ ] Re-sends all sections to WordPress
-- [ ] WordPress page refreshes with changes
+- [x] When editing a section, "Update Playground" button
+- [x] Re-sends all sections to WordPress
+- [x] WordPress page refreshes with changes
+- [x] Added `updateAllSectionsPreview()` function to playground.js
+- [x] Added "🔄 Update Playground" button to Section Library
+- [x] Added "🔄 Preview in WP" button to HTML Section Editor
 
 ---
 
@@ -500,53 +505,315 @@
 
 ## ✅ Phase 8: Global Stylesheet Preview Integration
 
-### 8.1 Apply Global Stylesheet to Previews
-- [ ] Section Editor preview injects global CSS
-- [ ] HTML Generator preview injects global CSS
-- [ ] Section Library thumbnails use global CSS
-- [ ] Playground import includes global CSS as custom stylesheet
+### 8.1 Apply Global Stylesheet to Previews ✅ COMPLETE
+- [x] Section Editor preview injects global CSS
+- [x] HTML Generator preview injects global CSS
+- [x] Section Library thumbnails use global CSS
+- [x] Playground import includes global CSS in combined HTML
 
-### 8.2 CSS Variable Usage
-- [ ] Parse CSS variables from global stylesheet
-- [ ] Make variables available in autocomplete for CSS editor
-- [ ] Show variable values in style guide
-- [ ] Example: `var(--primary-color)` suggestions
+### 8.2 CSS Variable Usage ✅ COMPLETE
+- [x] Parse CSS variables from global stylesheet
+- [x] Make variables available in autocomplete for CSS editor (StyleGuide + HtmlSectionEditor)
+- [x] Show variable values in style guide (comprehensive CSS Variables section)
+- [x] Autocomplete triggers on `var(` or `--` with variable name and value hints
 
-### 8.3 Hot Reload on Stylesheet Changes
-- [ ] When global CSS changes in Style Guide tab
-- [ ] Auto-update all open previews
-- [ ] Re-render section thumbnails
-- [ ] Show "Updated" notification
+### 8.3 Hot Reload on Stylesheet Changes ✅ COMPLETE
+- [x] When global CSS changes in Style Guide tab (via setGlobalCss wrapper)
+- [x] Auto-update all open previews (via React context reactivity)
+- [x] Re-render section thumbnails (key-based force re-render using lastUpdated)
+- [x] Show "Updated" notification (green toast with slide-in animation)
 
 ---
 
-## ✅ Phase 9: Testing & Polish
+## ✅ Phase 9: GrapeJS Visual Editor & Mobile Optimization
 
-### 9.1 Workflow Testing
+### 9.1 GrapeJS Visual Editor Integration ✅ COMPLETE
+- [x] Install grapesjs and @grapesjs/react packages
+- [x] Create VisualSectionEditor component with 3-column layout
+- [x] Implement blocks panel (left) with drag-and-drop elements
+- [x] Configure GrapeJS canvas (center) with responsive preview
+- [x] Add styles panel (right) with property editors
+- [x] Integrate grapesjs-blocks-basic plugin for default blocks
+- [x] Add global CSS loading into GrapeJS canvas
+- [x] Implement bidirectional sync (Code ↔ Visual editors)
+- [x] Add navigation buttons between Code and Visual editors
+- [x] Create comprehensive documentation (docs/grapejs-visual-editor.md)
+
+### 9.2 CSS Cascade Inspector ✅ COMPLETE
+- [x] Create CSSCascadeInspector component (451 lines)
+- [x] Parse inline styles from selected component
+- [x] Parse class-based styles from GrapeJS CSS rules
+- [x] Parse global CSS and match to component
+- [x] Calculate CSS specificity for each rule
+- [x] Display cascade hierarchy (inline → class → global)
+- [x] Show computed final values
+- [x] Integrate inspector into Visual Editor right panel
+
+### 9.3 Performance Optimizations ✅ COMPLETE
+- [x] Add debounced update handler (1-second delay)
+- [x] Replace generic 'update' event with specific events
+- [x] Optimize React rendering with useCallback
+- [x] Prevent jittery re-renders during editing
+- [x] Smooth element selection and manipulation
+
+### 9.4 WordPress Import Enhancements ✅ COMPLETE
+- [x] Set section content_width to 'full' by default
+- [x] Set section padding to 0px all around
+- [x] Set section margin to 0px all around
+- [x] Set column padding to 0px all around
+- [x] Set column margin to 0px all around
+- [x] Apply to saveSectionToTemplateLibrary() function
+- [x] Apply to importHtmlSectionToPage() function
+
+### 9.5 Mobile Optimization 🔄 IN PROGRESS
+- [x] **Bottom Chat Drawer (Mobile)** ✅ COMPLETE
+  - [x] Swipeable drawer from bottom (like native apps)
+  - [x] Collapsed state: 60px handle with "Chat" button
+  - [x] Expanded state: 70vh height with chat interface
+  - [x] Smooth slide-up/down animation
+  - [x] Touch-friendly drag handle
+  - [x] Auto-collapse when switching tabs
+
+- [x] **Simplified Mobile Tabs** ✅ COMPLETE
+  - [x] Horizontal scrolling tabs at top
+  - [x] Larger touch targets (min 44px height)
+  - [x] Abbreviated labels for space (e.g., "Code" not "Code Editor")
+  - [x] Visual active indicator
+  - [x] Snap-to-tab scrolling
+  - [x] Icon + text for clarity
+
+- [x] **Mobile-Optimized Views** ✅ COMPLETE
+  - [x] Code Editor: Full-screen Monaco on mobile, hide settings panel ✅
+  - [x] Visual Editor: Collapsible blocks dropdown + bottom sheet styles ✅
+  - [x] Section Library: Full-width list on mobile, full-screen editor with back button ✅
+  - [x] WordPress Playground: Full-screen iframe, stacked controls ✅
+  - [x] Site Content: Stacked form fields (CSS media query) ✅
+  - [x] Style Guide: Single column layout with toggle preview ✅
+
+- [x] **Touch Interactions** ✅ COMPLETE
+  - [x] Touch-friendly buttons (min 44x44px via CSS media query) ✅
+  - [x] Mobile-optimized button layouts (stacked, full-width) ✅
+  - [x] Bottom drawer with touch-friendly handle (chat) ✅
+  - [x] Horizontal scrolling tabs with touch targets ✅
+  - [x] Full-screen mobile modals with better touch areas ✅
+
+- [x] **Responsive Breakpoints** ✅ COMPLETE
+  - [x] Mobile: < 768px (implemented across all views) ✅
+  - [x] Desktop: > 768px (default layout) ✅
+  - [x] Applied consistent breakpoint across all components ✅
+
+### 9.6 Documentation Updates ✅ COMPLETE
+- [x] Update CLAUDE.md with GrapeJS features
+- [x] Update CLAUDE.md with branching strategy
+- [x] Create comprehensive GrapeJS documentation
+- [x] Document WordPress import defaults
+- [x] Add mobile optimization notes (this section)
+
+### 9.7 Branch Management & CI/CD ✅ COMPLETE
+- [x] Create GitHub Actions auto-merge workflow
+- [x] Configure workflow for claude/grapejs-* branches
+- [x] Test auto-merge to development
+- [x] Delete obsolete html-only-no-elementor branch
+
+**Phase 9 Progress:** 71/76 tasks completed (93%)
+
+---
+
+## ⏳ Phase 10: Testing & Polish
+
+### 10.1 Workflow Testing
 - [ ] Test: Generate HTML → Save as Section → Edit → Preview in Playground
 - [ ] Test: Create multiple sections → Reorder → Preview all in Playground
 - [ ] Test: Edit global stylesheet → See changes in section previews
 - [ ] Test: Chat assistant modifying sections
 - [ ] Test: Export/import section library
 
-### 9.2 Error Handling
+### 10.2 Error Handling
 - [ ] Handle WordPress Playground not running
 - [ ] Handle invalid HTML/CSS/JS
 - [ ] Handle missing global stylesheet
 - [ ] Handle section conversion errors
 
-### 9.3 UI/UX Polish
-- [ ] Loading states for WordPress operations
-- [ ] Success/error notifications
-- [ ] Keyboard shortcuts (save, preview, etc.)
-- [ ] Responsive layout for smaller screens
+### 10.3 UI/UX Polish
+- [x] Success/error notifications ✅ (Toast notification system implemented)
+  - [x] Created Toast component with 4 types (success, error, info, warning)
+  - [x] Created useToast hook for global toast management
+  - [x] Integrated ToastContainer in main editor
+  - [x] Replaced alerts in SectionLibrary with toasts
+- [x] Loading states for WordPress operations ✅ (LoadingButton and LoadingOverlay implemented)
+  - [x] Created LoadingOverlay component (fullScreen or relative)
+  - [x] Created LoadingButton with built-in spinner and loading text
+  - [x] Integrated loading state with "Update Playground" button
+  - [x] Prevents double-clicks and provides visual feedback
+- [x] Keyboard shortcuts (save, preview, etc.) ✅ (Comprehensive system implemented)
+  - [x] Created KeyboardShortcutsModal with search and categories
+  - [x] Created useKeyboardShortcuts hook for global management
+  - [x] Implemented shortcuts: ?, Ctrl+K (help), Ctrl+1-6 (tabs), Ctrl+Z/Y (undo/redo), Ctrl+B (toggle chat), Ctrl+M (mobile)
+  - [x] Added floating help button with keyboard icon
+  - [x] Mac/Windows key detection (⌘ vs Ctrl)
+  - [x] Toast feedback for all shortcut actions
+- [x] Responsive layout for smaller screens ✅ (DONE via Phase 9 mobile optimization)
 - [ ] Dark mode compatibility
 
-### 9.4 Documentation
+### 10.4 Documentation
 - [ ] Add inline help text/tooltips
 - [ ] Create user guide for HTML-only workflow
 - [ ] Document Elementor HTML widget properties
 - [ ] Add example sections to library
+
+**Phase 10 Progress:** 4/14 tasks completed (29%)**
+
+---
+
+## 🔍 Phase 11: UX & Performance Audit
+
+### 11.1 User Experience Audit
+- [ ] **Navigation & Flow**
+  - [ ] Review tab switching logic and transitions
+  - [ ] Test user flow from chat → section editor → playground
+  - [ ] Assess discoverability of features
+  - [ ] Evaluate learning curve for new users
+
+- [ ] **Visual Editor (GrapeJS) Evaluation**
+  - [ ] Test component selection responsiveness
+  - [ ] Verify style panel updates correctly
+  - [ ] Check for undefined variable errors
+  - [ ] Assess drag-and-drop smoothness
+  - [ ] Evaluate mobile touch interactions
+  - [ ] Test blocks panel usability
+
+- [ ] **Code Editor Experience**
+  - [ ] Monaco editor performance with large files
+  - [ ] Syntax highlighting accuracy
+  - [ ] Autocomplete usefulness (CSS variables)
+  - [ ] Live preview update speed
+  - [ ] Mobile fullscreen mode effectiveness
+
+- [ ] **Section Library Usability**
+  - [ ] Thumbnail preview quality
+  - [ ] Section search/filter capabilities
+  - [ ] Drag-to-reorder smoothness
+  - [ ] Import/export workflow clarity
+  - [ ] Mobile grid vs list view effectiveness
+
+- [ ] **WordPress Playground Integration**
+  - [ ] Iframe loading speed
+  - [ ] Data sync reliability (push/pull)
+  - [ ] Error handling clarity
+  - [ ] Status indicator visibility
+  - [ ] Template import accuracy
+
+### 11.2 Performance Audit
+- [ ] **Build Performance**
+  - [ ] Measure bundle size
+  - [ ] Identify code splitting opportunities
+  - [ ] Check for unnecessary dependencies
+  - [ ] Optimize dynamic imports
+
+- [ ] **Runtime Performance**
+  - [ ] React rendering performance (use React DevTools Profiler)
+  - [ ] GrapeJS initialization time
+  - [ ] Monaco editor load time
+  - [ ] Section thumbnail rendering speed
+  - [ ] Global CSS hot reload performance
+
+- [ ] **Memory Usage**
+  - [ ] Check for memory leaks in event listeners
+  - [ ] Monitor DOM node count in GrapeJS
+  - [ ] Assess React component re-render frequency
+  - [ ] Profile long-running sessions
+
+- [ ] **Network Performance**
+  - [ ] Minimize API calls
+  - [ ] Implement request caching where appropriate
+  - [ ] Optimize asset loading (fonts, styles, scripts)
+  - [ ] Lazy load WordPress Playground
+
+### 11.3 Accessibility Audit
+- [ ] **Keyboard Navigation**
+  - [ ] Test tab order across all interfaces
+  - [ ] Verify keyboard shortcuts work
+  - [ ] Ensure focus indicators are visible
+  - [ ] Check screen reader compatibility
+
+- [ ] **Visual Accessibility**
+  - [ ] Verify color contrast ratios (WCAG AA)
+  - [ ] Test with different font sizes
+  - [ ] Check for sufficient touch target sizes (44x44px)
+  - [ ] Ensure no information conveyed by color alone
+
+- [ ] **Semantic HTML**
+  - [ ] Review heading hierarchy
+  - [ ] Use proper ARIA labels where needed
+  - [ ] Ensure forms have proper labels
+  - [ ] Test with screen readers
+
+### 11.4 Error Handling & Edge Cases
+- [ ] **Input Validation**
+  - [ ] Handle empty/invalid HTML/CSS/JS
+  - [ ] Validate section names (special characters, length)
+  - [ ] Handle WordPress Playground disconnections
+  - [ ] Test with extremely large sections
+
+- [ ] **State Management**
+  - [ ] Verify undo/redo functionality
+  - [ ] Test concurrent edits (Visual ↔ Code)
+  - [ ] Check localStorage limits
+  - [ ] Handle browser refresh/navigation
+
+- [ ] **Error Messages**
+  - [ ] Review all error messages for clarity
+  - [ ] Ensure actionable error guidance
+  - [ ] Test error recovery flows
+  - [ ] Add retry mechanisms where appropriate
+
+### 11.5 Mobile Experience Deep Dive
+- [ ] **Touch Interactions**
+  - [ ] Test all swipe gestures
+  - [ ] Verify button sizes (min 44x44px)
+  - [ ] Check for tap delay issues
+  - [ ] Test long-press interactions
+
+- [ ] **Responsive Layouts**
+  - [ ] Test on actual mobile devices (not just DevTools)
+  - [ ] Verify breakpoint transitions (320px, 768px, 1024px)
+  - [ ] Check for horizontal scroll issues
+  - [ ] Test landscape vs portrait modes
+
+- [ ] **Mobile Performance**
+  - [ ] Measure First Contentful Paint
+  - [ ] Check for layout shifts
+  - [ ] Monitor touch response time
+  - [ ] Test on lower-end devices
+
+### 11.6 Feature Completeness Review
+- [ ] **Does it meet requirements?**
+  - [ ] Visual editor works as advertised
+  - [ ] Code editor has all expected features
+  - [ ] Section library management is complete
+  - [ ] WordPress integration is functional
+  - [ ] Global CSS system works end-to-end
+
+- [ ] **Missing Features**
+  - [ ] Document any discovered gaps
+  - [ ] Prioritize missing features
+  - [ ] Create follow-up tasks
+  - [ ] Consider MVP vs future enhancements
+
+### 11.7 Documentation & Help
+- [ ] **User Documentation**
+  - [ ] Is CLAUDE.md comprehensive?
+  - [ ] Are there helpful inline tooltips?
+  - [ ] Is the learning curve acceptable?
+  - [ ] Are error messages self-documenting?
+
+- [ ] **Developer Documentation**
+  - [ ] Are component APIs documented?
+  - [ ] Is the architecture clear?
+  - [ ] Are best practices noted?
+  - [ ] Is troubleshooting info available?
+
+**Phase 11 Progress:** 0/80 tasks completed (0%)
 
 ---
 
@@ -558,12 +825,14 @@
 **Phase 4 (Section Editor):** ✅ 6/6 tasks - COMPLETE
 **Phase 5 (Section Library):** ✅ 5/5 tasks - COMPLETE
 **Phase 5.5 (Page Splitter):** ✅ 7/7 tasks - COMPLETE (integrated into Section Library)
-**Phase 6 (Playground Integration):** ✅ 6/8 tasks - IN PROGRESS (conversion lib complete, export working, iframe integration pending)
+**Phase 6 (Playground Integration):** ✅ 8/8 tasks - COMPLETE (live preview with updateAllSectionsPreview function, Section Library & Editor integration)
 **Phase 7 (Vercel AI SDK & Multi-Model):** ✅ 25/40 tasks - IN PROGRESS (Chat-based HTML generation complete with streaming, image analysis, and auto tab switching)
-**Phase 8 (Global CSS Integration):** ✅ 3/9 tasks - PARTIAL (global CSS working in previews)
-**Phase 9 (Testing):** ⬜️ 0/14 tasks
+**Phase 8 (Global CSS Integration):** ✅ 9/9 tasks - COMPLETE
+**Phase 9 (GrapeJS Visual Editor & Mobile):** ✅ 71/76 tasks - 93% COMPLETE (GrapeJS fixes + full mobile optimization)
+**Phase 10 (Testing & Polish):** 🔄 4/14 tasks - IN PROGRESS (Toast notifications + keyboard shortcuts + loading states)
+**Phase 11 (UX & Performance Audit):** ⏭️ SKIPPED (per user request)
 
-**TOTAL:** 73/154 tasks completed (47%)
+**TOTAL:** 159/310 tasks completed (51%)** (excluding Phase 11's 80 audit tasks)
 
 ---
 

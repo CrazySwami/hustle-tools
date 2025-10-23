@@ -2,6 +2,16 @@ import { createSupabaseMiddlewareClient } from '@/lib/supabase/middleware'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // Check if Supabase credentials are configured
+  const hasSupabaseCredentials =
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  // If Supabase is not configured, skip authentication
+  if (!hasSupabaseCredentials) {
+    return NextResponse.next()
+  }
+
   const { supabase, response } = createSupabaseMiddlewareClient(request)
 
   // If Supabase is not configured, skip auth checks

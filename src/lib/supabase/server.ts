@@ -2,19 +2,24 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export const createSupabaseServerClient = async () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  // Return null if Supabase is not configured (optional feature)
-  if (!url || !key) {
-    return null as any
-  }
-
   const cookieStore = await cookies()
 
+  // Check if Supabase credentials are configured
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  // If credentials are missing, return a mock client with no user
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return {
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: null }),
+      },
+    } as any
+  }
+
   return createServerClient(
-    url,
-    key,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         get(name: string) {

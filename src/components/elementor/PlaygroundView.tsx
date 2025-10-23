@@ -2,18 +2,32 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCwIcon, ExternalLinkIcon, EyeIcon, DownloadIcon, PackageIcon } from 'lucide-react';
+import { OptionsButton } from '@/components/ui/OptionsButton';
 
 interface PlaygroundViewProps {
   json: any;
   isActive?: boolean;
   onJsonUpdate?: (json: any) => void;
   onPlaygroundReady?: () => void;
+  chatVisible?: boolean;
+  setChatVisible?: (visible: boolean) => void;
+  tabBarVisible?: boolean;
+  setTabBarVisible?: (visible: boolean) => void;
 }
 
-export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygroundReady }: PlaygroundViewProps) {
+export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygroundReady, chatVisible, setChatVisible, tabBarVisible, setTabBarVisible }: PlaygroundViewProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [playgroundReady, setPlaygroundReady] = useState(false);
   const [status, setStatus] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Check if playground script is loaded and auto-launch
   useEffect(() => {
@@ -193,70 +207,92 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
   };
 
   return (
-    <div className="playground-container" id="playgroundContainer">
-      {/* Playground Controls */}
-      <div className="playground-controls">
-        <button
-          id="startPlaygroundBtn"
-          onClick={launchPlayground}
-          disabled={isLoading || !playgroundReady}
-          className="btn-primary"
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          <ExternalLinkIcon style={{ width: '14px', height: '14px' }} />
-          <span>Launch</span>
-        </button>
-        <button
-          id="updatePlaygroundBtn"
-          onClick={refreshPlayground}
-          disabled={isLoading || !playgroundReady}
-          className="btn-secondary"
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          <RefreshCwIcon style={{ width: '14px', height: '14px' }} />
-          <span>Update & Open</span>
-        </button>
-        <button
-          id="viewPageBtn"
-          onClick={viewPage}
-          disabled={!playgroundReady}
-          className="btn-secondary"
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          <EyeIcon style={{ width: '14px', height: '14px' }} />
-          <span>View Live</span>
-        </button>
-        <button
-          id="pullFromPlaygroundBtn"
-          onClick={pullFromPlayground}
-          disabled={isLoading || !playgroundReady}
-          className="btn-secondary"
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981', color: 'white', border: 'none' }}
-          title="Pull changes made in Elementor editor back to JSON"
-        >
-          <DownloadIcon style={{ width: '14px', height: '14px' }} />
-          <span>Pull Changes</span>
-        </button>
-        <button
-          id="exportSiteBtn"
-          onClick={exportSite}
-          disabled={isLoading || !playgroundReady}
-          className="btn-secondary"
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#8b5cf6', color: 'white', border: 'none' }}
-          title="Export full WordPress site as ZIP"
-        >
-          <PackageIcon style={{ width: '14px', height: '14px' }} />
-          <span>Export Site</span>
-        </button>
-        <div id="playgroundStatus" className="playground-status" style={{ display: status ? 'block' : 'none' }}>
-          <span id="playgroundStatusText">{status}</span>
+    <div className="playground-container" id="playgroundContainer" style={{ position: 'relative', height: '100%' }}>
+      {/* Options Button */}
+      <OptionsButton
+        isMobile={isMobile}
+        options={[
+          {
+            label: '🚀 Launch',
+            onClick: launchPlayground,
+            disabled: isLoading || !playgroundReady
+          },
+          {
+            label: '🔄 Update & Open',
+            onClick: refreshPlayground,
+            disabled: isLoading || !playgroundReady
+          },
+          {
+            label: '👁️ View Live',
+            onClick: viewPage,
+            disabled: !playgroundReady
+          },
+          {
+            label: '⬇️ Pull Changes',
+            onClick: pullFromPlayground,
+            disabled: isLoading || !playgroundReady
+          },
+          {
+            label: '📦 Export Site',
+            onClick: exportSite,
+            disabled: isLoading || !playgroundReady,
+            divider: true
+          },
+          // Chat toggle
+          ...(setChatVisible ? [{
+            label: chatVisible ? 'Hide Chat' : 'Show Chat',
+            onClick: () => setChatVisible(!chatVisible),
+            type: 'toggle' as const,
+            active: chatVisible
+          }] : []),
+          // Tab bar toggle
+          ...(setTabBarVisible ? [{
+            label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
+            onClick: () => setTabBarVisible(!tabBarVisible),
+            type: 'toggle' as const,
+            active: tabBarVisible
+          }] : [])
+        ]}
+      />
+
+      {/* Floating Status Messages - All Screen Sizes */}
+      {status && (
+        <div style={{
+          position: 'absolute',
+          bottom: '12px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'var(--card)',
+          color: 'var(--foreground)',
+          padding: '8px 16px',
+          borderRadius: '6px',
+          fontSize: '13px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          zIndex: 99,
+          border: '1px solid var(--border)'
+        }}>
+          {status}
         </div>
-        {!playgroundReady && (
-          <div className="playground-status" style={{ display: 'block', background: '#fef3c7', borderLeftColor: '#f59e0b' }}>
-            <span>Loading playground script...</span>
-          </div>
-        )}
-      </div>
+      )}
+
+      {!playgroundReady && (
+        <div style={{
+          position: 'absolute',
+          bottom: '12px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#fef3c7',
+          color: '#92400e',
+          padding: '8px 16px',
+          borderRadius: '6px',
+          fontSize: '13px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          zIndex: 99,
+          border: '1px solid #f59e0b'
+        }}>
+          Loading playground script...
+        </div>
+      )}
 
       {/* Playground iframe */}
       <iframe

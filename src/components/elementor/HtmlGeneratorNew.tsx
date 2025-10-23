@@ -641,7 +641,13 @@ export function HtmlGeneratorNew({ onSendToConverter, onSendMockups }: HtmlGener
                   <!DOCTYPE html>
                   <html>
                   <head>
-                    <style>${generatedCss}</style>
+                    <style>
+                      /* Global CSS */
+                      ${globalCss}
+
+                      /* Section CSS */
+                      ${generatedCss}
+                    </style>
                   </head>
                   <body>
                     ${generatedHtml}

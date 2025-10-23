@@ -4,8 +4,16 @@ import { useState, useRef, useEffect } from 'react';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import { useTheme } from 'next-themes';
 import Editor from '@monaco-editor/react';
+import { OptionsButton, type OptionItem } from '@/components/ui/OptionsButton';
 
-export function StyleGuide() {
+interface StyleGuideProps {
+  chatVisible?: boolean;
+  setChatVisible?: (visible: boolean) => void;
+  tabBarVisible?: boolean;
+  setTabBarVisible?: (visible: boolean) => void;
+}
+
+export function StyleGuide({ chatVisible, setChatVisible, tabBarVisible, setTabBarVisible }: StyleGuideProps = {}) {
   const {
     globalCss,
     setGlobalCss,
@@ -508,79 +516,6 @@ export function StyleGuide() {
               <span style={{ color: '#f59e0b', fontSize: '12px' }}>● Unsaved</span>
             )}
           </div>
-
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {/* Preview Toggle Button */}
-            <button
-              onClick={() => setShowPreview(!showPreview)}
-              style={{
-                padding: isMobile ? '8px 12px' : '6px 12px',
-                background: showPreview ? '#000000' : 'var(--muted)',
-                color: showPreview ? '#ffffff' : 'var(--foreground)',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                fontSize: isMobile ? '14px' : '12px',
-                cursor: 'pointer',
-                fontWeight: 500,
-                minHeight: isMobile ? '44px' : 'auto'
-              }}
-            >
-              {isMobile ? (showPreview ? '📝' : '👁️') : (showPreview ? '✓ Preview' : 'Preview')}
-            </button>
-
-            <button
-              onClick={handlePullFromWordPress}
-              disabled={isLoading}
-              style={{
-                padding: '6px 12px',
-                background: '#10b981',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '12px',
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                opacity: isLoading ? 0.6 : 1
-              }}
-            >
-              {isLoading ? '⏳' : '⬇️'} {isMobile ? 'Pull' : 'Pull from WordPress'}
-            </button>
-
-            <button
-              onClick={handlePushToWordPress}
-              disabled={isLoading || !hasUnsavedChanges}
-              style={{
-                padding: '6px 12px',
-                background: hasUnsavedChanges ? '#10b981' : '#4b5563',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '12px',
-                cursor: isLoading || !hasUnsavedChanges ? 'not-allowed' : 'pointer',
-                opacity: isLoading || !hasUnsavedChanges ? 0.6 : 1
-              }}
-            >
-              {isLoading ? '⏳' : '⬆️'} {isMobile ? 'Push' : 'Push to WordPress'}
-            </button>
-
-            {!isMobile && (
-              <button
-                onClick={handleResetToDefault}
-                disabled={isLoading}
-                style={{
-                  padding: '6px 12px',
-                  background: '#ef4444',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
-                  opacity: isLoading ? 0.6 : 1
-                }}
-              >
-                🔄 Reset
-              </button>
-            )}
-          </div>
         </div>
 
         {/* Error Display */}
@@ -673,6 +608,54 @@ export function StyleGuide() {
           Previews updated with new stylesheet
         </div>
       )}
+
+      {/* Options Button */}
+      <OptionsButton
+        isMobile={isMobile}
+        options={[
+          // Preview toggle
+          {
+            label: showPreview ? '📝 Show Editor' : '👁️ Show Preview',
+            onClick: () => setShowPreview(!showPreview),
+            type: 'toggle' as const,
+            active: showPreview,
+            divider: true
+          },
+          // Pull from WordPress
+          {
+            label: '⬇️ Pull from WordPress',
+            onClick: handlePullFromWordPress,
+            disabled: isLoading
+          },
+          // Push to WordPress
+          {
+            label: '⬆️ Push to WordPress',
+            onClick: handlePushToWordPress,
+            disabled: isLoading || !hasUnsavedChanges
+          },
+          // Reset
+          {
+            label: '🔄 Reset to Default',
+            onClick: handleResetToDefault,
+            disabled: isLoading,
+            divider: true
+          },
+          // Chat toggle
+          ...(setChatVisible ? [{
+            label: chatVisible ? 'Hide Chat' : 'Show Chat',
+            onClick: () => setChatVisible(!chatVisible),
+            type: 'toggle' as const,
+            active: chatVisible
+          }] : []),
+          // Tab bar toggle
+          ...(setTabBarVisible ? [{
+            label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
+            onClick: () => setTabBarVisible(!tabBarVisible),
+            type: 'toggle' as const,
+            active: tabBarVisible
+          }] : [])
+        ]}
+      />
 
       <style jsx>{`
         @keyframes slideIn {

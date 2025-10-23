@@ -130,26 +130,6 @@ export function ElementorChat({
       height: '100%',
       overflow: 'hidden'
     }}>
-      {/* Top Bar - Match tab-bar styling exactly */}
-      <div style={{
-        padding: '8px 20px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--muted)',
-        display: 'flex',
-        alignItems: 'center',
-        flexShrink: 0
-      }}>
-        <h2 style={{
-          margin: 0,
-          padding: '6px 0',
-          fontSize: '14px',
-          fontWeight: 500,
-          color: 'var(--foreground)'
-        }}>
-          Chat
-        </h2>
-      </div>
-
       <Conversation className="flex-1" style={{ overflow: 'hidden' }}>
         <ConversationContent style={{ flex: 1, overflow: 'auto' }}>
           {messages.map((message, index) => (

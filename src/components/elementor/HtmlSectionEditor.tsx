@@ -43,6 +43,8 @@ export function HtmlSectionEditor({
   const [showSettings, setShowSettings] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { globalCss, cssVariables } = useGlobalStylesheet();
   const { theme } = useTheme();
 

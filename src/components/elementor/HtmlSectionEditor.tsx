@@ -555,8 +555,8 @@ export function HtmlSectionEditor({
               flexDirection: "column",
             }}
           >
-            {/* Settings Panel (Collapsible - Hidden on mobile) */}
-            {!isMobile && showSettings && (
+            {/* Settings Panel (Collapsible) */}
+            {showSettings && (
               <div
                 style={{
                   maxHeight: "300px",
@@ -981,6 +981,7 @@ export function HtmlSectionEditor({
                 padding: "8px 12px",
                 background: "#2d2d2d",
                 borderBottom: "1px solid #3e3e3e",
+                overflowX: "auto",
               }}
             >
               {(["html", "css", "js"] as const).map((tab) => (
@@ -988,7 +989,7 @@ export function HtmlSectionEditor({
                   key={tab}
                   onClick={() => handleCodeTabChange(tab)}
                   style={{
-                    padding: "6px 16px",
+                    padding: isMobile ? "8px 12px" : "6px 16px",
                     background:
                       activeCodeTab === tab ? "#1e1e1e" : "transparent",
                     color: activeCodeTab === tab ? "#ffffff" : "#9ca3af",
@@ -998,6 +999,8 @@ export function HtmlSectionEditor({
                     cursor: "pointer",
                     fontWeight: activeCodeTab === tab ? 500 : 400,
                     transition: "all 0.2s",
+                    minHeight: isMobile ? "44px" : "auto",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {tab.toUpperCase()}
@@ -1008,7 +1011,7 @@ export function HtmlSectionEditor({
               <button
                 onClick={() => setShowPreview(!showPreview)}
                 style={{
-                  padding: "6px 16px",
+                  padding: isMobile ? "8px 12px" : "6px 16px",
                   background: showPreview ? "#10b981" : "transparent",
                   color: showPreview ? "#ffffff" : "#9ca3af",
                   border: "none",
@@ -1018,9 +1021,11 @@ export function HtmlSectionEditor({
                   fontWeight: showPreview ? 500 : 400,
                   transition: "all 0.2s",
                   marginLeft: "auto",
+                  minHeight: isMobile ? "44px" : "auto",
+                  whiteSpace: "nowrap",
                 }}
               >
-                {showPreview ? "✓ Preview" : "Preview"}
+                {showPreview ? (isMobile ? "✓" : "✓ Preview") : (isMobile ? "👁️" : "Preview")}
               </button>
             </div>
 

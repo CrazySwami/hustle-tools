@@ -20,6 +20,7 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
   const [playgroundReady, setPlaygroundReady] = useState(false);
   const [status, setStatus] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const hasLaunchedRef = useRef(false);
 
   // Mobile detection
   useEffect(() => {
@@ -29,11 +30,10 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Check if playground script is loaded and auto-launch
+  // Check if playground script is loaded
   useEffect(() => {
     let attempts = 0;
     const maxAttempts = 50; // 5 seconds total
-    let hasLaunched = false;
 
     const checkPlayground = setInterval(() => {
       attempts++;
@@ -42,35 +42,6 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
         console.log('✅ Playground functions found!');
         setPlaygroundReady(true);
         clearInterval(checkPlayground);
-
-        // Auto-launch playground
-        if (!hasLaunched) {
-          hasLaunched = true;
-          setTimeout(() => {
-            console.log('🚀 Auto-launching WordPress Playground...');
-            setIsLoading(true);
-            setStatus('Auto-launching WordPress Playground...');
-            (window as any).openPlaygroundDirect()
-              .then(() => {
-                setStatus('Playground launched successfully');
-                setIsLoading(false);
-                console.log('✅ WordPress Playground blueprint complete');
-                // Wait 5 seconds for WordPress to fully settle before notifying parent
-                console.log('⏳ Waiting 5 seconds for WordPress to fully initialize...');
-                setTimeout(() => {
-                  console.log('✅ WordPress should be ready now, notifying parent');
-                  if (onPlaygroundReady) {
-                    onPlaygroundReady();
-                  }
-                }, 5000);
-              })
-              .catch((error: any) => {
-                console.error('Failed to auto-launch:', error);
-                setStatus('Failed to auto-launch playground');
-                setIsLoading(false);
-              });
-          }, 500);
-        }
       } else if (attempts >= maxAttempts) {
         console.error('❌ Playground script failed to load after 5 seconds');
         setStatus('Failed to load playground script');
@@ -80,6 +51,37 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
 
     return () => clearInterval(checkPlayground);
   }, []);
+
+  // Auto-launch playground when tab becomes active for the first time
+  useEffect(() => {
+    if (isActive && playgroundReady && !hasLaunchedRef.current) {
+      hasLaunchedRef.current = true;
+      setTimeout(() => {
+        console.log('🚀 Auto-launching WordPress Playground...');
+        setIsLoading(true);
+        setStatus('Auto-launching WordPress Playground...');
+        (window as any).openPlaygroundDirect()
+          .then(() => {
+            setStatus('Playground launched successfully');
+            setIsLoading(false);
+            console.log('✅ WordPress Playground blueprint complete');
+            // Wait 5 seconds for WordPress to fully settle before notifying parent
+            console.log('⏳ Waiting 5 seconds for WordPress to fully initialize...');
+            setTimeout(() => {
+              console.log('✅ WordPress should be ready now, notifying parent');
+              if (onPlaygroundReady) {
+                onPlaygroundReady();
+              }
+            }, 5000);
+          })
+          .catch((error: any) => {
+            console.error('Failed to auto-launch:', error);
+            setStatus('Failed to auto-launch playground');
+            setIsLoading(false);
+          });
+      }, 500);
+    }
+  }, [isActive, playgroundReady, onPlaygroundReady]);
 
   // Update generatedJSON when json prop changes
   useEffect(() => {

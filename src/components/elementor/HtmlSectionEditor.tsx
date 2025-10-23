@@ -916,16 +916,31 @@ export function HtmlSectionEditor({
                 }
               }}
               options={{
-                fontSize: 14,
+                fontSize: isMobile ? 16 : 14, // Larger font on mobile for better readability
                 minimap: { enabled: false },
-                lineNumbers: 'on',
+                lineNumbers: isMobile ? 'off' : 'on', // Hide line numbers on mobile to save space
                 scrollBeyondLastLine: false,
                 wordWrap: 'on',
                 automaticLayout: true,
                 tabSize: 2,
                 insertSpaces: true,
-                suggestOnTriggerCharacters: true,
-                quickSuggestions: activeCodeTab === 'css'
+                suggestOnTriggerCharacters: !isMobile, // Disable auto-suggestions on mobile
+                quickSuggestions: activeCodeTab === 'css' && !isMobile,
+                // Mobile-specific improvements
+                scrollbar: {
+                  vertical: isMobile ? 'auto' : 'visible',
+                  horizontal: isMobile ? 'auto' : 'visible',
+                  verticalScrollbarSize: isMobile ? 10 : 14,
+                  horizontalScrollbarSize: isMobile ? 10 : 14
+                },
+                padding: { top: isMobile ? 12 : 8, bottom: isMobile ? 12 : 8 },
+                lineDecorationsWidth: isMobile ? 0 : 10, // Remove left gutter decoration on mobile
+                lineNumbersMinChars: isMobile ? 0 : 3,
+                glyphMargin: !isMobile, // Remove glyph margin on mobile
+                folding: !isMobile, // Disable code folding on mobile
+                renderLineHighlight: isMobile ? 'none' : 'line', // Cleaner look on mobile
+                occurrencesHighlight: !isMobile, // Reduce visual noise on mobile
+                overviewRulerLanes: isMobile ? 0 : 3 // Hide overview ruler on mobile
               }}
             />
           </div>

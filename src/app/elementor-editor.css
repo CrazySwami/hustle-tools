@@ -2128,12 +2128,14 @@ button:disabled {
 @media (max-width: 768px) {
     /* ===== TAB BAR MOBILE - HIDDEN ===== */
     .tab-bar {
-        display: none !important; /* Hidden on mobile, use floating menu instead */
+        display: flex !important; /* Now visible on mobile as dropdown */
+        flex-shrink: 0 !important;
+        height: 48px !important;
     }
 
     /* ===== TAB CONTENT MOBILE ===== */
     .tab-content {
-        height: calc(100vh - 64px - 60px) !important; /* viewport - header - chat-drawer (no tab-bar!) */
+        height: calc(100vh - 64px - 48px - 60px) !important; /* viewport - navbar - tab-bar - chat-drawer */
         overflow: hidden !important;
     }
 
@@ -2146,7 +2148,7 @@ button:disabled {
     /* ===== RIGHT PANEL MOBILE ===== */
     .right-panel {
         width: 100% !important;
-        height: calc(100vh - 64px - 60px) !important; /* viewport - header - chat-drawer */
+        height: calc(100vh - 64px - 60px) !important; /* viewport - navbar - chat-drawer */
         display: flex !important;
         flex-direction: column !important;
     }
@@ -2244,5 +2246,86 @@ button:disabled {
     textarea {
         font-size: 16px !important; /* Prevent zoom */
         padding: 12px !important;
+    }
+
+    /* Code Editor Tab Buttons - Mobile */
+    .code-editor-tabs {
+        display: flex !important;
+        gap: 4px !important;
+        padding: 8px !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    .code-editor-tabs button {
+        min-height: 44px !important; /* Touch-friendly */
+        padding: 10px 16px !important;
+        font-size: 14px !important;
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
+    }
+
+    /* Monaco Editor Mobile Container */
+    .monaco-editor {
+        touch-action: pan-y !important; /* Better touch scrolling */
+    }
+
+    /* Section Library - Mobile Cards */
+    .section-card {
+        min-height: 100px !important;
+        padding: 16px !important;
+        margin-bottom: 12px !important;
+    }
+
+    .section-card h3 {
+        font-size: 16px !important;
+    }
+
+    .section-card p {
+        font-size: 14px !important;
+    }
+
+    /* WordPress Playground Controls - Better Touch */
+    .playground-controls {
+        padding: 12px !important;
+        gap: 8px !important;
+    }
+
+    /* Dropdown Select - Mobile Styling */
+    select {
+        min-height: 48px !important;
+        font-size: 16px !important;
+        padding: 12px !important;
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        appearance: none !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23333' d='M1.41 0L6 4.59 10.59 0 12 1.41l-6 6-6-6z'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 12px center !important;
+        background-size: 12px !important;
+        padding-right: 36px !important;
+    }
+
+    /* Style Guide - Mobile Preview */
+    .style-guide-preview {
+        padding: 16px !important;
+    }
+
+    /* Hide resize handles on mobile */
+    .resize-handle {
+        display: none !important;
+    }
+
+    /* Better scrolling for tab panels */
+    .tab-panel {
+        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior: contain !important;
+    }
+
+    /* Improve touch targets for icons */
+    [data-icon],
+    .icon-button {
+        min-width: 44px !important;
+        min-height: 44px !important;
     }
 }

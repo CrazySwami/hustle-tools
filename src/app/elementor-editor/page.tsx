@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
+import { useEditorContent } from '@/hooks/useEditorContent';
 import '../elementor-editor.css';
 
 export const dynamic = 'force-dynamic';
@@ -120,9 +121,20 @@ export default function ElementorEditorPage() {
     applyPatch,
   } = useElementorState();
 
+  // Get editor content from global state for chat context
+  const editorContent = useEditorContent();
+
   // Use AI SDK chat hook - same pattern as main chat page
   const { messages, sendMessage, isLoading, setMessages, reload, status } = useChat({
     api: '/api/chat-elementor',
+    body: {
+      currentSection: {
+        html: editorContent.html,
+        css: editorContent.css,
+        js: editorContent.js,
+        name: currentSection?.name || 'Current Section'
+      }
+    }
   });
 
   // Resize handler

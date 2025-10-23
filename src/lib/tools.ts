@@ -246,6 +246,46 @@ export const updateSectionJsTool = tool({
   },
 });
 
+// Get editor content tool - retrieves current HTML/CSS/JS from Monaco editor
+export const getEditorContentTool = tool({
+  description: 'Get the current HTML, CSS, and/or JavaScript content from the Monaco code editor. Use this tool whenever you need to see what code the user is working on, analyze it, suggest improvements, or make targeted edits to specific sections.',
+  inputSchema: z.object({
+    files: z.array(z.enum(['html', 'css', 'js'])).optional().describe('Specific files to retrieve (html, css, js). If not specified, returns all three.'),
+  }),
+  execute: async ({ files }) => {
+    // This will be populated by the frontend using the global state
+    // The actual content is retrieved from useEditorContent hook
+    return {
+      files: files || ['html', 'css', 'js'],
+      content: {}, // Will be populated by frontend
+      timestamp: new Date().toISOString(),
+      message: 'Editor content will be provided by the frontend using global state'
+    };
+  },
+});
+
+// Edit code with diff tool - generates diff for specific code changes
+export const editCodeWithDiffTool = tool({
+  description: 'Make targeted edits to HTML, CSS, or JavaScript code and generate a diff preview for user approval. Use this tool when the user asks to modify specific parts of their code (e.g., "change the button color to red", "fix the alignment", "add a hover effect").',
+  inputSchema: z.object({
+    file: z.enum(['html', 'css', 'js']).describe('Which file to edit (html, css, or js)'),
+    instruction: z.string().describe('Clear description of what changes to make to the code'),
+    targetSection: z.string().optional().describe('Specific section or selector to target (e.g., ".hero-section", "button", "#header")'),
+  }),
+  execute: async ({ file, instruction, targetSection }) => {
+    // This tool will trigger the diff generation flow
+    // The actual diff is generated via /api/edit-code endpoint
+    return {
+      file,
+      instruction,
+      targetSection,
+      timestamp: new Date().toISOString(),
+      status: 'pending_diff_generation',
+      message: 'Code edit tool activated. Generating diff preview...'
+    };
+  },
+});
+
 // Export all tools
 export const tools = {
   getWeather: weatherTool,
@@ -258,4 +298,6 @@ export const tools = {
   updateSectionHtml: updateSectionHtmlTool,
   updateSectionCss: updateSectionCssTool,
   updateSectionJs: updateSectionJsTool,
+  getEditorContent: getEditorContentTool,
+  editCodeWithDiff: editCodeWithDiffTool,
 };

@@ -117,6 +117,15 @@ When sections are imported to WordPress (via template library or page preview), 
 - Prompts enforce section-only output (NO DOCTYPE, html, head, body, style, or script tags)
 - Uses selected chat model for all generation
 
+**Diff-Based Code Editing (NEW ⭐):**
+- Chat can now make **targeted edits** to specific parts of HTML/CSS/JS
+- Uses unified diff format (70% fewer tokens than full file replacement)
+- Visual diff preview with Monaco DiffEditor (inline view)
+- **Approval flow**: Accept, Reject, or Edit Manually
+- Keyboard shortcuts: ⌘↵ (accept), Esc (reject), ⌘↑/↓ (navigate changes)
+- Tools: `getEditorContent` (read code), `editCodeWithDiff` (make changes)
+- See full documentation: `/docs/diff-based-code-editing.md`
+
 ### 2. AI Chat Interface (`/chat`)
 Vercel AI SDK-powered chat with streaming responses and tool calling.
 
@@ -258,7 +267,8 @@ Tests cover: WordPress settings, pages CRUD, style kit sync, Elementor JSON, spe
 
 Comprehensive docs in `/docs/`:
 - `README.md` - Main architecture guide
-- `grapejs-visual-editor.md` - GrapeJS Visual Editor integration guide ⭐ NEW
+- `grapejs-visual-editor.md` - GrapeJS Visual Editor integration guide ⭐
+- `diff-based-code-editing.md` - Diff-based code editing with AI ⭐ NEW
 - `fire-crawl-docs.md` - Firecrawl integration
 - `ui-stack.md` - UI component library guide
 - `models.md` - Supported AI models

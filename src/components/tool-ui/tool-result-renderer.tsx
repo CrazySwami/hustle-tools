@@ -3,6 +3,7 @@ import { CalculatorWidget } from './calculator-widget';
 import { CodeWidget } from './code-widget';
 import { ScrapeResultWidget } from './scrape-result-widget';
 import { HTMLGeneratorWidget } from './html-generator-widget';
+import { CodeEditToolResult } from './CodeEditToolResult';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckSquare, Clock } from 'lucide-react';
@@ -154,6 +155,35 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
         </Card>
       );
     }
+
+    case 'getEditorContent':
+      // This tool is handled silently - content is injected into context
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckSquare className="h-5 w-5 text-blue-600" />
+              Editor Content Retrieved
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Current code content has been loaded for analysis.
+            </p>
+          </CardContent>
+        </Card>
+      );
+
+    case 'editCodeWithDiff':
+      return (
+        <CodeEditToolResult
+          file={result.file}
+          instruction={result.instruction}
+          targetSection={result.targetSection}
+          status={result.status}
+          error={result.error}
+        />
+      );
 
     default:
       // Fallback for unknown tool types, now stylized like AI Elements

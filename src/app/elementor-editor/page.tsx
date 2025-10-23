@@ -991,40 +991,6 @@ export default function ElementorEditorPage() {
             </div>
           )}
 
-          {/* Show Tab Bar Button - appears when tab bar is hidden */}
-          {!tabBarVisible && (
-            <button
-              onClick={() => setTabBarVisible(true)}
-              style={{
-                position: 'fixed',
-                top: '80px',
-                right: '20px',
-                padding: '8px 16px',
-                background: 'var(--muted)',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                zIndex: 100,
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--foreground)';
-                e.currentTarget.style.color = 'var(--background)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--muted)';
-                e.currentTarget.style.color = 'var(--foreground)';
-              }}
-            >
-              ⬆️ Show Tabs
-            </button>
-          )}
-
           {/* Tab Content - Keep all tabs mounted, just hide inactive ones */}
           <div className="tab-content">
             <div className={`tab-panel ${activeTab === 'json' ? 'active' : ''}`} id="jsonPanel" style={{ display: activeTab === 'json' ? 'flex' : 'none' }}>

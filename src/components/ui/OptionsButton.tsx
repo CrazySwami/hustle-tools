@@ -21,7 +21,7 @@ interface OptionsButtonProps {
 export function OptionsButton({ options, position, isMobile = false }: OptionsButtonProps) {
   // Smart default positioning: account for mobile chat drawer
   const defaultPosition = {
-    bottom: isMobile ? '56px' : '20px', // Lower on mobile to clear chat drawer (48px + 8px margin)
+    bottom: isMobile ? '25px' : '20px', // Lower on mobile to clear chat drawer
     left: '20px'
   };
   const finalPosition = position || defaultPosition;

@@ -13,6 +13,8 @@ import {
 import { useGlobalStylesheet } from "@/lib/global-stylesheet-context";
 import { useTheme } from "next-themes";
 import { OptionsButton } from "@/components/ui/OptionsButton";
+import { useEditorContent } from "@/hooks/useEditorContent";
+import { DiffPreviewPanel } from "./DiffPreviewPanel";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -54,12 +56,27 @@ export function HtmlSectionEditor({
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showDiffPreview, setShowDiffPreview] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [showFileTree, setShowFileTree] = useState(false);
+  const [showFileTree, setShowFileTree] = useState(true); // Show by default on desktop
   const menuRef = useRef<HTMLDivElement>(null);
   const { globalCss, cssVariables } = useGlobalStylesheet();
   const { theme } = useTheme();
+
+  // Global editor content state (for chat access and diff operations)
+  const { updateContent, setAllContent, pendingDiff, setPendingDiff, acceptDiff, rejectDiff } = useEditorContent();
+
+  // When pending diff changes, show the diff preview
+  useEffect(() => {
+    if (pendingDiff) {
+      setShowDiffPreview(true);
+      setShowPreview(false); // Close live preview if open
+      setShowSettings(false); // Close settings if open
+    } else {
+      setShowDiffPreview(false);
+    }
+  }, [pendingDiff]);
 
   // Track if this is a loaded section (has initial content)
   const hasInitialContent = !!(
@@ -120,6 +137,10 @@ export function HtmlSectionEditor({
     } else {
       setInternalActiveCodeTab(tab);
     }
+    // Close file tree on mobile after selecting a file
+    if (isMobile) {
+      setShowFileTree(false);
+    }
   };
 
   // Update section and notify parent
@@ -131,7 +152,62 @@ export function HtmlSectionEditor({
     };
     setSection(updatedSection);
     onSectionChange?.(updatedSection);
+
+    // Sync code changes to global state for chat access
+    if ('html' in updates || 'css' in updates || 'js' in updates) {
+      if ('html' in updates) updateContent('html', updates.html || '');
+      if ('css' in updates) updateContent('css', updates.css || '');
+      if ('js' in updates) updateContent('js', updates.js || '');
+    }
   };
+
+  // Handle accepting diff changes
+  const handleAcceptDiff = () => {
+    if (!pendingDiff) return;
+
+    // Accept the diff in global state
+    acceptDiff();
+
+    // Apply to local section state
+    updateSection({ [pendingDiff.file]: pendingDiff.modified });
+
+    console.log('✅ Diff accepted and applied to editor');
+  };
+
+  // Handle rejecting diff changes
+  const handleRejectDiff = () => {
+    if (!pendingDiff) return;
+
+    // Reject the diff in global state
+    rejectDiff();
+
+    console.log('❌ Diff rejected');
+  };
+
+  // Handle manual edit (apply changes but keep editor open)
+  const handleManualEdit = () => {
+    if (!pendingDiff) return;
+
+    // Apply the changes
+    updateSection({ [pendingDiff.file]: pendingDiff.modified });
+
+    // Switch to the appropriate tab
+    handleCodeTabChange(pendingDiff.file);
+
+    // Close diff preview
+    rejectDiff();
+
+    console.log('✏️ Applied changes for manual editing');
+  };
+
+  // Sync section content to global state when section changes (loading from library)
+  useEffect(() => {
+    setAllContent({
+      html: section.html || '',
+      css: section.css || '',
+      js: section.js || ''
+    });
+  }, [section.id, section.html, section.css, section.js, setAllContent]);
 
   // Update section when streamed content changes
   useEffect(() => {
@@ -1162,6 +1238,35 @@ export function HtmlSectionEditor({
               }}
               sandbox="allow-scripts"
               title="Section Preview"
+            />
+          </div>
+        )}
+
+        {/* Diff Preview Panel - Full Screen */}
+        {showDiffPreview && pendingDiff && (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              background: "var(--background)",
+            }}
+          >
+            <DiffPreviewPanel
+              file={pendingDiff.file}
+              original={pendingDiff.original}
+              modified={pendingDiff.modified}
+              unifiedDiff={pendingDiff.unifiedDiff}
+              summary={{
+                linesAdded: 0, // Will be calculated from unifiedDiff
+                linesRemoved: 0, // Will be calculated from unifiedDiff
+                hunks: 1,
+                instruction: 'AI-generated changes',
+              }}
+              onAccept={handleAcceptDiff}
+              onReject={handleRejectDiff}
+              onManualEdit={handleManualEdit}
             />
           </div>
         )}

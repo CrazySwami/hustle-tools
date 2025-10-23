@@ -73,19 +73,12 @@ export async function POST(req: Request) {
 When a user asks to "generate", "create", "build", or "make" a NEW section (hero, pricing table, contact form, navbar, footer, etc.), call the \`generateHTML\` tool. DO NOT generate code yourself.
 
 **For EDITING existing sections:**
-When a user asks to "modify", "change", "update", "edit", or "fix" the CURRENT section, you have TWO options:
-
-**Option 1: Targeted Diff-Based Edits (PREFERRED for small changes):**
-- Use \`getEditorContent\` to read the current code
-- Use \`editCodeWithDiff\` to generate a visual diff preview for user approval
-- This shows before/after with Accept/Reject buttons
-- Best for: changing colors, fixing bugs, adjusting styles, etc.
-
-**Option 2: Direct Updates (for complete rewrites):**
+When a user asks to "modify", "change", "update", "edit", or "fix" the CURRENT section:
 - \`updateSectionHtml\` - To modify the HTML markup
 - \`updateSectionCss\` - To modify the styling/colors/layout
 - \`updateSectionJs\` - To modify interactivity/functionality
-- Best for: major structural changes or complete rewrites
+
+**IMPORTANT:** You can see the current section code above. Generate the COMPLETE updated code (not just the changed parts). The system will automatically show a diff preview to the user before applying changes.
 
 **CURRENT SECTION IN EDITOR:**
 ${currentSection && (currentSection.html || currentSection.css || currentSection.js) ? `
@@ -171,8 +164,6 @@ After using a tool, provide a helpful text response that explains what the tool 
       updateSectionHtml: tools.updateSectionHtml,
       updateSectionCss: tools.updateSectionCss,
       updateSectionJs: tools.updateSectionJs,
-      getEditorContent: tools.getEditorContent,
-      editCodeWithDiff: tools.editCodeWithDiff,
     };
 
     console.log('🚀 Calling streamText...', {

@@ -1076,7 +1076,6 @@ export default function ElementorEditorPage() {
 
             <div className={`tab-panel ${activeTab === 'sections' ? 'active' : ''}`} id="sectionsPanel" style={{ display: activeTab === 'sections' ? 'flex' : 'none' }}>
               <SectionLibrary
-                key={activeTab === 'sections' ? 'active' : 'inactive'} // Force remount when tab becomes active
                 chatVisible={chatVisible}
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}

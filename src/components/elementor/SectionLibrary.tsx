@@ -781,28 +781,6 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
             gap: '12px',
             background: 'var(--muted)'
           }}>
-            {/* Desktop: Sidebar Toggle */}
-            {!isMobile && (
-              <button
-                onClick={() => setSidebarVisible(!sidebarVisible)}
-                style={{
-                  padding: '6px 12px',
-                  background: sidebarVisible ? '#000000' : 'var(--muted)',
-                  color: sidebarVisible ? '#ffffff' : 'var(--foreground)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontWeight: 500
-                }}
-              >
-                {sidebarVisible ? '◀' : '▶'} {sidebarVisible ? 'Hide' : 'Show'} List
-              </button>
-            )}
-
             {/* Mobile: Back Button */}
             {isMobile && (
               <button

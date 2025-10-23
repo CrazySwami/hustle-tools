@@ -58,7 +58,7 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          position: 'fixed',
+          position: 'absolute',
           ...finalPosition,
           width: '56px',
           height: '56px',
@@ -72,7 +72,7 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
           alignItems: 'center',
           justifyContent: 'center',
           padding: '0',
-          zIndex: 3000, // Below chat drawer (3200) but above regular content
+          zIndex: 100, // Above tab content
           transition: 'all 0.2s ease'
         }}
         aria-label="Options menu"
@@ -84,7 +84,7 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
       {isOpen && (
         <div
           style={{
-            position: 'fixed',
+            position: 'absolute',
             bottom: finalPosition.bottom ? `calc(${finalPosition.bottom} + 65px)` : undefined,
             top: finalPosition.top ? `calc(${finalPosition.top} + 65px)` : undefined,
             left: finalPosition.left,
@@ -94,7 +94,7 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
             minWidth: isMobile ? '240px' : '260px',
             maxWidth: isMobile ? '90vw' : '320px',
-            zIndex: 3001, // Above button (3000), below chat drawer (3200)
+            zIndex: 101, // Above button (100)
             animation: 'slideUp 0.2s ease-out',
             overflow: 'hidden',
             border: '1px solid var(--border)'

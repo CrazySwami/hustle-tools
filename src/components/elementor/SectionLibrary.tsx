@@ -363,7 +363,8 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
       height: '100%',
       width: '100%',
       overflow: 'hidden',
-      flexDirection: isMobile ? 'column' : 'row'
+      flexDirection: isMobile ? 'column' : 'row',
+      position: 'relative'
     }}>
       {/* Left Sidebar: Section List (Full width on mobile, toggleable on desktop) */}
       {(isMobile || sidebarVisible) && (

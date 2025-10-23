@@ -53,7 +53,7 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
   };
 
   return (
-    <div ref={menuRef} style={{ position: 'relative' }}>
+    <div ref={menuRef}>
       {/* Floating Options Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}

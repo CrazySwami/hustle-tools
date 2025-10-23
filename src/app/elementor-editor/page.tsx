@@ -922,15 +922,24 @@ export default function ElementorEditorPage() {
                 onChange={(e) => setActiveTab(e.target.value)}
                 style={{
                   flex: 1,
-                  padding: '10px 12px',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  background: 'var(--card)',
+                  padding: '12px 16px',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  border: '2px solid var(--border)',
+                  borderRadius: '8px',
+                  background: 'var(--background)',
                   color: 'var(--foreground)',
                   cursor: 'pointer',
-                  outline: 'none'
+                  outline: 'none',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                  appearance: 'none',
+                  backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg width='14' height='8' viewBox='0 0 14 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M1 1L7 7L13 1' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3e%3c/svg%3e")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 12px center',
+                  backgroundSize: '14px',
+                  paddingRight: '40px'
                 }}
               >
                 <option value="json">Code Editor</option>

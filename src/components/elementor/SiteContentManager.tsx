@@ -150,7 +150,7 @@ export function SiteContentManager({ onPush, onPull, playgroundReady, chatVisibl
   };
 
   return (
-    <div className="tab-panel">
+    <div className="tab-panel" style={{ position: 'relative' }}>
       {/* Content Area */}
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--background)' }}>
         {activeTab === 'settings' && (

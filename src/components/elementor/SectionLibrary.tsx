@@ -779,46 +779,6 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
           bottom: isMobile ? 0 : 'auto',
           zIndex: isMobile ? 1000 : 'auto'
         }}>
-        {/* Desktop Sidebar Toggle + Mobile Back Button */}
-        {(isMobile && (selectedSection || selectedStyleKit)) || (!isMobile && (selectedSection || selectedStyleKit)) ? (
-          <div style={{
-            padding: '12px 16px',
-            borderBottom: '1px solid var(--border)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            background: 'var(--muted)'
-          }}>
-            {/* Mobile: Back Button */}
-            {isMobile && (
-              <button
-                onClick={() => {
-                  setSelectedSectionId(null);
-                  setSelectedStyleKitId(null);
-                }}
-                style={{
-                  padding: '6px 12px',
-                  background: 'var(--card)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontWeight: 500,
-                  color: 'var(--foreground)'
-                }}
-              >
-                ← Back to List
-              </button>
-            )}
-
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--foreground)' }}>
-              {selectedSection?.name || selectedStyleKit?.name}
-            </span>
-          </div>
-        ) : null}
         {libraryTab === 'sections' ? (
           selectedSection ? (
             <div style={{

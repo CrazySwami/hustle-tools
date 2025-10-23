@@ -18,7 +18,13 @@ interface OptionsButtonProps {
   isMobile?: boolean;
 }
 
-export function OptionsButton({ options, position = { bottom: '20px', left: '20px' }, isMobile = false }: OptionsButtonProps) {
+export function OptionsButton({ options, position, isMobile = false }: OptionsButtonProps) {
+  // Smart default positioning: account for mobile chat drawer
+  const defaultPosition = {
+    bottom: isMobile ? '68px' : '20px', // Higher on mobile to clear smaller chat drawer (48px + 20px margin)
+    left: '20px'
+  };
+  const finalPosition = position || defaultPosition;
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +59,7 @@ export function OptionsButton({ options, position = { bottom: '20px', left: '20p
         onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'fixed',
-          ...position,
+          ...finalPosition,
           width: '56px',
           height: '56px',
           borderRadius: '50%',
@@ -66,7 +72,7 @@ export function OptionsButton({ options, position = { bottom: '20px', left: '20p
           alignItems: 'center',
           justifyContent: 'center',
           padding: '0',
-          zIndex: 100,
+          zIndex: 3100, // Above chat drawer (3000) and other elements
           transition: 'all 0.2s ease'
         }}
         aria-label="Options menu"
@@ -79,16 +85,16 @@ export function OptionsButton({ options, position = { bottom: '20px', left: '20p
         <div
           style={{
             position: 'fixed',
-            bottom: position.bottom ? `calc(${position.bottom} + 65px)` : undefined,
-            top: position.top ? `calc(${position.top} + 65px)` : undefined,
-            left: position.left,
-            right: position.right,
+            bottom: finalPosition.bottom ? `calc(${finalPosition.bottom} + 65px)` : undefined,
+            top: finalPosition.top ? `calc(${finalPosition.top} + 65px)` : undefined,
+            left: finalPosition.left,
+            right: finalPosition.right,
             background: 'var(--card)',
             borderRadius: '12px',
             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
             minWidth: isMobile ? '240px' : '260px',
             maxWidth: isMobile ? '90vw' : '320px',
-            zIndex: 101,
+            zIndex: 3101, // Above button (3100)
             animation: 'slideUp 0.2s ease-out',
             overflow: 'hidden',
             border: '1px solid var(--border)'

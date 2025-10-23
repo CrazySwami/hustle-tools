@@ -853,9 +853,9 @@ export default function ElementorEditorPage() {
 
       {/* Main container - using exact class names from original CSS */}
       <div className="chat-editor-container" style={{
-        marginTop: '64px',
-        height: 'calc(100vh - 64px)',
-        paddingBottom: isMobile ? '60px' : '0'
+        marginTop: isMobile ? '52px' : '64px', // Thinner navbar on mobile
+        height: isMobile ? 'calc(100vh - 52px)' : 'calc(100vh - 64px)',
+        paddingBottom: isMobile ? '48px' : '0' // Smaller chat drawer on mobile
       }}>
         {/* Desktop: Left Panel Chat */}
         {!isMobile && chatVisible && (
@@ -1168,10 +1168,10 @@ export default function ElementorEditorPage() {
                 bottom: 0,
                 left: 0,
                 right: 0,
-                height: chatDrawerOpen ? '95vh' : '60px',
+                height: chatDrawerOpen ? '95vh' : '48px', // Smaller handle
                 background: 'var(--background)',
                 borderTop: '1px solid var(--border)',
-                zIndex: 3000, // Above floating buttons (z-index 100)
+                zIndex: 3000, // Above regular elements, below options button (3100)
                 transition: 'height 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1182,7 +1182,7 @@ export default function ElementorEditorPage() {
               <div
                 onClick={() => setChatDrawerOpen(!chatDrawerOpen)}
                 style={{
-                  height: '60px',
+                  height: '48px', // Smaller handle
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1199,7 +1199,7 @@ export default function ElementorEditorPage() {
                   background: 'var(--muted)',
                   borderRadius: '2px'
                 }} />
-                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--foreground)' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--foreground)' }}>
                   {chatDrawerOpen ? '▼ Close Chat' : '▲ Open Chat'}
                 </span>
               </div>
@@ -1211,7 +1211,7 @@ export default function ElementorEditorPage() {
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
-                  height: 'calc(95vh - 60px)' // Full drawer height minus handle
+                  height: 'calc(95vh - 48px)' // Full drawer height minus smaller handle
                 }}>
                   <ElementorChat
                     messages={messages}

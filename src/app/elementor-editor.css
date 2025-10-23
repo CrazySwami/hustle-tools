@@ -2136,7 +2136,7 @@ button:disabled {
 
     /* ===== TAB CONTENT MOBILE ===== */
     .tab-content {
-        height: calc(100vh - 64px - 48px - 60px) !important; /* viewport - navbar - tab-bar - chat-drawer */
+        height: calc(100vh - 52px - 48px - 48px) !important; /* viewport - navbar(52) - tab-bar(48) - chat-drawer(48) */
         overflow: hidden !important;
     }
 
@@ -2149,7 +2149,7 @@ button:disabled {
     /* ===== RIGHT PANEL MOBILE ===== */
     .right-panel {
         width: 100% !important;
-        height: calc(100vh - 64px - 60px) !important; /* viewport - navbar - chat-drawer */
+        height: calc(100vh - 52px - 48px) !important; /* viewport - navbar(52) - chat-drawer(48) */
         display: flex !important;
         flex-direction: column !important;
     }
@@ -2157,7 +2157,7 @@ button:disabled {
     /* ===== CHAT EDITOR CONTAINER MOBILE ===== */
     .chat-editor-container {
         flex-direction: column !important;
-        padding-bottom: 60px !important; /* Space for chat drawer */
+        padding-bottom: 48px !important; /* Space for smaller chat drawer */
     }
 
     .left-panel {

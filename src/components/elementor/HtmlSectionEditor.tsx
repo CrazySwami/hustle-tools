@@ -1003,6 +1003,25 @@ export function HtmlSectionEditor({
                   {tab.toUpperCase()}
                 </button>
               ))}
+
+              {/* Preview Button */}
+              <button
+                onClick={() => setShowPreview(!showPreview)}
+                style={{
+                  padding: "6px 16px",
+                  background: showPreview ? "#10b981" : "transparent",
+                  color: showPreview ? "#ffffff" : "#9ca3af",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  fontWeight: showPreview ? 500 : 400,
+                  transition: "all 0.2s",
+                  marginLeft: "auto",
+                }}
+              >
+                {showPreview ? "✓ Preview" : "Preview"}
+              </button>
             </div>
 
             {/* Code Editor */}

@@ -1025,7 +1025,7 @@ export function HtmlSectionEditor({
                   whiteSpace: "nowrap",
                 }}
               >
-                {showPreview ? (isMobile ? "✓" : "✓ Preview") : (isMobile ? "👁️" : "Preview")}
+                {showPreview ? "✓ Preview" : "Preview"}
               </button>
             </div>
 

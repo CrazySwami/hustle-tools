@@ -47,17 +47,6 @@ interface EditorState extends EditorContent {
   undo: () => void;
   redo: () => void;
   pushToHistory: () => void;
-
-  // Diff preview state
-  pendingDiff: {
-    file: 'html' | 'css' | 'js';
-    original: string;
-    modified: string;
-    unifiedDiff: string;
-  } | null;
-  setPendingDiff: (diff: EditorState['pendingDiff']) => void;
-  acceptDiff: () => void;
-  rejectDiff: () => void;
 }
 
 export const useEditorContent = create<EditorState>((set, get) => ({
@@ -69,9 +58,6 @@ export const useEditorContent = create<EditorState>((set, get) => ({
   // History state
   history: [],
   historyIndex: -1,
-
-  // Pending diff state
-  pendingDiff: null,
 
   /**
    * Get content for specific files or all files
@@ -190,39 +176,5 @@ export const useEditorContent = create<EditorState>((set, get) => ({
       js: nextState.js,
       historyIndex: state.historyIndex + 1
     });
-  },
-
-  /**
-   * Set pending diff for review
-   * @param diff - Diff object with original, modified, and unified diff
-   */
-  setPendingDiff: (diff) => {
-    set({ pendingDiff: diff });
-  },
-
-  /**
-   * Accept pending diff and apply changes
-   */
-  acceptDiff: () => {
-    const state = get();
-    if (!state.pendingDiff) return;
-
-    const { file, modified } = state.pendingDiff;
-
-    // Push current state to history before applying
-    state.pushToHistory();
-
-    // Apply the change
-    state.updateContent(file, modified);
-
-    // Clear pending diff
-    set({ pendingDiff: null });
-  },
-
-  /**
-   * Reject pending diff and discard changes
-   */
-  rejectDiff: () => {
-    set({ pendingDiff: null });
   }
 }));

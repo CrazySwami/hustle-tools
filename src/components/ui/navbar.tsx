@@ -3,6 +3,17 @@
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { ModeToggle } from "./mode-toggle"
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from "@/components/ui/navigation-menu"
+import { cn } from "@/lib/utils"
+import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes } from "lucide-react"
 
 export function Navbar() {
   const [isMobile, setIsMobile] = useState(false);
@@ -34,36 +45,138 @@ export function Navbar() {
     };
   }, [menuOpen]);
 
+  const tools = {
+    scraping: [
+      {
+        title: "Firecrawl",
+        href: "/firecrawl",
+        description: "Map and scrape entire websites with AI",
+        icon: Flame,
+      },
+      {
+        title: "Page Extractor",
+        href: "/page-extractor",
+        description: "Extract HTML, CSS, JS from any page",
+        icon: FileSearch,
+      },
+      {
+        title: "TKX Events",
+        href: "/tkx-calendar",
+        description: "Browse upcoming concerts and events",
+        icon: Ticket,
+      },
+    ],
+    design: [
+      {
+        title: "Elementor Builder",
+        href: "/elementor-editor",
+        description: "WordPress section builder with live preview",
+        icon: Boxes,
+      },
+    ],
+    media: [
+      {
+        title: "Image Processing",
+        href: "/image-alterations",
+        description: "Compress and blur images in bulk",
+        icon: ImageIcon,
+      },
+      {
+        title: "Document Editor",
+        href: "/editor",
+        description: "Rich text editor with TipTap",
+        icon: FileText,
+      },
+    ],
+  };
+
   const navLinks = [
-    { href: "/firecrawl", label: "Firecrawl" },
-    { href: "/image-alterations", label: "Image Alterations" },
     { href: "/chat", label: "Chat" },
     { href: "/editor", label: "Editor" },
     { href: "/elementor-editor", label: "Elementor" },
+    { href: "/firecrawl", label: "Firecrawl" },
+    { href: "/image-alterations", label: "Image Alterations" },
+    { href: "/page-extractor", label: "Page Extractor" },
+    { href: "/tkx-calendar", label: "TKX Events" },
   ];
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
-      <div className="flex h-12 items-center justify-between px-4 md:px-6">
-        {/* Logo - Black text */}
+      <div className="flex h-16 items-center justify-between px-4 md:px-6">
+        {/* Logo */}
         <Link href="/" className="text-lg font-bold tracking-tighter text-foreground hover:text-foreground/80 transition-colors">
           Hustle Tools
         </Link>
 
-        {/* Desktop Navigation */}
+        {/* Desktop Navigation with Dropdowns */}
         {!isMobile && (
           <>
-            <nav className="flex items-center gap-4">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
+            <NavigationMenu>
+              <NavigationMenuList>
+                <NavigationMenuItem>
+                  <Link href="/chat" legacyBehavior passHref>
+                    <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                      Chat
+                    </NavigationMenuLink>
+                  </Link>
+                </NavigationMenuItem>
+
+                <NavigationMenuItem>
+                  <NavigationMenuTrigger>Scraping</NavigationMenuTrigger>
+                  <NavigationMenuContent>
+                    <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-1">
+                      {tools.scraping.map((tool) => (
+                        <ListItem
+                          key={tool.title}
+                          title={tool.title}
+                          href={tool.href}
+                          icon={tool.icon}
+                        >
+                          {tool.description}
+                        </ListItem>
+                      ))}
+                    </ul>
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+
+                <NavigationMenuItem>
+                  <NavigationMenuTrigger>Design</NavigationMenuTrigger>
+                  <NavigationMenuContent>
+                    <ul className="grid w-[400px] gap-3 p-4">
+                      {tools.design.map((tool) => (
+                        <ListItem
+                          key={tool.title}
+                          title={tool.title}
+                          href={tool.href}
+                          icon={tool.icon}
+                        >
+                          {tool.description}
+                        </ListItem>
+                      ))}
+                    </ul>
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+
+                <NavigationMenuItem>
+                  <NavigationMenuTrigger>Media</NavigationMenuTrigger>
+                  <NavigationMenuContent>
+                    <ul className="grid w-[400px] gap-3 p-4">
+                      {tools.media.map((tool) => (
+                        <ListItem
+                          key={tool.title}
+                          title={tool.title}
+                          href={tool.href}
+                          icon={tool.icon}
+                        >
+                          {tool.description}
+                        </ListItem>
+                      ))}
+                    </ul>
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+              </NavigationMenuList>
+            </NavigationMenu>
+
             <div className="flex items-center gap-4">
               <ModeToggle />
             </div>
@@ -164,3 +277,41 @@ export function Navbar() {
     </div>
   )
 }
+
+const ListItem = ({
+  className,
+  title,
+  children,
+  href,
+  icon: Icon,
+  ...props
+}: {
+  className?: string;
+  title: string;
+  children: React.ReactNode;
+  href: string;
+  icon?: any;
+}) => {
+  return (
+    <li>
+      <NavigationMenuLink asChild>
+        <Link
+          href={href}
+          className={cn(
+            "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+            className
+          )}
+          {...props}
+        >
+          <div className="flex items-center gap-2">
+            {Icon && <Icon className="h-4 w-4" />}
+            <div className="text-sm font-medium leading-none">{title}</div>
+          </div>
+          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
+            {children}
+          </p>
+        </Link>
+      </NavigationMenuLink>
+    </li>
+  );
+};

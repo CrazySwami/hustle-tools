@@ -28,7 +28,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Navbar />
-          <main className="h-[calc(100vh-4rem)]">{children}</main>
+          <main>{children}</main>
         </ThemeProvider>
       </body>
     </html>

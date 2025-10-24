@@ -2144,11 +2144,14 @@ button:disabled {
 
 /* ========== MOBILE OPTIMIZATIONS ========== */
 @media (max-width: 768px) {
-    /* ===== TAB BAR MOBILE - HIDDEN ===== */
+    /* ===== TAB BAR MOBILE - DROPDOWN ===== */
     .tab-bar {
         display: flex !important; /* Now visible on mobile as dropdown */
         flex-shrink: 0 !important;
         height: 48px !important;
+        padding: 8px 0 !important; /* Remove side padding */
+        margin: 0 !important;
+        width: 100% !important;
     }
 
     /* ===== TAB CONTENT MOBILE ===== */
@@ -2171,6 +2174,8 @@ button:disabled {
         display: flex !important;
         flex-direction: column !important;
         min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
     }
 
     /* ===== CHAT EDITOR CONTAINER MOBILE ===== */

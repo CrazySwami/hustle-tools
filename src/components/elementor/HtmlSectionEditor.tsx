@@ -14,7 +14,6 @@ import { useGlobalStylesheet } from "@/lib/global-stylesheet-context";
 import { useTheme } from "next-themes";
 import { OptionsButton } from "@/components/ui/OptionsButton";
 import { useEditorContent } from "@/hooks/useEditorContent";
-import { DiffPreviewPanel } from "./DiffPreviewPanel";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -26,6 +25,7 @@ interface HtmlSectionEditorProps {
   activeCodeTab?: "html" | "css" | "js";
   onCodeTabChange?: (tab: "html" | "css" | "js") => void;
   onSwitchToVisualEditor?: () => void;
+  onSwitchToPlayground?: () => void;
   chatVisible?: boolean;
   setChatVisible?: (visible: boolean) => void;
   tabBarVisible?: boolean;
@@ -42,6 +42,7 @@ export function HtmlSectionEditor({
   activeCodeTab: externalActiveCodeTab,
   onCodeTabChange,
   onSwitchToVisualEditor,
+  onSwitchToPlayground,
   chatVisible,
   setChatVisible,
   tabBarVisible,
@@ -56,7 +57,6 @@ export function HtmlSectionEditor({
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [showDiffPreview, setShowDiffPreview] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFileTree, setShowFileTree] = useState(true); // Show by default on desktop
@@ -64,19 +64,8 @@ export function HtmlSectionEditor({
   const { globalCss, cssVariables } = useGlobalStylesheet();
   const { theme } = useTheme();
 
-  // Global editor content state (for chat access and diff operations)
-  const { updateContent, setAllContent, pendingDiff, setPendingDiff, acceptDiff, rejectDiff } = useEditorContent();
-
-  // When pending diff changes, show the diff preview
-  useEffect(() => {
-    if (pendingDiff) {
-      setShowDiffPreview(true);
-      setShowPreview(false); // Close live preview if open
-      setShowSettings(false); // Close settings if open
-    } else {
-      setShowDiffPreview(false);
-    }
-  }, [pendingDiff]);
+  // Global editor content state (for chat access)
+  const { updateContent, setAllContent } = useEditorContent();
 
   // Track if this is a loaded section (has initial content)
   const hasInitialContent = !!(
@@ -137,10 +126,7 @@ export function HtmlSectionEditor({
     } else {
       setInternalActiveCodeTab(tab);
     }
-    // Close file tree on mobile after selecting a file
-    if (isMobile) {
-      setShowFileTree(false);
-    }
+    // Mobile uses horizontal pills, so no need to close file tree
   };
 
   // Update section and notify parent
@@ -159,45 +145,6 @@ export function HtmlSectionEditor({
       if ('css' in updates) updateContent('css', updates.css || '');
       if ('js' in updates) updateContent('js', updates.js || '');
     }
-  };
-
-  // Handle accepting diff changes
-  const handleAcceptDiff = () => {
-    if (!pendingDiff) return;
-
-    // Accept the diff in global state
-    acceptDiff();
-
-    // Apply to local section state
-    updateSection({ [pendingDiff.file]: pendingDiff.modified });
-
-    console.log('✅ Diff accepted and applied to editor');
-  };
-
-  // Handle rejecting diff changes
-  const handleRejectDiff = () => {
-    if (!pendingDiff) return;
-
-    // Reject the diff in global state
-    rejectDiff();
-
-    console.log('❌ Diff rejected');
-  };
-
-  // Handle manual edit (apply changes but keep editor open)
-  const handleManualEdit = () => {
-    if (!pendingDiff) return;
-
-    // Apply the changes
-    updateSection({ [pendingDiff.file]: pendingDiff.modified });
-
-    // Switch to the appropriate tab
-    handleCodeTabChange(pendingDiff.file);
-
-    // Close diff preview
-    rejectDiff();
-
-    console.log('✏️ Applied changes for manual editing');
   };
 
   // Sync section content to global state when section changes (loading from library)
@@ -430,6 +377,11 @@ export function HtmlSectionEditor({
                       console.log(
                         "✅ Section preview updated in WordPress Playground",
                       );
+
+                      // Automatically switch to WordPress Playground tab
+                      if (onSwitchToPlayground) {
+                        onSwitchToPlayground();
+                      }
                     }
                   } catch (error: any) {
                     console.error("Preview error:", error);
@@ -540,88 +492,6 @@ export function HtmlSectionEditor({
             transition: "width 0.3s ease",
           }}
         >
-          {/* File Tree Sidebar */}
-          {showFileTree && (
-            <div
-              style={{
-                width: "200px",
-                minWidth: "200px",
-                background: "#252526",
-                borderRight: "1px solid #3e3e3e",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <div
-                style={{
-                  padding: "8px 12px",
-                  background: "#2d2d2d",
-                  borderBottom: "1px solid #3e3e3e",
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  color: "#cccccc",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                Files
-              </div>
-              <div
-                style={{
-                  flex: 1,
-                  overflowY: "auto",
-                }}
-              >
-                {(["html", "css", "js"] as const).map((fileType) => {
-                  const isActive = activeCodeTab === fileType;
-                  const fileIcons = {
-                    html: "📄",
-                    css: "🎨",
-                    js: "⚡",
-                  };
-                  const fileNames = {
-                    html: "index.html",
-                    css: "styles.css",
-                    js: "script.js",
-                  };
-
-                  return (
-                    <div
-                      key={fileType}
-                      onClick={() => handleCodeTabChange(fileType)}
-                      style={{
-                        padding: "8px 16px",
-                        cursor: "pointer",
-                        fontSize: "13px",
-                        color: isActive ? "#ffffff" : "#cccccc",
-                        background: isActive ? "#37373d" : "transparent",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        transition: "all 0.15s",
-                        borderLeft: isActive
-                          ? "2px solid #007acc"
-                          : "2px solid transparent",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isActive) {
-                          e.currentTarget.style.background = "#2a2d2e";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isActive) {
-                          e.currentTarget.style.background = "transparent";
-                        }
-                      }}
-                    >
-                      <span>{fileIcons[fileType]}</span>
-                      <span>{fileNames[fileType]}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* Code Editor Container */}
           <div
@@ -1049,55 +919,84 @@ export function HtmlSectionEditor({
               </div>
             )}
 
-            {/* Code Editor Tabs */}
+            {/* Code Editor Top Bar */}
             <div
               style={{
                 display: "flex",
-                gap: "4px",
-                padding: "8px 12px",
+                alignItems: "center",
+                gap: "12px",
+                padding: isMobile ? "8px 12px" : "8px 16px",
                 background: "#2d2d2d",
                 borderBottom: "1px solid #3e3e3e",
-                overflowX: "auto",
+                position: "relative",
               }}
             >
-              {(["html", "css", "js"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => handleCodeTabChange(tab)}
-                  style={{
-                    padding: isMobile ? "8px 12px" : "6px 16px",
-                    background:
-                      activeCodeTab === tab ? "#1e1e1e" : "transparent",
-                    color: activeCodeTab === tab ? "#ffffff" : "#9ca3af",
-                    border: "none",
-                    borderRadius: "4px",
-                    fontSize: "13px",
-                    cursor: "pointer",
-                    fontWeight: activeCodeTab === tab ? 500 : 400,
-                    transition: "all 0.2s",
-                    minHeight: isMobile ? "44px" : "auto",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {tab.toUpperCase()}
-                </button>
-              ))}
+              {/* File Selector Dropdown (only show if file tree is enabled) */}
+              {showFileTree && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "11px", color: "#888", fontWeight: 600, textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                    File:
+                  </span>
+                  <select
+                    value={activeCodeTab}
+                    onChange={(e) => handleCodeTabChange(e.target.value as 'html' | 'css' | 'js')}
+                    style={{
+                      padding: isMobile ? "8px 12px" : "6px 12px",
+                      background: "#1e1e1e",
+                      color: "#ffffff",
+                      border: "1px solid #3e3e3e",
+                      borderRadius: "6px",
+                      fontSize: isMobile ? "14px" : "13px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      outline: "none",
+                      minHeight: isMobile ? "40px" : "32px",
+                      minWidth: isMobile ? "150px" : "180px",
+                    }}
+                  >
+                    <option value="html">📄 index.html</option>
+                    <option value="css">🎨 styles.css</option>
+                    <option value="js">⚡ script.js</option>
+                  </select>
+                </div>
+              )}
 
-              {/* Preview Button */}
+              {/* Show current file when file tree is hidden */}
+              {!showFileTree && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{
+                    fontSize: isMobile ? "14px" : "13px",
+                    color: "#ffffff",
+                    fontWeight: 500,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}>
+                    {activeCodeTab === 'html' && '📄 index.html'}
+                    {activeCodeTab === 'css' && '🎨 styles.css'}
+                    {activeCodeTab === 'js' && '⚡ script.js'}
+                  </span>
+                </div>
+              )}
+
+              {/* Preview Button - Fixed position on right */}
               <button
                 onClick={() => setShowPreview(!showPreview)}
                 style={{
+                  position: "absolute",
+                  right: isMobile ? "12px" : "16px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
                   padding: isMobile ? "8px 12px" : "6px 16px",
                   background: showPreview ? "#10b981" : "transparent",
                   color: showPreview ? "#ffffff" : "#9ca3af",
                   border: "none",
-                  borderRadius: "4px",
-                  fontSize: "13px",
+                  borderRadius: "6px",
+                  fontSize: isMobile ? "14px" : "13px",
                   cursor: "pointer",
                   fontWeight: showPreview ? 500 : 400,
                   transition: "all 0.2s",
-                  marginLeft: "auto",
-                  minHeight: isMobile ? "44px" : "auto",
+                  minHeight: isMobile ? "40px" : "32px",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -1242,34 +1141,6 @@ export function HtmlSectionEditor({
           </div>
         )}
 
-        {/* Diff Preview Panel - Full Screen */}
-        {showDiffPreview && pendingDiff && (
-          <div
-            style={{
-              width: "100%",
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              background: "var(--background)",
-            }}
-          >
-            <DiffPreviewPanel
-              file={pendingDiff.file}
-              original={pendingDiff.original}
-              modified={pendingDiff.modified}
-              unifiedDiff={pendingDiff.unifiedDiff}
-              summary={{
-                linesAdded: 0, // Will be calculated from unifiedDiff
-                linesRemoved: 0, // Will be calculated from unifiedDiff
-                hunks: 1,
-                instruction: 'AI-generated changes',
-              }}
-              onAccept={handleAcceptDiff}
-              onReject={handleRejectDiff}
-              onManualEdit={handleManualEdit}
-            />
-          </div>
-        )}
       </div>
 
       {/* Save to Library Dialog */}

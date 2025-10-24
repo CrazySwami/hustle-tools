@@ -246,47 +246,168 @@ export const updateSectionJsTool = tool({
   },
 });
 
-// Get editor content tool - retrieves current HTML/CSS/JS from Monaco editor
-export const getEditorContentTool = tool({
-  description: 'Get the current HTML, CSS, and/or JavaScript content from the Monaco code editor. Use this tool whenever you need to see what code the user is working on, analyze it, suggest improvements, or make targeted edits to specific sections.',
+// View editor code tool - displays code to user with syntax highlighting AND retrieves content for AI
+export const viewEditorCodeTool = tool({
+  description: 'Display code files (HTML, CSS, JavaScript) with syntax highlighting. IMPORTANT: Automatically pre-select files based on what the user asked for. Examples: "show HTML" → files: ["html"], "view CSS and JS" → files: ["css", "js"], "show all code" → files: ["html", "css", "js"]. After calling this tool, DO NOT send additional text explaining what will happen - the widget handles everything.',
   inputSchema: z.object({
-    files: z.array(z.enum(['html', 'css', 'js'])).optional().describe('Specific files to retrieve (html, css, js). If not specified, returns all three.'),
+    files: z.array(z.enum(['html', 'css', 'js'])).optional().describe('Pre-select specific files based on user request. Parse their request to determine which files they want to see.'),
   }),
   execute: async ({ files }) => {
-    // This will be populated by the frontend using the global state
-    // The actual content is retrieved from useEditorContent hook
+    // Return file list structure for UI
+    const availableFiles = [
+      { name: 'index.html', type: 'html' as const, selected: files?.includes('html') ?? true },
+      { name: 'styles.css', type: 'css' as const, selected: files?.includes('css') ?? true },
+      { name: 'script.js', type: 'js' as const, selected: files?.includes('js') ?? false }
+    ];
+
     return {
-      files: files || ['html', 'css', 'js'],
-      content: {}, // Will be populated by frontend
+      files: availableFiles,
       timestamp: new Date().toISOString(),
-      message: 'Editor content will be provided by the frontend using global state'
+      status: 'ready_to_view',
+      message: 'Code viewer ready. Select files to view.'
     };
   },
 });
 
-// Edit code with diff tool - generates diff for specific code changes
-export const editCodeWithDiffTool = tool({
-  description: 'Make targeted edits to HTML, CSS, or JavaScript code and generate a diff preview for user approval. Use this tool when the user asks to modify specific parts of their code (e.g., "change the button color to red", "fix the alignment", "add a hover effect").',
+// =====================
+// TEST PING TOOL (Simple Diagnostic)
+// =====================
+export const testPingTool = tool({
+  description: 'A simple test tool that responds with a ping message. Use this IMMEDIATELY when the user says "test ping" or "ping test" to verify the tool calling system is working.',
   inputSchema: z.object({
-    file: z.enum(['html', 'css', 'js']).describe('Which file to edit (html, css, or js)'),
-    instruction: z.string().describe('Clear description of what changes to make to the code'),
-    targetSection: z.string().optional().describe('Specific section or selector to target (e.g., ".hero-section", "button", "#header")'),
+    message: z.string().optional().describe('Optional message to include in the ping response'),
   }),
-  execute: async ({ file, instruction, targetSection }) => {
-    // This tool will trigger the diff generation flow
-    // The actual diff is generated via /api/edit-code endpoint
+  execute: async ({ message }) => {
+    console.log('🏓 TEST PING TOOL EXECUTED!', { message });
     return {
-      file,
-      instruction,
-      targetSection,
+      status: 'success',
       timestamp: new Date().toISOString(),
-      status: 'pending_diff_generation',
-      message: 'Code edit tool activated. Generating diff preview...'
+      message: message || 'Pong! Tool calling is working.',
+      endpoint: 'chat-elementor',
+    };
+  },
+});
+
+// Tab switcher tool - switches between editor tabs
+export const switchTabTool = tool({
+  description: 'Switch to a different tab in the Elementor editor. Use this when the user wants to navigate to a specific section (Code Editor, Visual Editor, Section Library, WordPress Playground, Site Content, or Style Guide).',
+  inputSchema: z.object({
+    tab: z.enum(['json', 'visual', 'sections', 'playground', 'site-content', 'style-guide']).describe('The tab to switch to: json (Code Editor), visual (Visual Editor), sections (Section Library), playground (WordPress Playground), site-content (Site Content), or style-guide (Style Guide)'),
+    reason: z.string().optional().describe('Optional reason for switching tabs'),
+  }),
+  execute: async ({ tab, reason }) => {
+    // This tool will trigger the tab switch via frontend callback
+    // The actual switching happens via the widget component
+    const tabNames = {
+      'json': 'Code Editor',
+      'visual': 'Visual Editor',
+      'sections': 'Section Library',
+      'playground': 'WordPress Playground',
+      'site-content': 'Site Content',
+      'style-guide': 'Style Guide',
+    };
+
+    return {
+      tab,
+      tabName: tabNames[tab],
+      reason,
+      timestamp: new Date().toISOString(),
+      status: 'ready_to_switch',
+      message: `Tab switcher activated. Ready to navigate to ${tabNames[tab]}.`
+    };
+  },
+});
+
+// Edit code tool - edits code files with diff preview
+export const editCodeTool = tool({
+  description: 'Edit HTML, CSS, or JavaScript code files with AI-powered diff preview. Use this when the user asks to modify, change, update, fix, or refactor code. The tool will: 1) Get current code, 2) Generate full modified file, 3) Show diff preview, 4) Allow user to accept/reject.',
+  inputSchema: z.object({
+    fileType: z.enum(['html', 'css', 'js']).describe('Which file to edit (html, css, or js)'),
+    instructions: z.string().describe('Clear, specific instructions for what to change (e.g., "Change the h1 color from blue to red", "Add a margin-top of 20px to the container")'),
+    reasoning: z.string().optional().describe('Brief explanation of why this change is being made'),
+  }),
+  execute: async ({ fileType, instructions, reasoning }) => {
+    // This tool signals to the frontend that it needs to:
+    // 1. Get current file content from editor
+    // 2. Call the /api/edit-code endpoint to generate modified code
+    // 3. Calculate unified diff
+    // 4. Display Monaco DiffEditor for review
+    // 5. Allow Accept/Reject/Edit actions
+
+    return {
+      fileType,
+      instructions,
+      reasoning,
+      timestamp: new Date().toISOString(),
+      status: 'ready_to_edit',
+      message: `Code edit tool activated for ${fileType.toUpperCase()}. Opening diff preview...`
     };
   },
 });
 
 // Export all tools
+// Blog Planner tool - generates monthly blog content calendars
+export const planBlogTopicsTool = tool({
+  description: 'Generate a monthly blog content calendar with SEO-optimized topics, keywords, and metadata. Use this when user requests blog planning, content calendar, topic ideas, or wants to plan blog posts for a specific month.',
+  inputSchema: z.object({
+    month: z.string().describe('Month and year (e.g., "January 2025", "Feb 2025")'),
+    postsPerMonth: z.number().describe('Number of blog posts to plan for the month'),
+    niche: z.string().describe('Blog niche/topic area (e.g., "WordPress development", "Digital marketing", "E-commerce")'),
+    targetAudience: z.string().describe('Target audience description (e.g., "Small business owners", "Web developers", "Marketing managers")'),
+    brandVoice: z.string().optional().describe('Brand voice/tone (e.g., "professional", "casual", "technical", "friendly")'),
+    existingTopics: z.array(z.string()).optional().describe('Topics already covered to avoid duplicates'),
+  }),
+  execute: async ({ month, postsPerMonth, niche, targetAudience, brandVoice, existingTopics = [] }) => {
+    return {
+      month,
+      postsPerMonth,
+      niche,
+      targetAudience,
+      brandVoice: brandVoice || 'professional',
+      existingTopics,
+      status: 'ready_to_generate',
+      timestamp: new Date().toISOString(),
+      message: `Blog planner activated. Ready to generate ${postsPerMonth} topics for ${month}.`
+    };
+  },
+});
+
+// Blog Writer tool - writes complete blog posts with optional research
+export const writeBlogPostTool = tool({
+  description: 'Write a complete blog post from a topic. Optionally conduct research using web search for up-to-date information. Use this when user wants to write a blog post, create content, or expand on a blog topic.',
+  inputSchema: z.object({
+    title: z.string().describe('Blog post title'),
+    focusKeyword: z.string().describe('Primary SEO keyword to target'),
+    metaDescription: z.string().optional().describe('Meta description for SEO'),
+    contentType: z.enum(['how-to', 'listicle', 'guide', 'tutorial', 'comparison']).describe('Type of content to write'),
+    estimatedWordCount: z.number().describe('Target word count for the post'),
+    enableResearch: z.boolean().describe('Whether to research the topic before writing (uses web search)'),
+    brandVoice: z.string().optional().describe('Brand voice/tone to use'),
+    additionalInstructions: z.string().optional().describe('Any specific instructions or requirements'),
+    internalLinkPage: z.string().optional().describe('Internal page to link to'),
+    callToAction: z.string().optional().describe('Call to action to include'),
+  }),
+  execute: async ({ title, focusKeyword, metaDescription, contentType, estimatedWordCount, enableResearch, brandVoice, additionalInstructions, internalLinkPage, callToAction }) => {
+    return {
+      title,
+      focusKeyword,
+      metaDescription,
+      contentType,
+      estimatedWordCount,
+      enableResearch,
+      brandVoice: brandVoice || 'professional',
+      additionalInstructions,
+      internalLinkPage: internalLinkPage || '/blog',
+      callToAction: callToAction || 'Download our free guide',
+      status: 'ready_to_write',
+      timestamp: new Date().toISOString(),
+      message: enableResearch
+        ? `Blog writer activated. Will research and write "${title}".`
+        : `Blog writer activated. Ready to write "${title}".`
+    };
+  },
+});
+
 export const tools = {
   getWeather: weatherTool,
   calculate: calculatorTool,
@@ -298,6 +419,10 @@ export const tools = {
   updateSectionHtml: updateSectionHtmlTool,
   updateSectionCss: updateSectionCssTool,
   updateSectionJs: updateSectionJsTool,
-  getEditorContent: getEditorContentTool,
-  editCodeWithDiff: editCodeWithDiffTool,
+  viewEditorCode: viewEditorCodeTool,
+  editCode: editCodeTool,
+  testPing: testPingTool,
+  switchTab: switchTabTool,
+  planBlogTopics: planBlogTopicsTool,
+  writeBlogPost: writeBlogPostTool,
 };

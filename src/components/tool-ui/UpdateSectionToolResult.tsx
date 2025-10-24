@@ -12,7 +12,7 @@ interface UpdateSectionToolResultProps {
 }
 
 export function UpdateSectionToolResult({ toolName, result }: UpdateSectionToolResultProps) {
-  const { getContent, setPendingDiff } = useEditorContent();
+  const { getContent } = useEditorContent();
   const updateType = toolName.replace('updateSection', '').toLowerCase() as 'html' | 'css' | 'js';
   const newCode = result[updateType];
 
@@ -30,12 +30,13 @@ export function UpdateSectionToolResult({ toolName, result }: UpdateSectionToolR
       'Modified'
     );
 
-    setPendingDiff({
+    console.log('[UpdateSectionToolResult] Diff generated:', {
       file: updateType,
-      original,
-      modified: newCode,
-      unifiedDiff,
+      originalLength: original.length,
+      modifiedLength: newCode.length,
+      diff: unifiedDiff
     });
+    // Note: setPendingDiff was removed - this component needs to be updated to use the new EditCodeWidget workflow
   };
 
   return (

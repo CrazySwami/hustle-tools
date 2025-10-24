@@ -466,7 +466,7 @@ export function ChatInterface({
             })}
 
             {/* Legacy format: Tool calls and results from message.parts */}
-            {message.parts?.map((part: any, partIndex: number) => {
+            {message.parts?.filter(part => part != null).map((part: any, partIndex: number) => {
               if (part.type === 'tool-call') {
                 return (
                   <div key={partIndex} className="tool-call-display">

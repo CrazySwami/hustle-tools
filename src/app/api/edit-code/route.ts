@@ -1,174 +1,158 @@
 /**
- * /api/edit-code
+ * Edit Code API Endpoint
  *
- * API endpoint for generating unified diffs for code edits.
- * Takes current code content and an instruction, uses AI to generate modified code,
- * then returns a unified diff for preview and approval.
+ * Generates modified code using AI (full-file replacement approach).
+ * Based on research from /docs/ai-diff-editing-research.md
  *
- * Request Body:
- * {
- *   currentContent: { html, css, js },
- *   instruction: "Make the button red",
- *   file: "css",
- *   targetSection: ".hero-button" (optional)
- * }
+ * Flow:
+ * 1. Receive: fileType, originalCode, instructions
+ * 2. Generate: Full modified file using AI
+ * 3. Return: Modified code (diff calculated client-side)
  *
- * Response:
- * {
- *   type: "diff",
- *   file: "css",
- *   original: "...",
- *   modified: "...",
- *   unifiedDiff: "...",
- *   summary: { linesAdded: 2, linesRemoved: 1, hunks: 1 }
- * }
+ * Research-backed approach:
+ * - Full-file generation (more accurate than asking AI to generate diffs)
+ * - GPT-4.1 at 0.3 temperature for balanced output
+ * - Token-efficient for small files (<500 lines, typical for HTML/CSS/JS sections)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText } from 'ai';
-import { createAzure } from '@ai-sdk/azure';
-import { createTwoFilesPatch, parsePatch } from 'diff';
+import { gateway } from '@ai-sdk/gateway';
 
-// Initialize Azure OpenAI via AI Gateway
-const azure = createAzure({
-  resourceName: 'ai-gateway-hustle-tools',
-  apiKey: process.env.AI_GATEWAY_API_KEY || '',
-});
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+interface EditCodeRequest {
+  fileType: 'html' | 'css' | 'js';
+  originalCode: string;
+  instructions: string;
+  model?: string; // Optional: uses Haiku 4.5 as default
+}
+
+const fileTypeLabels = {
+  html: 'HTML',
+  css: 'CSS',
+  js: 'JavaScript',
+};
+
+const fileTypeExtensions = {
+  html: '.html',
+  css: '.css',
+  js: '.js',
+};
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { currentContent, instruction, file, targetSection } = body;
+    const body: EditCodeRequest = await req.json();
+    const { fileType, originalCode, instructions, model } = body;
 
-    if (!currentContent || !instruction || !file) {
+    // Use provided model or default to Haiku 4.5
+    const selectedModel = model || 'anthropic/claude-haiku-4-5-20251001';
+
+    // Validation
+    if (!fileType || !['html', 'css', 'js'].includes(fileType)) {
       return NextResponse.json(
-        { error: 'Missing required fields: currentContent, instruction, file' },
+        { error: 'Invalid file type. Must be html, css, or js.' },
         { status: 400 }
       );
     }
 
-    if (!['html', 'css', 'js'].includes(file)) {
+    if (!originalCode) {
       return NextResponse.json(
-        { error: 'Invalid file type. Must be html, css, or js' },
+        { error: 'Original code is required.' },
         { status: 400 }
       );
     }
 
-    const originalCode = currentContent[file] || '';
-
-    // Check if original code is empty
-    if (!originalCode.trim()) {
+    if (!instructions || instructions.trim() === '') {
       return NextResponse.json(
-        { error: `The ${file.toUpperCase()} file is empty. Please add some code first.` },
+        { error: 'Instructions are required.' },
         { status: 400 }
       );
     }
 
-    // Generate system prompt for unified diff output
-    const systemPrompt = `You are an expert code editor that makes precise, targeted changes to code.
+    // Build system prompt (emphasizes full-file output)
+    const systemPrompt = `You are an expert ${fileTypeLabels[fileType]} developer. Your task is to modify existing code based on user instructions.
 
-CRITICAL RULES:
-1. You will receive code and an instruction for how to modify it
-2. You MUST respond with ONLY the complete modified code
-3. Do NOT include explanations, comments about changes, or markdown code blocks
-4. Do NOT include diff syntax (like +++, ---, @@) in your response
-5. Output the ENTIRE modified ${file.toUpperCase()} file, not just the changed portions
-6. Maintain exact indentation and formatting style of the original
-7. For CSS: Use the same selector format and property order as the original
-8. For HTML: Preserve the structure and tag nesting of the original
-9. For JavaScript: Keep the same coding style (var/let/const, semicolons, etc.)
+**CRITICAL RULES:**
+1. Return ONLY the complete modified ${fileTypeLabels[fileType]} code
+2. Do NOT include explanations, markdown, or code fences
+3. Do NOT add DOCTYPE, <html>, <head>, or <body> tags for HTML (section-level only)
+4. Do NOT add <style> tags for CSS (pure CSS only)
+5. Do NOT add <script> tags for JavaScript (pure JS only)
+6. Preserve code style, indentation, and formatting as much as possible
+7. Make ONLY the requested changes - do not refactor unnecessarily
+8. If the instruction is unclear or impossible, return the original code unchanged
 
-If the instruction is unclear or impossible, still output valid code with minimal changes.`;
+**Output Format:**
+- For HTML: Section-level elements only (e.g., <div>, <section>, <header>, etc.)
+- For CSS: Pure CSS rules only (no <style> tags)
+- For JavaScript: Pure JavaScript only (no <script> tags)
 
-    const userPrompt = `Current ${file.toUpperCase()} code:
-\`\`\`${file}
+**Example:**
+User: "Change button color to red"
+Original: .button { color: blue; }
+Output: .button { color: red; }`;
+
+    const userPrompt = `Here is the original ${fileTypeLabels[fileType]} code:
+
+\`\`\`${fileType}
 ${originalCode}
 \`\`\`
 
-Instruction: ${instruction}${targetSection ? `\nTarget section: ${targetSection}` : ''}
+**Instructions:** ${instructions}
 
-Output the complete modified ${file.toUpperCase()} code:`;
+Please provide the ENTIRE modified ${fileTypeLabels[fileType]} code with the requested changes applied. Remember:
+- Return ONLY the code (no explanations)
+- Include the COMPLETE file (not just changed sections)
+- Preserve the original formatting and style`;
 
-    console.log('🤖 Generating code edit with AI...');
-    console.log('File:', file);
-    console.log('Instruction:', instruction);
-    console.log('Original length:', originalCode.length);
+    // Generate modified code using AI
+    console.log(`📝 Generating ${fileType.toUpperCase()} edit with model: ${selectedModel}, instructions: "${instructions}"`);
 
-    // Generate modified code with AI
     const { text: modifiedCode } = await generateText({
-      model: azure('openai/gpt-4.1'),
+      model: gateway(selectedModel, {
+        apiKey: process.env.AI_GATEWAY_API_KEY || '',
+      }),
       system: systemPrompt,
       prompt: userPrompt,
-      temperature: 0.3, // Lower temperature for more deterministic code edits
+      temperature: 0.3,
       maxTokens: 4000,
     });
 
-    console.log('✅ AI generated modified code');
-    console.log('Modified length:', modifiedCode.length);
+    // Clean up the output (remove any markdown artifacts)
+    let cleanedCode = modifiedCode.trim();
 
-    // Clean up the modified code (remove markdown artifacts if any)
-    const cleanedCode = modifiedCode
-      .replace(/^```[a-z]*\n/gm, '')
-      .replace(/\n```$/gm, '')
-      .trim();
-
-    // Generate unified diff
-    const unifiedDiff = createTwoFilesPatch(
-      `${file}.original`,
-      `${file}.modified`,
-      originalCode,
-      cleanedCode,
-      'Original',
-      'Modified'
-    );
-
-    console.log('📊 Unified diff generated');
-
-    // Parse the diff to extract summary statistics
-    const parsedDiff = parsePatch(unifiedDiff);
-    let linesAdded = 0;
-    let linesRemoved = 0;
-    let hunks = 0;
-
-    if (parsedDiff.length > 0) {
-      const diffHunks = parsedDiff[0].hunks;
-      hunks = diffHunks.length;
-
-      diffHunks.forEach((hunk) => {
-        hunk.lines.forEach((line) => {
-          if (line.startsWith('+') && !line.startsWith('+++')) {
-            linesAdded++;
-          } else if (line.startsWith('-') && !line.startsWith('---')) {
-            linesRemoved++;
-          }
-        });
-      });
+    // Remove markdown code fences if present
+    if (cleanedCode.startsWith('```')) {
+      cleanedCode = cleanedCode.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '').trim();
     }
 
-    console.log('📈 Diff summary:', { linesAdded, linesRemoved, hunks });
+    // Validate that we got actual code back
+    if (!cleanedCode || cleanedCode.length === 0) {
+      throw new Error('AI returned empty code');
+    }
+
+    // Check if AI returned the same code (no changes made)
+    const unchanged = cleanedCode.trim() === originalCode.trim();
+
+    console.log(`✅ ${fileType.toUpperCase()} edit generated (${cleanedCode.length} chars, unchanged: ${unchanged})`);
 
     return NextResponse.json({
-      type: 'diff',
-      file,
-      original: originalCode,
-      modified: cleanedCode,
-      unifiedDiff,
-      summary: {
-        linesAdded,
-        linesRemoved,
-        hunks,
-        instruction,
-        targetSection: targetSection || null,
+      modifiedCode: cleanedCode,
+      unchanged,
+      stats: {
+        originalLength: originalCode.length,
+        modifiedLength: cleanedCode.length,
+        difference: cleanedCode.length - originalCode.length,
       },
-      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('❌ Error in /api/edit-code:', error);
-
+    console.error('❌ Edit code generation error:', error);
     return NextResponse.json(
       {
-        error: 'Failed to generate code edit',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: 'Failed to generate modified code',
+        message: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );

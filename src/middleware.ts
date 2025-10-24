@@ -28,10 +28,12 @@ export async function middleware(request: NextRequest) {
     '/signup',
     '/image-alterations',
     '/firecrawl',
+    '/page-extractor',
     '/chat',
     '/chat-doc-editor',
     '/editor',
     '/elementor-editor',
+    '/tkx-calendar',
   ]
   const path = request.nextUrl.pathname
 

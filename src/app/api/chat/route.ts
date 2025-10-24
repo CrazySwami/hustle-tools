@@ -74,15 +74,21 @@ export async function POST(req: Request) {
       enableTools = true, // New parameter to toggle tool calling
       documentContent, // Document content for the getDocumentContent tool
       comments,
-    }: { 
-      messages: UIMessage[]; 
-      model: string; 
+      currentSection, // For Elementor editor (if called from there)
+    }: {
+      messages: UIMessage[];
+      model: string;
       webSearch: boolean;
       enableReasoning?: boolean;
       enableTools?: boolean;
       documentContent?: string;
       comments?: Comment[];
+      currentSection?: any;
     } = await req.json();
+
+    // Detect if this is an Elementor editor request
+    const isElementorRequest = !!currentSection;
+    console.log('🎨 Elementor request detected:', isElementorRequest);
 
     console.log('Request body parsed:', { 
       model, 
@@ -141,6 +147,29 @@ export async function POST(req: Request) {
       systemPrompt += ' You have access to various tools including weather information, calculations, code generation, and task management. When users ask for weather information, calculations, code generation, or task management, you should use the appropriate tool to provide accurate and interactive results. After using a tool, always provide a helpful text response that explains or contextualizes the tool results for the user.';
     }
 
+    // Add Elementor-specific instructions if this is an Elementor request
+    if (isElementorRequest) {
+      systemPrompt += `\n\n**ELEMENTOR EDITOR MODE ACTIVE**
+
+You are now assisting with the Elementor Section Builder. You have access to special tools:
+
+**Available Tools:**
+- **testPing**: DIAGNOSTIC TOOL - Use this IMMEDIATELY when user says "test ping". Verifies tool calling is working.
+- **switchTab**: Use when user asks to navigate to different tabs (Code Editor, Visual Editor, Section Library, WordPress Playground, Site Content, Style Guide).
+- **updateSectionHtml/Css/Js**: Use to edit the current section code with diff preview.
+- **getEditorContent**: Use to get the current HTML/CSS/JS content.
+- **editCodeWithDiff**: Use to make changes to code with diff preview.
+- **generateHTML**: Use when user asks to generate/create HTML, CSS, or JavaScript.
+
+**CRITICAL INSTRUCTIONS:**
+1. When user says "test ping", you MUST call the testPing tool.
+2. When user asks to switch tabs or navigate, you MUST use the switchTab tool.
+3. When user asks to edit code, you MUST use the appropriate update tool.
+4. DO NOT just say you're calling a tool - actually call it!
+
+Current section: ${currentSection?.name || 'No section loaded'}`;
+    }
+
     // Configure options based on model type
     const options = model.startsWith('perplexity/') && webSearch ? { search: true } : undefined;
     console.log('StreamText options:', options || 'none');
@@ -167,8 +196,21 @@ export async function POST(req: Request) {
     });
 
     // Create tools with document content context
-    const toolsWithDocumentContent = enableTools ? {
+    // If this is an Elementor request, include Elementor-specific tools
+    const baseTools = isElementorRequest ? {
       ...tools,
+      // Elementor-specific tools
+      updateSectionHtml: tools.updateSectionHtml,
+      updateSectionCss: tools.updateSectionCss,
+      updateSectionJs: tools.updateSectionJs,
+      viewEditorCode: tools.viewEditorCode,
+      editCode: tools.editCode,
+      testPing: tools.testPing,
+      switchTab: tools.switchTab,
+    } : tools;
+
+    const toolsWithDocumentContent = enableTools ? {
+      ...baseTools,
       getDocumentContent: {
         ...tools.getDocumentContent,
         execute: async ({ requestType = 'full' }) => {
@@ -199,15 +241,44 @@ export async function POST(req: Request) {
       }
     } : undefined;
 
+    console.log('🔧 Tools configured:', Object.keys(toolsWithDocumentContent || {}));
+
+    // Check if the last user message mentions keywords that should force tool usage (for Elementor requests)
+    let toolChoice = undefined;
+    if (isElementorRequest && messages.length > 0) {
+      const lastUserMessage = messages[messages.length - 1];
+      const userText = typeof lastUserMessage.content === 'string'
+        ? lastUserMessage.content
+        : lastUserMessage.parts?.[0]?.text || '';
+
+      const forceToolKeywords = [
+        'test ping', 'ping test', 'ping',
+        'change', 'edit', 'update', 'modify',
+        'switch tab', 'open', 'navigate to', 'go to',
+        'h1', 'h2', 'h3', 'heading', 'title',
+        'div', 'section', 'container',
+      ];
+
+      const shouldForceTool = forceToolKeywords.some(keyword =>
+        userText.toLowerCase().includes(keyword)
+      );
+
+      if (shouldForceTool) {
+        toolChoice = 'required';
+        console.log('🎯 Forcing tool usage for Elementor request with keywords:', userText.substring(0, 100));
+      }
+    }
+
     const result = streamText({
       model: selectedModel,
       messages: convertedMessages,
       system: systemPrompt,
       providerOptions,
       // Only include tools if enabled
-      ...(enableTools && { 
+      ...(enableTools && {
         tools: toolsWithDocumentContent,
         stopWhen: stepCountIs(5), // Use stopWhen instead of maxSteps
+        ...(toolChoice && { toolChoice }),
       }),
     });
 

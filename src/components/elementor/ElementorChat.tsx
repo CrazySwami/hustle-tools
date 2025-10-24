@@ -41,6 +41,7 @@ interface ElementorChatProps {
   onStreamUpdate?: (type: 'html' | 'css' | 'js', content: string) => void;
   onSwitchToSectionEditor?: () => void;
   onSwitchCodeTab?: (tab: 'html' | 'css' | 'js') => void;
+  onSwitchTab?: (tab: string) => void;
   onUpdateSection?: (updates: { html?: string; css?: string; js?: string }) => void;
   currentSection?: any;
 }
@@ -96,6 +97,7 @@ export function ElementorChat({
   onStreamUpdate,
   onSwitchToSectionEditor,
   onSwitchCodeTab,
+  onSwitchTab,
   onUpdateSection,
   currentSection
 }: ElementorChatProps) {
@@ -166,7 +168,7 @@ export function ElementorChat({
                 <div className={cn('flex flex-col gap-1', message.role === 'user' ? 'items-end' : 'items-start')}>
                   <MessageContent>
                     {message.parts ? (
-                      message.parts.map((part: any, i: number) => {
+                      message.parts.filter(part => part != null).map((part: any, i: number) => {
                         console.log('🎨 Rendering message part:', { type: part.type, toolName: part.toolName, part });
 
                         switch (part.type) {
@@ -177,9 +179,18 @@ export function ElementorChat({
                             // Ignore step-start parts (just markers)
                             return null;
 
+                          case 'tool-testPing':
+                          case 'tool-switchTab':
+                          case 'tool-viewEditorCode':
+                          case 'tool-editCode':
+                          case 'tool-updateSectionHtml':
+                          case 'tool-updateSectionCss':
+                          case 'tool-updateSectionJs':
                           case 'tool-generateHTML': {
-                            // Handle the custom tool type for generateHTML
-                            console.log('🎯 generateHTML tool detected!', part);
+                            // Handle typed tool parts (AI SDK 5 pattern)
+                            // Extract tool name from part type (e.g., 'tool-testPing' → 'testPing')
+                            const toolName = part.type.replace('tool-', '');
+                            console.log(`🎯 ${toolName} tool detected!`, part);
 
                             // If it has output/result, render as tool-result
                             if (part.output || part.result) {
@@ -190,13 +201,14 @@ export function ElementorChat({
                                   key={i}
                                   toolResult={{
                                     toolCallId: part.toolCallId ?? '',
-                                    toolName: 'generateHTML',
+                                    toolName,
                                     args: part.input ?? part.args ?? {},
                                     result: result.type === 'json' ? result.value : result,
                                   }}
                                   onStreamUpdate={onStreamUpdate}
                                   onSwitchToSectionEditor={onSwitchToSectionEditor}
                                   onSwitchCodeTab={onSwitchCodeTab}
+                                  onSwitchTab={onSwitchTab}
                                   model={selectedModel}
                                 />
                               );
@@ -206,7 +218,7 @@ export function ElementorChat({
                             console.log('🔨 Tool call in progress (no result yet)');
                             return (
                               <Tool key={i} defaultOpen>
-                                <ToolHeader type="generateHTML" state="input-available" />
+                                <ToolHeader type={toolName} state="input-available" />
                                 <ToolContent>
                                   <ToolInput input={part.input ?? part.args ?? {}} />
                                 </ToolContent>
@@ -231,22 +243,25 @@ export function ElementorChat({
 
                             console.log('✅ Tool result received:', { toolName, args, result });
 
-                            // Handle section update tools - apply changes immediately
-                            if (toolName === 'updateSectionHtml' && result.html && onUpdateSection) {
-                              console.log('🔧 Applying HTML update to section');
-                              onUpdateSection({ html: result.html });
-                              onSwitchToSectionEditor?.();
-                              onSwitchCodeTab?.('html');
-                            } else if (toolName === 'updateSectionCss' && result.css && onUpdateSection) {
-                              console.log('🔧 Applying CSS update to section');
-                              onUpdateSection({ css: result.css });
-                              onSwitchToSectionEditor?.();
-                              onSwitchCodeTab?.('css');
-                            } else if (toolName === 'updateSectionJs' && result.js && onUpdateSection) {
-                              console.log('🔧 Applying JS update to section');
-                              onUpdateSection({ js: result.js });
-                              onSwitchToSectionEditor?.();
-                              onSwitchCodeTab?.('js');
+                            // Use custom renderer for section update tools (they show diff preview)
+                            if (toolName === 'updateSectionHtml' || toolName === 'updateSectionCss' || toolName === 'updateSectionJs') {
+                              console.log('📊 Rendering diff preview for:', toolName);
+                              return (
+                                <ToolResultRenderer
+                                  key={i}
+                                  toolResult={{
+                                    toolCallId: part.toolCallId ?? '',
+                                    toolName,
+                                    args,
+                                    result: result.type === 'json' ? result.value : result,
+                                  }}
+                                  onStreamUpdate={onStreamUpdate}
+                                  onSwitchToSectionEditor={onSwitchToSectionEditor}
+                                  onSwitchCodeTab={onSwitchCodeTab}
+                                  onSwitchTab={onSwitchTab}
+                                  model={selectedModel}
+                                />
+                              );
                             }
 
                             // Use custom renderer for generateHTML tool
@@ -264,6 +279,7 @@ export function ElementorChat({
                                   onStreamUpdate={onStreamUpdate}
                                   onSwitchToSectionEditor={onSwitchToSectionEditor}
                                   onSwitchCodeTab={onSwitchCodeTab}
+                                  onSwitchTab={onSwitchTab}
                                   model={selectedModel}
                                 />
                               );

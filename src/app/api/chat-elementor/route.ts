@@ -7,6 +7,10 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
+    // Log the referer to see which page is calling this endpoint
+    const referer = req.headers.get('referer') || 'unknown';
+    console.log('🌐 CHAT-ELEMENTOR ENDPOINT CALLED from:', referer);
+
     const {
       messages = [],
       model = 'anthropic/claude-haiku-4-5-20251001',
@@ -40,6 +44,8 @@ export async function POST(req: Request) {
       updateSectionJs: tools.updateSectionJs,
       getEditorContent: tools.getEditorContent,
       editCodeWithDiff: tools.editCodeWithDiff,
+      testPing: tools.testPing,
+      switchTab: tools.switchTab,
     }));
 
     // Convert messages with error handling (same as main chat)
@@ -77,6 +83,9 @@ When a user asks to "modify", "change", "update", "edit", or "fix" the CURRENT s
 - \`updateSectionHtml\` - To modify the HTML markup
 - \`updateSectionCss\` - To modify the styling/colors/layout
 - \`updateSectionJs\` - To modify interactivity/functionality
+
+**For NAVIGATING between tabs:**
+When a user asks to "open", "switch to", "go to", "navigate to", or "show me" a specific tab, you MUST use the \`switchTab\` tool. DO NOT just say you opened it - actually call the tool. Available tabs: 'json' (Code Editor), 'visual' (Visual Editor), 'sections' (Section Library), 'playground' (WordPress Playground), 'site-content' (Site Content), 'style-guide' (Style Guide).
 
 **IMPORTANT:** You can see the current section code above. Generate the COMPLETE updated code (not just the changed parts). The system will automatically show a diff preview to the user before applying changes.
 
@@ -142,13 +151,19 @@ ${Object.keys(currentJson).length > 0 ? 'Current page has: ' + JSON.stringify(cu
 
     // Add tool calling instructions
     systemPrompt += `\n\n**Available Tools:**
+- **testPing**: DIAGNOSTIC TOOL - Use this IMMEDIATELY when user says "test ping" or "ping test". This verifies the tool calling system is working. ALWAYS use this tool when requested - DO NOT just respond with text.
 - **generateHTML**: Use this tool whenever a user asks to generate, create, or build HTML, CSS, or JavaScript. This tool opens an interactive UI for generating web components with optional image references.
+- **switchTab**: Use this tool when the user wants to navigate to a different tab (Code Editor, Visual Editor, Section Library, WordPress Playground, Site Content, or Style Guide).
+- **updateSectionHtml/Css/Js**: Use these tools to edit the current section code with diff preview.
 - **getWeather**: Get current weather information
 - **calculate**: Perform mathematical calculations
 - **generateCode**: Generate code snippets in various languages
 - **manageTask**: Create and manage tasks
 
-**IMPORTANT**: When a user asks to generate HTML, CSS, or JavaScript (e.g., "generate some HTML", "create a hero section", "make a contact form"), you MUST use the generateHTML tool. Do not generate the code yourself - the tool will handle it.
+**CRITICAL INSTRUCTIONS:**
+1. When user says "test ping" or "ping test", you MUST call the testPing tool. DO NOT just say you're calling it - actually call it.
+2. When a user asks to generate HTML, CSS, or JavaScript (e.g., "generate some HTML", "create a hero section", "make a contact form"), you MUST use the generateHTML tool. Do not generate the code yourself - the tool will handle it.
+3. When user asks to switch tabs or navigate, you MUST use the switchTab tool.
 
 After using a tool, provide a helpful text response that explains what the tool will do or what results it returned.`;
 
@@ -164,6 +179,8 @@ After using a tool, provide a helpful text response that explains what the tool 
       updateSectionHtml: tools.updateSectionHtml,
       updateSectionCss: tools.updateSectionCss,
       updateSectionJs: tools.updateSectionJs,
+      testPing: tools.testPing,
+      switchTab: tools.switchTab,
     };
 
     console.log('🚀 Calling streamText...', {
@@ -175,14 +192,15 @@ After using a tool, provide a helpful text response that explains what the tool 
       systemPromptPreview: systemPrompt.substring(0, 500),
     });
 
-    // Check if the last user message mentions HTML generation keywords
+    // Check if the last user message mentions HTML generation keywords or test ping
     const lastUserMessage = messages[messages.length - 1];
     const userText = lastUserMessage?.parts?.[0]?.text || '';
     const htmlKeywords = ['generate', 'create', 'build', 'make', 'html', 'css', 'javascript', 'hero', 'pricing', 'table', 'form', 'contact', 'navbar', 'footer', 'section'];
-    const shouldForceHTMLTool = htmlKeywords.some(keyword => userText.toLowerCase().includes(keyword));
+    const toolForceKeywords = [...htmlKeywords, 'test ping', 'ping test', 'ping'];
+    const shouldForceHTMLTool = toolForceKeywords.some(keyword => userText.toLowerCase().includes(keyword));
 
     if (shouldForceHTMLTool) {
-      console.log('🎯 HTML generation keywords detected! Forcing generateHTML tool usage for:', userText);
+      console.log('🎯 Tool trigger keywords detected! Forcing tool usage for:', userText);
     }
 
     const streamConfig: any = {

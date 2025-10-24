@@ -124,16 +124,23 @@ export default function ElementorEditorPage() {
   // Get editor content from global state for chat context
   const editorContent = useEditorContent();
 
-  // Use AI SDK chat hook - same pattern as main chat page
+  // Use AI SDK chat hook - Elementor-specific API endpoint
+  console.log('🔧 ELEMENTOR PAGE: useChat configured with api:', '/api/chat-elementor');
   const { messages, sendMessage, isLoading, setMessages, reload, status } = useChat({
     api: '/api/chat-elementor',
+    // Initial body - will be merged with additional data in sendMessage calls
     body: {
-      currentSection: {
-        html: editorContent.html,
-        css: editorContent.css,
-        js: editorContent.js,
-        name: currentSection?.name || 'Current Section'
-      }
+      currentSection: currentSection || null,
+    },
+    // Override fetch to force the correct endpoint
+    fetch: async (url, options) => {
+      console.log('🌐 FETCH CALLED - Original URL:', url);
+      console.log('🌐 FETCH - Forcing to /api/chat-elementor');
+      return fetch('/api/chat-elementor', options);
+    },
+    // Send current editor content with each message
+    onFinish: (message) => {
+      console.log('✅ Message finished:', message);
     }
   });
 
@@ -323,14 +330,19 @@ export default function ElementorEditorPage() {
         modelToUse = 'perplexity/sonar';
       }
 
-      // Use AI SDK's sendMessage - same pattern as main chat page
+      // Use AI SDK's sendMessage with current editor content
       sendMessage(
         { text: content },
         {
           body: {
             model: modelToUse,
             currentJson,
-            currentSection,
+            currentSection: {
+              ...currentSection,
+              html: editorContent.html,
+              css: editorContent.css,
+              js: editorContent.js,
+            },
             webSearch: settings?.webSearchEnabled ?? false,
             reasoningEffort: settings?.reasoningEffort ?? 'medium',
             detailedMode: settings?.detailedMode ?? false,
@@ -885,6 +897,7 @@ export default function ElementorEditorPage() {
               }}
               onSwitchToSectionEditor={() => setActiveTab('json')}
               onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
+              onSwitchTab={(tab) => setActiveTab(tab)}
               onUpdateSection={(updates) => {
                 if (currentSection) {
                   setCurrentSection({ ...currentSection, ...updates });
@@ -923,7 +936,7 @@ export default function ElementorEditorPage() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            padding: isMobile ? '8px 12px' : '6px 20px',
+            padding: isMobile ? '8px 0' : '6px 20px',
             minHeight: isMobile ? '48px' : '40px',
             gap: '8px'
           }}>
@@ -1024,6 +1037,7 @@ export default function ElementorEditorPage() {
                   setCurrentSection(section);
                 }}
                 onSwitchToVisualEditor={() => setActiveTab('visual')}
+                onSwitchToPlayground={() => setActiveTab('playground')}
                 chatVisible={chatVisible}
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}
@@ -1216,6 +1230,7 @@ export default function ElementorEditorPage() {
                     }}
                     onSwitchToSectionEditor={() => setActiveTab('json')}
                     onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
+                    onSwitchTab={(tab) => setActiveTab(tab)}
                     onUpdateSection={(updates) => {
                       if (currentSection) {
                         setCurrentSection({ ...currentSection, ...updates });

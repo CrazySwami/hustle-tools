@@ -13,7 +13,7 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
 import { cn } from "@/lib/utils"
-import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes } from "lucide-react"
+import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit } from "lucide-react"
 
 export function Navbar() {
   const [isMobile, setIsMobile] = useState(false);
@@ -73,6 +73,12 @@ export function Navbar() {
         description: "WordPress section builder with live preview",
         icon: Boxes,
       },
+      {
+        title: "Blog Planner",
+        href: "/blog-planner",
+        description: "Plan and write SEO-optimized blog content",
+        icon: FileEdit,
+      },
     ],
     media: [
       {
@@ -94,6 +100,7 @@ export function Navbar() {
     { href: "/chat", label: "Chat" },
     { href: "/editor", label: "Editor" },
     { href: "/elementor-editor", label: "Elementor" },
+    { href: "/blog-planner", label: "Blog Planner" },
     { href: "/firecrawl", label: "Firecrawl" },
     { href: "/image-alterations", label: "Image Alterations" },
     { href: "/page-extractor", label: "Page Extractor" },

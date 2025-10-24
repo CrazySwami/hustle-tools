@@ -33,6 +33,7 @@ export async function middleware(request: NextRequest) {
     '/chat-doc-editor',
     '/editor',
     '/elementor-editor',
+    '/blog-planner',
     '/tkx-calendar',
   ]
   const path = request.nextUrl.pathname

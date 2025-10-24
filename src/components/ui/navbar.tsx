@@ -121,11 +121,11 @@ export function Navbar() {
             <NavigationMenu>
               <NavigationMenuList>
                 <NavigationMenuItem>
-                  <Link href="/chat" legacyBehavior passHref>
-                    <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                  <NavigationMenuLink asChild>
+                    <Link href="/chat" className={navigationMenuTriggerStyle()}>
                       Chat
-                    </NavigationMenuLink>
-                  </Link>
+                    </Link>
+                  </NavigationMenuLink>
                 </NavigationMenuItem>
 
                 <NavigationMenuItem>

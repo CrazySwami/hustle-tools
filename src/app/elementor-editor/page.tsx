@@ -877,8 +877,8 @@ export default function ElementorEditorPage() {
 
       {/* Main container - using exact class names from original CSS */}
       <div className="chat-editor-container" style={{
-        marginTop: '48px', // Unified thinner navbar (h-12)
-        height: 'calc(100vh - 48px)',
+        marginTop: '64px', // Fixed navbar height (h-16 = 64px)
+        height: 'calc(100vh - 64px)',
         paddingBottom: isMobile ? '48px' : '0' // Smaller chat drawer on mobile
       }}>
         {/* Desktop: Left Panel Chat */}

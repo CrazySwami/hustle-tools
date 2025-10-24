@@ -10,8 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar, Loader2, ExternalLink, Download, ArrowLeft, Link as LinkIcon } from 'lucide-react';
+import { Calendar, Loader2, ExternalLink, Download, ArrowLeft, Link as LinkIcon, ArrowUpDown } from 'lucide-react';
 import { EventEditor } from '@/components/ui/event-editor';
+import { cn } from '@/lib/utils';
 
 interface TKXEvent {
   id: string;
@@ -93,6 +94,7 @@ export default function TKXCalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [sortByDate, setSortByDate] = useState<'asc' | 'desc' | null>(null);
 
   // Step 2: Results view (like TKX scraper in image-alterations)
   const [viewMode, setViewMode] = useState<'selection' | 'results'>('selection');
@@ -225,52 +227,75 @@ export default function TKXCalendarPage() {
   const scrapeSelectedEvents = async () => {
     if (selectedEvents.size === 0) return;
 
-    setScrapingResults(true);
-    setTkxResults([]);
-    setCompletedEvents(new Set());
-
-    // Get selected event URLs
+    // Get current and newly selected event URLs
     const selectedEventsList = events.filter(e => selectedEvents.has(e.id));
-    const urls = selectedEventsList.map(e => e.eventUrl).join('\n');
+    const selectedUrls = new Set(selectedEventsList.map(e => e.eventUrl));
 
-    try {
-      const res = await fetch('/api/scrape-tkx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urlsText: urls })
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to scrape');
+    // Find which URLs are already scraped
+    const existingUrls = new Set(tkxResults.map(r => r.url));
 
-      const initialResults: TkxResult[] = data.results || [];
-      setTkxResults(initialResults);
+    // Find new URLs that need to be scraped
+    const newUrls = selectedEventsList
+      .filter(e => !existingUrls.has(e.eventUrl))
+      .map(e => e.eventUrl);
 
-      // Switch to results view
+    // Remove results for deselected events
+    const filteredResults = tkxResults.filter(r => selectedUrls.has(r.url));
+
+    // If nothing new to scrape and nothing to remove, just switch view
+    if (newUrls.length === 0 && filteredResults.length === tkxResults.length) {
       setViewMode('results');
-
-      // Automatically process all scraped images
-      initialResults.forEach(async (result) => {
-        if (result.imageUrl) {
-          try {
-            const filename = result.title?.replace(/[^a-zA-Z0-9\s]/g, '_') || 'image';
-            const imageFile = await urlToFile(result.imageUrl, `${filename}.jpg`);
-            const processedUrl = await createBlurredBackground(imageFile, 1920, 1080);
-
-            setTkxResults(prev =>
-              prev.map(r => r.url === result.url ? { ...r, processedImageUrl: processedUrl } : r)
-            );
-          } catch (e) {
-            console.error(`Failed to process image for ${result.title}:`, e);
-          }
-        }
-      });
-
-    } catch (e) {
-      console.error(e);
-      setError('Failed to scrape selected events');
-    } finally {
-      setScrapingResults(false);
+      return;
     }
+
+    // Update results to remove deselected ones
+    setTkxResults(filteredResults);
+
+    // If there are new URLs to scrape, scrape them
+    if (newUrls.length > 0) {
+      setScrapingResults(true);
+
+      try {
+        const res = await fetch('/api/scrape-tkx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urlsText: newUrls.join('\n') })
+        });
+        const data = await res.json();
+        if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to scrape');
+
+        const newResults: TkxResult[] = data.results || [];
+
+        // Add new results to existing ones
+        setTkxResults(prev => [...prev, ...newResults]);
+
+        // Automatically process new scraped images
+        newResults.forEach(async (result) => {
+          if (result.imageUrl) {
+            try {
+              const filename = result.title?.replace(/[^a-zA-Z0-9\s]/g, '_') || 'image';
+              const imageFile = await urlToFile(result.imageUrl, `${filename}.jpg`);
+              const processedUrl = await createBlurredBackground(imageFile, 1920, 1080);
+
+              setTkxResults(prev =>
+                prev.map(r => r.url === result.url ? { ...r, processedImageUrl: processedUrl } : r)
+              );
+            } catch (e) {
+              console.error(`Failed to process image for ${result.title}:`, e);
+            }
+          }
+        });
+
+      } catch (e) {
+        console.error(e);
+        setError('Failed to scrape new events');
+      } finally {
+        setScrapingResults(false);
+      }
+    }
+
+    // Switch to results view
+    setViewMode('results');
   };
 
   const downloadImageAs = async (url: string, filename: string) => {
@@ -352,9 +377,33 @@ export default function TKXCalendarPage() {
   const months = ['all', ...Array.from(new Set(events.map(e => e.month).filter(Boolean)))];
 
   // Filter events by selected month
-  const filteredEvents = selectedMonth === 'all'
+  let filteredEvents = selectedMonth === 'all'
     ? events
     : events.filter(e => e.month === selectedMonth);
+
+  // Sort by date if enabled
+  if (sortByDate) {
+    filteredEvents = [...filteredEvents].sort((a, b) => {
+      const dateA = new Date(a.date || '').getTime();
+      const dateB = new Date(b.date || '').getTime();
+
+      // Handle invalid dates (put them at the end)
+      if (isNaN(dateA)) return 1;
+      if (isNaN(dateB)) return -1;
+
+      return sortByDate === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+  }
+
+  const toggleDateSort = () => {
+    if (sortByDate === null) {
+      setSortByDate('asc');
+    } else if (sortByDate === 'asc') {
+      setSortByDate('desc');
+    } else {
+      setSortByDate(null);
+    }
+  };
 
   // RESULTS VIEW (like TKX scraper in image-alterations)
   if (viewMode === 'results') {
@@ -507,6 +556,16 @@ export default function TKXCalendarPage() {
                 )}
 
                 <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    size="sm"
+                    variant={sortByDate ? 'default' : 'outline'}
+                    onClick={toggleDateSort}
+                    className="gap-2"
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                    {sortByDate === 'asc' ? 'Date ↑' : sortByDate === 'desc' ? 'Date ↓' : 'Sort by Date'}
+                  </Button>
+
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                     <SelectTrigger className="w-[180px]">
@@ -547,45 +606,62 @@ export default function TKXCalendarPage() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredEvents.map(event => {
               const isSelected = selectedEvents.has(event.id);
 
               return (
                 <div
                   key={event.id}
-                  className="border rounded-lg bg-card overflow-hidden"
+                  onClick={() => toggleEventSelection(event.id)}
+                  className={cn(
+                    "border rounded-lg bg-card overflow-hidden transition-all cursor-pointer group",
+                    "hover:shadow-md",
+                    isSelected
+                      ? "border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-950/30"
+                      : "border-border hover:border-blue-300"
+                  )}
                 >
-                  <div className="flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors">
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => toggleEventSelection(event.id)}
-                    />
+                  <div className="p-4 flex flex-col gap-3">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleEventSelection(event.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className={cn(
+                          "mt-0.5",
+                          isSelected && "border-blue-500 data-[state=checked]:bg-blue-500"
+                        )}
+                      />
 
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate">
-                        {event.title}
-                      </h3>
-                      {event.date && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
-                          <Calendar className="h-3.5 w-3.5" />
-                          {formatDate(event.date)}
-                        </p>
-                      )}
-                      {event.month && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {event.month}
-                        </p>
-                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold line-clamp-2 leading-tight">
+                          {event.title}
+                        </h3>
+                        {event.date && (
+                          <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-2">
+                            <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                            <span className="truncate">{formatDate(event.date)}</span>
+                          </p>
+                        )}
+                        {event.month && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {event.month}
+                          </p>
+                        )}
+                      </div>
                     </div>
 
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="w-full justify-start"
                       asChild
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <a href={event.eventUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={event.eventUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
                         <ExternalLink className="h-4 w-4" />
+                        <span className="text-xs">View Event</span>
                       </a>
                     </Button>
                   </div>

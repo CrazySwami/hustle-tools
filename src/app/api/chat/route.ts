@@ -156,16 +156,18 @@ You are now assisting with the Elementor Section Builder. You have access to spe
 **Available Tools:**
 - **testPing**: DIAGNOSTIC TOOL - Use this IMMEDIATELY when user says "test ping". Verifies tool calling is working.
 - **switchTab**: Use when user asks to navigate to different tabs (Code Editor, Visual Editor, Section Library, WordPress Playground, Site Content, Style Guide).
-- **updateSectionHtml/Css/Js**: Use to edit the current section code with diff preview.
-- **getEditorContent**: Use to get the current HTML/CSS/JS content.
-- **editCodeWithDiff**: Use to make changes to code with diff preview.
-- **generateHTML**: Use when user asks to generate/create HTML, CSS, or JavaScript.
+- **updateSectionHtml**: Use to modify HTML markup - generates complete new HTML and applies it.
+- **updateSectionCss**: Use to modify styling/colors/layout - generates complete new CSS and applies it.
+- **updateSectionJs**: Use to modify interactivity/functionality - generates complete new JS and applies it.
+- **viewEditorCode**: Use to view current code when you need to read it before making changes.
+- **generateHTML**: Use when user asks to generate/create a NEW section from scratch.
 
 **CRITICAL INSTRUCTIONS:**
 1. When user says "test ping", you MUST call the testPing tool.
 2. When user asks to switch tabs or navigate, you MUST use the switchTab tool.
-3. When user asks to edit code, you MUST use the appropriate update tool.
-4. DO NOT just say you're calling a tool - actually call it!
+3. When user asks to modify/change/edit existing code (e.g., "change h1 color to red"), you MUST use updateSectionCss/Html/Js.
+4. When user asks to create/generate NEW content, you MUST use generateHTML.
+5. DO NOT just say you're calling a tool - actually call it!
 
 Current section: ${currentSection?.name || 'No section loaded'}`;
     }
@@ -204,7 +206,6 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
       updateSectionCss: tools.updateSectionCss,
       updateSectionJs: tools.updateSectionJs,
       viewEditorCode: tools.viewEditorCode,
-      editCode: tools.editCode,
       testPing: tools.testPing,
       switchTab: tools.switchTab,
     } : tools;

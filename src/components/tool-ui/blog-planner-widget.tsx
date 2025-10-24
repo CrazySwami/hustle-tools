@@ -31,17 +31,28 @@ export function BlogPlannerWidget({ data, model, onPlanGenerated }: BlogPlannerW
   const [isGenerating, setIsGenerating] = useState(false);
   const [topics, setTopics] = useState<BlogTopic[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(true);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    month: data.month,
+    postsPerMonth: data.postsPerMonth,
+    niche: data.niche,
+    targetAudience: data.targetAudience,
+    brandVoice: data.brandVoice,
+  });
 
   const handleGenerate = async () => {
     setIsGenerating(true);
     setError(null);
+    setShowForm(false); // Hide form once generation starts
 
     try {
       const response = await fetch('/api/generate-blog-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...data,
+          ...formData, // Use form data instead of initial data
           model: model || 'anthropic/claude-sonnet-4-5-20250929',
         }),
       });
@@ -141,25 +152,89 @@ export function BlogPlannerWidget({ data, model, onPlanGenerated }: BlogPlannerW
       {/* Header */}
       <div className="space-y-2">
         <h3 className="text-lg font-semibold">📅 Generate Blog Content Calendar</h3>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <span className="font-medium">Month:</span> {data.month}
-          </div>
-          <div>
-            <span className="font-medium">Posts:</span> {data.postsPerMonth}
-          </div>
-          <div>
-            <span className="font-medium">Niche:</span> {data.niche}
-          </div>
-          <div>
-            <span className="font-medium">Audience:</span> {data.targetAudience}
-          </div>
-          {data.brandVoice && (
-            <div className="col-span-2">
-              <span className="font-medium">Voice:</span> {data.brandVoice}
+
+        {showForm ? (
+          /* Inline Form */
+          <div className="space-y-3 mt-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium block mb-1">Month</label>
+                <input
+                  type="text"
+                  value={formData.month}
+                  onChange={(e) => setFormData({ ...formData, month: e.target.value })}
+                  placeholder="January 2025"
+                  className="w-full px-3 py-2 border rounded-lg bg-background"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Posts Per Month</label>
+                <input
+                  type="number"
+                  value={formData.postsPerMonth}
+                  onChange={(e) => setFormData({ ...formData, postsPerMonth: parseInt(e.target.value) || 8 })}
+                  min="1"
+                  max="30"
+                  className="w-full px-3 py-2 border rounded-lg bg-background"
+                />
+              </div>
             </div>
-          )}
-        </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Niche</label>
+              <input
+                type="text"
+                value={formData.niche}
+                onChange={(e) => setFormData({ ...formData, niche: e.target.value })}
+                placeholder="WordPress development"
+                className="w-full px-3 py-2 border rounded-lg bg-background"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Target Audience</label>
+              <input
+                type="text"
+                value={formData.targetAudience}
+                onChange={(e) => setFormData({ ...formData, targetAudience: e.target.value })}
+                placeholder="Small business owners"
+                className="w-full px-3 py-2 border rounded-lg bg-background"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Brand Voice</label>
+              <select
+                value={formData.brandVoice}
+                onChange={(e) => setFormData({ ...formData, brandVoice: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg bg-background"
+              >
+                <option value="professional">Professional</option>
+                <option value="casual">Casual</option>
+                <option value="technical">Technical</option>
+                <option value="friendly">Friendly</option>
+              </select>
+            </div>
+          </div>
+        ) : (
+          /* Summary after form is hidden */
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <span className="font-medium">Month:</span> {formData.month}
+            </div>
+            <div>
+              <span className="font-medium">Posts:</span> {formData.postsPerMonth}
+            </div>
+            <div>
+              <span className="font-medium">Niche:</span> {formData.niche}
+            </div>
+            <div>
+              <span className="font-medium">Audience:</span> {formData.targetAudience}
+            </div>
+            {formData.brandVoice && (
+              <div className="col-span-2">
+                <span className="font-medium">Voice:</span> {formData.brandVoice}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Generation Progress */}
@@ -238,11 +313,14 @@ export function BlogPlannerWidget({ data, model, onPlanGenerated }: BlogPlannerW
         ) : (
           <>
             <button
-              onClick={handleGenerate}
+              onClick={() => {
+                setShowForm(true);
+                setTopics([]);
+              }}
               disabled={isGenerating}
               className="px-4 py-2 border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm transition-colors"
             >
-              Regenerate
+              Edit & Regenerate
             </button>
             <div className="flex-1" />
             <button

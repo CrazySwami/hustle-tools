@@ -40,13 +40,27 @@ export function BlogWriterWidget({ data, model }: BlogWriterWidgetProps) {
   const [currentSection, setCurrentSection] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'markdown' | 'rendered'>('rendered');
   const [error, setError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(true);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    title: data.title,
+    focusKeyword: data.focusKeyword,
+    metaDescription: data.metaDescription || '',
+    contentType: data.contentType,
+    estimatedWordCount: data.estimatedWordCount,
+    enableResearch: data.enableResearch,
+    brandVoice: data.brandVoice,
+    additionalInstructions: data.additionalInstructions || '',
+  });
 
   const handleGenerate = async () => {
     setError(null);
+    setShowForm(false); // Hide form once generation starts
 
     try {
       // PHASE 1: Research (if enabled)
-      if (data.enableResearch) {
+      if (formData.enableResearch) {
         setIsResearching(true);
         setCurrentSection('Researching topic...');
 
@@ -58,7 +72,7 @@ export function BlogWriterWidget({ data, model }: BlogWriterWidgetProps) {
             messages: [
               {
                 role: 'user',
-                content: `Research the topic: "${data.title}". Focus keyword: "${data.focusKeyword}". Find latest information, statistics, best practices, and expert insights for ${new Date().getFullYear()}.`,
+                content: `Research the topic: "${formData.title}". Focus keyword: "${formData.focusKeyword}". Find latest information, statistics, best practices, and expert insights for ${new Date().getFullYear()}.`,
               },
             ],
           }),
@@ -94,13 +108,7 @@ export function BlogWriterWidget({ data, model }: BlogWriterWidgetProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: data.title,
-          focusKeyword: data.focusKeyword,
-          metaDescription: data.metaDescription,
-          contentType: data.contentType,
-          estimatedWordCount: data.estimatedWordCount,
-          brandVoice: data.brandVoice,
-          additionalInstructions: data.additionalInstructions,
+          ...formData,
           internalLinkPage: data.internalLinkPage,
           callToAction: data.callToAction,
           researchSummary,
@@ -159,28 +167,135 @@ export function BlogWriterWidget({ data, model }: BlogWriterWidgetProps) {
   };
 
   const wordCount = countWords(blogContent);
-  const progress = Math.min(100, (wordCount / data.estimatedWordCount) * 100);
+  const progress = Math.min(100, (wordCount / formData.estimatedWordCount) * 100);
 
   return (
     <div className="w-full space-y-4 p-4 border rounded-lg bg-card">
       {/* Header */}
       <div className="space-y-2">
         <h3 className="text-lg font-semibold">✍️ Write Blog Post</h3>
-        <div className="space-y-1 text-sm">
-          <div>
-            <span className="font-medium">Title:</span> {data.title}
+
+        {showForm ? (
+          /* Inline Form */
+          <div className="space-y-3 mt-4">
+            <div>
+              <label className="text-sm font-medium block mb-1">Title</label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="How to Build a WordPress Site"
+                className="w-full px-3 py-2 border rounded-lg bg-background"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium block mb-1">Focus Keyword</label>
+                <input
+                  type="text"
+                  value={formData.focusKeyword}
+                  onChange={(e) => setFormData({ ...formData, focusKeyword: e.target.value })}
+                  placeholder="wordpress tutorial"
+                  className="w-full px-3 py-2 border rounded-lg bg-background"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Content Type</label>
+                <select
+                  value={formData.contentType}
+                  onChange={(e) => setFormData({ ...formData, contentType: e.target.value as any })}
+                  className="w-full px-3 py-2 border rounded-lg bg-background"
+                >
+                  <option value="how-to">How-to</option>
+                  <option value="listicle">Listicle</option>
+                  <option value="guide">Guide</option>
+                  <option value="tutorial">Tutorial</option>
+                  <option value="comparison">Comparison</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Meta Description (optional)</label>
+              <textarea
+                value={formData.metaDescription}
+                onChange={(e) => setFormData({ ...formData, metaDescription: e.target.value })}
+                placeholder="SEO meta description (150-160 chars)"
+                rows={2}
+                maxLength={160}
+                className="w-full px-3 py-2 border rounded-lg bg-background"
+              />
+              <div className="text-xs text-muted-foreground mt-1">
+                {formData.metaDescription.length}/160 characters
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium block mb-1">Target Word Count</label>
+                <input
+                  type="number"
+                  value={formData.estimatedWordCount}
+                  onChange={(e) => setFormData({ ...formData, estimatedWordCount: parseInt(e.target.value) || 1500 })}
+                  min="500"
+                  max="5000"
+                  step="100"
+                  className="w-full px-3 py-2 border rounded-lg bg-background"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Brand Voice</label>
+                <select
+                  value={formData.brandVoice}
+                  onChange={(e) => setFormData({ ...formData, brandVoice: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg bg-background"
+                >
+                  <option value="professional">Professional</option>
+                  <option value="casual">Casual</option>
+                  <option value="technical">Technical</option>
+                  <option value="friendly">Friendly</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Additional Instructions (optional)</label>
+              <textarea
+                value={formData.additionalInstructions}
+                onChange={(e) => setFormData({ ...formData, additionalInstructions: e.target.value })}
+                placeholder="Any specific requirements or topics to cover..."
+                rows={2}
+                className="w-full px-3 py-2 border rounded-lg bg-background"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="enableResearch"
+                checked={formData.enableResearch}
+                onChange={(e) => setFormData({ ...formData, enableResearch: e.target.checked })}
+                className="w-4 h-4 rounded"
+              />
+              <label htmlFor="enableResearch" className="text-sm font-medium cursor-pointer">
+                Enable research phase (uses Perplexity for latest info)
+              </label>
+            </div>
           </div>
-          <div>
-            <span className="font-medium">Focus Keyword:</span> {data.focusKeyword}
+        ) : (
+          /* Summary after form is hidden */
+          <div className="space-y-1 text-sm">
+            <div>
+              <span className="font-medium">Title:</span> {formData.title}
+            </div>
+            <div>
+              <span className="font-medium">Focus Keyword:</span> {formData.focusKeyword}
+            </div>
+            <div>
+              <span className="font-medium">Type:</span> {formData.contentType}
+            </div>
+            <div>
+              <span className="font-medium">Target Length:</span> ~
+              {formData.estimatedWordCount.toLocaleString()} words
+            </div>
           </div>
-          <div>
-            <span className="font-medium">Type:</span> {data.contentType}
-          </div>
-          <div>
-            <span className="font-medium">Target Length:</span> ~
-            {data.estimatedWordCount.toLocaleString()} words
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Research Phase */}
@@ -307,16 +422,21 @@ export function BlogWriterWidget({ data, model }: BlogWriterWidgetProps) {
             disabled={isResearching || isWriting}
             className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm transition-colors"
           >
-            {data.enableResearch ? 'Research & Write' : 'Write Blog Post'}
+            {formData.enableResearch ? 'Research & Write' : 'Write Blog Post'}
           </button>
         ) : (
           <>
             <button
-              onClick={handleGenerate}
+              onClick={() => {
+                setShowForm(true);
+                setBlogContent('');
+                setResearchSources([]);
+                setResearchSummary('');
+              }}
               disabled={isResearching || isWriting}
               className="px-4 py-2 border rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm transition-colors"
             >
-              Regenerate
+              Edit & Regenerate
             </button>
             <div className="flex-1" />
             <button

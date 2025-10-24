@@ -420,7 +420,7 @@ export const tools = {
   updateSectionCss: updateSectionCssTool,
   updateSectionJs: updateSectionJsTool,
   viewEditorCode: viewEditorCodeTool,
-  editCode: editCodeTool,
+  // editCode: editCodeTool, // REMOVED: Was too complex, use updateSection tools instead
   testPing: testPingTool,
   switchTab: switchTabTool,
   planBlogTopics: planBlogTopicsTool,

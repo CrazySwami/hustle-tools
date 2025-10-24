@@ -102,7 +102,7 @@ export default function BlogPlannerPage() {
   };
 
   return (
-    <div className="flex h-screen flex-col md:flex-row overflow-hidden">
+    <div className="flex h-screen flex-col md:flex-row overflow-hidden pt-16">
       {/* Left Panel: Chat */}
       <div className="flex-[60%] flex flex-col border-r">
         {/* Header */}

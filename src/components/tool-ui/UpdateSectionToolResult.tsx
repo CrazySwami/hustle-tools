@@ -1,10 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckSquare } from 'lucide-react';
+import { CheckSquare, Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useEditorContent } from '@/hooks/useEditorContent';
-import { createTwoFilesPatch } from 'diff';
 
 interface UpdateSectionToolResultProps {
   toolName: string;
@@ -12,31 +12,20 @@ interface UpdateSectionToolResultProps {
 }
 
 export function UpdateSectionToolResult({ toolName, result }: UpdateSectionToolResultProps) {
-  const { getContent } = useEditorContent();
+  const { getContent, updateContent } = useEditorContent();
   const updateType = toolName.replace('updateSection', '').toLowerCase() as 'html' | 'css' | 'js';
   const newCode = result[updateType];
+  const [applied, setApplied] = useState(false);
 
-  const handleViewDiff = () => {
-    const currentContent = getContent([updateType]);
-    const original = currentContent[updateType] || '';
-
-    // Generate unified diff
-    const unifiedDiff = createTwoFilesPatch(
-      `${updateType}.original`,
-      `${updateType}.modified`,
-      original,
-      newCode,
-      'Original',
-      'Modified'
-    );
-
-    console.log('[UpdateSectionToolResult] Diff generated:', {
+  const handleApplyChanges = () => {
+    console.log('[UpdateSectionToolResult] Applying changes:', {
       file: updateType,
-      originalLength: original.length,
-      modifiedLength: newCode.length,
-      diff: unifiedDiff
+      newCodeLength: newCode.length
     });
-    // Note: setPendingDiff was removed - this component needs to be updated to use the new EditCodeWidget workflow
+
+    // Directly update the editor content
+    updateContent(updateType, newCode);
+    setApplied(true);
   };
 
   return (
@@ -55,16 +44,25 @@ export function UpdateSectionToolResult({ toolName, result }: UpdateSectionToolR
             </div>
           )}
 
-          <p className="text-sm text-muted-foreground">
-            AI has generated updated {updateType.toUpperCase()} code. Click below to preview the changes before applying.
-          </p>
+          {!applied ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                AI has generated updated {updateType.toUpperCase()} code. Click below to apply the changes.
+              </p>
 
-          <button
-            onClick={handleViewDiff}
-            className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-          >
-            📊 View Diff & Approve
-          </button>
+              <button
+                onClick={handleApplyChanges}
+                className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+              >
+                ✓ Apply Changes
+              </button>
+            </>
+          ) : (
+            <div className="rounded-md bg-green-50 dark:bg-green-950/20 p-3 text-sm text-green-700 dark:text-green-400 border border-green-200 dark:border-green-900 flex items-center gap-2">
+              <Check className="h-4 w-4" />
+              <span className="font-medium">Changes applied successfully!</span>
+            </div>
+          )}
 
           <Badge variant="outline" className="text-xs">
             {result.type.replace('_', ' ').toUpperCase()}

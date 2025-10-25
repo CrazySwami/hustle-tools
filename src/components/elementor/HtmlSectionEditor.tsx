@@ -22,8 +22,8 @@ interface HtmlSectionEditorProps {
   streamedHtml?: string;
   streamedCss?: string;
   streamedJs?: string;
-  activeCodeTab?: "html" | "css" | "js";
-  onCodeTabChange?: (tab: "html" | "css" | "js") => void;
+  activeCodeTab?: "html" | "css" | "js" | "php";
+  onCodeTabChange?: (tab: "html" | "css" | "js" | "php") => void;
   onSwitchToVisualEditor?: () => void;
   onSwitchToPlayground?: () => void;
   chatVisible?: boolean;
@@ -52,7 +52,7 @@ export function HtmlSectionEditor({
     initialSection || createSection(),
   );
   const [internalActiveCodeTab, setInternalActiveCodeTab] = useState<
-    "html" | "css" | "js"
+    "html" | "css" | "js" | "php"
   >("html");
   const [showPreview, setShowPreview] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -65,7 +65,141 @@ export function HtmlSectionEditor({
   const { theme } = useTheme();
 
   // Global editor content state (for chat access)
-  const { updateContent, setAllContent } = useEditorContent();
+  const { updateContent, setAllContent, html: editorHtml, css: editorCss, js: editorJs } = useEditorContent();
+
+  // Deploy widget to WordPress Playground
+  const handleDeployWidget = async () => {
+    if (!section.php || !section.php.trim()) {
+      alert('⚠️ No widget PHP code to deploy. Generate a widget first using "Generate Widget" button.');
+      return;
+    }
+
+    if (!window.deployElementorWidget) {
+      alert('WordPress Playground is not loaded. Please launch Playground first from the WordPress Playground tab.');
+      return;
+    }
+
+    try {
+      const result = await window.deployElementorWidget(section.php, editorCss, editorJs);
+      alert(`✅ ${result.message}\n\nNext steps:\n1. Go to the WordPress Playground tab\n2. Navigate to an Elementor page\n3. Find your widget "${result.widgetClassName}" in the Hustle Tools category\n4. Drag it onto the page!`);
+    } catch (error: any) {
+      alert(`❌ Deployment failed: ${error.message}`);
+    }
+  };
+
+  // Convert HTML section to Elementor widget
+  const [isConverting, setIsConverting] = useState(false);
+  const [conversionProgress, setConversionProgress] = useState('');
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [convertedWidgetName, setConvertedWidgetName] = useState('');
+
+  const handleConvertToWidget = async () => {
+    if (!editorHtml.trim()) {
+      alert('⚠️ No HTML content to convert. Please add HTML code first.');
+      return;
+    }
+
+    if (section.php) {
+      alert('⚠️ Already in widget mode! Use "Deploy to Playground" to test this widget.');
+      return;
+    }
+
+    // Calculate estimated token usage
+    const totalChars = editorHtml.length + editorCss.length + editorJs.length;
+    const estimatedTokens = Math.ceil(totalChars / 4); // Rough estimate: 1 token ≈ 4 chars
+    const inputCost = estimatedTokens * 0.000003; // Claude Sonnet 4.5 input cost per token
+    const outputCost = 2000 * 0.000015; // Estimated 2000 output tokens
+    const totalCost = inputCost + outputCost;
+
+    // Show warning if content is large
+    let warningMessage = '';
+    if (estimatedTokens > 10000) {
+      warningMessage = `\n⚠️ Large conversion (~${estimatedTokens.toLocaleString()} tokens, ~$${totalCost.toFixed(3)})\n`;
+    }
+
+    const confirmed = confirm(
+      '🔄 Convert HTML to Elementor Widget?\n\n' +
+      'This will:\n' +
+      '• Analyze your HTML structure\n' +
+      '• Generate comprehensive Elementor controls\n' +
+      '• Preserve all styling and classes\n' +
+      '• Replace current code with PHP widget\n' +
+      warningMessage +
+      '\nContinue?'
+    );
+
+    if (!confirmed) return;
+
+    setIsConverting(true);
+    setConversionProgress('Analyzing HTML structure...');
+
+    try {
+      const response = await fetch('/api/convert-html-to-widget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          html: editorHtml,
+          css: editorCss,
+          js: editorJs,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Conversion failed: ${response.statusText}`);
+      }
+
+      setConversionProgress('Generating widget class...');
+
+      // Stream the widget PHP code
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let widgetPhp = '';
+      let widgetClassName = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          widgetPhp += chunk;
+
+          // Extract widget class name for modal
+          if (!widgetClassName) {
+            const classMatch = widgetPhp.match(/class\s+(\w+)\s+extends/);
+            if (classMatch) {
+              widgetClassName = classMatch[1];
+              setConvertedWidgetName(widgetClassName);
+            }
+          }
+
+          // Update progress message based on content
+          if (widgetPhp.includes('register_controls()')) {
+            setConversionProgress('Creating Elementor controls...');
+          } else if (widgetPhp.includes('protected function render()')) {
+            setConversionProgress('Generating render function...');
+          }
+
+          // Update PHP field in real-time to show progress (NOT HTML!)
+          updateSection({ php: widgetPhp });
+        }
+      }
+
+      // Switch to PHP tab to show the generated widget
+      setConversionProgress('Finalizing widget...');
+      handleCodeTabChange('php');
+
+      // Show completion modal
+      setShowCompletionModal(true);
+
+    } catch (error: any) {
+      alert(`❌ Conversion failed: ${error.message}`);
+      console.error('Widget conversion error:', error);
+    } finally {
+      setIsConverting(false);
+      setConversionProgress('');
+    }
+  };
 
   // Track if this is a loaded section (has initial content)
   const hasInitialContent = !!(
@@ -120,7 +254,7 @@ export function HtmlSectionEditor({
   // Use external activeCodeTab if provided, otherwise use internal
   const activeCodeTab = externalActiveCodeTab ?? internalActiveCodeTab;
 
-  const handleCodeTabChange = (tab: "html" | "css" | "js") => {
+  const handleCodeTabChange = (tab: "html" | "css" | "js" | "php") => {
     if (onCodeTabChange) {
       onCodeTabChange(tab);
     } else {
@@ -156,6 +290,7 @@ export function HtmlSectionEditor({
     });
   }, [section.id, section.html, section.css, section.js, setAllContent]);
 
+
   // Update section when streamed content changes
   useEffect(() => {
     // Don't apply streaming if we loaded a section from library (has initial content)
@@ -181,7 +316,7 @@ export function HtmlSectionEditor({
     }
   }, [streamedHtml, streamedCss, streamedJs, hasInitialContent]);
 
-  // Generate preview HTML with all styles and scripts
+  // Generate preview HTML with all styles and scripts (uses global state for latest content)
   const generatePreviewHTML = (): string => {
     const inlineStyles = sectionSettingsToCSS(section.settings);
     const animationClass = getAnimationClassName(section.settings.animation);
@@ -201,7 +336,7 @@ export function HtmlSectionEditor({
     ${activeStyleKitCss || globalCss}
 
     /* Section-specific CSS */
-    ${section.css}
+    ${editorCss}
 
     /* Animation CSS */
     ${getAnimationCSS(section.settings.animation)}
@@ -213,11 +348,11 @@ export function HtmlSectionEditor({
 </head>
 <body>
   <div class="section-wrapper ${allClasses}" style="${inlineStyles}">
-    ${section.html}
+    ${editorHtml}
   </div>
 
   <script>
-    ${section.js}
+    ${editorJs}
   </script>
 </body>
 </html>
@@ -243,6 +378,22 @@ export function HtmlSectionEditor({
             label: "💾 Save to Library",
             onClick: () => setShowSaveDialog(true),
           },
+          {
+            label: isConverting ? "⏳ Converting..." : "🔄 Generate Widget",
+            onClick: handleConvertToWidget,
+            disabled: isConverting || !editorHtml.trim(),
+            divider: true,
+          },
+          ...(section.php ? [{
+            label: "🚀 Deploy to WordPress",
+            onClick: handleDeployWidget,
+            divider: true,
+          }] : []),
+          ...(section.php && editorHtml.trim() ? [{
+            label: "🔃 Update Widget",
+            onClick: handleConvertToWidget,
+            disabled: isConverting,
+          }] : []),
           {
             label: "File Tree",
             onClick: () => setShowFileTree(!showFileTree),
@@ -446,6 +597,25 @@ export function HtmlSectionEditor({
                   ? "👁️"
                   : "Preview"}
             </button>
+
+            {/* Deploy to Playground - Only show in PHP/Widget mode */}
+            {section.php && !isMobile && (
+              <button
+                onClick={handleDeployWidget}
+                style={{
+                  padding: "6px 12px",
+                  background: "#7c3aed",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                🚀 Deploy to Playground
+              </button>
+            )}
 
             {/* Visual Editor - Desktop only */}
             {!isMobile && onSwitchToVisualEditor && (
@@ -939,7 +1109,7 @@ export function HtmlSectionEditor({
                   </span>
                   <select
                     value={activeCodeTab}
-                    onChange={(e) => handleCodeTabChange(e.target.value as 'html' | 'css' | 'js')}
+                    onChange={(e) => handleCodeTabChange(e.target.value as 'html' | 'css' | 'js' | 'php')}
                     style={{
                       padding: isMobile ? "8px 12px" : "6px 12px",
                       background: "#1e1e1e",
@@ -957,6 +1127,7 @@ export function HtmlSectionEditor({
                     <option value="html">📄 index.html</option>
                     <option value="css">🎨 styles.css</option>
                     <option value="js">⚡ script.js</option>
+                    {section.php && <option value="php">🔧 widget.php</option>}
                   </select>
                 </div>
               )}
@@ -975,6 +1146,7 @@ export function HtmlSectionEditor({
                     {activeCodeTab === 'html' && '📄 index.html'}
                     {activeCodeTab === 'css' && '🎨 styles.css'}
                     {activeCodeTab === 'js' && '⚡ script.js'}
+                    {activeCodeTab === 'php' && '🔧 widget.php'}
                   </span>
                 </div>
               )}
@@ -1013,9 +1185,23 @@ export function HtmlSectionEditor({
               )}
               <Editor
                 height="100%"
-                language={activeCodeTab === "js" ? "javascript" : activeCodeTab}
+                language={
+                  activeCodeTab === "js"
+                    ? "javascript"
+                    : activeCodeTab === "php"
+                    ? "php"
+                    : activeCodeTab
+                }
                 theme={theme === "dark" ? "vs-dark" : "light"}
-                value={section[activeCodeTab]}
+                value={
+                  activeCodeTab === "html"
+                    ? editorHtml
+                    : activeCodeTab === "css"
+                    ? editorCss
+                    : activeCodeTab === "js"
+                    ? editorJs
+                    : section.php || ""
+                }
                 onChange={(value) =>
                   updateSection({ [activeCodeTab]: value || "" })
                 }
@@ -1142,6 +1328,222 @@ export function HtmlSectionEditor({
         )}
 
       </div>
+
+      {/* In-Progress Overlay */}
+      {isConverting && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            style={{
+              background: "var(--card)",
+              borderRadius: "12px",
+              padding: "32px",
+              maxWidth: "400px",
+              textAlign: "center",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+            }}
+          >
+            {/* Animated spinner */}
+            <div
+              style={{
+                width: "60px",
+                height: "60px",
+                border: "4px solid var(--muted)",
+                borderTop: "4px solid var(--primary)",
+                borderRadius: "50%",
+                margin: "0 auto 24px",
+                animation: "spin 1s linear infinite",
+              }}
+            />
+
+            <h3
+              style={{
+                margin: "0 0 12px 0",
+                fontSize: "20px",
+                fontWeight: 600,
+                color: "var(--foreground)",
+              }}
+            >
+              Converting to Widget
+            </h3>
+
+            <p
+              style={{
+                margin: 0,
+                fontSize: "14px",
+                color: "var(--muted-foreground)",
+                lineHeight: "1.6",
+              }}
+            >
+              {conversionProgress}
+            </p>
+
+            <style jsx global>{`
+              @keyframes spin {
+                to { transform: rotate(360deg); }
+              }
+            `}</style>
+          </div>
+        </div>
+      )}
+
+      {/* Completion Modal */}
+      {showCompletionModal && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            style={{
+              background: "var(--card)",
+              borderRadius: "12px",
+              padding: "32px",
+              maxWidth: "500px",
+              width: "90%",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+            }}
+          >
+            {/* Success icon */}
+            <div
+              style={{
+                width: "60px",
+                height: "60px",
+                background: "#10b981",
+                borderRadius: "50%",
+                margin: "0 auto 24px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "32px",
+              }}
+            >
+              ✓
+            </div>
+
+            <h3
+              style={{
+                margin: "0 0 12px 0",
+                fontSize: "24px",
+                fontWeight: 600,
+                color: "var(--foreground)",
+                textAlign: "center",
+              }}
+            >
+              Widget Created Successfully!
+            </h3>
+
+            <p
+              style={{
+                margin: "0 0 24px 0",
+                fontSize: "15px",
+                color: "var(--muted-foreground)",
+                textAlign: "center",
+                lineHeight: "1.6",
+              }}
+            >
+              {convertedWidgetName ? `"${convertedWidgetName}"` : 'Your widget'} is ready to deploy.{' '}
+              All HTML elements now have comprehensive Elementor controls.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {/* Deploy to Playground button */}
+              {onSwitchToPlayground && (
+                <button
+                  onClick={async () => {
+                    setShowCompletionModal(false);
+                    try {
+                      const result = await window.deployElementorWidget(section.php || '', editorCss, editorJs);
+                      // Switch to Playground tab
+                      if (onSwitchToPlayground) {
+                        onSwitchToPlayground();
+                      }
+                      alert(`✅ ${result.message}\n\nYour widget is now active in WordPress!\n\nGo to an Elementor page and find "${result.widgetClassName}" in the Hustle Tools category.`);
+                    } catch (error: any) {
+                      alert(`❌ Deployment failed: ${error.message}`);
+                    }
+                  }}
+                  style={{
+                    padding: "14px 24px",
+                    background: "#7c3aed",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "8px",
+                    fontSize: "15px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#6d28d9";
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "#7c3aed";
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
+                >
+                  🚀 Deploy & Open WordPress Playground
+                </button>
+              )}
+
+              {/* Review Code button */}
+              <button
+                onClick={() => setShowCompletionModal(false)}
+                style={{
+                  padding: "12px 24px",
+                  background: "var(--muted)",
+                  color: "var(--foreground)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Review Widget Code
+              </button>
+            </div>
+
+            {/* Info note */}
+            <p
+              style={{
+                margin: "20px 0 0 0",
+                fontSize: "12px",
+                color: "var(--muted-foreground)",
+                textAlign: "center",
+                lineHeight: "1.5",
+              }}
+            >
+              💡 Your HTML preview is preserved! The widget.php file is in a separate tab.{' '}
+              CSS and JS are embedded in the widget for deployment.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Save to Library Dialog */}
       {showSaveDialog && (

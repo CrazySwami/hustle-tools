@@ -1,6 +1,32 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 
+// Google Search tool - search Google and get organic results with rankings
+export const googleSearchTool = tool({
+  description: 'Search Google for keywords and get organic search results with rankings, titles, URLs, and snippets. Useful for SEO research, keyword analysis, and understanding search rankings.',
+  inputSchema: z.object({
+    keyword: z.string().describe('The keyword or search query to look up on Google'),
+    location: z.string().optional().describe('Geographic location for localized results (e.g., "Austin, Texas, United States")'),
+    country: z.string().optional().default('us').describe('Country code for results (e.g., "us", "gb", "ca")'),
+    language: z.string().optional().default('en').describe('Language code (e.g., "en", "es", "fr")'),
+    device: z.enum(['desktop', 'tablet', 'mobile']).optional().default('desktop').describe('Device type for search results'),
+    numResults: z.number().optional().default(10).describe('Number of results to return (max 100)'),
+  }),
+  execute: async ({ keyword, location, country = 'us', language = 'en', device = 'desktop', numResults = 10 }) => {
+    // Return confirmation needed status - the widget will handle the actual search
+    return {
+      confirmationRequired: true,
+      keyword,
+      location,
+      country,
+      language,
+      device,
+      numResults,
+      message: 'Please confirm search parameters before searching Google.',
+    };
+  },
+});
+
 // Weather tool - simulates fetching weather data
 export const weatherTool = tool({
   description: 'Get current weather information for a specific location',
@@ -318,37 +344,103 @@ export const switchTabTool = tool({
   },
 });
 
-// Edit code tool - edits code files with diff preview
-export const editCodeTool = tool({
-  description: 'Edit HTML, CSS, or JavaScript code files with AI-powered diff preview. Use this when the user asks to modify, change, update, fix, or refactor code. The tool will: 1) Get current code, 2) Generate full modified file, 3) Show diff preview, 4) Allow user to accept/reject.',
-  inputSchema: z.object({
-    fileType: z.enum(['html', 'css', 'js']).describe('Which file to edit (html, css, or js)'),
-    instructions: z.string().describe('Clear, specific instructions for what to change (e.g., "Change the h1 color from blue to red", "Add a margin-top of 20px to the container")'),
-    reasoning: z.string().optional().describe('Brief explanation of why this change is being made'),
-  }),
-  execute: async ({ fileType, instructions, reasoning }) => {
-    // This tool signals to the frontend that it needs to:
-    // 1. Get current file content from editor
-    // 2. Call the /api/edit-code endpoint to generate modified code
-    // 3. Calculate unified diff
-    // 4. Display Monaco DiffEditor for review
-    // 5. Allow Accept/Reject/Edit actions
+// Step Planning tool - creates explicit numbered plans before execution
+export const planStepsTool = tool({
+  description: `🎯 PRIMARY PLANNING TOOL - Use this FIRST for ANY request involving multiple steps or the word "and".
 
+This creates a beautiful visual step-by-step plan that requires user approval before execution.
+
+✅ ALWAYS USE THIS TOOL if the request contains:
+- The word "and" → "Plan X AND write Y" ✓ REQUIRES planSteps
+- Multiple verbs → "Research, plan, create" ✓ REQUIRES planSteps
+- A sequence → "First A, then B" ✓ REQUIRES planSteps
+- 2+ separate actions ✓ REQUIRES planSteps
+
+EXAMPLES REQUIRING THIS TOOL:
+✓ "Plan 8 blog posts for January and write the first one"
+✓ "Research WordPress trends and create a content calendar"
+✓ "Plan posts for February then write two of them"
+✓ "Create blog calendar and generate the first 3 posts"
+
+EXAMPLES NOT REQUIRING THIS (single action only):
+✗ "Plan 8 blog posts for January" → Just use planBlogTopics directly
+✗ "Write a blog post about AI" → Just use writeBlogPost directly
+
+MANDATORY WORKFLOW:
+1. Detect if request has multiple steps (look for "and", multiple verbs, sequences)
+2. If YES → Call planSteps FIRST before doing ANYTHING else
+3. Create numbered steps with specific tool names
+4. STOP and ask: "Does this plan look good? Should I proceed?"
+5. WAIT for user approval ("yes", "proceed", "ok", "go ahead")
+6. After approval → Execute step 1 → Call updateStepProgress(1, completed) → Execute step 2 → etc.
+
+CRITICAL: Users explicitly requested this workflow. They want to see and approve the plan BEFORE execution!`,
+
+  inputSchema: z.object({
+    goal: z.string().describe('The overall goal or task the user requested'),
+    steps: z.array(z.object({
+      number: z.number().describe('Step number (1, 2, 3...)'),
+      description: z.string().describe('What this step will do'),
+      toolToUse: z.string().describe('Which tool will be used (e.g., "webSearch", "planBlogTopics", "writeBlogPost")'),
+      expectedOutput: z.string().describe('What result this step should produce'),
+    })).describe('Array of steps to complete the goal'),
+  }),
+
+  execute: async ({ goal, steps }) => {
     return {
-      fileType,
-      instructions,
-      reasoning,
+      goal,
+      steps,
+      totalSteps: steps.length,
+      status: 'awaiting_approval',
+      requiresApproval: true,
+      currentStep: 0,
+      completedSteps: [],
       timestamp: new Date().toISOString(),
-      status: 'ready_to_edit',
-      message: `Code edit tool activated for ${fileType.toUpperCase()}. Opening diff preview...`
+      message: `I've created a ${steps.length}-step plan. Review the steps above and let me know if you'd like me to proceed!`
     };
   },
 });
 
-// Export all tools
+// Update Step Progress tool - marks steps as completed
+export const updateStepProgressTool = tool({
+  description: `Update the progress of the current execution plan by marking steps as completed.
+
+Use this AFTER completing each step in the plan to update the visual progress tracker.
+
+Call this tool:
+- After successfully completing a step
+- Before moving to the next step
+- To keep the user informed of progress`,
+
+  inputSchema: z.object({
+    stepNumber: z.number().describe('The step number that was just completed (1, 2, 3...)'),
+    status: z.enum(['completed', 'failed', 'skipped']).describe('The status of this step'),
+    note: z.string().optional().describe('Optional note about this step (e.g., what was accomplished)'),
+  }),
+
+  execute: async ({ stepNumber, status, note }) => {
+    return {
+      stepNumber,
+      status,
+      note,
+      timestamp: new Date().toISOString(),
+      message: `Step ${stepNumber} marked as ${status}${note ? `: ${note}` : ''}`
+    };
+  },
+});
+
 // Blog Planner tool - generates monthly blog content calendars
 export const planBlogTopicsTool = tool({
-  description: 'Generate a monthly blog content calendar with SEO-optimized topics, keywords, and metadata. Use this when user requests blog planning, content calendar, topic ideas, or wants to plan blog posts for a specific month.',
+  description: `Opens an interactive blog planner widget where the user can configure and generate a monthly content calendar.
+
+IMPORTANT: This tool ONLY opens the widget - it does NOT generate blog topics yet. The user must click "Generate Blog Plan" in the widget to actually create the topics.
+
+After calling this tool:
+- DO NOT list or describe any blog topics (they haven't been generated yet)
+- DO NOT say topics were created or generated
+- ONLY say: "I've opened the blog planner. Click 'Generate Blog Plan' when you're ready."
+
+Use this when user requests blog planning, content calendar, topic ideas, or wants to plan blog posts for a specific month.`,
   inputSchema: z.object({
     month: z.string().describe('Month and year (e.g., "January 2025", "Feb 2025")'),
     postsPerMonth: z.number().describe('Number of blog posts to plan for the month'),
@@ -365,9 +457,9 @@ export const planBlogTopicsTool = tool({
       targetAudience,
       brandVoice: brandVoice || 'professional',
       existingTopics,
-      status: 'ready_to_generate',
+      status: 'widget_opened',
       timestamp: new Date().toISOString(),
-      message: `Blog planner activated. Ready to generate ${postsPerMonth} topics for ${month}.`
+      message: `Widget opened. User must click "Generate Blog Plan" to create ${postsPerMonth} topics for ${month}.`
     };
   },
 });
@@ -409,6 +501,7 @@ export const writeBlogPostTool = tool({
 });
 
 export const tools = {
+  googleSearch: googleSearchTool,
   getWeather: weatherTool,
   calculate: calculatorTool,
   generateCode: codeGeneratorTool,
@@ -423,6 +516,8 @@ export const tools = {
   // editCode: editCodeTool, // REMOVED: Was too complex, use updateSection tools instead
   testPing: testPingTool,
   switchTab: switchTabTool,
+  planSteps: planStepsTool,                 // ⭐ Multi-step planning tool
+  updateStepProgress: updateStepProgressTool, // ⭐ Step progress tracking
   planBlogTopics: planBlogTopicsTool,
   writeBlogPost: writeBlogPostTool,
 };

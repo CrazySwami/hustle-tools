@@ -144,7 +144,27 @@ export async function POST(req: Request) {
 
     // Add tool calling instructions to system prompt if tools are enabled
     if (enableTools) {
-      systemPrompt += ' You have access to various tools including weather information, calculations, code generation, and task management. When users ask for weather information, calculations, code generation, or task management, you should use the appropriate tool to provide accurate and interactive results. After using a tool, always provide a helpful text response that explains or contextualizes the tool results for the user.';
+      systemPrompt += `
+
+**IMPORTANT TOOL CALLING INSTRUCTIONS:**
+
+You have access to these tools:
+- **googleSearch**: Use this tool whenever users ask you to search Google, find search results, check rankings, research keywords, or ask "what are the top results for X". ALWAYS use this tool for search queries instead of providing text-only answers.
+- **getWeather**: Use for weather information
+- **calculate**: Use for mathematical calculations
+- **generateCode**: Use for code generation
+- **manageTask**: Use for task management
+
+**CRITICAL:** When a user says things like:
+- "search Google for..."
+- "find me search results for..."
+- "what are the top results for..."
+- "check Google rankings for..."
+- "search for..."
+
+You MUST call the googleSearch tool with the appropriate keyword. DO NOT just provide a text response. The tool will show a rich UI with organic results, knowledge graph, featured snippets, and more.
+
+After using a tool, provide a brief text response that contextualizes the tool results for the user.`;
     }
 
     // Add Elementor-specific instructions if this is an Elementor request
@@ -156,18 +176,20 @@ You are now assisting with the Elementor Section Builder. You have access to spe
 **Available Tools:**
 - **testPing**: DIAGNOSTIC TOOL - Use this IMMEDIATELY when user says "test ping". Verifies tool calling is working.
 - **switchTab**: Use when user asks to navigate to different tabs (Code Editor, Visual Editor, Section Library, WordPress Playground, Site Content, Style Guide).
-- **updateSectionHtml**: Use to modify HTML markup - generates complete new HTML and applies it.
-- **updateSectionCss**: Use to modify styling/colors/layout - generates complete new CSS and applies it.
-- **updateSectionJs**: Use to modify interactivity/functionality - generates complete new JS and applies it.
+- **updateSectionHtml**: Use to modify HTML markup - PROPOSES changes that user must approve.
+- **updateSectionCss**: Use to modify styling/colors/layout - PROPOSES changes that user must approve.
+- **updateSectionJs**: Use to modify interactivity/functionality - PROPOSES changes that user must approve.
 - **viewEditorCode**: Use to view current code when you need to read it before making changes.
 - **generateHTML**: Use when user asks to generate/create a NEW section from scratch.
 
 **CRITICAL INSTRUCTIONS:**
 1. When user says "test ping", you MUST call the testPing tool.
 2. When user asks to switch tabs or navigate, you MUST use the switchTab tool.
-3. When user asks to modify/change/edit existing code (e.g., "change h1 color to red"), you MUST use updateSectionCss/Html/Js.
-4. When user asks to create/generate NEW content, you MUST use generateHTML.
-5. DO NOT just say you're calling a tool - actually call it!
+3. When user asks to modify/change/edit existing code (e.g., "change h1 color to red"), you MUST use ONLY ONE updateSectionCss/Html/Js tool (choose the most relevant one).
+4. When user asks to create/generate NEW content from scratch, use ONLY generateHTML (do NOT also call updateSection tools).
+5. DO NOT call multiple conflicting tools - choose the single most appropriate tool for the user's request.
+6. After calling an updateSection tool, DO NOT say the changes are "applied" or "done" - say they are "proposed" and the user needs to click "Apply Changes" to confirm.
+7. DO NOT just say you're calling a tool - actually call it!
 
 Current section: ${currentSection?.name || 'No section loaded'}`;
     }
@@ -246,12 +268,16 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
 
     // Check if the last user message mentions keywords that should force tool usage (for Elementor requests)
     let toolChoice = undefined;
-    if (isElementorRequest && messages.length > 0) {
-      const lastUserMessage = messages[messages.length - 1];
-      const userText = typeof lastUserMessage.content === 'string'
-        ? lastUserMessage.content
-        : lastUserMessage.parts?.[0]?.text || '';
 
+    // Extract user text for all keyword detection
+    const lastUserMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+    const userText = lastUserMessage
+      ? (typeof lastUserMessage.content === 'string'
+        ? lastUserMessage.content
+        : lastUserMessage.parts?.[0]?.text || '')
+      : '';
+
+    if (isElementorRequest && messages.length > 0) {
       const forceToolKeywords = [
         'test ping', 'ping test', 'ping',
         'change', 'edit', 'update', 'modify',
@@ -270,6 +296,20 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
       }
     }
 
+    // 🎯 Multi-step planning detection for blog planner
+    const isMultiStepRequest =
+      userText.toLowerCase().includes(' and ') &&
+      (userText.toLowerCase().includes('plan') || userText.toLowerCase().includes('write') ||
+       userText.toLowerCase().includes('create') || userText.toLowerCase().includes('generate'));
+
+    if (isMultiStepRequest && !currentSection) {
+      console.log('🎯🎯🎯 MULTI-STEP DETECTED! Forcing planSteps tool');
+      toolChoice = {
+        type: 'tool',
+        toolName: 'planSteps'
+      };
+    }
+
     const result = streamText({
       model: selectedModel,
       messages: convertedMessages,
@@ -278,7 +318,7 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
       // Only include tools if enabled
       ...(enableTools && {
         tools: toolsWithDocumentContent,
-        stopWhen: stepCountIs(5), // Use stopWhen instead of maxSteps
+        stopWhen: stepCountIs(2), // Limit tool calls to prevent UI duplication
         ...(toolChoice && { toolChoice }),
       }),
     });

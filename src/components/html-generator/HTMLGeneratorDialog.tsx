@@ -8,7 +8,7 @@ import { Loader2Icon, UploadIcon, XIcon, CheckCircleIcon, FileCodeIcon } from 'l
 interface HTMLGeneratorDialogProps {
   initialDescription?: string;
   initialImages?: Array<{ url: string; filename: string }>;
-  onGenerate: (description: string, images: Array<{ url: string; filename: string; description?: string }>) => Promise<void>;
+  onGenerate: (description: string, images: Array<{ url: string; filename: string; description?: string }>, mode?: 'section' | 'widget') => Promise<void>;
   onClose: () => void;
 }
 
@@ -22,6 +22,7 @@ export function HTMLGeneratorDialog({
   const [images, setImages] = useState<Array<{ url: string; filename: string; description?: string }>>(initialImages);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [mode, setMode] = useState<'section' | 'widget'>('section');
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -83,7 +84,7 @@ export function HTMLGeneratorDialog({
 
     setIsGenerating(true);
     try {
-      await onGenerate(description, images);
+      await onGenerate(description, images, mode);
     } catch (error) {
       console.error('Generation error:', error);
     } finally {
@@ -133,7 +134,7 @@ export function HTMLGeneratorDialog({
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <FileCodeIcon size={24} style={{ color: 'var(--primary)' }} />
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-              Generate HTML/CSS/JS
+              {mode === 'section' ? 'Generate HTML Section' : 'Generate Elementor Widget'}
             </h2>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -143,6 +144,80 @@ export function HTMLGeneratorDialog({
 
         {/* Content */}
         <div style={{ padding: '24px' }}>
+          {/* Mode Selection */}
+          <div style={{ marginBottom: '24px' }}>
+            <label
+              style={{
+                display: 'block',
+                marginBottom: '12px',
+                fontSize: '14px',
+                fontWeight: 500,
+              }}
+            >
+              Generation Mode
+            </label>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <label
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  border: `2px solid ${mode === 'section' ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  background: mode === 'section' ? 'var(--accent)' : 'transparent',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="mode"
+                  value="section"
+                  checked={mode === 'section'}
+                  onChange={() => setMode('section')}
+                  style={{ accentColor: 'var(--primary)' }}
+                />
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '14px' }}>HTML Section</div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                    Generate standalone HTML/CSS/JS
+                  </div>
+                </div>
+              </label>
+              <label
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  border: `2px solid ${mode === 'widget' ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  background: mode === 'widget' ? 'var(--accent)' : 'transparent',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="mode"
+                  value="widget"
+                  checked={mode === 'widget'}
+                  onChange={() => setMode('widget')}
+                  style={{ accentColor: 'var(--primary)' }}
+                />
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '14px' }}>Elementor Widget</div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                    Generate PHP widget class
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* Description Input */}
           <div style={{ marginBottom: '24px' }}>
             <label
@@ -158,7 +233,11 @@ export function HTMLGeneratorDialog({
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe what you want to build... (e.g., 'A hero section with a gradient background, centered heading, subtitle, and two CTA buttons')"
+              placeholder={
+                mode === 'section'
+                  ? "Describe what you want to build... (e.g., 'A hero section with a gradient background, centered heading, subtitle, and two CTA buttons')"
+                  : "Describe the widget you want to create... (e.g., 'A pricing table widget with customizable columns, pricing tiers, feature lists, and CTA buttons')"
+              }
               rows={4}
               style={{
                 width: '100%',
@@ -322,8 +401,10 @@ export function HTMLGeneratorDialog({
                 <Loader2Icon size={16} className="animate-spin" style={{ marginRight: '8px' }} />
                 Generating...
               </>
-            ) : (
+            ) : mode === 'section' ? (
               'Generate HTML/CSS/JS'
+            ) : (
+              'Generate Elementor Widget'
             )}
           </Button>
         </div>

@@ -2016,6 +2016,147 @@ window.updateAllSectionsPreview = async function(sections, globalCss = '') {
     }
 };
 
+// Deploy Elementor Widget to WordPress Playground
+window.deployElementorWidget = async function(widgetPhp, widgetCss = '', widgetJs = '') {
+    if (!playgroundClient) {
+        throw new Error('Playground not running. Launch it first.');
+    }
+
+    try {
+        updatePlaygroundStatus('🔧 Deploying Elementor widget...');
+
+        // Extract widget class name from PHP code
+        const classMatch = widgetPhp.match(/class\s+(\w+)/);
+        const widgetClassName = classMatch ? classMatch[1] : 'Elementor_Custom_Widget';
+
+        // Extract widget name from get_name() method
+        const nameMatch = widgetPhp.match(/return\s+['"]([\w-]+)['"]\s*;/);
+        const widgetSlug = nameMatch ? nameMatch[1] : 'custom_widget';
+
+        console.log('📦 Widget details:', { className: widgetClassName, slug: widgetSlug });
+
+        // Create plugin directory
+        const pluginSlug = `elementor-${widgetSlug}`;
+        const pluginDir = `/wordpress/wp-content/plugins/${pluginSlug}`;
+
+        // Main plugin file with widget registration
+        const mainPluginFile = `<?php
+/**
+ * Plugin Name: ${widgetClassName}
+ * Description: Custom Elementor widget
+ * Version: 1.0.0
+ * Requires Plugins: elementor
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+// Register custom widget category
+function register_hustle_tools_category( $elements_manager ) {
+    $elements_manager->add_category(
+        'hustle-tools',
+        [
+            'title' => __( 'Hustle Tools', 'text-domain' ),
+            'icon' => 'fa fa-plug',
+        ]
+    );
+}
+add_action( 'elementor/elements/categories_registered', 'register_hustle_tools_category' );
+
+// Register the widget
+function register_${widgetSlug}_widget( $widgets_manager ) {
+    require_once( __DIR__ . '/widget.php' );
+    $widgets_manager->register( new ${widgetClassName}() );
+}
+add_action( 'elementor/widgets/register', 'register_${widgetSlug}_widget' );
+
+// Enqueue widget styles
+function ${widgetSlug}_enqueue_styles() {
+    if ( file_exists( __DIR__ . '/widget.css' ) ) {
+        wp_enqueue_style(
+            '${widgetSlug}-style',
+            plugins_url( 'widget.css', __FILE__ ),
+            [],
+            '1.0.0'
+        );
+    }
+}
+add_action( 'wp_enqueue_scripts', '${widgetSlug}_enqueue_styles' );
+add_action( 'elementor/editor/after_enqueue_styles', '${widgetSlug}_enqueue_styles' );
+
+// Enqueue widget scripts
+function ${widgetSlug}_enqueue_scripts() {
+    if ( file_exists( __DIR__ . '/widget.js' ) ) {
+        wp_enqueue_script(
+            '${widgetSlug}-script',
+            plugins_url( 'widget.js', __FILE__ ),
+            [ 'jquery' ],
+            '1.0.0',
+            true
+        );
+    }
+}
+add_action( 'wp_enqueue_scripts', '${widgetSlug}_enqueue_scripts' );
+add_action( 'elementor/frontend/after_register_scripts', '${widgetSlug}_enqueue_scripts' );
+`;
+
+        // Create plugin directory
+        await playgroundClient.mkdir(pluginDir);
+        console.log('📁 Created plugin directory:', pluginDir);
+
+        // Write plugin files
+        await playgroundClient.writeFile(`${pluginDir}/${pluginSlug}.php`, mainPluginFile);
+        await playgroundClient.writeFile(`${pluginDir}/widget.php`, widgetPhp);
+
+        if (widgetCss && widgetCss.trim()) {
+            await playgroundClient.writeFile(`${pluginDir}/widget.css`, widgetCss);
+        }
+
+        if (widgetJs && widgetJs.trim()) {
+            await playgroundClient.writeFile(`${pluginDir}/widget.js`, widgetJs);
+        }
+
+        console.log('✅ Widget files written');
+
+        // Activate the plugin
+        const activateCode = `<?php
+            require_once '/wordpress/wp-load.php';
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+            $plugin_file = '${pluginSlug}/${pluginSlug}.php';
+
+            if ( !is_plugin_active( $plugin_file ) ) {
+                $result = activate_plugin( $plugin_file );
+                if ( is_wp_error( $result ) ) {
+                    echo 'ERROR: ' . $result->get_error_message();
+                } else {
+                    echo 'SUCCESS: Widget activated';
+                }
+            } else {
+                echo 'INFO: Widget already active';
+            }
+        ?>`;
+
+        const activateResult = await playgroundClient.run({ code: activateCode });
+        console.log('🔌 Activation result:', activateResult.text);
+
+        updatePlaygroundStatus('✅ Widget deployed successfully!', 'success');
+
+        return {
+            success: true,
+            widgetSlug,
+            widgetClassName,
+            message: `Widget "${widgetClassName}" deployed and activated! You can now find it in the Elementor editor sidebar.`
+        };
+
+    } catch (error) {
+        console.error('❌ Widget deployment error:', error);
+        updatePlaygroundStatus('❌ Error: ' + error.message, 'error');
+        throw error;
+    }
+};
+
 // Auto-start playground on page load (if enabled)
 if (autoStartPlayground) {
     window.addEventListener('DOMContentLoaded', function() {

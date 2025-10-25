@@ -375,7 +375,12 @@ const ChatBotDemo = () => {
                                 <ToolHeader type={toolName} state="output-available" />
                                 <ToolContent>
                                   <ToolInput input={args} />
-                                  <ToolOutput output={formatToolOutput(output)} />
+                                  <ToolOutput output={
+                                    <ToolResultRenderer
+                                      toolName={toolName}
+                                      result={output}
+                                    />
+                                  } />
                                 </ToolContent>
                               </Tool>
                             );

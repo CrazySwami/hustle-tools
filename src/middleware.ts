@@ -35,6 +35,7 @@ export async function middleware(request: NextRequest) {
     '/elementor-editor',
     '/blog-planner',
     '/tkx-calendar',
+    '/keyword-research',
   ]
   const path = request.nextUrl.pathname
 

@@ -30,7 +30,7 @@ export function HTMLGeneratorWidget({ data, onGenerate, onStreamUpdate, onSwitch
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', js: '' });
   const [currentStep, setCurrentStep] = useState<'html' | 'css' | 'js' | null>(null);
 
-  const handleGenerate = async (description: string, images: Array<{ url: string; filename: string; description?: string }>) => {
+  const handleGenerate = async (description: string, images: Array<{ url: string; filename: string; description?: string }>, mode: 'section' | 'widget' = 'section') => {
     try {
       setIsGenerating(true);
       setShowDialog(false);
@@ -47,7 +47,7 @@ export function HTMLGeneratorWidget({ data, onGenerate, onStreamUpdate, onSwitch
       const htmlResponse = await fetch('/api/generate-html-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description, images, type: 'html', model }),
+        body: JSON.stringify({ description, images, type: 'html', model, mode }),
       });
 
       const htmlReader = htmlResponse.body?.getReader();
@@ -76,7 +76,7 @@ export function HTMLGeneratorWidget({ data, onGenerate, onStreamUpdate, onSwitch
       const cssResponse = await fetch('/api/generate-html-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description, images, type: 'css', model, generatedHtml: html }),
+        body: JSON.stringify({ description, images, type: 'css', model, mode, generatedHtml: html }),
       });
 
       const cssReader = cssResponse.body?.getReader();
@@ -105,7 +105,7 @@ export function HTMLGeneratorWidget({ data, onGenerate, onStreamUpdate, onSwitch
       const jsResponse = await fetch('/api/generate-html-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description, images, type: 'js', model, generatedHtml: html, generatedCss: css }),
+        body: JSON.stringify({ description, images, type: 'js', model, mode, generatedHtml: html, generatedCss: css }),
       });
 
       const jsReader = jsResponse.body?.getReader();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckSquare, Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -16,8 +16,16 @@ export function UpdateSectionToolResult({ toolName, result }: UpdateSectionToolR
   const updateType = toolName.replace('updateSection', '').toLowerCase() as 'html' | 'css' | 'js';
   const newCode = result[updateType];
   const [applied, setApplied] = useState(false);
+  const applyingRef = useRef(false); // Prevent duplicate execution in React StrictMode
 
   const handleApplyChanges = () => {
+    // Prevent duplicate execution
+    if (applyingRef.current) {
+      console.log('[UpdateSectionToolResult] Skipping duplicate apply');
+      return;
+    }
+
+    applyingRef.current = true;
     console.log('[UpdateSectionToolResult] Applying changes:', {
       file: updateType,
       newCodeLength: newCode.length

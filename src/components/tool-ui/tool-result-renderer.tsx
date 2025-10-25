@@ -6,9 +6,10 @@ import { HTMLGeneratorWidget } from './html-generator-widget';
 import { UpdateSectionToolResult } from './UpdateSectionToolResult';
 import { TabSwitcherWidget } from './tab-switcher-widget';
 import { ViewEditorCodeWidget } from './ViewEditorCodeWidget';
-import { EditCodeWidget } from './EditCodeWidget';
+import { StepPlannerWidget } from './step-planner-widget';
 import { BlogPlannerWidget } from './blog-planner-widget';
 import { BlogWriterWidget } from './blog-writer-widget';
+import { GoogleSearchWidget } from './google-search-widget';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckSquare, Clock } from 'lucide-react';
@@ -107,6 +108,9 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
 
   // Handle different tool types
   switch (toolName) {
+    case 'googleSearch':
+      return <GoogleSearchWidget result={result} />;
+
     case 'getWeather':
       return <WeatherWidget data={result} />;
 
@@ -248,8 +252,13 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
     case 'viewEditorCode':
       return <ViewEditorCodeWidget data={result} />;
 
-    case 'editCode':
-      return <EditCodeWidget data={result} onStreamUpdate={onStreamUpdate} model={model} />;
+    case 'planSteps':
+      return <StepPlannerWidget data={result} />;
+
+    case 'updateStepProgress':
+      // Don't render updateStepProgress - it's just a progress tracker
+      // The updates will be reflected in the planSteps widget
+      return null;
 
     case 'planBlogTopics':
       return <BlogPlannerWidget data={result} model={model} />;

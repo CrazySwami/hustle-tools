@@ -13,7 +13,7 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
 import { cn } from "@/lib/utils"
-import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit } from "lucide-react"
+import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search } from "lucide-react"
 
 export function Navbar() {
   const [isMobile, setIsMobile] = useState(false);
@@ -60,6 +60,12 @@ export function Navbar() {
         icon: FileSearch,
       },
       {
+        title: "Keyword Research",
+        href: "/keyword-research",
+        description: "Google search results and SERP analysis",
+        icon: Search,
+      },
+      {
         title: "TKX Events",
         href: "/tkx-calendar",
         description: "Browse upcoming concerts and events",
@@ -102,6 +108,7 @@ export function Navbar() {
     { href: "/elementor-editor", label: "Elementor" },
     { href: "/blog-planner", label: "Blog Planner" },
     { href: "/firecrawl", label: "Firecrawl" },
+    { href: "/keyword-research", label: "Keyword Research" },
     { href: "/image-alterations", label: "Image Alterations" },
     { href: "/page-extractor", label: "Page Extractor" },
     { href: "/tkx-calendar", label: "TKX Events" },

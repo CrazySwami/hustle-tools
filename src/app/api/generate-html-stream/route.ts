@@ -10,6 +10,7 @@ export async function POST(req: Request) {
       description,
       images = [],
       type = 'html', // 'html', 'css', or 'js'
+      mode = 'section', // 'section' or 'widget'
       model = 'anthropic/claude-sonnet-4-5-20250929',
       generatedHtml = '', // Pass HTML to CSS/JS generation
       generatedCss = '', // Pass CSS to JS generation
@@ -17,6 +18,7 @@ export async function POST(req: Request) {
       description: string;
       images: Array<{ url: string; filename: string; description: string }>;
       type: 'html' | 'css' | 'js';
+      mode?: 'section' | 'widget';
       model?: string;
       generatedHtml?: string;
       generatedCss?: string;
@@ -33,6 +35,331 @@ export async function POST(req: Request) {
     const imageContext = images.length > 0
       ? `\n\n**Reference Images:**\n${images.map((img, i) => `\nImage ${i + 1} (${img.filename}):\n${img.description}`).join('\n\n')}`
       : '';
+
+    // Widget mode: Generate PHP class with render() method containing the HTML
+    if (mode === 'widget' && type === 'html') {
+      const widgetPrompt = `You are an expert Elementor widget developer. Generate a complete, production-ready Elementor custom widget PHP class based on this description:
+
+**Description:** ${description}${imageContext}
+
+**CRITICAL REQUIREMENTS:**
+- Generate a COMPLETE Elementor widget class extending \\Elementor\\Widget_Base
+- NO markdown code fences - NO \`\`\`php or \`\`\` markers
+- NO explanatory text before or after the code
+- Start immediately with <?php and end with the final closing brace
+- Include all required methods: get_name(), get_title(), get_icon(), get_categories(), register_controls(), render()
+- The render() method should output the HTML for the widget
+- Use a unique, descriptive widget name (snake_case)
+- Choose an appropriate icon class (eicon-*)
+- Set category to ['general']
+- Include proper escaping (esc_html, esc_attr, etc.)
+- Add helpful inline comments
+
+**COMPREHENSIVE CONTROLS REQUIREMENT (CRITICAL):**
+You MUST create granular controls for EVERY customizable element. For each piece of content, add these control types:
+
+**For EVERY Text Element (headings, paragraphs, labels, etc.):**
+- TEXT control for the content
+- TYPOGRAPHY control (font family, size, weight, line-height, letter-spacing)
+- COLOR control for text color
+- Add these in separate "Content" and "Style" tabs
+
+**For EVERY Visual Element (buttons, cards, containers, etc.):**
+- Background COLOR or GRADIENT control
+- Border controls (type, width, color, radius)
+- Box shadow control
+- Padding/margin DIMENSIONS controls
+- Width/height controls where applicable
+
+**For EVERY Image:**
+- MEDIA control for image selection
+- Image size control
+- Border/shadow controls
+- Alignment control
+
+**For EVERY Interactive Element (buttons, links):**
+- TEXT control for label/text
+- URL control for link
+- CHOOSE control for button size/style variants
+- Hover state COLOR controls
+- Icon controls if applicable
+
+**CONTROL ORGANIZATION:**
+- Group controls into logical sections using start_controls_section/end_controls_section
+- Use tabs: TAB_CONTENT for content, TAB_STYLE for styling, TAB_ADVANCED for advanced options
+- Add HEADING control type to separate groups visually
+- Use descriptive labels and helpful default values
+
+**EXAMPLE - Comprehensive Controls for a Simple Card:**
+\`\`\`php
+// Content Tab - Card Title
+$this->add_control('card_title', [
+    'label' => 'Title',
+    'type' => \\Elementor\\Controls_Manager::TEXT,
+    'default' => 'Card Title'
+]);
+
+// Content Tab - Card Description
+$this->add_control('card_description', [
+    'label' => 'Description',
+    'type' => \\Elementor\\Controls_Manager::TEXTAREA,
+    'default' => 'Card description text...'
+]);
+
+// Style Tab - Title Typography
+$this->add_group_control(
+    \\Elementor\\Group_Control_Typography::get_type(),
+    [
+        'name' => 'title_typography',
+        'selector' => '{{WRAPPER}} .card-title',
+    ]
+);
+
+// Style Tab - Title Color
+$this->add_control('title_color', [
+    'label' => 'Title Color',
+    'type' => \\Elementor\\Controls_Manager::COLOR,
+    'selectors' => ['{{WRAPPER}} .card-title' => 'color: {{VALUE}}']
+]);
+
+// Style Tab - Description Typography
+$this->add_group_control(
+    \\Elementor\\Group_Control_Typography::get_type(),
+    [
+        'name' => 'description_typography',
+        'selector' => '{{WRAPPER}} .card-description',
+    ]
+);
+
+// Style Tab - Card Background
+$this->add_control('card_background', [
+    'label' => 'Background Color',
+    'type' => \\Elementor\\Controls_Manager::COLOR,
+    'selectors' => ['{{WRAPPER}} .card' => 'background-color: {{VALUE}}']
+]);
+
+// Style Tab - Card Border
+$this->add_group_control(
+    \\Elementor\\Group_Control_Border::get_type(),
+    [
+        'name' => 'card_border',
+        'selector' => '{{WRAPPER}} .card',
+    ]
+);
+
+// Style Tab - Card Padding
+$this->add_responsive_control('card_padding', [
+    'label' => 'Padding',
+    'type' => \\Elementor\\Controls_Manager::DIMENSIONS,
+    'selectors' => ['{{WRAPPER}} .card' => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}}']
+]);
+\`\`\`
+
+**For EVERY Video Element:**
+- VIDEO_URL or MEDIA control for video source
+- Autoplay, loop, muted toggles
+- Poster image control
+- Controls visibility toggle
+- Width/height controls
+- Border/shadow controls
+- Aspect ratio control
+
+**For EVERY Audio Element:**
+- MEDIA control for audio source
+- Autoplay, loop toggles
+- Volume control
+- Player style controls
+
+**For EVERY Iframe/Embed:**
+- URL control
+- Width/height controls
+- Responsive aspect ratio
+- Border controls
+- Allow fullscreen toggle
+
+**For EVERY SVG/Icon:**
+- SVG code or icon library selector
+- Color/fill controls
+- Size controls
+- Stroke width/color
+- Rotation/transform
+
+**For Form Elements:**
+- Placeholder text
+- Default value
+- Required toggle
+- Validation rules
+- Label text and styling
+- Input styling (border, background, text color)
+- Focus state styles
+- Error state styles
+
+**For EVERY Accordion/Tab:**
+- Repeater for items (title + content)
+- Active item control
+- Transition duration
+- Title styling
+- Content styling
+- Border/spacing controls
+
+**REQUIRED ADVANCED CONTROLS (ALL WIDGETS):**
+- **Custom CSS Box**: RAW_HTML control type for custom CSS (scoped to widget)
+- **Custom JavaScript Box**: CODE control type for custom JS
+- **Element Class/ID Display**: Show the CSS selector for each element in control descriptions (e.g., "Target: .pricing-card-title or #pricing-title-1")
+- **Widget Category**: Set category to ['hustle-tools'] to group all generated widgets together
+
+**ELEMENT SELECTOR DISPLAY PATTERN:**
+In every control description, include the CSS selector:
+\`\`\`php
+$this->add_control('title_text', [
+    'label' => 'Title Text',
+    'description' => 'CSS Selector: .widget-title | ID: #title-1',
+    'type' => \\Elementor\\Controls_Manager::TEXT,
+]);
+\`\`\`
+
+**CUSTOM CSS/JS SECTIONS (REQUIRED IN EVERY WIDGET):**
+\`\`\`php
+// Advanced Tab - Custom CSS
+$this->start_controls_section(
+    'custom_css_section',
+    [
+        'label' => 'Custom CSS',
+        'tab' => \\Elementor\\Controls_Manager::TAB_ADVANCED,
+    ]
+);
+
+$this->add_control(
+    'custom_css',
+    [
+        'label' => 'Custom CSS',
+        'type' => \\Elementor\\Controls_Manager::CODE,
+        'language' => 'css',
+        'description' => 'Add custom CSS. Will be scoped to this widget instance.',
+        'rows' => 10,
+    ]
+);
+
+$this->end_controls_section();
+
+// Advanced Tab - Custom JavaScript
+$this->start_controls_section(
+    'custom_js_section',
+    [
+        'label' => 'Custom JavaScript',
+        'tab' => \\Elementor\\Controls_Manager::TAB_ADVANCED,
+    ]
+);
+
+$this->add_control(
+    'custom_js',
+    [
+        'label' => 'Custom JavaScript',
+        'type' => \\Elementor\\Controls_Manager::CODE,
+        'language' => 'javascript',
+        'description' => 'Add custom JavaScript. Use jQuery or vanilla JS.',
+        'rows' => 10,
+    ]
+);
+
+$this->end_controls_section();
+\`\`\`
+
+**RENDER METHOD - Include Custom CSS/JS:**
+\`\`\`php
+protected function render() {
+    $settings = $this->get_settings_for_display();
+
+    // Output custom CSS if provided
+    if (!empty($settings['custom_css'])) {
+        echo '<style>' . $settings['custom_css'] . '</style>';
+    }
+
+    ?>
+    <!-- Widget HTML here -->
+    <?php
+
+    // Output custom JS if provided
+    if (!empty($settings['custom_js'])) {
+        echo '<script>' . $settings['custom_js'] . '</script>';
+    }
+}
+\`\`\`
+
+**DO NOT SKIP ANY ELEMENT - Every visible element must have corresponding controls!**
+
+**WIDGET CLASS STRUCTURE:**
+\`\`\`php
+<?php
+if ( ! defined( 'ABSPATH' ) ) {
+    exit; // Exit if accessed directly
+}
+
+class Elementor_Your_Widget extends \\Elementor\\Widget_Base {
+
+    public function get_name() {
+        return 'unique_widget_name';
+    }
+
+    public function get_title() {
+        return esc_html__( 'Widget Title', 'text-domain' );
+    }
+
+    public function get_icon() {
+        return 'eicon-icon-name'; // Choose from https://elementor.github.io/elementor-icons/
+    }
+
+    public function get_categories() {
+        return [ 'hustle-tools' ]; // Custom category to group all our widgets
+    }
+
+    protected function register_controls() {
+        $this->start_controls_section(
+            'content_section',
+            [
+                'label' => esc_html__( 'Content', 'text-domain' ),
+                'tab' => \\Elementor\\Controls_Manager::TAB_CONTENT,
+            ]
+        );
+
+        // Add controls here (title, description, colors, etc.)
+        $this->add_control(
+            'title',
+            [
+                'label' => esc_html__( 'Title', 'text-domain' ),
+                'type' => \\Elementor\\Controls_Manager::TEXT,
+                'default' => esc_html__( 'Default title', 'text-domain' ),
+            ]
+        );
+
+        $this->end_controls_section();
+    }
+
+    protected function render() {
+        $settings = $this->get_settings_for_display();
+        ?>
+        <!-- HTML output goes here -->
+        <div class="my-widget">
+            <h2><?php echo esc_html( $settings['title'] ); ?></h2>
+        </div>
+        <?php
+    }
+}
+\`\`\`
+
+OUTPUT FORMAT: Start immediately with <?php (no opening comment) and end with the final closing brace. Include the complete, working widget class. NOTHING else.`;
+
+      const result = streamText({
+        model: gateway(model, {
+          apiKey: process.env.AI_GATEWAY_API_KEY!,
+        }),
+        prompt: widgetPrompt,
+        temperature: 0.7,
+      });
+
+      console.log(`✅ Streaming PHP widget class response`);
+      return result.toTextStreamResponse();
+    }
 
     const prompts = {
       html: `You are an expert web developer. Generate clean, semantic HTML5 code for a SECTION/COMPONENT (NOT a full page) based on this description:

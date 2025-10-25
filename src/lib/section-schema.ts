@@ -130,6 +130,7 @@ export interface Section {
   html: string;
   css: string;
   js: string;
+  php?: string; // Elementor widget PHP code (optional)
   settings: SectionSettings;
   createdAt: number;
   updatedAt: number;

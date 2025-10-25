@@ -210,7 +210,7 @@ After using a tool, provide a helpful text response that explains what the tool 
       system: systemPrompt,
       messages: convertedMessages,
       tools: toolsConfig,
-      stopWhen: stepCountIs(5), // Use stopWhen instead of maxSteps
+      stopWhen: stepCountIs(2), // Limit tool calls to prevent UI duplication (was 5)
     };
 
     // Force tool usage if HTML keywords detected

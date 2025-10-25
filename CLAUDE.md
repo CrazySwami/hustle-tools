@@ -155,6 +155,63 @@ Firecrawl API integration for website mapping and scraping.
 
 ## Key Technical Patterns
 
+### Vercel AI SDK Tool Rendering (CRITICAL)
+
+**Problem**: Duplicate tool widgets appear in chat (same tool rendered twice)
+
+**Root Cause**: Vercel AI SDK 5 creates TWO message parts for each tool invocation:
+1. **Generic part**: `{ type: 'tool-call', toolName: 'planBlogTopics', args: {...} }`
+2. **Typed part**: `{ type: 'tool-planBlogTopics', input: {...}, output: {...} }`
+
+If both parts are rendered, users see duplicate widgets for the same tool call.
+
+**Solution** (implemented in `/src/components/chat/UniversalChat.tsx:205-228`):
+
+```typescript
+case 'tool-call': {
+  // Skip generic tool-call if we have a typed tool part in this message
+  // This prevents duplicate rendering when AI SDK creates both types
+  const toolName = part.toolName ?? part.toolCall?.toolName;
+  const hasTypedPart = message.parts.some((p: any) =>
+    p.type === `tool-${toolName}` && p !== part
+  );
+
+  if (hasTypedPart) {
+    console.log('⏭️ Skipping generic tool-call, typed part exists:', toolName);
+    return null;
+  }
+
+  // Only render if no typed part exists
+  console.log('🔨 Tool call detected (no typed part):', toolName);
+  return (
+    <Tool key={i} defaultOpen>
+      <ToolHeader type={toolName} state="input-available" />
+      <ToolContent>
+        <ToolInput input={part.args ?? part.toolCall?.args} />
+      </ToolContent>
+    </Tool>
+  );
+}
+```
+
+**How it works**:
+1. When rendering `tool-call` part, check if typed `tool-TOOLNAME` part exists in same message
+2. If typed part exists → skip generic part (return `null`)
+3. If NO typed part → render generic part with Tool component
+4. Typed parts are always rendered via `ToolResultRenderer` component
+
+**Why this happens**:
+- AI SDK 5 uses typed parts for better TypeScript support and tool-specific rendering
+- Generic `tool-call` exists for backwards compatibility
+- Without deduplication, both render simultaneously
+
+**Testing**:
+Open browser console and trigger any tool. You should see:
+- `⏭️ Skipping generic tool-call, typed part exists: toolName` (for generic part)
+- Only ONE widget renders in the UI
+
+This fix applies to ALL tools across all features (blog planner, elementor, etc.) since they all use UniversalChat.tsx.
+
 ### File-Based JSON for WordPress Operations
 **CRITICAL**: When writing data to WordPress Playground, ALWAYS use file-based approach:
 ```javascript
@@ -277,16 +334,30 @@ Comprehensive docs in `/docs/`:
 
 ## Common Gotchas
 
-1. **Don't use string interpolation for WordPress PHP**: Always use file-based approach
-2. **Check `playgroundReady` before WP operations**: Prevents "Playground not running" errors
-3. **Use `isset()` not empty checks**: Allows clearing WordPress settings fields
-4. **File paths must be absolute**: Next.js requires absolute paths, not relative
-5. **Playground.js is vanilla JS**: Not a React component, uses global window functions
-6. **Status indicator is fixed at bottom**: z-index 1000, shows across all tabs
-7. **Model names include provider prefix**: e.g., `openai/gpt-5` not just `gpt-5`
-8. **GrapeJS is client-side only**: Must use dynamic import and 'use client' directive
-9. **Global CSS in GrapeJS**: Convert to data URL via `btoa()` before injecting into canvas.styles
-10. **Visual ↔ Code sync**: Always update `currentSection` state when switching between editors
-11. **Visual Editor blocks panel**: Must append to visible DOM element (not hidden div) to show "+" buttons
-12. **WordPress imports use zero padding**: Section and column defaults ensure full-width layouts
-13. **Supabase is optional**: All client creation functions check for credentials and return mock clients if missing
+1. **🚨 CRITICAL: Duplicate Tool Rendering (Vercel AI SDK 5)**: The AI SDK creates TWO parts for each tool call - a generic `tool-call` part AND a typed `tool-TOOLNAME` part. If both are rendered, you'll see duplicate widgets in the chat. **Fix**: In UniversalChat.tsx, check if typed part exists before rendering generic part. See "Vercel AI SDK Tool Rendering" section below for full implementation.
+
+2. **Don't use string interpolation for WordPress PHP**: Always use file-based approach
+
+3. **Check `playgroundReady` before WP operations**: Prevents "Playground not running" errors
+
+4. **Use `isset()` not empty checks**: Allows clearing WordPress settings fields
+
+5. **File paths must be absolute**: Next.js requires absolute paths, not relative
+
+6. **Playground.js is vanilla JS**: Not a React component, uses global window functions
+
+7. **Status indicator is fixed at bottom**: z-index 1000, shows across all tabs
+
+8. **Model names include provider prefix**: e.g., `openai/gpt-5` not just `gpt-5`
+
+9. **GrapeJS is client-side only**: Must use dynamic import and 'use client' directive
+
+10. **Global CSS in GrapeJS**: Convert to data URL via `btoa()` before injecting into canvas.styles
+
+11. **Visual ↔ Code sync**: Always update `currentSection` state when switching between editors
+
+12. **Visual Editor blocks panel**: Must append to visible DOM element (not hidden div) to show "+" buttons
+
+13. **WordPress imports use zero padding**: Section and column defaults ensure full-width layouts
+
+14. **Supabase is optional**: All client creation functions check for credentials and return mock clients if missing

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WordPress Plugin Diagnostics</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        .section { margin: 20px 0; padding: 15px; background: #252526; border-radius: 5px; }
+        .section h2 { color: #4ec9b0; margin-top: 0; }
+        pre { background: #1e1e1e; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        button { background: #0e639c; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: pointer; margin: 5px; }
+        button:hover { background: #1177bb; }
+        .error { color: #f48771; }
+        .success { color: #4ec9b0; }
+        .warning { color: #dcdcaa; }
+    </style>
+</head>
+<body>
+    <h1>WordPress Plugin Diagnostics</h1>
+    <p>Run these diagnostics on the Elementor editor page (same window/tab as WordPress Playground)</p>
+
+    <div class="section">
+        <h2>1. Check WordPress Debug Log</h2>
+        <button onclick="checkDebugLog()">Run Check</button>
+        <pre id="debug-log">Click the button above...</pre>
+    </div>
+
+    <div class="section">
+        <h2>2. Verify Main Plugin File</h2>
+        <button onclick="checkMainFile()">Run Check</button>
+        <pre id="main-file">Click the button above...</pre>
+    </div>
+
+    <div class="section">
+        <h2>3. Check Widget.php Syntax</h2>
+        <button onclick="checkWidgetSyntax()">Run Check</button>
+        <pre id="widget-syntax">Click the button above...</pre>
+    </div>
+
+    <div class="section">
+        <h2>4. Try Plugin Activation (Capture Error)</h2>
+        <button onclick="tryActivation()">Run Check</button>
+        <pre id="activation">Click the button above...</pre>
+    </div>
+
+    <div class="section">
+        <h2>5. List Plugin Files</h2>
+        <button onclick="listFiles()">Run Check</button>
+        <pre id="files">Click the button above...</pre>
+    </div>
+
+    <script>
+        async function checkDebugLog() {
+            const output = document.getElementById('debug-log');
+            output.textContent = 'Checking...';
+
+            try {
+                const log = await playgroundClient.readFileAsText('/wordpress/wp-content/debug.log');
+                output.innerHTML = `<span class="success">Debug log found:</span>\n${log}`;
+            } catch (error) {
+                output.innerHTML = `<span class="warning">No debug log found or error reading it:</span>\n${error.message}`;
+            }
+        }
+
+        async function checkMainFile() {
+            const output = document.getElementById('main-file');
+            output.textContent = 'Reading...';
+
+            try {
+                const file = await playgroundClient.readFileAsText('/wordpress/wp-content/plugins/elementor-animated_poem_widget/elementor-animated_poem_widget.php');
+
+                // Check for the bug
+                if (file.includes('register_animated_poem_widget_widget')) {
+                    output.innerHTML = `<span class="error">❌ BUG FOUND: Function has duplicate "_widget"</span>\n\nLine 28 should be:\nfunction register_animated_poem_widget(\n\nBut file contains:\nfunction register_animated_poem_widget_widget(\n\n<span class="warning">The file was NOT updated correctly!</span>`;
+                } else if (file.includes('register_animated_poem_widget(')) {
+                    output.innerHTML = `<span class="success">✅ Main file looks correct!</span>\n\nFunction names are properly formatted.`;
+                } else {
+                    output.innerHTML = `<span class="warning">⚠️ Cannot find widget registration function</span>\n\nFile preview:\n${file.substring(0, 500)}...`;
+                }
+            } catch (error) {
+                output.innerHTML = `<span class="error">Error reading file:</span>\n${error.message}`;
+            }
+        }
+
+        async function checkWidgetSyntax() {
+            const output = document.getElementById('widget-syntax');
+            output.textContent = 'Checking...';
+
+            try {
+                const result = await playgroundClient.run({
+                    code: `<?php
+                        $widget_file = '/wordpress/wp-content/plugins/elementor-animated_poem_widget/widget.php';
+
+                        if (!file_exists($widget_file)) {
+                            echo 'ERROR: widget.php not found';
+                            exit;
+                        }
+
+                        exec('php -l ' . escapeshellarg($widget_file) . ' 2>&1', $output, $return);
+
+                        if ($return === 0) {
+                            echo 'Syntax OK - No errors in widget.php';
+                        } else {
+                            echo 'SYNTAX ERROR:\\n' . implode('\\n', $output);
+                        }
+                    ?>`
+                });
+
+                if (result.text.includes('Syntax OK')) {
+                    output.innerHTML = `<span class="success">✅ ${result.text}</span>`;
+                } else {
+                    output.innerHTML = `<span class="error">❌ ${result.text}</span>`;
+                }
+            } catch (error) {
+                output.innerHTML = `<span class="error">Error running check:</span>\n${error.message}`;
+            }
+        }
+
+        async function tryActivation() {
+            const output = document.getElementById('activation');
+            output.textContent = 'Attempting activation...';
+
+            try {
+                const result = await playgroundClient.run({
+                    code: `<?php
+                        error_reporting(E_ALL);
+                        ini_set('display_errors', 1);
+
+                        require_once '/wordpress/wp-load.php';
+                        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+                        $plugin = 'elementor-animated_poem_widget/elementor-animated_poem_widget.php';
+
+                        // Deactivate first
+                        deactivate_plugins($plugin);
+
+                        // Try to activate
+                        $result = activate_plugin($plugin);
+
+                        if (is_wp_error($result)) {
+                            echo 'ACTIVATION ERROR:\\n' . $result->get_error_message();
+                        } else {
+                            echo 'SUCCESS: Plugin activated without errors!';
+                        }
+                    ?>`
+                });
+
+                if (result.text.includes('SUCCESS')) {
+                    output.innerHTML = `<span class="success">✅ ${result.text}</span>`;
+                } else {
+                    output.innerHTML = `<span class="error">❌ ${result.text}</span>`;
+                }
+            } catch (error) {
+                output.innerHTML = `<span class="error">Error:</span>\n${error.message}`;
+            }
+        }
+
+        async function listFiles() {
+            const output = document.getElementById('files');
+            output.textContent = 'Listing...';
+
+            try {
+                const files = await playgroundClient.listFiles('/wordpress/wp-content/plugins/elementor-animated_poem_widget');
+                output.innerHTML = `<span class="success">Plugin files:</span>\n${files.join('\n')}`;
+            } catch (error) {
+                output.innerHTML = `<span class="error">Error:</span>\n${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

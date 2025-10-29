@@ -196,153 +196,64 @@ export const scrapeUrlTool = tool({
   },
 });
 
-// HTML Generator tool - generates HTML/CSS/JS with optional image analysis
-export const htmlGeneratorTool = tool({
-  description: 'REQUIRED TOOL: Use this tool whenever a user asks to generate, create, build, or make HTML, CSS, JavaScript, or any web component (hero section, pricing table, contact form, navbar, footer, etc.). This tool opens an interactive UI for the user to provide details and upload optional images. DO NOT generate code yourself - always use this tool.',
-  inputSchema: z.object({
-    description: z.string().describe('Detailed description of what to build (layout, features, styling, functionality)'),
-    images: z.array(z.object({
-      url: z.string().describe('Base64 data URL or uploaded image URL'),
-      filename: z.string().describe('Original filename'),
-    })).max(3).optional().describe('Up to 3 reference images (mockups, designs, screenshots)'),
-  }),
-  execute: async ({ description, images = [] }) => {
-    // This tool will trigger generative UI on the frontend
-    // The actual generation happens via a separate API call
-    return {
-      description,
-      imageCount: images.length,
-      images,
-      timestamp: new Date().toISOString(),
-      status: 'ready_to_generate',
-      message: 'HTML generation tool activated. Opening generator interface...'
-    };
-  },
-});
+// REMOVED: htmlGeneratorTool - Replaced by editCodeWithMorphTool which works on BOTH empty AND existing files
+// Morph is the single unified tool for all code writing/editing
+// See: editCodeWithMorphTool below
 
 // Section editing tools for HTML/CSS/JS sections
-export const updateSectionHtmlTool = tool({
-  description: 'Update the HTML content of the current section. Use this when the user asks to modify, change, or update the HTML markup of the section they are viewing.',
+// REMOVED: updateSectionHtmlTool - Replaced by editCodeWithMorphTool (handles everything!)
+// editCodeWithMorph works on empty AND existing files, no need for separate update tools
+
+// REMOVED: updateSectionCssTool - Replaced by editCodeWithMorphTool (handles everything!)
+// editCodeWithMorph works on empty AND existing files, no need for separate update tools
+
+// REMOVED: updateSectionJsTool - Replaced by editCodeWithMorphTool (handles everything!)
+// editCodeWithMorph works on empty AND existing files, no need for separate update tools
+
+// REMOVED: getEditorContentTool - no longer needed
+// Morph Fast Apply automatically accesses editor content when making edits
+// The current section code is passed via system prompt in chat-elementor API route
+
+// REMOVED: editCodeWithDiffTool - replaced by Morph Fast Apply (editCodeWithMorphTool)
+// Morph is 10x faster, 98% accurate, and doesn't require diff approval workflow
+
+// REMOVED: updateSectionPhpTool - Replaced by editCodeWithMorphTool (handles everything!)
+// editCodeWithMorph supports PHP files via file='php' parameter
+
+// Edit Code with Morph Fast Apply - PREFERRED method for code editing
+export const editCodeWithMorphTool = tool({
+  description: 'Edit code using Morph Fast Apply (98% accuracy, 10x faster than diffs). This is the PREFERRED way to edit existing code. Use lazy edits with "// ... existing code ..." to indicate unchanged sections. Works with ANY model (even Haiku!) because you only write the changes, not complex diff format. Supports HTML, CSS, JavaScript, and PHP files.',
   inputSchema: z.object({
-    html: z.string().describe('The new HTML content for the section (NO DOCTYPE, html, head, or body tags - section-level content only)'),
-    reasoning: z.string().optional().describe('Brief explanation of what was changed and why'),
+    file: z.enum(['html', 'css', 'js', 'php']).describe('Which file to edit (html, css, js, or php)'),
+    instruction: z.string().describe('Clear first-person instruction: "I am changing the button color to red" or "I am adding error handling to the auth function"'),
+    lazyEdit: z.string().describe('The code changes using "// ... existing code ..." for unchanged parts. Example:\n// ... existing code ...\n.button {\n  background: red;\n}\n// ... existing code ...'),
   }),
-  execute: async ({ html, reasoning }) => {
+  execute: async ({ file, instruction, lazyEdit }) => {
     return {
-      type: 'update_html',
-      html,
-      reasoning,
+      file,
+      instruction,
+      lazyEdit,
       timestamp: new Date().toISOString(),
-      message: 'HTML updated successfully',
+      status: 'pending_morph_merge',
+      message: 'Morph Fast Apply activated. Merging changes...',
     };
   },
 });
 
-export const updateSectionCssTool = tool({
-  description: 'Update the CSS styles of the current section. Use this when the user asks to modify, change, or update the styling, colors, layout, or appearance of the section.',
-  inputSchema: z.object({
-    css: z.string().describe('The new CSS content for the section (NO <style> tags - pure CSS only)'),
-    reasoning: z.string().optional().describe('Brief explanation of what styles were changed and why'),
-  }),
-  execute: async ({ css, reasoning }) => {
-    return {
-      type: 'update_css',
-      css,
-      reasoning,
-      timestamp: new Date().toISOString(),
-      message: 'CSS updated successfully',
-    };
-  },
-});
-
-export const updateSectionJsTool = tool({
-  description: 'Update the JavaScript code of the current section. Use this when the user asks to modify, change, or update the interactivity, animations, or functionality of the section.',
-  inputSchema: z.object({
-    js: z.string().describe('The new JavaScript content for the section (NO <script> tags - pure JavaScript only)'),
-    reasoning: z.string().optional().describe('Brief explanation of what functionality was changed and why'),
-  }),
-  execute: async ({ js, reasoning }) => {
-    return {
-      type: 'update_js',
-      js,
-      reasoning,
-      timestamp: new Date().toISOString(),
-      message: 'JavaScript updated successfully',
-    };
-  },
-});
-
-// View editor code tool - displays code to user with syntax highlighting AND retrieves content for AI
-export const viewEditorCodeTool = tool({
-  description: 'Display code files (HTML, CSS, JavaScript) with syntax highlighting. IMPORTANT: Automatically pre-select files based on what the user asked for. Examples: "show HTML" → files: ["html"], "view CSS and JS" → files: ["css", "js"], "show all code" → files: ["html", "css", "js"]. After calling this tool, DO NOT send additional text explaining what will happen - the widget handles everything.',
-  inputSchema: z.object({
-    files: z.array(z.enum(['html', 'css', 'js'])).optional().describe('Pre-select specific files based on user request. Parse their request to determine which files they want to see.'),
-  }),
-  execute: async ({ files }) => {
-    // Return file list structure for UI
-    const availableFiles = [
-      { name: 'index.html', type: 'html' as const, selected: files?.includes('html') ?? true },
-      { name: 'styles.css', type: 'css' as const, selected: files?.includes('css') ?? true },
-      { name: 'script.js', type: 'js' as const, selected: files?.includes('js') ?? false }
-    ];
-
-    return {
-      files: availableFiles,
-      timestamp: new Date().toISOString(),
-      status: 'ready_to_view',
-      message: 'Code viewer ready. Select files to view.'
-    };
-  },
-});
+// REMOVED: viewEditorCodeTool - No longer needed
+// The current section code is automatically included in the system prompt
+// Model can see all files (HTML/CSS/JS/PHP) without needing a separate "view" tool
+// See: System prompt in /src/app/api/chat-elementor/route.ts lines 117-147
 
 // =====================
 // TEST PING TOOL (Simple Diagnostic)
 // =====================
-export const testPingTool = tool({
-  description: 'A simple test tool that responds with a ping message. Use this IMMEDIATELY when the user says "test ping" or "ping test" to verify the tool calling system is working.',
-  inputSchema: z.object({
-    message: z.string().optional().describe('Optional message to include in the ping response'),
-  }),
-  execute: async ({ message }) => {
-    console.log('🏓 TEST PING TOOL EXECUTED!', { message });
-    return {
-      status: 'success',
-      timestamp: new Date().toISOString(),
-      message: message || 'Pong! Tool calling is working.',
-      endpoint: 'chat-elementor',
-    };
-  },
-});
+// REMOVED: testPingTool - Diagnostic tool no longer needed
+// Tool calling system is stable and working correctly
 
-// Tab switcher tool - switches between editor tabs
-export const switchTabTool = tool({
-  description: 'Switch to a different tab in the Elementor editor. Use this when the user wants to navigate to a specific section (Code Editor, Visual Editor, Section Library, WordPress Playground, Site Content, or Style Guide).',
-  inputSchema: z.object({
-    tab: z.enum(['json', 'visual', 'sections', 'playground', 'site-content', 'style-guide']).describe('The tab to switch to: json (Code Editor), visual (Visual Editor), sections (Section Library), playground (WordPress Playground), site-content (Site Content), or style-guide (Style Guide)'),
-    reason: z.string().optional().describe('Optional reason for switching tabs'),
-  }),
-  execute: async ({ tab, reason }) => {
-    // This tool will trigger the tab switch via frontend callback
-    // The actual switching happens via the widget component
-    const tabNames = {
-      'json': 'Code Editor',
-      'visual': 'Visual Editor',
-      'sections': 'Section Library',
-      'playground': 'WordPress Playground',
-      'site-content': 'Site Content',
-      'style-guide': 'Style Guide',
-    };
-
-    return {
-      tab,
-      tabName: tabNames[tab],
-      reason,
-      timestamp: new Date().toISOString(),
-      status: 'ready_to_switch',
-      message: `Tab switcher activated. Ready to navigate to ${tabNames[tab]}.`
-    };
-  },
-});
+// REMOVED: switchTabTool - Tab switching is handled directly by UI now
+// Users can click tabs directly, no need for AI to call a tool for navigation
+// This simplifies the tool ecosystem and reduces unnecessary tool calls
 
 // Step Planning tool - creates explicit numbered plans before execution
 export const planStepsTool = tool({
@@ -500,6 +411,88 @@ export const writeBlogPostTool = tool({
   },
 });
 
+// Image Generation tool - OpenAI (DALL-E 3, GPT Image 1) or Google Gemini Imagen 3
+export const generateImageTool = tool({
+  description: 'Generate images using OpenAI (DALL-E 3 or GPT Image 1) or Google Gemini Imagen 3 via AI Gateway. Creates high-quality AI-generated images from text descriptions. GPT Image 1 is newest (~$0.02-0.19/img), DALL-E 3 is classic (~$0.04-0.08/img).',
+  inputSchema: z.object({
+    prompt: z.string().describe('The description of the image to generate'),
+    provider: z.enum(['openai', 'gemini']).default('openai').describe('Image generation provider: openai (DALL-E 3 or GPT Image 1) or gemini (Imagen 3 via AI Gateway)'),
+    openaiModel: z.enum(['dall-e-3', 'gpt-image-1']).optional().default('gpt-image-1').describe('OpenAI model: gpt-image-1 (newest, cheapest) or dall-e-3 (classic)'),
+    geminiModel: z.enum(['imagen-3.0-generate-001', 'imagen-3.0-fast-generate-001']).optional().default('imagen-3.0-fast-generate-001').describe('Gemini model: fast or standard Imagen 3'),
+    size: z.enum(['1024x1024', '1536x1536', '1792x1024', '1024x1792']).optional().default('1024x1024').describe('Image size (1536x1536 only for gpt-image-1)'),
+    quality: z.enum(['low', 'standard', 'hd']).optional().default('standard').describe('Image quality: low/medium/high for gpt-image-1, standard/hd for dall-e-3'),
+    style: z.enum(['vivid', 'natural']).optional().default('vivid').describe('Image style (only for DALL-E 3, ignored for gpt-image-1)'),
+    aspectRatio: z.enum(['1:1', '16:9', '9:16', '4:3', '3:4']).optional().default('1:1').describe('Aspect ratio for Gemini (ignored for OpenAI)'),
+  }),
+  execute: async ({ prompt, provider, openaiModel, geminiModel, size, quality, style, aspectRatio }) => {
+    const modelName = provider === 'openai'
+      ? (openaiModel === 'gpt-image-1' ? 'GPT Image 1' : 'DALL-E 3')
+      : `Gemini ${geminiModel?.includes('fast') ? 'Imagen 3 Fast' : 'Imagen 3'}`;
+
+    return {
+      prompt,
+      provider,
+      openaiModel,
+      geminiModel,
+      size,
+      quality,
+      style,
+      aspectRatio,
+      status: 'ready_to_generate',
+      message: `Ready to generate image with ${modelName}. Check the Images tab or widget below.`,
+    };
+  },
+});
+
+// Image Editing tool - Google Gemini Flash for AI-powered image editing
+export const editImageTool = tool({
+  description: 'Edit existing images using Google Gemini Flash (Imagen 3). Apply AI-powered modifications, add elements, change styles, or transform images based on text instructions.',
+  inputSchema: z.object({
+    prompt: z.string().describe('Instructions for how to edit the image'),
+    referenceImageUrl: z.string().describe('URL or base64 data URL of the image to edit'),
+    editType: z.enum(['general', 'inpaint', 'outpaint', 'style']).optional().default('general').describe('Type of edit: general modifications, inpainting (add/remove objects), outpainting (extend image), or style transfer'),
+  }),
+  execute: async ({ prompt, referenceImageUrl, editType }) => {
+    return {
+      prompt,
+      referenceImageUrl,
+      editType,
+      status: 'ready_to_edit',
+      message: 'Ready to edit image with Gemini Flash. Check the Images tab or widget below.',
+    };
+  },
+});
+
+// Background Removal tool - Remove background from images
+export const removeBackgroundTool = tool({
+  description: 'Remove the background from an image to create transparent PNGs. Useful for product photos, portraits, logos, and creating assets for web design.',
+  inputSchema: z.object({
+    imageUrl: z.string().describe('URL or base64 data URL of the image to process'),
+  }),
+  execute: async ({ imageUrl }) => {
+    return {
+      imageUrl,
+      status: 'ready_to_remove_bg',
+      message: 'Ready to remove background. Check the Images tab or widget below.',
+    };
+  },
+});
+
+// Reverse Image Search tool - Find similar images or identify objects
+export const reverseImageSearchTool = tool({
+  description: 'Perform reverse image search to find similar images, identify objects, or discover the source of an image. Uses Google Vision API, SerpAPI, or TinEye.',
+  inputSchema: z.object({
+    imageUrl: z.string().describe('URL or base64 data URL of the image to search'),
+  }),
+  execute: async ({ imageUrl }) => {
+    return {
+      imageUrl,
+      status: 'ready_to_search',
+      message: 'Ready to search for similar images. Check the Images tab or widget below.',
+    };
+  },
+});
+
 export const tools = {
   googleSearch: googleSearchTool,
   getWeather: weatherTool,
@@ -508,16 +501,22 @@ export const tools = {
   manageTask: taskManagerTool,
   getDocumentContent: documentContentTool,
   scrapeUrl: scrapeUrlTool,
-  generateHTML: htmlGeneratorTool,
-  updateSectionHtml: updateSectionHtmlTool,
-  updateSectionCss: updateSectionCssTool,
-  updateSectionJs: updateSectionJsTool,
-  viewEditorCode: viewEditorCodeTool,
-  // editCode: editCodeTool, // REMOVED: Was too complex, use updateSection tools instead
-  testPing: testPingTool,
-  switchTab: switchTabTool,
+  // REMOVED: generateHTML - Replaced by editCodeWithMorph (works on empty files too!)
+  // REMOVED: viewEditorCode - Code is automatically in system prompt
+  // REMOVED: editCode - Was too complex, replaced by editCodeWithMorph
+  // REMOVED: updateSectionHtml - Replaced by editCodeWithMorph
+  // REMOVED: updateSectionCss - Replaced by editCodeWithMorph
+  // REMOVED: updateSectionJs - Replaced by editCodeWithMorph
+  // REMOVED: updateSectionPhp - Replaced by editCodeWithMorph (file='php')
+  // REMOVED: testPing - Diagnostic tool no longer needed
+  editCodeWithMorph: editCodeWithMorphTool,  // ⭐ THE ONLY CODE TOOL - handles everything!
+  // REMOVED: switchTab - Tab navigation handled by UI, not tools
   planSteps: planStepsTool,                 // ⭐ Multi-step planning tool
   updateStepProgress: updateStepProgressTool, // ⭐ Step progress tracking
   planBlogTopics: planBlogTopicsTool,
   writeBlogPost: writeBlogPostTool,
+  generateImage: generateImageTool,          // ⭐ AI image generation
+  editImage: editImageTool,                  // ⭐ AI image editing
+  removeBackground: removeBackgroundTool,    // ⭐ Background removal
+  reverseImageSearch: reverseImageSearchTool, // ⭐ Reverse image search
 };

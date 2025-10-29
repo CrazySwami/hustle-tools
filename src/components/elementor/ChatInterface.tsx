@@ -467,6 +467,13 @@ export function ChatInterface({
 
             {/* Legacy format: Tool calls and results from message.parts */}
             {message.parts?.filter(part => part != null).map((part: any, partIndex: number) => {
+              // Skip generic tool-call if we have message.tool_calls (prevents duplicate rendering)
+              // AI SDK 5 creates BOTH tool_calls AND parts with type='tool-call' for same tool invocation
+              if (part.type === 'tool-call' && message.tool_calls && message.tool_calls.length > 0) {
+                console.log('⏭️ Skipping generic tool-call part, message.tool_calls exists:', part.toolName);
+                return null;
+              }
+
               if (part.type === 'tool-call') {
                 return (
                   <div key={partIndex} className="tool-call-display">

@@ -475,7 +475,54 @@ NOTHING else. No markdown. No explanations.`,
 
     console.log(`✅ Streaming ${type.toUpperCase()} response`);
 
-    return result.toTextStreamResponse();
+    // Create custom response with usage tracking
+    const textStream = result.textStream;
+    const usagePromise = result.usage;
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Stream the generated text
+          for await (const chunk of textStream) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+
+          // Wait for usage data
+          const usage = await usagePromise;
+          console.log(`📊 ${type.toUpperCase()} generation usage:`, {
+            model,
+            inputTokens: usage.promptTokens,
+            outputTokens: usage.completionTokens,
+            totalTokens: usage.totalTokens,
+          });
+
+          // Append usage as JSON at the end (with delimiter)
+          const usageData = {
+            _usage: {
+              model,
+              promptTokens: usage.promptTokens,
+              completionTokens: usage.completionTokens,
+              totalTokens: usage.totalTokens,
+              type,
+            }
+          };
+          controller.enqueue(encoder.encode(`\n\n__USAGE__${JSON.stringify(usageData)}__END__`));
+
+          controller.close();
+        } catch (error) {
+          console.error(`❌ Stream error for ${type}:`, error);
+          controller.error(error);
+        }
+      }
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Model': model,
+      },
+    });
 
   } catch (error: any) {
     console.error('❌ HTML generation error:', error);

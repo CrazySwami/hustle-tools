@@ -53,7 +53,12 @@ interface BatchResult {
   };
 }
 
-export function PageExtractor() {
+interface PageExtractorProps {
+  onCssExtracted?: (css: string, sourceUrl?: string) => void;
+  extractMode?: 'css-only' | 'full-page';
+}
+
+export function PageExtractor({ onCssExtracted, extractMode = 'full-page' }: PageExtractorProps = {}) {
   const [urls, setUrls] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ExtractionResult | null>(null);
@@ -61,10 +66,10 @@ export function PageExtractor() {
   const [error, setError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  // Options
-  const [includeImages, setIncludeImages] = useState(false);
-  const [includeFonts, setIncludeFonts] = useState(false);
-  const [includeFullStylesheet, setIncludeFullStylesheet] = useState(true);
+  // Options - set defaults based on extractMode
+  const [includeImages, setIncludeImages] = useState(extractMode === 'full-page');
+  const [includeFonts, setIncludeFonts] = useState(true); // Always true for both modes
+  const [includeFullStylesheet, setIncludeFullStylesheet] = useState(true); // Always true for both modes
 
   const extractPage = async () => {
     const urlList = urls.split('\n').map(u => u.trim()).filter(Boolean);
@@ -96,6 +101,11 @@ export function PageExtractor() {
         } else {
           // Single result
           setResult(data);
+
+          // Call the callback if provided and CSS was extracted
+          if (onCssExtracted && data.files?.css) {
+            onCssExtracted(data.files.css, data.metadata?.sourceUrl);
+          }
         }
       } else {
         setError(data.error || 'Failed to extract page');
@@ -302,41 +312,50 @@ ${data.files.js}
           </div>
 
           {/* Options */}
-          <div className="space-y-3 border-t pt-4">
-            <h3 className="font-semibold text-sm">Extraction Options</h3>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="includeImages"
-                  checked={includeImages}
-                  onCheckedChange={(checked) => setIncludeImages(checked as boolean)}
-                />
-                <label htmlFor="includeImages" className="text-sm cursor-pointer">
-                  Download & inline images as base64
-                </label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="includeFonts"
-                  checked={includeFonts}
-                  onCheckedChange={(checked) => setIncludeFonts(checked as boolean)}
-                />
-                <label htmlFor="includeFonts" className="text-sm cursor-pointer">
-                  Extract & download fonts
-                </label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="includeFullStylesheet"
-                  checked={includeFullStylesheet}
-                  onCheckedChange={(checked) => setIncludeFullStylesheet(checked as boolean)}
-                />
-                <label htmlFor="includeFullStylesheet" className="text-sm cursor-pointer">
-                  Include full stylesheet
-                </label>
+          {extractMode === 'css-only' ? (
+            <div className="space-y-2 border-t pt-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <InfoIcon className="w-4 h-4" />
+                <span>CSS-only mode: Extracts stylesheet and fonts for styling purposes</span>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-3 border-t pt-4">
+              <h3 className="font-semibold text-sm">Extraction Options</h3>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeImages"
+                    checked={includeImages}
+                    onCheckedChange={(checked) => setIncludeImages(checked as boolean)}
+                  />
+                  <label htmlFor="includeImages" className="text-sm cursor-pointer">
+                    Download & inline images as base64
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeFonts"
+                    checked={includeFonts}
+                    onCheckedChange={(checked) => setIncludeFonts(checked as boolean)}
+                  />
+                  <label htmlFor="includeFonts" className="text-sm cursor-pointer">
+                    Extract & download fonts
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeFullStylesheet"
+                    checked={includeFullStylesheet}
+                    onCheckedChange={(checked) => setIncludeFullStylesheet(checked as boolean)}
+                  />
+                  <label htmlFor="includeFullStylesheet" className="text-sm cursor-pointer">
+                    Include full stylesheet
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
 
           <Button
             onClick={extractPage}
@@ -347,12 +366,12 @@ ${data.files.js}
             {loading ? (
               <>
                 <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />
-                Extracting with Firecrawl...
+                Extracting{extractMode === 'css-only' ? ' CSS & Fonts' : ' Full Page'}...
               </>
             ) : (
               <>
                 <FileCodeIcon className="w-4 h-4 mr-2" />
-                Extract {urls.split('\n').filter(Boolean).length > 1 ? 'All URLs' : 'Page'}
+                {extractMode === 'css-only' ? 'Extract CSS & Fonts' : `Extract Full Page${urls.split('\n').filter(Boolean).length > 1 ? 's' : ''}`}
               </>
             )}
           </Button>

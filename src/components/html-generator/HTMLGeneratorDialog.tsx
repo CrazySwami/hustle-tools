@@ -4,17 +4,25 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2Icon, UploadIcon, XIcon, CheckCircleIcon, FileCodeIcon } from 'lucide-react';
+import { DesignSystemSummary } from '@/lib/global-stylesheet-context';
 
 interface HTMLGeneratorDialogProps {
   initialDescription?: string;
   initialImages?: Array<{ url: string; filename: string }>;
-  onGenerate: (description: string, images: Array<{ url: string; filename: string; description?: string }>, mode?: 'section' | 'widget') => Promise<void>;
+  designSystemSummary?: DesignSystemSummary | null;
+  onGenerate: (
+    description: string,
+    images: Array<{ url: string; filename: string; description?: string }>,
+    mode?: 'section' | 'widget',
+    useExtractedClasses?: boolean
+  ) => Promise<void>;
   onClose: () => void;
 }
 
 export function HTMLGeneratorDialog({
   initialDescription = '',
   initialImages = [],
+  designSystemSummary = null,
   onGenerate,
   onClose,
 }: HTMLGeneratorDialogProps) {
@@ -23,6 +31,7 @@ export function HTMLGeneratorDialog({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [mode, setMode] = useState<'section' | 'widget'>('section');
+  const [useExtractedClasses, setUseExtractedClasses] = useState(!!designSystemSummary);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -84,7 +93,7 @@ export function HTMLGeneratorDialog({
 
     setIsGenerating(true);
     try {
-      await onGenerate(description, images, mode);
+      await onGenerate(description, images, mode, useExtractedClasses);
     } catch (error) {
       console.error('Generation error:', error);
     } finally {
@@ -245,6 +254,48 @@ export function HTMLGeneratorDialog({
               }}
             />
           </div>
+
+          {/* Use Extracted Classes Checkbox */}
+          {designSystemSummary && (
+            <div style={{ marginBottom: '24px' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '16px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  background: useExtractedClasses ? 'var(--accent)' : 'transparent',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={useExtractedClasses}
+                  onChange={(e) => setUseExtractedClasses(e.target.checked)}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    accentColor: 'var(--primary)',
+                    cursor: 'pointer',
+                  }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500, fontSize: '14px', marginBottom: '4px' }}>
+                    Use extracted CSS classes from Style Guide
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                    {designSystemSummary.totalClasses} classes available from{' '}
+                    {designSystemSummary.extractedFrom
+                      ? new URL(designSystemSummary.extractedFrom).hostname
+                      : 'extracted CSS'}
+                  </div>
+                </div>
+              </label>
+            </div>
+          )}
 
           {/* Image Upload */}
           <div style={{ marginBottom: '24px' }}>

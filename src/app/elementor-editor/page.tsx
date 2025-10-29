@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { useEditorContent } from '@/hooks/useEditorContent';
+import { useUsageTracking } from '@/hooks/useUsageTracking';
 import '../elementor-editor.css';
 
 export const dynamic = 'force-dynamic';
@@ -12,14 +13,16 @@ import { PlaygroundView } from '@/components/elementor/PlaygroundView';
 import { HtmlGeneratorNew } from '@/components/elementor/HtmlGeneratorNew';
 import { SiteContentManager } from '@/components/elementor/SiteContentManager';
 import { StyleKitEditorNew } from '@/components/elementor/StyleKitEditorNew';
-import { StyleGuide } from '@/components/elementor/StyleGuide';
+import { StyleGuideUnified } from '@/components/elementor/StyleGuideUnified';
 import { HtmlSectionEditor } from '@/components/elementor/HtmlSectionEditor';
 import { VisualSectionEditor } from '@/components/elementor/VisualSectionEditor';
 import { SectionLibrary } from '@/components/elementor/SectionLibrary';
 import { PageSplitter } from '@/components/elementor/PageSplitter';
+import { ImageEditor } from '@/components/elementor/ImageEditor';
+import { UsageTrackingTab } from '@/components/elementor/UsageTrackingTab';
 import { useElementorState } from '@/lib/hooks/useElementorState';
 import { Section } from '@/lib/section-schema';
-import { FileIcon, PaletteIcon, ArrowRightIcon, GlobeIcon, LayoutIcon, XIcon, CodeIcon, EyeIcon } from '@/components/ui/icons';
+import { FileIcon, PaletteIcon, ArrowRightIcon, GlobeIcon, LayoutIcon, XIcon, CodeIcon, EyeIcon, ImageIcon, BarChart3Icon } from '@/components/ui/icons';
 import Script from 'next/script';
 import { GlobalStylesheetProvider } from '@/lib/global-stylesheet-context';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -124,6 +127,9 @@ export default function ElementorEditorPage() {
   // Get editor content from global state for chat context
   const editorContent = useEditorContent();
 
+  // Usage tracking
+  const { recordUsage } = useUsageTracking();
+
   // Use AI SDK chat hook - Elementor-specific API endpoint
   console.log('🔧 ELEMENTOR PAGE: useChat configured with api:', '/api/chat-elementor');
   const { messages, sendMessage, isLoading, setMessages, reload, status } = useChat({
@@ -131,6 +137,7 @@ export default function ElementorEditorPage() {
     // Initial body - will be merged with additional data in sendMessage calls
     body: {
       currentSection: currentSection || null,
+      model: selectedModel,
     },
     // Override fetch to force the correct endpoint
     fetch: async (url, options) => {
@@ -138,11 +145,80 @@ export default function ElementorEditorPage() {
       console.log('🌐 FETCH - Forcing to /api/chat-elementor');
       return fetch('/api/chat-elementor', options);
     },
-    // Send current editor content with each message
-    onFinish: (message) => {
-      console.log('✅ Message finished:', message);
+    // Track usage when message finishes
+    onFinish: (message, options) => {
+      console.log('🔍 onFinish called');
+      console.log('  Message:', message);
+      console.log('  Message.metadata:', message.metadata);
+      console.log('  Options:', options);
+      console.log('  Full message JSON:', JSON.stringify(message, null, 2));
+
+      // Check multiple possible locations for usage data
+      let usageData = null;
+
+      // Try message.metadata first (standard location)
+      if (message.metadata && 'promptTokens' in message.metadata) {
+        console.log('✅ Found usage in message.metadata');
+        usageData = message.metadata;
+      }
+      // Try options.usage (alternative location)
+      else if (options?.usage) {
+        console.log('✅ Found usage in options.usage');
+        usageData = options.usage;
+      }
+      // Try experimental fields
+      else if ((message as any).experimental_metadata) {
+        console.log('✅ Found usage in experimental_metadata');
+        usageData = (message as any).experimental_metadata;
+      }
+
+      if (usageData) {
+        const metadata = usageData as any;
+        recordUsage(metadata.model || selectedModel, {
+          inputTokens: metadata.promptTokens || metadata.inputTokens || 0,
+          outputTokens: metadata.completionTokens || metadata.outputTokens || 0,
+          cacheCreationTokens: metadata.cacheCreationTokens || 0,
+          cacheReadTokens: metadata.cacheReadTokens || metadata.cachedInputTokens || 0,
+        });
+        console.log('✅ Usage recorded for model:', metadata.model || selectedModel);
+      } else {
+        console.log('❌ No usage metadata found in message or options');
+      }
     }
   });
+
+  // ALTERNATIVE: Watch messages array for metadata updates
+  // This works around potential onFinish callback issues
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const lastMessage = messages[messages.length - 1];
+
+    // Only process assistant messages
+    if (lastMessage.role !== 'assistant') return;
+
+    // Check if this message has metadata
+    const messageWithMetadata = lastMessage as any;
+    console.log('📬 New assistant message received');
+    console.log('   Message ID:', lastMessage.id);
+    console.log('   Has metadata:', !!messageWithMetadata.metadata);
+
+    if (messageWithMetadata.metadata) {
+      console.log('   Metadata:', messageWithMetadata.metadata);
+
+      const meta = messageWithMetadata.metadata;
+      if (meta.promptTokens !== undefined || meta.totalTokens !== undefined) {
+        console.log('✅ Usage metadata found via messages array!');
+        recordUsage(meta.model || selectedModel, {
+          inputTokens: meta.promptTokens || meta.inputTokens || 0,
+          outputTokens: meta.completionTokens || meta.outputTokens || 0,
+          cacheCreationTokens: meta.cacheCreationTokens || 0,
+          cacheReadTokens: meta.cacheReadTokens || meta.cachedInputTokens || 0,
+        });
+        console.log('✅ Usage tracked via useEffect watcher');
+      }
+    }
+  }, [messages, selectedModel, recordUsage]);
 
   // Resize handler
   const handleMouseDown = () => {
@@ -337,15 +413,17 @@ export default function ElementorEditorPage() {
           body: {
             model: modelToUse,
             currentJson,
-            currentSection: {
+            currentSection: settings?.includeContext !== false ? {
               ...currentSection,
               html: editorContent.html,
               css: editorContent.css,
               js: editorContent.js,
-            },
+              php: editorContent.php || '', // Include PHP
+            } : null, // Don't include context if toggle is off
             webSearch: settings?.webSearchEnabled ?? false,
             reasoningEffort: settings?.reasoningEffort ?? 'medium',
             detailedMode: settings?.detailedMode ?? false,
+            includeContext: settings?.includeContext ?? true,
           },
         }
       );
@@ -972,6 +1050,8 @@ export default function ElementorEditorPage() {
                 <option value="playground">WordPress Playground</option>
                 <option value="site-content">Site Content</option>
                 <option value="style-guide">Style Guide</option>
+                <option value="images">Images</option>
+                <option value="usage">Usage</option>
               </select>
             ) : (
               /* Desktop: Horizontal Tabs */
@@ -1011,6 +1091,20 @@ export default function ElementorEditorPage() {
                 >
                   <PaletteIcon size={16} /> Style Guide
                 </div>
+                <div
+                  className={`tab ${activeTab === 'images' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('images')}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <ImageIcon size={16} /> Images
+                </div>
+                <div
+                  className={`tab ${activeTab === 'usage' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('usage')}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <BarChart3Icon size={16} /> Usage
+                </div>
               </div>
             )}
             </div>
@@ -1042,6 +1136,21 @@ export default function ElementorEditorPage() {
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}
                 setTabBarVisible={setTabBarVisible}
+                onEditElementInChat={(elementData) => {
+                  // Show chat if hidden
+                  if (!chatVisible && !isMobile) {
+                    setChatVisible(true);
+                  }
+                  // Open chat drawer on mobile
+                  if (isMobile) {
+                    setChatDrawerOpen(true);
+                  }
+
+                  // Send pre-filled message to chat
+                  const message = `Edit this element:\n\nSelector: ${elementData.selector}\nClasses: ${elementData.classList.join(', ')}\n\nHTML:\n\`\`\`html\n${elementData.html}\n\`\`\`\n\nContext:\n\`\`\`html\n${elementData.context.substring(0, 500)}${elementData.context.length > 500 ? '...' : ''}\n\`\`\``;
+
+                  handleSendMessage(message);
+                }}
               />
             </div>
 
@@ -1134,7 +1243,20 @@ export default function ElementorEditorPage() {
             </div>
 
             <div className={`tab-panel ${activeTab === 'style-guide' ? 'active' : ''}`} id="styleGuidePanel" style={{ display: activeTab === 'style-guide' ? 'flex' : 'none' }}>
-              <StyleGuide
+              <StyleGuideUnified
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
+              />
+            </div>
+
+            <div className={`tab-panel ${activeTab === 'images' ? 'active' : ''}`} id="imagesPanel" style={{ display: activeTab === 'images' ? 'flex' : 'none' }}>
+              <ImageEditor />
+            </div>
+
+            <div className={`tab-panel ${activeTab === 'usage' ? 'active' : ''}`} id="usagePanel" style={{ display: activeTab === 'usage' ? 'flex' : 'none' }}>
+              <UsageTrackingTab
                 chatVisible={chatVisible}
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}

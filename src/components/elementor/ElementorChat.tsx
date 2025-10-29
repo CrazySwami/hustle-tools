@@ -26,15 +26,26 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/source';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
-import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon } from 'lucide-react';
+import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, FileCodeIcon, EyeIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ElementorChatProps {
   messages: any[];
   isLoading: boolean;
   status?: string;
-  onSendMessage: (text: string, imageData?: { url: string; filename: string }, settings?: { webSearchEnabled: boolean; reasoningEffort: string; detailedMode?: boolean }) => void;
+  onSendMessage: (text: string, imageData?: { url: string; filename: string }, settings?: { webSearchEnabled: boolean; reasoningEffort: string; detailedMode?: boolean; includeContext?: boolean }) => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
   onReload?: () => void;
@@ -103,6 +114,11 @@ export function ElementorChat({
 }: ElementorChatProps) {
   const [input, setInput] = useState('');
   const [webSearch, setWebSearch] = useState(false);
+  const [includeContext, setIncludeContext] = useState(true); // Toggle for file context
+  const [systemPrompt, setSystemPrompt] = useState<string>(''); // Store system prompt
+  const [promptStats, setPromptStats] = useState<any>(null); // Store prompt statistics
+  const [showPromptDialog, setShowPromptDialog] = useState(false); // Dialog visibility
+  const { designSystemSummary } = useGlobalStylesheet();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,8 +127,33 @@ export function ElementorChat({
         webSearchEnabled: webSearch,
         reasoningEffort: 'medium',
         detailedMode: false,
+        includeContext, // Pass context toggle state
       });
       setInput('');
+    }
+  };
+
+  const handleViewSystemPrompt = async () => {
+    try {
+      const response = await fetch('/api/get-system-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: selectedModel,
+          webSearch,
+          includeContext,
+          currentSection,
+        }),
+      });
+      const data = await response.json();
+      setSystemPrompt(data.systemPrompt || 'Error loading system prompt');
+      setPromptStats(data.stats || null);
+      setShowPromptDialog(true);
+    } catch (error) {
+      console.error('Error fetching system prompt:', error);
+      setSystemPrompt('Error loading system prompt');
+      setPromptStats(null);
+      setShowPromptDialog(true);
     }
   };
 
@@ -169,7 +210,7 @@ export function ElementorChat({
                   <MessageContent>
                     {message.parts ? (
                       message.parts.filter(part => part != null).map((part: any, i: number) => {
-                        console.log('🎨 Rendering message part:', { type: part.type, toolName: part.toolName, part });
+                        // console.log('🎨 Rendering message part:', { type: part.type, toolName: part.toolName, part });
 
                         switch (part.type) {
                           case 'text':
@@ -181,21 +222,20 @@ export function ElementorChat({
 
                           case 'tool-testPing':
                           case 'tool-switchTab':
-                          case 'tool-viewEditorCode':
-                          case 'tool-editCode':
                           case 'tool-updateSectionHtml':
                           case 'tool-updateSectionCss':
                           case 'tool-updateSectionJs':
-                          case 'tool-generateHTML': {
+                          case 'tool-updateSectionPhp':
+                          case 'tool-editCodeWithMorph': {  // ⭐ Morph Fast Apply (PRIMARY tool for all code writing)
                             // Handle typed tool parts (AI SDK 5 pattern)
                             // Extract tool name from part type (e.g., 'tool-testPing' → 'testPing')
                             const toolName = part.type.replace('tool-', '');
-                            console.log(`🎯 ${toolName} tool detected!`, part);
+                            // console.log(`🎯 ${toolName} tool detected!`, part);
 
                             // If it has output/result, render as tool-result
                             if (part.output || part.result) {
                               const result = part.output ?? part.result;
-                              console.log('✅ Tool has result, rendering widget:', result);
+                              // console.log('✅ Tool has result, rendering widget:', result);
                               return (
                                 <ToolResultRenderer
                                   key={i}
@@ -210,6 +250,7 @@ export function ElementorChat({
                                   onSwitchCodeTab={onSwitchCodeTab}
                                   onSwitchTab={onSwitchTab}
                                   model={selectedModel}
+                                  designSystemSummary={designSystemSummary}
                                 />
                               );
                             }
@@ -260,30 +301,13 @@ export function ElementorChat({
                                   onSwitchCodeTab={onSwitchCodeTab}
                                   onSwitchTab={onSwitchTab}
                                   model={selectedModel}
+                                  designSystemSummary={designSystemSummary}
                                 />
                               );
                             }
 
-                            // Use custom renderer for generateHTML tool
-                            if (toolName === 'generateHTML') {
-                              console.log('🎯 Rendering generateHTML widget with result:', result);
-                              return (
-                                <ToolResultRenderer
-                                  key={i}
-                                  toolResult={{
-                                    toolCallId: part.toolCallId ?? '',
-                                    toolName,
-                                    args,
-                                    result: result.type === 'json' ? result.value : result,
-                                  }}
-                                  onStreamUpdate={onStreamUpdate}
-                                  onSwitchToSectionEditor={onSwitchToSectionEditor}
-                                  onSwitchCodeTab={onSwitchCodeTab}
-                                  onSwitchTab={onSwitchTab}
-                                  model={selectedModel}
-                                />
-                              );
-                            }
+                            // REMOVED: generateHTML tool handler - tool no longer exists
+                            // See: editCodeWithMorph tool (works on both empty and existing files)
 
                             // Default tool rendering for other tools
                             return (
@@ -348,9 +372,26 @@ export function ElementorChat({
             <PromptInputButton
               variant={webSearch ? 'default' : 'ghost'}
               onClick={() => setWebSearch(!webSearch)}
+              title={webSearch ? 'Web search enabled' : 'Web search disabled'}
             >
               <GlobeIcon size={16} />
               <span>Search</span>
+            </PromptInputButton>
+            <PromptInputButton
+              variant={includeContext ? 'default' : 'ghost'}
+              onClick={() => setIncludeContext(!includeContext)}
+              title={includeContext ? 'File context included (HTML/CSS/JS/PHP)' : 'File context excluded'}
+            >
+              <FileCodeIcon size={16} />
+              <span>Context</span>
+            </PromptInputButton>
+            <PromptInputButton
+              variant="ghost"
+              onClick={handleViewSystemPrompt}
+              title="View the full system prompt sent to AI"
+            >
+              <EyeIcon size={16} />
+              <span>Prompt</span>
             </PromptInputButton>
             <PromptInputModelSelect onValueChange={onModelChange} value={selectedModel}>
               <PromptInputModelSelectTrigger>
@@ -377,6 +418,64 @@ export function ElementorChat({
           </PromptInputSubmit>
         </PromptInputToolbar>
       </PromptInput>
+
+      {/* System Prompt Viewer Dialog */}
+      <Dialog open={showPromptDialog} onOpenChange={setShowPromptDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>System Prompt Viewer</DialogTitle>
+            <DialogDescription>
+              This is the exact system prompt sent to the AI with your chat messages.
+              <div className="mt-2 text-xs text-muted-foreground">
+                Model: <span className="font-mono">{selectedModel}</span> |
+                Context: {includeContext ? '✅ Enabled' : '❌ Disabled'} |
+                Web Search: {webSearch ? '✅ Enabled' : '❌ Disabled'}
+              </div>
+              {promptStats && (
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t pt-2">
+                  <div>
+                    <span className="font-semibold">Total Characters:</span> {promptStats.totalChars.toLocaleString()}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Est. Tokens:</span> ~{promptStats.estimatedTokens.toLocaleString()}
+                  </div>
+                  <div>
+                    <span className="font-semibold">HTML Size:</span> {promptStats.htmlChars.toLocaleString()} chars
+                  </div>
+                  <div>
+                    <span className="font-semibold">CSS Size:</span> {promptStats.cssChars.toLocaleString()} chars
+                  </div>
+                  <div>
+                    <span className="font-semibold">JS Size:</span> {promptStats.jsChars.toLocaleString()} chars
+                  </div>
+                  <div>
+                    <span className="font-semibold">PHP Size:</span> {promptStats.phpChars.toLocaleString()} chars
+                  </div>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] w-full rounded border bg-muted/50 p-4">
+            <pre className="text-xs whitespace-pre-wrap font-mono">
+              {systemPrompt || 'Loading system prompt...'}
+            </pre>
+          </ScrollArea>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                navigator.clipboard.writeText(systemPrompt);
+              }}
+            >
+              <CopyIcon size={16} className="mr-2" />
+              Copy to Clipboard
+            </Button>
+            <Button onClick={() => setShowPromptDialog(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

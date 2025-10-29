@@ -12,6 +12,7 @@ This guide provides a clear, repeatable process for adding new tools to the chat
 6. [Streaming Tools (Asynchronous)](#streaming-tools-asynchronous-with-ui)
 7. [Creating a Chat Interface](#creating-a-chat-interface-complete-guide)
 8. [AI SDK 5 Tool Part Rendering](#ai-sdk-5-tool-part-rendering-critical)
+   - [Preventing Duplicate Tool Rendering](#preventing-duplicate-tool-rendering)
 9. [Troubleshooting](#troubleshooting--common-pitfalls)
 10. [Checklists](#implementation-checklists)
 
@@ -1955,6 +1956,448 @@ And that's it! The next time the AI uses the `getStockPrice` tool, the frontend 
 
 ---
 
+## Removing Tools from the Codebase
+
+**When you need to deprecate or remove a tool entirely, follow these steps to ensure it's completely gone and the browser cache is cleared.**
+
+### Why Tools Persist After "Deletion"
+
+Even after you think you've removed a tool, the model may still try to use it because:
+
+1. ❌ **Tool definition still exists** in `src/lib/tools.ts` (lines 200-300)
+2. ❌ **Tool is still exported** in the `tools` object (line ~640)
+3. ❌ **System prompt still mentions it** in API routes
+4. ❌ **Browser cache** has old compiled JavaScript
+5. ❌ **Dev server hasn't reloaded** the API route changes
+
+### Complete Tool Removal Checklist
+
+Follow these steps **in order** to fully remove a tool:
+
+#### 1. Remove Tool Definition (`src/lib/tools.ts`)
+
+Find and delete the entire tool definition:
+
+```typescript
+// ❌ DELETE THIS ENTIRE BLOCK
+export const oldToolName = tool({
+  description: '...',
+  inputSchema: z.object({...}),
+  execute: async ({...}) => {...},
+});
+```
+
+**Replace with a comment** explaining why it was removed:
+
+```typescript
+// REMOVED: oldToolName - Reason for removal
+// Replaced by: newToolName (if applicable)
+// See: Documentation link or alternative approach
+```
+
+**Example:**
+```typescript
+// REMOVED: htmlGeneratorTool - Replaced by editCodeWithMorphTool
+// Morph works on BOTH empty AND existing files, no need for separate generate tool
+// See: editCodeWithMorphTool below (line 318)
+```
+
+#### 2. Remove Tool Export (`src/lib/tools.ts`)
+
+Find the `export const tools = {` object (around line 594) and remove the tool:
+
+```typescript
+export const tools = {
+  // ... other tools
+  oldToolName: oldToolTool,  // ❌ DELETE THIS LINE
+  // ... more tools
+};
+```
+
+**Replace with a comment** for clarity:
+
+```typescript
+export const tools = {
+  // ... other tools
+  // REMOVED: oldToolName - Replaced by newToolName
+  // ... more tools
+};
+```
+
+#### 3. Remove from API Route Tool Configs
+
+Check **ALL** API routes that might use this tool:
+
+- `/src/app/api/chat/route.ts`
+- `/src/app/api/chat-elementor/route.ts`
+- Any custom chat routes you created
+
+Remove from `toolsConfig`:
+
+```typescript
+const toolsConfig = {
+  // ... other tools
+  oldToolName: tools.oldToolName,  // ❌ DELETE THIS LINE
+  // ... more tools
+};
+```
+
+**Also remove from console.log** if it lists tools:
+
+```typescript
+console.log('🔧 Available tools:', Object.keys({
+  // ...
+  oldToolName: tools.oldToolName,  // ❌ DELETE THIS TOO
+  // ...
+}));
+```
+
+#### 4. Update System Prompts
+
+Search for any mentions of the tool in system prompts:
+
+```bash
+grep -r "oldToolName" src/app/api/
+```
+
+Remove instructions like:
+
+```typescript
+// ❌ DELETE references like this:
+systemPrompt = `
+  ...
+  - **oldToolName**: Use this when...  // DELETE
+  ...
+  When user asks to X, use oldToolName  // DELETE
+  ...
+`;
+```
+
+#### 5. Remove Widget Components (if exists)
+
+If the tool had a custom widget:
+
+```bash
+# Find widget files
+find src/components/tool-ui -name "*old-tool*"
+```
+
+**Option A: Delete the widget file entirely**
+```bash
+rm src/components/tool-ui/old-tool-widget.tsx
+```
+
+**Option B: Keep for reference** (add comment at top):
+```typescript
+// DEPRECATED: This widget is no longer used
+// Tool removed: YYYY-MM-DD
+// Keeping for reference only
+```
+
+#### 6. Remove from Tool Result Renderer
+
+Open `/src/components/tool-ui/tool-result-renderer.tsx` and remove the case:
+
+```typescript
+export function ToolResultRenderer({ toolResult }: ToolResultRendererProps) {
+  const { toolName, result } = toolResult;
+
+  switch (toolName) {
+    // ... other cases
+
+    case 'oldToolName':  // ❌ DELETE THIS ENTIRE CASE
+      return <OldToolWidget data={result} />;
+
+    // ... more cases
+  }
+}
+```
+
+#### 7. Remove from Chat Component Handlers
+
+Check chat components for tool-specific handling:
+
+- `/src/components/elementor/ElementorChat.tsx`
+- `/src/components/chat/UniversalChat.tsx`
+
+Remove from switch statements:
+
+```typescript
+switch (part.type) {
+  // ... other cases
+  case 'tool-oldToolName':  // ❌ DELETE THIS CASE
+    // ... handler code
+    break;
+  // ... more cases
+}
+```
+
+#### 8. Clear Cache & Restart Server
+
+**This is CRITICAL!** Even after removing the tool, the browser and server may cache the old code.
+
+**Step 8.1: Kill Dev Server**
+
+```bash
+# macOS/Linux
+pkill -f "next dev"
+
+# Or use Ctrl+C in the terminal where it's running
+
+# Verify it's stopped
+ps aux | grep "next dev"  # Should return nothing
+```
+
+**Step 8.2: Clear Next.js Cache**
+
+```bash
+# Remove build artifacts
+rm -rf .next
+
+# Remove Turbopack cache (if using Turbopack)
+rm -rf .turbopack
+
+# Remove TypeScript build info
+rm -f tsconfig.tsbuildinfo
+
+# Optional: Clear node_modules cache (nuclear option)
+# npm ci  # Reinstalls from package-lock.json
+```
+
+**Step 8.3: Clear Browser Cache**
+
+**Option A: Hard Refresh (Quick)**
+- **Chrome/Edge:** `Cmd+Shift+R` (Mac) or `Ctrl+Shift+R` (Windows)
+- **Firefox:** `Cmd+Shift+R` (Mac) or `Ctrl+F5` (Windows)
+- **Safari:** `Cmd+Option+R`
+
+**Option B: Clear All Cache (Thorough)**
+
+Chrome/Edge:
+1. Open DevTools (`F12` or `Cmd+Option+I`)
+2. Right-click the refresh button
+3. Select "Empty Cache and Hard Reload"
+
+Firefox:
+1. Open DevTools (`F12`)
+2. Go to Network tab
+3. Check "Disable cache"
+4. Refresh page
+5. Uncheck "Disable cache" when done
+
+**Step 8.4: Restart Dev Server**
+
+```bash
+npm run dev
+
+# Or with Turbopack (faster)
+npm run dev -- --turbopack
+```
+
+**Step 8.5: Verify Clean Start**
+
+Watch the console output:
+
+```bash
+✓ Ready in 2.3s
+○ Compiling / ...
+✓ Compiled / in 1.2s
+```
+
+Look for any errors mentioning the removed tool.
+
+#### 9. Test Tool Removal
+
+**Test 1: Check Available Tools**
+
+Open browser console and watch for:
+
+```
+🔧 Available tools: [...]
+```
+
+Verify removed tool is **NOT** in the list.
+
+**Test 2: Try to Trigger the Old Tool**
+
+Ask the AI a question that would have triggered the old tool:
+
+```
+User: "generate a hero section"  # If you removed generateHTML
+```
+
+**Expected behavior:**
+- ✅ Model uses the replacement tool (e.g., `editCodeWithMorph`)
+- ✅ NO error messages in console
+- ❌ Model does NOT say "I'll use generateHTML"
+
+**Test 3: Check Network Requests**
+
+1. Open DevTools → Network tab
+2. Filter by `Fetch/XHR`
+3. Trigger a chat message
+4. Click on `/api/chat-elementor` request
+5. Check the "Response" tab
+6. Verify the tool is NOT in the tools list
+
+**Test 4: Check for Errors**
+
+Watch browser console for:
+
+```
+❌ BAD: Tool "oldToolName" not found
+❌ BAD: TypeError: tools.oldToolName is not a function
+✅ GOOD: No errors, new tool used successfully
+```
+
+### Verification Commands
+
+Run these commands to confirm complete removal:
+
+```bash
+# 1. Check if tool definition still exists
+grep -n "export const oldToolName" src/lib/tools.ts
+# Should return: No matches
+
+# 2. Check if tool is exported
+grep -n "oldToolName:" src/lib/tools.ts
+# Should only show comment line (if you added one)
+
+# 3. Check API routes
+grep -r "oldToolName" src/app/api/
+# Should return: No matches (or only in comments)
+
+# 4. Check components
+grep -r "oldToolName" src/components/
+# Should return: No matches (or only in comments)
+
+# 5. Check system prompts
+grep -r "oldToolName" src/app/api/ | grep -i "system"
+# Should return: No matches
+```
+
+### Common Issues After Removal
+
+**Issue: Model still tries to use the removed tool**
+
+**Possible causes:**
+1. ❌ Browser cache not cleared → Hard refresh (Cmd+Shift+R)
+2. ❌ Dev server not restarted → Kill and restart
+3. ❌ System prompt still mentions tool → Update system prompt
+4. ❌ Tool still in exports → Check `tools` object in tools.ts
+
+**Debug steps:**
+```bash
+# Check what's actually in the running code
+curl http://localhost:3000/api/chat-elementor \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[], "model":"anthropic/claude-haiku-4-5-20251001"}' \
+  | grep "oldToolName"
+
+# Should return nothing if properly removed
+```
+
+**Issue: TypeScript errors after removal**
+
+```
+Error: Property 'oldToolName' does not exist on type...
+```
+
+**Solution:**
+1. The tool is still referenced somewhere
+2. Run the grep commands above to find remaining references
+3. Delete or update those references
+4. Restart TypeScript server: `Cmd+Shift+P` → "Restart TS Server"
+
+**Issue: Widget still appears in chat**
+
+**Possible causes:**
+1. ❌ Case not removed from tool-result-renderer.tsx
+2. ❌ Chat component still handles tool-oldToolName
+3. ❌ Browser cache showing old message
+
+**Solution:**
+```bash
+# Find widget references
+grep -r "OldToolWidget" src/components/
+
+# Remove them, then restart & clear cache
+```
+
+### Quick Reference: Full Removal Script
+
+Save this as `remove-tool.sh` for easy tool removal:
+
+```bash
+#!/bin/bash
+# Usage: ./remove-tool.sh oldToolName
+
+TOOL_NAME=$1
+
+if [ -z "$TOOL_NAME" ]; then
+  echo "Usage: ./remove-tool.sh toolName"
+  exit 1
+fi
+
+echo "🔍 Searching for $TOOL_NAME..."
+
+# Search for references
+echo "\n📁 Files containing $TOOL_NAME:"
+grep -r "$TOOL_NAME" src/ --files-with-matches
+
+echo "\n⚠️  Please manually review and remove these references"
+echo "Then run:"
+echo "  1. rm -rf .next .turbopack tsconfig.tsbuildinfo"
+echo "  2. pkill -f 'next dev'"
+echo "  3. npm run dev"
+echo "  4. Hard refresh browser (Cmd+Shift+R)"
+```
+
+Make it executable:
+```bash
+chmod +x remove-tool.sh
+```
+
+Use it:
+```bash
+./remove-tool.sh htmlGeneratorTool
+```
+
+### Best Practices
+
+1. ✅ **Always add comments** when removing tools (explain why)
+2. ✅ **Update documentation** to reflect the removal
+3. ✅ **Clear cache EVERY time** you remove a tool
+4. ✅ **Test thoroughly** before pushing changes
+5. ✅ **Keep removal commits separate** from other changes
+6. ✅ **Update system prompts** to reflect new workflow
+7. ✅ **Search globally** before removing (`grep -r`)
+
+### Example: Real Tool Removal
+
+See the recent removal of `htmlGeneratorTool` and `viewEditorCodeTool`:
+
+**Commit:** `feat: remove redundant tools, use Morph for all code writing`
+
+**Files changed:**
+- `/src/lib/tools.ts` (lines 199-201, 302-305, 602-604)
+- `/src/app/api/chat-elementor/route.ts` (lines 73-116, 157-164)
+- `/src/components/elementor/ElementorChat.tsx` (line 192)
+- `/src/components/tool-ui/tool-result-renderer.tsx` (lines 262-263)
+
+**Why removed:**
+- `htmlGeneratorTool`: Replaced by `editCodeWithMorph` (works on empty files too!)
+- `viewEditorCodeTool`: Code automatically in system prompt, no need to "view" separately
+
+**Impact:**
+- ✅ Simpler architecture (1 tool instead of 3)
+- ✅ No confusion about which tool to use
+- ✅ Faster responses (fewer tool calls)
+- ✅ Better UX (direct editing, no extra steps)
+
+---
+
 ## Troubleshooting & Common Pitfalls
 
 If your tools are not working as expected, check these common issues.
@@ -2495,6 +2938,101 @@ export const tools = {
 // ChatInterface.tsx
 case 'tool-testPing':  // ← Must be 'tool-' + exact tool name
 ```
+
+### Preventing Duplicate Tool Rendering
+
+**CRITICAL BUG:** Vercel AI SDK 5 creates **TWO** different message formats for the same tool invocation:
+
+1. **`message.tool_calls`** array (OpenAI-compatible format)
+2. **`message.parts`** with `type: 'tool-call'` (AI SDK 5 format)
+
+If you render BOTH, users will see duplicate widgets for every tool call.
+
+**The Problem:**
+
+```typescript
+// BAD: Renders duplicates!
+{message.tool_calls?.map(toolCall => (
+  <div>Tool: {toolCall.function.name}</div>  // First render
+))}
+
+{message.parts?.map(part => {
+  if (part.type === 'tool-call') {
+    return <div>Tool: {part.toolName}</div>;  // Second render - DUPLICATE!
+  }
+})}
+```
+
+**The Fix:**
+
+Add deduplication logic to skip generic `tool-call` parts when `message.tool_calls` exists:
+
+```typescript
+// GOOD: Deduplicates correctly
+{message.tool_calls?.map(toolCall => (
+  <div>Tool: {toolCall.function.name}</div>  // Render OpenAI format
+))}
+
+{message.parts?.map(part => {
+  // Skip generic tool-call if we have message.tool_calls
+  if (part.type === 'tool-call' && message.tool_calls?.length > 0) {
+    console.log('⏭️ Skipping duplicate tool-call part:', part.toolName);
+    return null;  // Don't render - already shown above
+  }
+
+  if (part.type === 'tool-call') {
+    return <div>Tool: {part.toolName}</div>;  // Only renders if no tool_calls
+  }
+})}
+```
+
+**Real-World Example from ChatInterface.tsx:**
+
+```typescript
+// Line 468-475 in src/components/elementor/ChatInterface.tsx
+{message.parts?.filter(part => part != null).map((part: any, partIndex: number) => {
+  // Skip generic tool-call if we have message.tool_calls (prevents duplicate rendering)
+  // AI SDK 5 creates BOTH tool_calls AND parts with type='tool-call' for same tool invocation
+  if (part.type === 'tool-call' && message.tool_calls && message.tool_calls.length > 0) {
+    console.log('⏭️ Skipping generic tool-call part, message.tool_calls exists:', part.toolName);
+    return null;
+  }
+
+  if (part.type === 'tool-call') {
+    return (
+      <div key={partIndex} className="tool-call-display">
+        {/* Render tool call UI */}
+      </div>
+    );
+  }
+
+  // ... rest of part rendering
+})}
+```
+
+**Why This Happens:**
+
+- AI SDK 5 uses `tool_calls` for OpenAI compatibility
+- AI SDK 5 also uses typed parts (`tool-TOOLNAME`) for better TypeScript support
+- Both formats coexist in the same message
+- Without deduplication, both render simultaneously
+
+**Debugging:**
+
+Open browser console when triggering a tool. You should see:
+
+```
+⏭️ Skipping generic tool-call part, message.tool_calls exists: editCodeWithMorph
+```
+
+If you see this log but still get duplicates, check:
+1. Are you rendering typed parts separately? (e.g., `case 'tool-editCodeWithMorph':`)
+2. Do you have multiple chat components rendering the same message?
+3. Is React StrictMode causing double renders? (Add `useRef` guards)
+
+**Best Practice:**
+
+Always add this deduplication check when rendering `message.parts` in custom chat interfaces. The UniversalChat component already includes this fix.
 
 ---
 
@@ -3477,6 +4015,16 @@ Use these checklists to ensure you've completed all steps when adding tools or c
 - [ ] Check widget file has no syntax errors
 - [ ] Rebuild app and clear browser cache
 
+**Duplicate Tool Calls / Wrong Tool Selected:**
+- [ ] Check if `toolChoice: 'required'` is forcing tool usage too aggressively
+- [ ] Remove keyword detection that forces tools (e.g., "generate", "create", "edit")
+- [ ] Let the model choose tools naturally based on system prompt instructions
+- [ ] Check system prompt is clear about which tool to use for which scenario
+- [ ] Verify tool descriptions don't overlap or confuse the model
+- [ ] Use `stopWhen: stepCountIs(2)` to limit consecutive tool calls
+- [ ] Check console logs to see which tools are being triggered and why
+- [ ] Example fix: Only force `toolChoice` for diagnostic commands (test ping), not HTML/edit requests
+
 **Chat Component Errors:**
 - [ ] Verify all AI Elements imports are correct
 - [ ] Check `messages` prop is array
@@ -3570,3 +4118,500 @@ if (reader) {
 ```
 
 ---
+## Complete Tool Addition/Removal Reference Guide
+
+**This section provides an exhaustive checklist of ALL locations where tools need to be added or removed to avoid errors.**
+
+### Summary of All Tool Locations
+
+When adding or removing a tool, you must update these files in this order:
+
+| Step | File | What to Update |
+|------|------|----------------|
+| 1 | `/src/lib/tools.ts` | Tool definition (200-500) |
+| 2 | `/src/lib/tools.ts` | Tool export in `tools` object (~540) |
+| 3 | `/src/app/api/chat-elementor/route.ts` | System prompt description (~175-185) |
+| 4 | `/src/app/api/chat-elementor/route.ts` | `toolsConfig` object (~195-200) |
+| 5 | `/src/app/api/chat-elementor/route.ts` | Console.log tools list (~38-45) |
+| 6 | `/src/app/api/chat/route.ts` | System prompt if Elementor-specific (~175) |
+| 7 | `/src/app/api/chat/route.ts` | `baseTools` if Elementor-specific (~215) |
+| 8 | `/src/components/tool-ui/tool-result-renderer.tsx` | Import statement (~1-20) |
+| 9 | `/src/components/tool-ui/tool-result-renderer.tsx` | Switch case (~100-300) |
+| 10 | `/src/components/tool-ui/[toolname]-widget.tsx` | Widget component file |
+
+---
+
+### Detailed Step-by-Step Guide
+
+#### Step 1: Tool Definition in `/src/lib/tools.ts`
+
+**Location**: Lines 200-500 (tool definitions section)
+
+**Adding a Tool:**
+```typescript
+// After other tool definitions, before the exports section
+export const myNewTool = tool({
+  description: 'Clear description of what the tool does. AI uses this to decide when to call it.',
+  inputSchema: z.object({
+    param1: z.string().describe('Description of parameter 1'),
+    param2: z.number().optional().describe('Optional parameter 2'),
+  }),
+  execute: async ({ param1, param2 }) => {
+    // Tool logic here
+    return {
+      result: 'success',
+      data: {},
+    };
+  },
+});
+```
+
+**Removing a Tool:**
+```typescript
+// Replace the entire tool definition with a comment
+// REMOVED: myOldTool - Brief explanation why
+// Replaced by: newToolName (if applicable)
+// See: Link to documentation or new tool
+```
+
+---
+
+#### Step 2: Tool Export in `/src/lib/tools.ts`
+
+**Location**: Line ~540 (`export const tools = {` object)
+
+**Adding a Tool:**
+```typescript
+export const tools = {
+  // ... existing tools
+  myNewTool: myNewTool,  // Add your tool export here
+};
+```
+
+**Removing a Tool:**
+```typescript
+export const tools = {
+  // ... other tools
+  // REMOVED: myOldTool - Reason for removal
+};
+```
+
+**CRITICAL**: Tools MUST be both defined AND exported to be available!
+
+---
+
+#### Step 3: System Prompt in `/src/app/api/chat-elementor/route.ts`
+
+**Location**: Lines ~175-185 (Available Tools section in system prompt)
+
+**Adding a Tool:**
+```typescript
+systemPrompt += `\n\n**Available Tools:**
+- **editCodeWithMorph**: 🎯 PRIMARY TOOL - ...
+- **myNewTool**: Description of what the new tool does
+- **getWeather**: ...
+`;
+```
+
+**Removing a Tool:**
+```typescript
+// Simply remove the line mentioning the tool
+// **oldToolName**: ... <- DELETE THIS LINE
+```
+
+**Also check** lines ~110-115 for any special instructions about the tool (e.g., "When user says X, use toolY").
+
+---
+
+#### Step 4: `toolsConfig` in `/src/app/api/chat-elementor/route.ts`
+
+**Location**: Lines ~195-200
+
+**Adding a Tool:**
+```typescript
+const toolsConfig = {
+  getWeather: tools.getWeather,
+  calculate: tools.calculate,
+  myNewTool: tools.myNewTool,  // Add here
+  editCodeWithMorph: tools.editCodeWithMorph,
+};
+```
+
+**Removing a Tool:**
+```typescript
+const toolsConfig = {
+  getWeather: tools.getWeather,
+  // REMOVED: oldToolName - Reason
+  editCodeWithMorph: tools.editCodeWithMorph,
+};
+```
+
+---
+
+#### Step 5: Console Log in `/src/app/api/chat-elementor/route.ts`
+
+**Location**: Lines ~38-45
+
+**Adding a Tool:**
+```typescript
+console.log('🔧 Available tools:', Object.keys({
+  getWeather: tools.getWeather,
+  myNewTool: tools.myNewTool,  // Add for debugging
+  editCodeWithMorph: tools.editCodeWithMorph,
+}));
+```
+
+**Removing a Tool:**
+```typescript
+// Remove the line from the object
+```
+
+**Purpose**: This helps debug which tools are actually registered when the API starts.
+
+---
+
+#### Step 6: System Prompt in `/src/app/api/chat/route.ts` (If Elementor-Specific)
+
+**Location**: Lines ~175 (`if (isElementorRequest)` block)
+
+**Only update this file if your tool is Elementor-specific!**
+
+**Adding a Tool:**
+```typescript
+if (isElementorRequest) {
+  systemPrompt += `\n\n**ELEMENTOR EDITOR MODE ACTIVE**
+
+**Available Tools:**
+- **editCodeWithMorph**: ...
+- **myNewTool**: Description
+`;
+}
+```
+
+**Removing a Tool:**
+```typescript
+// Remove the line mentioning the tool
+```
+
+---
+
+#### Step 7: `baseTools` in `/src/app/api/chat/route.ts` (If Elementor-Specific)
+
+**Location**: Lines ~215 (`baseTools` object)
+
+**Only update this if your tool is Elementor-specific!**
+
+**Adding a Tool:**
+```typescript
+const baseTools = isElementorRequest ? {
+  ...tools,
+  editCodeWithMorph: tools.editCodeWithMorph,
+  myNewTool: tools.myNewTool,  // Add here
+} : tools;
+```
+
+**Removing a Tool:**
+```typescript
+const baseTools = isElementorRequest ? {
+  ...tools,
+  editCodeWithMorph: tools.editCodeWithMorph,
+  // REMOVED: oldToolName
+} : tools;
+```
+
+---
+
+#### Step 8: Import Widget in `/src/components/tool-ui/tool-result-renderer.tsx`
+
+**Location**: Lines ~1-20 (import section)
+
+**Adding a Tool:**
+```typescript
+import { MyNewToolWidget } from './my-new-tool-widget';
+```
+
+**Removing a Tool:**
+```typescript
+// REMOVED: OldToolWidget - Reason
+```
+
+---
+
+#### Step 9: Switch Case in `/src/components/tool-ui/tool-result-renderer.tsx`
+
+**Location**: Lines ~100-300 (switch statement in `ToolResultRenderer`)
+
+**Adding a Tool:**
+```typescript
+export function ToolResultRenderer({ toolResult }: ToolResultRendererProps) {
+  const { toolName, result } = toolResult;
+
+  switch (toolName) {
+    case 'myNewTool':
+      return <MyNewToolWidget data={result} />;
+
+    case 'getWeather':
+      return <WeatherWidget data={result} />;
+
+    // ... other cases
+
+    default:
+      return <pre>{JSON.stringify(result, null, 2)}</pre>;
+  }
+}
+```
+
+**Removing a Tool:**
+```typescript
+// Replace the case with a comment
+// REMOVED: oldToolName - Reason for removal
+```
+
+---
+
+#### Step 10: Widget Component File
+
+**Location**: `/src/components/tool-ui/[toolname]-widget.tsx`
+
+**Adding a Tool:**
+
+Create a new file following the naming pattern:
+- Tool name: `myNewTool` → File name: `my-new-tool-widget.tsx`
+
+```typescript
+'use client';
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+interface MyNewToolWidgetProps {
+  data: {
+    // Match the return type from your tool's execute function
+    result: string;
+    someData: any;
+  };
+}
+
+export function MyNewToolWidget({ data }: MyNewToolWidgetProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>My New Tool Result</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <pre>{JSON.stringify(data, null, 2)}</pre>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+**Removing a Tool:**
+
+Delete the widget file:
+```bash
+rm /src/components/tool-ui/old-tool-widget.tsx
+```
+
+---
+
+### Complete Removal Example: `switchTab` Tool
+
+Here's a real example of removing the `switchTab` tool (completed on Oct 29, 2025):
+
+**Step 1: Remove definition from `/src/lib/tools.ts` (line 255)**
+```typescript
+// REMOVED: switchTabTool - Tab switching is handled directly by UI now
+// Users can click tabs directly, no need for AI to call a tool for navigation
+```
+
+**Step 2: Remove export from `/src/lib/tools.ts` (line 539)**
+```typescript
+export const tools = {
+  editCodeWithMorph: editCodeWithMorphTool,
+  // REMOVED: switchTab - Tab navigation handled by UI, not tools
+  planSteps: planStepsTool,
+};
+```
+
+**Step 3: Remove from system prompt `/src/app/api/chat-elementor/route.ts` (line 178)**
+```typescript
+// **switchTab**: ... <- DELETED THIS LINE
+```
+
+**Step 4: Remove from toolsConfig `/src/app/api/chat-elementor/route.ts` (line 200)**
+```typescript
+const toolsConfig = {
+  getWeather: tools.getWeather,
+  // REMOVED: switchTab - tab navigation handled by UI, not tools
+  editCodeWithMorph: tools.editCodeWithMorph,
+};
+```
+
+**Step 5: Remove from console.log `/src/app/api/chat-elementor/route.ts` (line 44)**
+```typescript
+console.log('🔧 Available tools:', Object.keys({
+  getWeather: tools.getWeather,
+  // switchTab: tools.switchTab, <- DELETED
+  editCodeWithMorph: tools.editCodeWithMorph,
+}));
+```
+
+**Step 6: Remove from `/src/app/api/chat/route.ts` (line 176)**
+```typescript
+// **switchTab**: ... <- DELETED THIS LINE
+```
+
+**Step 7: Remove from baseTools `/src/app/api/chat/route.ts` (line 218)**
+```typescript
+const baseTools = isElementorRequest ? {
+  ...tools,
+  editCodeWithMorph: tools.editCodeWithMorph,
+  // switchTab: tools.switchTab, <- DELETED
+} : tools;
+```
+
+**Step 8: Remove import `/src/components/tool-ui/tool-result-renderer.tsx` (line 7)**
+```typescript
+// REMOVED: TabSwitcherWidget - Tab navigation handled by UI, not tools
+```
+
+**Step 9: Remove case `/src/components/tool-ui/tool-result-renderer.tsx` (line 239)**
+```typescript
+// REMOVED: switchTab - Tab navigation handled by UI, not tools
+```
+
+**Step 10: Delete widget file**
+```bash
+rm /src/components/tool-ui/tab-switcher-widget.tsx
+```
+
+---
+
+### After Adding/Removing: Clear Cache & Restart
+
+**CRITICAL**: After making changes, you MUST clear all caches:
+
+```bash
+# Kill all dev servers
+lsof -ti :3000 | xargs kill -9
+
+# Delete cache directories
+rm -rf .next .turbopack tsconfig.tsbuildinfo
+
+# Restart dev server
+npm run dev
+```
+
+**Verify the changes worked:**
+1. Check server logs for the tools list (should show updated list)
+2. Hard refresh browser: `Cmd+Shift+R` (Mac) or `Ctrl+Shift+R` (Windows)
+3. Test the tool in the UI
+
+---
+
+### Verification Checklist
+
+After adding a new tool, verify:
+
+- [ ] Tool is defined in `tools.ts`
+- [ ] Tool is exported in `tools` object
+- [ ] Tool appears in system prompt (if needed)
+- [ ] Tool is in `toolsConfig` object
+- [ ] Tool renders correctly in chat
+- [ ] Widget component exists and displays data
+- [ ] Cache cleared and server restarted
+- [ ] Browser hard-refreshed
+- [ ] Tool works end-to-end in production
+
+After removing a tool, verify:
+
+- [ ] NO references in `tools.ts` definition
+- [ ] NO export in `tools` object
+- [ ] NO mentions in system prompts
+- [ ] NO entries in `toolsConfig`
+- [ ] NO case in tool renderer switch
+- [ ] Widget file deleted
+- [ ] Cache cleared and server restarted
+- [ ] `grep -r "toolName" src/` returns ZERO results (only comments)
+- [ ] Browser shows NO errors about missing tools
+- [ ] Model does NOT try to call the removed tool
+
+---
+
+### Common Mistakes to Avoid
+
+1. **❌ Forgot to export tool** - Tool defined but not in `tools` object
+   - **Result**: Tool doesn't appear in API, model can't call it
+   - **Fix**: Add to `export const tools = {}`
+
+2. **❌ Forgot to clear cache** - Changes made but old code still running
+   - **Result**: Old tools still show up, new tools don't work
+   - **Fix**: `rm -rf .next && npm run dev`
+
+3. **❌ Inconsistent naming** - Tool is `myTool` but widget is `MyToolWidget`
+   - **Result**: Works fine! Just follow conventions
+   - **Convention**: toolName → ToolNameWidget
+
+4. **❌ Missing widget import** - Added case but forgot import
+   - **Result**: Component not found error
+   - **Fix**: Add `import { ToolWidget } from './tool-widget'`
+
+5. **❌ Only removed from one endpoint** - Removed from chat-elementor but not chat
+   - **Result**: Tool still shows in one endpoint
+   - **Fix**: Remove from ALL endpoints that use it
+
+6. **❌ Forgot to remove widget file** - Removed tool but widget file remains
+   - **Result**: Unused file clutters codebase
+   - **Fix**: Delete the `/src/components/tool-ui/old-widget.tsx` file
+
+7. **❌ Didn't update system prompt** - Tool exists but not documented
+   - **Result**: Model might not know when to call the tool
+   - **Fix**: Add clear description in system prompt
+
+---
+
+### Quick Reference Commands
+
+**Search for all tool references:**
+```bash
+grep -r "toolName" src/ --include="*.ts" --include="*.tsx"
+```
+
+**Find widget files:**
+```bash
+find src/components/tool-ui -name "*widget.tsx" -type f
+```
+
+**Check if tool is exported:**
+```bash
+grep "toolName" src/lib/tools.ts | grep -E "(export|tools:)"
+```
+
+**Verify no old tools remain:**
+```bash
+grep -r "oldToolName" src/ | grep -v "REMOVED" | grep -v "//"
+```
+
+---
+
+### Getting Help
+
+If you encounter issues:
+
+1. **Check server logs** - Look for tool registration messages
+2. **Inspect browser console** - Check for tool-related errors
+3. **Use grep search** - Find all references to the tool name
+4. **Read this guide** - Follow each step methodically
+5. **Clear cache again** - 90% of issues are cached code
+
+**Still stuck?** The issue is usually one of:
+- Tool not exported in `tools` object
+- Cache not cleared properly
+- Browser not hard-refreshed
+- Missing import in tool renderer
+- Typo in tool name (case-sensitive!)
+
+---
+
+**Last Updated**: October 29, 2025  
+**Tools Ecosystem Version**: 2.0 (editCodeWithMorph era)

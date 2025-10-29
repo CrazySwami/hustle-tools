@@ -3,15 +3,42 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
 // Type definitions
-interface CSSVariable {
+export interface CSSVariable {
   name: string;
   value: string;
+}
+
+export interface CSSClass {
+  name: string;
+  rules: string;
+  category?: string;
+  description?: string;
+}
+
+export interface DesignSystemSummary {
+  classes: {
+    typography: CSSClass[];
+    layout: CSSClass[];
+    components: CSSClass[];
+    colors: CSSClass[];
+    utilities: CSSClass[];
+  };
+  variables: {
+    colors: Record<string, string>;
+    fonts: Record<string, string>;
+    spacing: Record<string, string>;
+    other: Record<string, string>;
+  };
+  totalClasses: number;
+  extractedFrom?: string;
+  extractedAt?: string;
 }
 
 interface GlobalStylesheetContextType {
   // State
   globalCss: string;
   cssVariables: CSSVariable[];
+  designSystemSummary: DesignSystemSummary | null;
   themeName: string;
   themeVersion: string;
   isLoading: boolean;
@@ -20,6 +47,7 @@ interface GlobalStylesheetContextType {
 
   // Actions
   setGlobalCss: (css: string) => void;
+  setDesignSystemSummary: (summary: DesignSystemSummary | null) => void;
   pullFromWordPress: () => Promise<void>;
   pushToWordPress: () => Promise<void>;
   parseCssVariables: () => void;
@@ -56,6 +84,7 @@ function parseCssVars(css: string): CSSVariable[] {
 export function GlobalStylesheetProvider({ children }: { children: React.ReactNode }) {
   const [globalCss, setGlobalCssInternal] = useState<string>('');
   const [cssVariables, setCssVariables] = useState<CSSVariable[]>([]);
+  const [designSystemSummary, setDesignSystemSummary] = useState<DesignSystemSummary | null>(null);
   const [themeName, setThemeName] = useState<string>('');
   const [themeVersion, setThemeVersion] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -154,12 +183,14 @@ export function GlobalStylesheetProvider({ children }: { children: React.ReactNo
   const value: GlobalStylesheetContextType = {
     globalCss,
     cssVariables,
+    designSystemSummary,
     themeName,
     themeVersion,
     isLoading,
     error,
     lastUpdated,
     setGlobalCss,
+    setDesignSystemSummary,
     pullFromWordPress,
     pushToWordPress,
     parseCssVariables

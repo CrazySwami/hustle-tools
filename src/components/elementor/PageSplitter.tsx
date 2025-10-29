@@ -20,7 +20,15 @@ interface StyleKit {
   source: 'extracted' | 'wordpress' | 'saved';
 }
 
-export function PageSplitter({ onSaveToLibrary, onBack }: { onSaveToLibrary?: (sections: Section[]) => void; onBack?: () => void }) {
+export function PageSplitter({
+  onSaveToLibrary,
+  onBack,
+  onCssExtracted
+}: {
+  onSaveToLibrary?: (sections: Section[]) => void;
+  onBack?: () => void;
+  onCssExtracted?: (css: string) => void;
+}) {
   const [fullHtml, setFullHtml] = useState('');
   const [detectedSections, setDetectedSections] = useState<DetectedSection[]>([]);
   const [extractedStyleKit, setExtractedStyleKit] = useState<StyleKit | null>(null);
@@ -60,6 +68,11 @@ export function PageSplitter({ onSaveToLibrary, onBack }: { onSaveToLibrary?: (s
         };
         setExtractedStyleKit(styleKit);
         setSelectedStyleKit(styleKit.id);
+
+        // Call the callback if provided
+        if (onCssExtracted) {
+          onCssExtracted(extractedCss.trim());
+        }
       }
 
       const sections: DetectedSection[] = [];

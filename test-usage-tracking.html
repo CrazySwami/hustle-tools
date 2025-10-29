@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usage Tracking Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #fff;
+    }
+    #output {
+      background: #000;
+      padding: 20px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      margin-top: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      background: #0070f3;
+      color: white;
+      border: none;
+      border-radius: 6px;
+    }
+    button:hover {
+      background: #0051cc;
+    }
+    .success { color: #0f0; }
+    .error { color: #f00; }
+    .info { color: #0af; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Usage Tracking API Test</h1>
+  <p>This tests if the API returns usage data (tokens)</p>
+
+  <button onclick="testAPI()">Test /api/chat-elementor</button>
+  <button onclick="clearOutput()">Clear</button>
+
+  <div id="output"></div>
+
+  <script>
+    const output = document.getElementById('output');
+
+    function log(message, type = 'info') {
+      const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+      output.innerHTML += `<span class="${type}">[${timestamp}] ${message}</span>\n`;
+    }
+
+    function clearOutput() {
+      output.innerHTML = '';
+    }
+
+    async function testAPI() {
+      log('🚀 Starting test...', 'info');
+      log('Sending POST to /api/chat-elementor', 'info');
+
+      try {
+        const response = await fetch('http://localhost:3002/api/chat-elementor', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: 'user',
+                content: 'test'
+              }
+            ],
+            model: 'anthropic/claude-haiku-4-5-20251001',
+          })
+        });
+
+        log(`Response status: ${response.status}`, response.ok ? 'success' : 'error');
+
+        if (!response.ok) {
+          log(`Error: ${response.statusText}`, 'error');
+          return;
+        }
+
+        log('Reading stream...', 'info');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let usageFound = false;
+        let fullResponse = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          fullResponse += decoder.decode(value, { stream: true });
+
+          // Look for usage data in the stream
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+
+              try {
+                const json = JSON.parse(data);
+
+                // Check for usage in the chunk
+                if (json.usage) {
+                  log('✅ USAGE DATA FOUND!', 'success');
+                  log(JSON.stringify(json.usage, null, 2), 'success');
+                  usageFound = true;
+                }
+
+                // Check for finishReason
+                if (json.finishReason) {
+                  log(`Finish reason: ${json.finishReason}`, 'info');
+                }
+
+                // Log the full chunk for inspection
+                if (json.type) {
+                  log(`Chunk type: ${json.type}`, 'info');
+                }
+              } catch (e) {
+                // Not JSON, skip
+              }
+            }
+          }
+        }
+
+        log('Stream complete', 'info');
+
+        if (!usageFound) {
+          log('❌ NO USAGE DATA FOUND IN STREAM', 'error');
+          log('Full response (first 500 chars):', 'error');
+          log(fullResponse.substring(0, 500), 'error');
+        }
+
+        log('Test complete', usageFound ? 'success' : 'error');
+
+      } catch (error) {
+        log(`Error: ${error.message}`, 'error');
+        console.error(error);
+      }
+    }
+
+    // Auto-run on load
+    log('Ready to test. Click the button to start.', 'info');
+  </script>
+</body>
+</html>

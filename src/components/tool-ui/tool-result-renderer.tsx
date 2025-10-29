@@ -4,12 +4,18 @@ import { CodeWidget } from './code-widget';
 import { ScrapeResultWidget } from './scrape-result-widget';
 import { HTMLGeneratorWidget } from './html-generator-widget';
 import { UpdateSectionToolResult } from './UpdateSectionToolResult';
-import { TabSwitcherWidget } from './tab-switcher-widget';
+// REMOVED: TabSwitcherWidget - Tab navigation handled by UI, not tools
 import { ViewEditorCodeWidget } from './ViewEditorCodeWidget';
+import { EditCodeWidget } from './edit-code-widget';
+import { EditCodeMorphWidget } from './edit-code-morph-widget';  // ⭐ NEW: Morph Fast Apply
 import { StepPlannerWidget } from './step-planner-widget';
 import { BlogPlannerWidget } from './blog-planner-widget';
 import { BlogWriterWidget } from './blog-writer-widget';
 import { GoogleSearchWidget } from './google-search-widget';
+import { GenerateImageWidget } from './generate-image-widget';
+import { EditImageWidget } from './edit-image-widget';
+import { RemoveBackgroundWidget } from './remove-background-widget';
+import { ReverseImageSearchWidget } from './reverse-image-search-widget';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckSquare, Clock } from 'lucide-react';
@@ -20,6 +26,7 @@ import {
   ToolInput,
   ToolOutput,
 } from '@/components/ai-elements/tool';
+import { DesignSystemSummary } from '@/lib/global-stylesheet-context';
 
 interface ToolResult {
   toolCallId: string;
@@ -35,6 +42,7 @@ interface ToolResultRendererProps {
   onSwitchCodeTab?: (tab: 'html' | 'css' | 'js') => void;
   onSwitchTab?: (tab: string) => void;
   model?: string;
+  designSystemSummary?: DesignSystemSummary | null;
 }
 
 // Task widget component (inline since it's simpler)
@@ -103,7 +111,7 @@ function TaskWidget({ data }: { data: any }) {
   );
 }
 
-export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSectionEditor, onSwitchCodeTab, onSwitchTab, model }: ToolResultRendererProps) {
+export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSectionEditor, onSwitchCodeTab, onSwitchTab, model, designSystemSummary }: ToolResultRendererProps) {
   const { toolName, result } = toolResult;
 
   // Handle different tool types
@@ -126,16 +134,8 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
     case 'scrapeUrl':
       return <ScrapeResultWidget data={result} />;
 
-    case 'generateHTML':
-      return (
-        <HTMLGeneratorWidget
-          data={result}
-          onStreamUpdate={onStreamUpdate}
-          onSwitchToSectionEditor={onSwitchToSectionEditor}
-          onSwitchCodeTab={onSwitchCodeTab}
-          model={model}
-        />
-      );
+    // REMOVED: generateHTML tool - replaced by editCodeWithMorph (works on both empty and existing files)
+    // case 'generateHTML': return <HTMLGeneratorWidget ... />;
 
     case 'testPing':
       // Safety check for result data
@@ -236,21 +236,32 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
         </div>
       );
 
-    case 'switchTab':
-      return (
-        <TabSwitcherWidget
-          data={result}
-          onSwitchTab={onSwitchTab}
-        />
-      );
+    // REMOVED: switchTab - Tab navigation handled by UI, not tools
 
     case 'updateSectionHtml':
     case 'updateSectionCss':
     case 'updateSectionJs':
+    case 'updateSectionPhp':
       return <UpdateSectionToolResult toolName={toolName} result={result} />;
 
-    case 'viewEditorCode':
-      return <ViewEditorCodeWidget data={result} />;
+    // REMOVED: getEditorContent - no longer needed (Morph accesses content automatically)
+    // REMOVED: editCodeWithDiff - replaced by Morph Fast Apply
+
+    case 'editCodeWithMorph':
+      return (
+        <EditCodeMorphWidget
+          data={{
+            file: result.file || 'html',
+            instruction: result.instruction || '',
+            lazyEdit: result.lazyEdit || '',
+            status: result.status || 'pending',
+            message: result.message || '',
+          }}
+        />
+      );
+
+    // REMOVED: viewEditorCode tool - code is automatically included in system prompt
+    // case 'viewEditorCode': return <ViewEditorCodeWidget ... />;
 
     case 'planSteps':
       return <StepPlannerWidget data={result} />;
@@ -265,6 +276,18 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
 
     case 'writeBlogPost':
       return <BlogWriterWidget data={result} model={model} />;
+
+    case 'generateImage':
+      return <GenerateImageWidget data={result} />;
+
+    case 'editImage':
+      return <EditImageWidget data={result} />;
+
+    case 'removeBackground':
+      return <RemoveBackgroundWidget data={result} />;
+
+    case 'reverseImageSearch':
+      return <ReverseImageSearchWidget data={result} />;
 
     default:
       // Fallback for unknown tool types, now stylized like AI Elements

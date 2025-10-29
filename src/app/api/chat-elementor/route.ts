@@ -17,12 +17,14 @@ export async function POST(req: Request) {
       currentJson = {},
       webSearch = false,
       currentSection = null,
+      includeContext = true,
     }: {
       messages: UIMessage[];
       model: string;
       currentJson: any;
       webSearch: boolean;
       currentSection: any;
+      includeContext: boolean;
     } = await req.json();
 
     console.log('📨 Elementor Chat request:', {
@@ -38,14 +40,7 @@ export async function POST(req: Request) {
       calculate: tools.calculate,
       generateCode: tools.generateCode,
       manageTask: tools.manageTask,
-      generateHTML: tools.generateHTML,
-      updateSectionHtml: tools.updateSectionHtml,
-      updateSectionCss: tools.updateSectionCss,
-      updateSectionJs: tools.updateSectionJs,
-      getEditorContent: tools.getEditorContent,
-      editCodeWithDiff: tools.editCodeWithDiff,
-      testPing: tools.testPing,
-      switchTab: tools.switchTab,
+      editCodeWithMorph: tools.editCodeWithMorph,  // ⭐ THE ONLY CODE TOOL
     }));
 
     // Convert messages with error handling (same as main chat)
@@ -69,71 +64,99 @@ export async function POST(req: Request) {
     });
 
     // Build system prompt for Elementor section editing
-    let systemPrompt = `You are an expert HTML/CSS/JS section editor assistant. You help users create and edit web sections for WordPress Elementor pages.
+    let systemPrompt = `You are an expert HTML/CSS/JS/PHP code writing assistant. You help users create and edit web sections for WordPress Elementor pages.
 
 **Current date:** ${currentDate}
 
 **CRITICAL INSTRUCTIONS:**
 
-**For CREATING new sections:**
-When a user asks to "generate", "create", "build", or "make" a NEW section (hero, pricing table, contact form, navbar, footer, etc.), call the \`generateHTML\` tool. DO NOT generate code yourself.
+**🎯 THE ONLY TOOL YOU NEED - editCodeWithMorph:**
 
-**For EDITING existing sections:**
-When a user asks to "modify", "change", "update", "edit", or "fix" the CURRENT section:
-- \`updateSectionHtml\` - To modify the HTML markup
-- \`updateSectionCss\` - To modify the styling/colors/layout
-- \`updateSectionJs\` - To modify interactivity/functionality
+Use \`editCodeWithMorph\` for EVERYTHING (writing, editing, creating):
 
-**For NAVIGATING between tabs:**
-When a user asks to "open", "switch to", "go to", "navigate to", or "show me" a specific tab, you MUST use the \`switchTab\` tool. DO NOT just say you opened it - actually call the tool. Available tabs: 'json' (Code Editor), 'visual' (Visual Editor), 'sections' (Section Library), 'playground' (WordPress Playground), 'site-content' (Site Content), 'style-guide' (Style Guide).
+✅ **Empty files** - Write complete new code
+✅ **Existing files** - Make targeted edits with lazy markers
+✅ **Any file type** - HTML, CSS, JS, PHP
+✅ **Any change size** - Small tweaks or complete rewrites
 
-**IMPORTANT:** You can see the current section code above. Generate the COMPLETE updated code (not just the changed parts). The system will automatically show a diff preview to the user before applying changes.
+**How to use Morph:**
 
-**CURRENT SECTION IN EDITOR:**
-${currentSection && (currentSection.html || currentSection.css || currentSection.js) ? `
-✅ YES - You can see the current section code:
+1. **For EMPTY files (no code exists):**
+   - Write the complete code directly
+   - Example: \`editCodeWithMorph({ file: 'html', instruction: 'Adding h1', lazyEdit: '<h1>Hello</h1>' })\`
+
+2. **For EXISTING files (code already exists):**
+   - Use lazy edit markers: \`// ... existing code ...\`
+   - Show only what changes
+   - Example:
+     \`\`\`css
+     // ... existing code ...
+     .button {
+       background: red;  /* Just the change! */
+     }
+     // ... existing code ...
+     \`\`\`
+
+**Morph Features:**
+- 10,500 tokens/sec merge speed
+- 98% accuracy
+- Works with ANY model (even Haiku!)
+- No complex diff format needed
+- Handles empty AND existing files
+
+**IMPORTANT FILE TYPE DETECTION:**
+- If user shows you code with \`<?php\` tags → Use \`editCodeWithMorph\` with file='php'
+- HTML sections should NEVER contain PHP code - they are client-side only
+- PHP code cannot be previewed in the editor - user must copy to WordPress
+
+**📁 CURRENT FILES IN EDITOR:**
+${includeContext && currentSection && (currentSection.html || currentSection.css || currentSection.js || currentSection.php) ? `
+✅ **YES - You have full access to all code files below:**
 
 **Section Name:** ${currentSection.name || 'Untitled'}
 
-**HTML (${currentSection.html?.length || 0} characters):**
+**📄 HTML FILE (${currentSection.html?.length || 0} characters):**
 \`\`\`html
-${currentSection.html?.substring(0, 1000) || 'No HTML'}
-${currentSection.html?.length > 1000 ? '...(truncated)' : ''}
+${currentSection.html?.substring(0, 1000) || '(empty file)'}
+${currentSection.html?.length > 1000 ? '...(truncated - ask if you need to see more)' : ''}
 \`\`\`
 
-**CSS (${currentSection.css?.length || 0} characters):**
+**🎨 CSS FILE (${currentSection.css?.length || 0} characters):**
 \`\`\`css
-${currentSection.css?.substring(0, 1000) || 'No CSS'}
-${currentSection.css?.length > 1000 ? '...(truncated)' : ''}
+${currentSection.css?.substring(0, 1000) || '(empty file)'}
+${currentSection.css?.length > 1000 ? '...(truncated - ask if you need to see more)' : ''}
 \`\`\`
 
-**JS (${currentSection.js?.length || 0} characters):**
+**⚡ JS FILE (${currentSection.js?.length || 0} characters):**
 \`\`\`javascript
-${currentSection.js?.substring(0, 1000) || 'No JS'}
-${currentSection.js?.length > 1000 ? '...(truncated)' : ''}
+${currentSection.js?.substring(0, 1000) || '(empty file)'}
+${currentSection.js?.length > 1000 ? '...(truncated - ask if you need to see more)' : ''}
 \`\`\`
 
-When user asks "can you see my code", say YES and show what you can see above.
+**🔧 PHP FILE (${currentSection.php?.length || 0} characters):**
+\`\`\`php
+${currentSection.php?.substring(0, 1000) || '(empty file)'}
+${currentSection.php?.length > 1000 ? '...(truncated - ask if you need to see more)' : ''}
+\`\`\`
+
+**IMPORTANT:** You CAN see all the code above! Each file is clearly labeled. When user asks "can you see my code", say YES and reference the specific files shown above. Use \`editCodeWithMorph\` to write or edit any of these files.
 ` : `
 ❌ NO - No section currently loaded in the editor.
 
-The section editor appears empty. The user needs to either:
-1. Generate a new section using the "generateHTML" tool
-2. Load a section from the Section Library
-3. Type/paste code directly into the editor
+The editor is empty. You can write new code directly using the \`editCodeWithMorph\` tool.
 
 When user asks "can you see my code", say NO - the editor is empty.
 `}
 
 **Important guidelines:**
-- For NEW sections: Use \`generateHTML\` tool
-- For EDITING current section: Use \`updateSection*\` tools
-- DO NOT try to call \`getDocumentContent\` - you already have the section content above
-- Always output section-level code only (NO DOCTYPE, html, head, body tags)
-- CSS should be pure selectors (NO <style> tags)
-- JavaScript should be pure code (NO <script> tags)
-- Be concise and explain what you changed
-- **ALWAYS use tools - never generate code in your response**`;
+- 🎯 **PRIMARY ACTION:** Use \`editCodeWithMorph\` for ALL code writing/editing (new or existing files)
+- 📝 **Code format rules:** Section-level code only (NO DOCTYPE, html, head, body tags), CSS without <style> tags, JS without <script> tags
+- 💬 **Communication:** Be concise, explain what you changed
+- ⚠️ **CRITICAL:** ALWAYS use \`editCodeWithMorph\` tool - NEVER write code directly in your text response
+
+**When user asks "can you see my code":**
+- If files are shown above with ✅: Say "Yes, I can see your [HTML/CSS/JS/PHP] code" and reference specific content
+- If you see ❌: Say "No, the editor appears empty"`;
 
     // Enable web search for Perplexity models (same as main chat)
     if (webSearch && model.startsWith('perplexity/')) {
@@ -151,19 +174,14 @@ ${Object.keys(currentJson).length > 0 ? 'Current page has: ' + JSON.stringify(cu
 
     // Add tool calling instructions
     systemPrompt += `\n\n**Available Tools:**
-- **testPing**: DIAGNOSTIC TOOL - Use this IMMEDIATELY when user says "test ping" or "ping test". This verifies the tool calling system is working. ALWAYS use this tool when requested - DO NOT just respond with text.
-- **generateHTML**: Use this tool whenever a user asks to generate, create, or build HTML, CSS, or JavaScript. This tool opens an interactive UI for generating web components with optional image references.
-- **switchTab**: Use this tool when the user wants to navigate to a different tab (Code Editor, Visual Editor, Section Library, WordPress Playground, Site Content, or Style Guide).
-- **updateSectionHtml/Css/Js**: Use these tools to edit the current section code with diff preview.
+- **editCodeWithMorph**: 🎯 PRIMARY TOOL - Use this for ALL code writing/editing. Works on empty files AND existing code. Uses lazy edits (// ... existing code ...) for precision. 98% accurate, 10x faster than diffs.
 - **getWeather**: Get current weather information
 - **calculate**: Perform mathematical calculations
 - **generateCode**: Generate code snippets in various languages
 - **manageTask**: Create and manage tasks
 
 **CRITICAL INSTRUCTIONS:**
-1. When user says "test ping" or "ping test", you MUST call the testPing tool. DO NOT just say you're calling it - actually call it.
-2. When a user asks to generate HTML, CSS, or JavaScript (e.g., "generate some HTML", "create a hero section", "make a contact form"), you MUST use the generateHTML tool. Do not generate the code yourself - the tool will handle it.
-3. When user asks to switch tabs or navigate, you MUST use the switchTab tool.
+When a user asks to write or edit code (e.g., "create a hero section", "change the button color", "add a navbar"), you MUST use the editCodeWithMorph tool. This tool works on BOTH empty files AND existing code.
 
 After using a tool, provide a helpful text response that explains what the tool will do or what results it returned.`;
 
@@ -175,12 +193,11 @@ After using a tool, provide a helpful text response that explains what the tool 
       calculate: tools.calculate,
       generateCode: tools.generateCode,
       manageTask: tools.manageTask,
-      generateHTML: tools.generateHTML,
-      updateSectionHtml: tools.updateSectionHtml,
-      updateSectionCss: tools.updateSectionCss,
-      updateSectionJs: tools.updateSectionJs,
-      testPing: tools.testPing,
-      switchTab: tools.switchTab,
+      // REMOVED: generateHTML - use editCodeWithMorph instead
+      // REMOVED: updateSectionHtml/Css/Js/Php - use editCodeWithMorph instead (handles everything!)
+      // REMOVED: testPing - diagnostic tool no longer needed
+      // REMOVED: switchTab - tab navigation handled by UI, not tools
+      editCodeWithMorph: tools.editCodeWithMorph,  // ⭐ THE ONLY CODE TOOL - Works on empty AND existing files
     };
 
     console.log('🚀 Calling streamText...', {
@@ -192,15 +209,18 @@ After using a tool, provide a helpful text response that explains what the tool 
       systemPromptPreview: systemPrompt.substring(0, 500),
     });
 
-    // Check if the last user message mentions HTML generation keywords or test ping
+    // Check if the last user message mentions test ping ONLY (removed HTML keyword detection)
+    // HTML generation should be triggered naturally by the model based on system prompt
+    // Check last user message for context
     const lastUserMessage = messages[messages.length - 1];
     const userText = lastUserMessage?.parts?.[0]?.text || '';
-    const htmlKeywords = ['generate', 'create', 'build', 'make', 'html', 'css', 'javascript', 'hero', 'pricing', 'table', 'form', 'contact', 'navbar', 'footer', 'section'];
-    const toolForceKeywords = [...htmlKeywords, 'test ping', 'ping test', 'ping'];
-    const shouldForceHTMLTool = toolForceKeywords.some(keyword => userText.toLowerCase().includes(keyword));
 
-    if (shouldForceHTMLTool) {
-      console.log('🎯 Tool trigger keywords detected! Forcing tool usage for:', userText);
+    // Log edit requests for debugging
+    const editKeywords = ['edit', 'change', 'modify', 'update', 'fix', 'alter', 'adjust', 'create', 'add', 'make'];
+    const isEditRequest = editKeywords.some(keyword => userText.toLowerCase().includes(keyword));
+
+    if (isEditRequest) {
+      console.log('✏️ Edit request detected - model will use editCodeWithMorph tool');
     }
 
     const streamConfig: any = {
@@ -213,12 +233,6 @@ After using a tool, provide a helpful text response that explains what the tool 
       stopWhen: stepCountIs(2), // Limit tool calls to prevent UI duplication (was 5)
     };
 
-    // Force tool usage if HTML keywords detected
-    if (shouldForceHTMLTool) {
-      streamConfig.toolChoice = 'required'; // Force the model to call a tool
-      console.log('🔧 Setting toolChoice to "required" to force tool call');
-    }
-
     console.log('📤 Final stream config:', {
       hasTools: !!streamConfig.tools,
       toolChoice: streamConfig.toolChoice,
@@ -229,11 +243,37 @@ After using a tool, provide a helpful text response that explains what the tool 
 
     console.log('✅ Returning stream response with sources and tools');
 
-    // Return with sources and tool results enabled (same as main chat)
+    // Log usage after completion (for debugging)
+    result.usage.then(usage => {
+      console.log('📊 Usage data from AI:', usage);
+    }).catch(err => {
+      console.error('❌ Error getting usage:', err);
+    });
+
+    // Return with sources, tool results, and usage metadata
+    // CORRECT: Use messageMetadata callback to send usage data to client
     return result.toUIMessageStreamResponse({
       sendSources: true,
       sendReasoning: true,
       sendToolResults: true,
+      messageMetadata: ({ part }) => {
+        // Send usage data when stream completes
+        if (part.type === 'finish') {
+          console.log('✅ Sending usage metadata - part:', JSON.stringify(part, null, 2));
+
+          // Extract usage data from part
+          const usage = part.totalUsage || {};
+
+          return {
+            promptTokens: usage.inputTokens || 0,
+            completionTokens: usage.outputTokens || 0,
+            totalTokens: usage.totalTokens || 0,
+            cacheCreationTokens: 0, // Not available in totalUsage
+            cacheReadTokens: usage.cachedInputTokens || 0,
+            model,
+          };
+        }
+      },
     });
 
   } catch (error: any) {

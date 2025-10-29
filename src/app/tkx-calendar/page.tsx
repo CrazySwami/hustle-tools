@@ -98,6 +98,22 @@ export default function TKXCalendarPage() {
 
   // Step 2: Results view (like TKX scraper in image-alterations)
   const [viewMode, setViewMode] = useState<'selection' | 'results'>('selection');
+  const [aspectRatio, setAspectRatio] = useState<string>('16:9');
+  const [customWidth, setCustomWidth] = useState(1920);
+  const [customHeight, setCustomHeight] = useState(1080);
+
+  // Aspect ratio presets
+  const aspectRatios = {
+    '1:1': { width: 1080, height: 1080, label: '1:1 (Square)' },
+    '16:9': { width: 1920, height: 1080, label: '16:9 (Landscape)' },
+    '9:16': { width: 1080, height: 1920, label: '9:16 (Portrait)' },
+    '4:3': { width: 1440, height: 1080, label: '4:3 (Standard)' },
+    '3:4': { width: 1080, height: 1440, label: '3:4 (Portrait)' },
+    '21:9': { width: 2560, height: 1080, label: '21:9 (Ultrawide)' },
+    'custom': { width: customWidth, height: customHeight, label: 'Custom' },
+  };
+
+  const selectedDimensions = aspectRatios[aspectRatio as keyof typeof aspectRatios] || aspectRatios['16:9'];
   const [tkxResults, setTkxResults] = useState<TkxResult[]>([]);
   const [scrapingResults, setScrapingResults] = useState(false);
   const [completedEvents, setCompletedEvents] = useState<Set<string>>(new Set());
@@ -275,7 +291,7 @@ export default function TKXCalendarPage() {
             try {
               const filename = result.title?.replace(/[^a-zA-Z0-9\s]/g, '_') || 'image';
               const imageFile = await urlToFile(result.imageUrl, `${filename}.jpg`);
-              const processedUrl = await createBlurredBackground(imageFile, 1920, 1080);
+              const processedUrl = await createBlurredBackground(imageFile, selectedDimensions.width, selectedDimensions.height);
 
               setTkxResults(prev =>
                 prev.map(r => r.url === result.url ? { ...r, processedImageUrl: processedUrl } : r)
@@ -535,6 +551,20 @@ export default function TKXCalendarPage() {
                     {selectedEvents.size} of {filteredEvents.length} selected
                   </span>
                 </div>
+
+                {/* Aspect Ratio Selector */}
+                <Select value={aspectRatio} onValueChange={setAspectRatio}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Aspect Ratio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(aspectRatios).map(([key, { label }]) => (
+                      <SelectItem key={key} value={key}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
                 {selectedEvents.size > 0 && (
                   <Button

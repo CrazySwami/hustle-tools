@@ -65,8 +65,9 @@ export function VisualSectionEditor({
   }, []);
 
   // Convert global CSS to data URL for GrapeJS canvas
+  // Use Buffer to handle Unicode characters (btoa fails on non-Latin1)
   const globalCssDataUrl = globalCss
-    ? `data:text/css;base64,${btoa(globalCss)}`
+    ? `data:text/css;base64,${Buffer.from(globalCss, 'utf-8').toString('base64')}`
     : undefined;
 
   // Reload content when initialSection changes (e.g., switching from Code Editor)

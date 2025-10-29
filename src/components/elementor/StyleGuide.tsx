@@ -4,6 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import { useGlobalStylesheet } from "@/lib/global-stylesheet-context";
 import { useTheme } from "next-themes";
 import { OptionsButton, type OptionItem } from "@/components/ui/OptionsButton";
+import Editor from "@monaco-editor/react";
+import { PageExtractor } from "@/components/page-extractor/PageExtractor";
+import { analyzeCSSWithAI } from "@/lib/css-analyzer";
+import { CSSClassExplorer } from "./CSSClassExplorer";
 
 interface StyleGuideProps {
   chatVisible?: boolean;
@@ -21,6 +25,8 @@ export function StyleGuide({
   const {
     globalCss,
     setGlobalCss,
+    designSystemSummary,
+    setDesignSystemSummary,
     pullFromWordPress,
     pushToWordPress,
     isLoading,
@@ -34,6 +40,10 @@ export function StyleGuide({
 
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const [showPageExtractor, setShowPageExtractor] = useState(false);
+  const [showClassExplorer, setShowClassExplorer] = useState(false);
+  const [editedCss, setEditedCss] = useState(globalCss);
   const lastUpdateRef = useRef(lastUpdated);
 
   // Mobile detection
@@ -653,6 +663,26 @@ export function StyleGuide({
       <OptionsButton
         isMobile={isMobile}
         options={[
+          // Edit CSS
+          {
+            label: "✏️ Edit CSS",
+            onClick: () => {
+              setEditedCss(globalCss);
+              setShowEditor(true);
+            },
+          },
+          // Page Extractor
+          {
+            label: "🔍 Extract CSS from Page",
+            onClick: () => setShowPageExtractor(true),
+          },
+          // CSS Class Explorer
+          {
+            label: "📚 Browse CSS Classes",
+            onClick: () => setShowClassExplorer(true),
+            disabled: !designSystemSummary,
+            divider: true,
+          },
           // Pull from WordPress
           {
             label: "⬇️ Pull from WordPress",
@@ -696,6 +726,232 @@ export function StyleGuide({
             : []),
         ]}
       />
+
+      {/* CSS Editor Modal */}
+      {showEditor && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+          onClick={() => setShowEditor(false)}
+        >
+          <div
+            style={{
+              background: "var(--background)",
+              borderRadius: "12px",
+              width: "90%",
+              maxWidth: "1000px",
+              height: "80%",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 600 }}>
+                Edit Global Stylesheet
+              </h3>
+              <button
+                onClick={() => setShowEditor(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                  color: "var(--muted-foreground)",
+                  padding: "0 8px",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Monaco Editor */}
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              <Editor
+                height="100%"
+                defaultLanguage="css"
+                value={editedCss}
+                onChange={(value) => setEditedCss(value || "")}
+                theme={theme === "dark" ? "vs-dark" : "light"}
+                options={{
+                  minimap: { enabled: true },
+                  fontSize: 14,
+                  lineNumbers: "on",
+                  scrollBeyondLastLine: false,
+                  wordWrap: "on",
+                  automaticLayout: true,
+                }}
+              />
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                padding: "16px 20px",
+                borderTop: "1px solid var(--border)",
+                display: "flex",
+                gap: "12px",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                onClick={() => setShowEditor(false)}
+                style={{
+                  padding: "8px 16px",
+                  background: "var(--muted)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setGlobalCss(editedCss);
+                  setShowEditor(false);
+                }}
+                style={{
+                  padding: "8px 16px",
+                  background: "#3b82f6",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Page Extractor Modal */}
+      {showPageExtractor && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+          onClick={() => setShowPageExtractor(false)}
+        >
+          <div
+            style={{
+              background: "var(--background)",
+              borderRadius: "12px",
+              width: "90%",
+              maxWidth: "1200px",
+              height: "85%",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 600 }}>
+                Extract CSS from Page
+              </h3>
+              <button
+                onClick={() => setShowPageExtractor(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                  color: "var(--muted-foreground)",
+                  padding: "0 8px",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* PageExtractor Component */}
+            <div style={{ flex: 1, overflow: "auto", padding: "20px" }}>
+              <PageExtractor
+                onCssExtracted={async (extractedCss: string, sourceUrl?: string) => {
+                  // Append extracted CSS to global stylesheet
+                  const separator = "\n\n/* ========== Extracted CSS ========== */\n\n";
+                  const updatedCss = globalCss + separator + extractedCss;
+                  setGlobalCss(updatedCss);
+
+                  // Analyze CSS and create design system summary
+                  try {
+                    console.log('🔍 Analyzing CSS to create design system summary...');
+                    const summary = await analyzeCSSWithAI(extractedCss, sourceUrl);
+                    setDesignSystemSummary(summary);
+                    console.log('✅ Design system summary created:', summary);
+                  } catch (error) {
+                    console.error('❌ Failed to analyze CSS:', error);
+                    // Still allow CSS to be saved even if analysis fails
+                  }
+
+                  setShowPageExtractor(false);
+
+                  // Show success notification
+                  setShowUpdateNotification(true);
+                  setTimeout(() => setShowUpdateNotification(false), 3000);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSS Class Explorer */}
+      {showClassExplorer && designSystemSummary && (
+        <CSSClassExplorer
+          designSystemSummary={designSystemSummary}
+          onClose={() => setShowClassExplorer(false)}
+        />
+      )}
 
       <style jsx>{`
         @keyframes slideIn {

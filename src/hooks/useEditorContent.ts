@@ -1,11 +1,11 @@
 /**
  * useEditorContent Hook
  *
- * Global state management for Monaco editor content (HTML/CSS/JS).
+ * Global state management for Monaco editor content (HTML/CSS/JS/PHP).
  * Provides centralized access to editor content for chat tools and AI operations.
  *
  * Features:
- * - Stores current HTML, CSS, and JavaScript content
+ * - Stores current HTML, CSS, JavaScript, and PHP content
  * - Provides getContent() for reading all or specific files
  * - Provides updateContent() for updating individual files
  * - Maintains undo/redo history stack
@@ -13,7 +13,7 @@
  *
  * Usage:
  * ```tsx
- * const { html, css, js, getContent, updateContent } = useEditorContent();
+ * const { html, css, js, php, getContent, updateContent } = useEditorContent();
  *
  * // Get specific file
  * const currentHTML = getContent(['html']);
@@ -29,14 +29,15 @@ export interface EditorContent {
   html: string;
   css: string;
   js: string;
+  php: string;
 }
 
 interface EditorState extends EditorContent {
   // Content getters
-  getContent: (files?: ('html' | 'css' | 'js')[]) => Partial<EditorContent>;
+  getContent: (files?: ('html' | 'css' | 'js' | 'php')[]) => Partial<EditorContent>;
 
   // Content setters
-  updateContent: (file: 'html' | 'css' | 'js', content: string) => void;
+  updateContent: (file: 'html' | 'css' | 'js' | 'php', content: string) => void;
   setAllContent: (content: EditorContent) => void;
 
   // History management
@@ -54,6 +55,7 @@ export const useEditorContent = create<EditorState>((set, get) => ({
   html: '',
   css: '',
   js: '',
+  php: '',
 
   // History state
   history: [],
@@ -71,7 +73,8 @@ export const useEditorContent = create<EditorState>((set, get) => ({
       return {
         html: state.html,
         css: state.css,
-        js: state.js
+        js: state.js,
+        php: state.php
       };
     }
 
@@ -102,7 +105,8 @@ export const useEditorContent = create<EditorState>((set, get) => ({
     set({
       html: content.html,
       css: content.css,
-      js: content.js
+      js: content.js,
+      php: content.php
     });
   },
 
@@ -114,7 +118,8 @@ export const useEditorContent = create<EditorState>((set, get) => ({
     const currentContent = {
       html: state.html,
       css: state.css,
-      js: state.js
+      js: state.js,
+      php: state.php
     };
 
     // Remove any redo history when new change is made
@@ -158,6 +163,7 @@ export const useEditorContent = create<EditorState>((set, get) => ({
       html: previousState.html,
       css: previousState.css,
       js: previousState.js,
+      php: previousState.php,
       historyIndex: state.historyIndex - 1
     });
   },
@@ -174,6 +180,7 @@ export const useEditorContent = create<EditorState>((set, get) => ({
       html: nextState.html,
       css: nextState.css,
       js: nextState.js,
+      php: nextState.php,
       historyIndex: state.historyIndex + 1
     });
   }

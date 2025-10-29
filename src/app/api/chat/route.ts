@@ -1,5 +1,4 @@
 import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
-import { gateway } from '@ai-sdk/gateway';
 import { tools } from '@/lib/tools';
 import { Comment } from '@/components/editor/CommentExtension';
 
@@ -171,25 +170,13 @@ After using a tool, provide a brief text response that contextualizes the tool r
     if (isElementorRequest) {
       systemPrompt += `\n\n**ELEMENTOR EDITOR MODE ACTIVE**
 
-You are now assisting with the Elementor Section Builder. You have access to special tools:
+You are now assisting with the Elementor Section Builder.
 
 **Available Tools:**
-- **testPing**: DIAGNOSTIC TOOL - Use this IMMEDIATELY when user says "test ping". Verifies tool calling is working.
-- **switchTab**: Use when user asks to navigate to different tabs (Code Editor, Visual Editor, Section Library, WordPress Playground, Site Content, Style Guide).
-- **updateSectionHtml**: Use to modify HTML markup - PROPOSES changes that user must approve.
-- **updateSectionCss**: Use to modify styling/colors/layout - PROPOSES changes that user must approve.
-- **updateSectionJs**: Use to modify interactivity/functionality - PROPOSES changes that user must approve.
-- **viewEditorCode**: Use to view current code when you need to read it before making changes.
-- **generateHTML**: Use when user asks to generate/create a NEW section from scratch.
+- **editCodeWithMorph**: 🎯 THE ONLY CODE TOOL - Use this for ALL code writing/editing (works on both empty and existing files).
 
 **CRITICAL INSTRUCTIONS:**
-1. When user says "test ping", you MUST call the testPing tool.
-2. When user asks to switch tabs or navigate, you MUST use the switchTab tool.
-3. When user asks to modify/change/edit existing code (e.g., "change h1 color to red"), you MUST use ONLY ONE updateSectionCss/Html/Js tool (choose the most relevant one).
-4. When user asks to create/generate NEW content from scratch, use ONLY generateHTML (do NOT also call updateSection tools).
-5. DO NOT call multiple conflicting tools - choose the single most appropriate tool for the user's request.
-6. After calling an updateSection tool, DO NOT say the changes are "applied" or "done" - say they are "proposed" and the user needs to click "Apply Changes" to confirm.
-7. DO NOT just say you're calling a tool - actually call it!
+When user asks to write/edit/modify ANY code, you MUST use editCodeWithMorph tool.
 
 Current section: ${currentSection?.name || 'No section loaded'}`;
     }
@@ -200,11 +187,11 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
 
     // Configure provider options for reasoning if enabled and model supports it
     let providerOptions = undefined;
-    
-    if (enableReasoning && REASONING_MODELS[model]) {
-      const reasoningConfig = REASONING_MODELS[model];
+
+    if (enableReasoning && model in REASONING_MODELS) {
+      const reasoningConfig = REASONING_MODELS[model as keyof typeof REASONING_MODELS];
       console.log(`Enabling reasoning for ${model} with provider ${reasoningConfig.provider}`);
-      
+
       providerOptions = {
         [reasoningConfig.provider]: reasoningConfig.config
       };
@@ -223,13 +210,8 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
     // If this is an Elementor request, include Elementor-specific tools
     const baseTools = isElementorRequest ? {
       ...tools,
-      // Elementor-specific tools
-      updateSectionHtml: tools.updateSectionHtml,
-      updateSectionCss: tools.updateSectionCss,
-      updateSectionJs: tools.updateSectionJs,
-      viewEditorCode: tools.viewEditorCode,
-      testPing: tools.testPing,
-      switchTab: tools.switchTab,
+      // Elementor-specific tools (ONLY editCodeWithMorph)
+      editCodeWithMorph: tools.editCodeWithMorph,
     } : tools;
 
     const toolsWithDocumentContent = enableTools ? {
@@ -267,15 +249,23 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
     console.log('🔧 Tools configured:', Object.keys(toolsWithDocumentContent || {}));
 
     // Check if the last user message mentions keywords that should force tool usage (for Elementor requests)
-    let toolChoice = undefined;
+    let toolChoice: 'auto' | 'required' | { type: 'tool'; toolName: 'planSteps' } | undefined = undefined;
 
     // Extract user text for all keyword detection
     const lastUserMessage = messages.length > 0 ? messages[messages.length - 1] : null;
-    const userText = lastUserMessage
-      ? (typeof lastUserMessage.content === 'string'
-        ? lastUserMessage.content
-        : lastUserMessage.parts?.[0]?.text || '')
-      : '';
+
+    // Safely extract text from message - handle both content string and parts array
+    let userText = '';
+    if (lastUserMessage) {
+      if ('content' in lastUserMessage && typeof lastUserMessage.content === 'string') {
+        userText = lastUserMessage.content;
+      } else if ('parts' in lastUserMessage && Array.isArray(lastUserMessage.parts)) {
+        const textPart = lastUserMessage.parts.find((p: any) =>
+          p && typeof p === 'object' && 'type' in p && p.type === 'text' && 'text' in p
+        );
+        userText = (textPart as any)?.text || '';
+      }
+    }
 
     if (isElementorRequest && messages.length > 0) {
       const forceToolKeywords = [
@@ -306,7 +296,7 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
       console.log('🎯🎯🎯 MULTI-STEP DETECTED! Forcing planSteps tool');
       toolChoice = {
         type: 'tool',
-        toolName: 'planSteps'
+        toolName: 'planSteps' as const
       };
     }
 
@@ -325,16 +315,50 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
 
     console.log('--- Sending stream response ---');
 
-    // send sources, reasoning, and tool results back to the client
-    return result.toUIMessageStreamResponse({
-      sendSources: true,
-      sendReasoning: true,
-      sendToolResults: true, // Enable tool result parts in the response
-    });
-  } catch (error) {
+    // send sources, reasoning, and usage metadata to the client
+    // CORRECT: Use messageMetadata callback to send usage data
+    try {
+      return result.toUIMessageStreamResponse({
+        sendSources: true,
+        sendReasoning: true,
+        messageMetadata: ({ part }) => {
+          // Guard against undefined part
+          if (!part || !part.type) {
+            return undefined;
+          }
+
+          // Send usage data when stream completes
+          if (part.type === 'finish') {
+            console.log('✅ Sending usage metadata - part:', JSON.stringify(part, null, 2));
+
+            // Extract usage data from part
+            const usage = part.totalUsage || {};
+
+            return {
+              promptTokens: usage.inputTokens || 0,
+              completionTokens: usage.outputTokens || 0,
+              totalTokens: usage.totalTokens || 0,
+              cacheCreationTokens: 0, // Not available in totalUsage
+              cacheReadTokens: usage.cachedInputTokens || 0,
+              model,
+            };
+          }
+        },
+      });
+    } catch (streamError: unknown) {
+      console.error('[Stream Error]', streamError);
+      // If streaming fails, return the error but don't crash
+      const errorMessage = streamError instanceof Error ? streamError.message : 'Unknown stream error';
+      return new Response(
+        JSON.stringify({ error: 'Stream processing error', details: errorMessage }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+  } catch (error: unknown) {
     console.error('*** Unhandled error in /api/chat ***', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ error: 'Internal Server Error', details: error.message }), 
+      JSON.stringify({ error: 'Internal Server Error', details: errorMessage }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

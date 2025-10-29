@@ -1004,27 +1004,27 @@ window.getElementorStyleKit = async function() {
     const phpCode = `<?php
         require_once '/wordpress/wp-load.php';
 
-        $style_kit = array(
-            'system_colors' => get_option('elementor_scheme_color', array()),
-            'system_typography' => get_option('elementor_scheme_typography', array())
-        );
+        $style_kit = array();
 
-        // Also try to get from custom CSS
+        // Get the active kit ID
         $kit_id = get_option('elementor_active_kit');
+
         if ($kit_id) {
+            // Get ALL settings from _elementor_page_settings (complete kit)
             $kit_meta = get_post_meta($kit_id, '_elementor_page_settings', true);
-            if (!empty($kit_meta['system_colors'])) {
-                $style_kit['system_colors'] = $kit_meta['system_colors'];
+
+            if (is_array($kit_meta) && !empty($kit_meta)) {
+                // Return the COMPLETE kit settings, not just a subset
+                $style_kit = $kit_meta;
             }
-            if (!empty($kit_meta['system_typography'])) {
-                $style_kit['system_typography'] = $kit_meta['system_typography'];
-            }
-            if (!empty($kit_meta['custom_colors'])) {
-                $style_kit['custom_colors'] = $kit_meta['custom_colors'];
-            }
-            if (!empty($kit_meta['custom_typography'])) {
-                $style_kit['custom_typography'] = $kit_meta['custom_typography'];
-            }
+        }
+
+        // Fallback to legacy options if kit doesn't exist
+        if (empty($style_kit)) {
+            $style_kit = array(
+                'system_colors' => get_option('elementor_scheme_color', array()),
+                'system_typography' => get_option('elementor_scheme_typography', array())
+            );
         }
 
         echo json_encode($style_kit);
@@ -1073,19 +1073,9 @@ window.setElementorStyleKit = async function(styleKit) {
                 $kit_settings = array();
             }
 
-            // Update with new style kit data
-            if (isset($style_kit['system_colors'])) {
-                $kit_settings['system_colors'] = $style_kit['system_colors'];
-            }
-            if (isset($style_kit['system_typography'])) {
-                $kit_settings['system_typography'] = $style_kit['system_typography'];
-            }
-            if (isset($style_kit['custom_colors'])) {
-                $kit_settings['custom_colors'] = $style_kit['custom_colors'];
-            }
-            if (isset($style_kit['custom_typography'])) {
-                $kit_settings['custom_typography'] = $style_kit['custom_typography'];
-            }
+            // Merge new style kit data with existing settings (preserves all properties)
+            // This ensures we don't lose any Elementor settings we're not explicitly managing
+            $kit_settings = array_merge($kit_settings, $style_kit);
 
             update_post_meta($kit_id, '_elementor_page_settings', $kit_settings);
 

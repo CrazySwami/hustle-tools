@@ -14,6 +14,7 @@ import { useGlobalStylesheet } from "@/lib/global-stylesheet-context";
 import { useTheme } from "next-themes";
 import { OptionsButton } from "@/components/ui/OptionsButton";
 import { useEditorContent } from "@/hooks/useEditorContent";
+import { ElementInspector } from "./ElementInspector";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -30,6 +31,12 @@ interface HtmlSectionEditorProps {
   setChatVisible?: (visible: boolean) => void;
   tabBarVisible?: boolean;
   setTabBarVisible?: (visible: boolean) => void;
+  onEditElementInChat?: (elementData: {
+    html: string;
+    selector: string;
+    classList: string[];
+    context: string;
+  }) => void;
 }
 
 export function HtmlSectionEditor({
@@ -47,6 +54,7 @@ export function HtmlSectionEditor({
   setChatVisible,
   tabBarVisible,
   setTabBarVisible,
+  onEditElementInChat,
 }: HtmlSectionEditorProps) {
   const [section, setSection] = useState<Section>(
     initialSection || createSection(),
@@ -61,11 +69,12 @@ export function HtmlSectionEditor({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFileTree, setShowFileTree] = useState(true); // Show by default on desktop
   const menuRef = useRef<HTMLDivElement>(null);
+  const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const { globalCss, cssVariables } = useGlobalStylesheet();
   const { theme } = useTheme();
 
   // Global editor content state (for chat access)
-  const { updateContent, setAllContent, html: editorHtml, css: editorCss, js: editorJs } = useEditorContent();
+  const { updateContent, setAllContent, html: editorHtml, css: editorCss, js: editorJs, php: editorPhp } = useEditorContent();
 
   // Deploy widget to WordPress Playground
   const handleDeployWidget = async () => {
@@ -274,10 +283,11 @@ export function HtmlSectionEditor({
     onSectionChange?.(updatedSection);
 
     // Sync code changes to global state for chat access
-    if ('html' in updates || 'css' in updates || 'js' in updates) {
+    if ('html' in updates || 'css' in updates || 'js' in updates || 'php' in updates) {
       if ('html' in updates) updateContent('html', updates.html || '');
       if ('css' in updates) updateContent('css', updates.css || '');
       if ('js' in updates) updateContent('js', updates.js || '');
+      if ('php' in updates) updateContent('php', updates.php || '');
     }
   };
 
@@ -286,9 +296,10 @@ export function HtmlSectionEditor({
     setAllContent({
       html: section.html || '',
       css: section.css || '',
-      js: section.js || ''
+      js: section.js || '',
+      php: section.php || ''
     });
-  }, [section.id, section.html, section.css, section.js, setAllContent]);
+  }, [section.id, section.html, section.css, section.js, section.php, setAllContent]);
 
 
   // Update section when streamed content changes
@@ -1127,7 +1138,7 @@ export function HtmlSectionEditor({
                     <option value="html">📄 index.html</option>
                     <option value="css">🎨 styles.css</option>
                     <option value="js">⚡ script.js</option>
-                    {section.php && <option value="php">🔧 widget.php</option>}
+                    <option value="php">🔧 widget.php</option>
                   </select>
                 </div>
               )}
@@ -1200,11 +1211,20 @@ export function HtmlSectionEditor({
                     ? editorCss
                     : activeCodeTab === "js"
                     ? editorJs
-                    : section.php || ""
+                    : activeCodeTab === "php"
+                    ? editorPhp
+                    : ""
                 }
-                onChange={(value) =>
-                  updateSection({ [activeCodeTab]: value || "" })
-                }
+                onChange={(value) => {
+                  // Auto-detect PHP code and redirect to php tab
+                  if (activeCodeTab === "html" && value && value.trim().startsWith('<?php')) {
+                    console.log('🔧 PHP code detected in HTML editor, redirecting to widget.php');
+                    updateSection({ php: value || "", html: "" });
+                    handleCodeTabChange('php');
+                  } else {
+                    updateSection({ [activeCodeTab]: value || "" });
+                  }
+                }}
                 onMount={(editor, monaco) => {
                   // Register CSS variable autocomplete (only for CSS tab)
                   if (activeCodeTab === "css") {
@@ -1315,6 +1335,7 @@ export function HtmlSectionEditor({
             </div>
 
             <iframe
+              ref={previewIframeRef}
               srcDoc={generatePreviewHTML()}
               style={{
                 flex: 1,
@@ -1324,6 +1345,14 @@ export function HtmlSectionEditor({
               sandbox="allow-scripts"
               title="Section Preview"
             />
+
+            {/* Element Inspector - Only show when callback is provided */}
+            {onEditElementInChat && (
+              <ElementInspector
+                previewRef={previewIframeRef}
+                onEditElement={onEditElementInChat}
+              />
+            )}
           </div>
         )}
 

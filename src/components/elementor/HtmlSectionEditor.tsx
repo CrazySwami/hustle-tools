@@ -15,6 +15,7 @@ import { useTheme } from "next-themes";
 import { OptionsButton } from "@/components/ui/OptionsButton";
 import { useEditorContent } from "@/hooks/useEditorContent";
 import { ElementInspector } from "./ElementInspector";
+import { HTMLGeneratorDialog } from "@/components/html-generator/HTMLGeneratorDialog";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -101,6 +102,16 @@ export function HtmlSectionEditor({
   const [conversionProgress, setConversionProgress] = useState('');
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [convertedWidgetName, setConvertedWidgetName] = useState('');
+
+  // HTML Generator Dialog state
+  const [showGeneratorDialog, setShowGeneratorDialog] = useState(false);
+  const { designSystemSummary } = useGlobalStylesheet();
+
+  // Hot reload state
+  const [hotReloadEnabled, setHotReloadEnabled] = useState(true);
+  const [lastDeployedPhp, setLastDeployedPhp] = useState('');
+  const [lastDeployedCss, setLastDeployedCss] = useState('');
+  const lastChangeTimeRef = useRef<number>(0);
 
   const handleConvertToWidget = async () => {
     if (!editorHtml.trim()) {

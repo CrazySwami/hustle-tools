@@ -1,6 +1,7 @@
 // Morph Fast Apply API - Merge lazy edits with original code
 // Uses direct Morph API (not on AI Gateway yet)
 export const maxDuration = 60;
+export const runtime = 'nodejs'; // Explicitly use Node.js runtime for env vars
 
 export async function POST(req: Request) {
   try {
@@ -37,8 +38,13 @@ export async function POST(req: Request) {
     }
 
     if (!process.env.MORPH_API_KEY) {
+      console.error('❌ MORPH_API_KEY not found in environment variables');
+      console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('MORPH')));
       return Response.json(
-        { error: 'MORPH_API_KEY not configured. Get one at https://morphllm.com' },
+        {
+          error: 'MORPH_API_KEY not configured. Get one at https://morphllm.com',
+          hint: 'Check Vercel dashboard > Settings > Environment Variables. Make sure MORPH_API_KEY is set for Production environment and redeploy.'
+        },
         { status: 500 }
       );
     }

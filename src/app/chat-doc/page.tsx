@@ -196,6 +196,9 @@ const ChatBotDemo = () => {
   const [model, setModel] = useState<string>(modelGroups[0].models[0].value);
   const [webSearch, setWebSearch] = useState(false);
   const [enableReasoning, setEnableReasoning] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+
   // Document content management - synced with TiptapEditor
   const documentContentStore = useDocumentContent();
 
@@ -205,6 +208,16 @@ const ChatBotDemo = () => {
   const [isEditorVisible, setIsEditorVisible] = useState(false);
   const [documentContent, setDocumentContent] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
+
+  // Detect mobile on mount
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Sync document content from TiptapEditor to global store
   useEffect(() => {
@@ -332,240 +345,509 @@ const ChatBotDemo = () => {
   };
 
   return (
-    <div className="flex h-screen w-full pt-16 px-4 pb-4 gap-4">
-      <div className="flex flex-col h-full flex-1">
-        <Conversation className="h-full">
-          <ConversationContent>
-            {messages.map((message) => (
-              <div key={message.id}>
-                {message.role === 'assistant' && (
-                  <Sources>
-                    {/* Only render SourcesTrigger once per message */}
-                    {message.parts.some(part => part.type === 'source-url') && (
-                      <SourcesTrigger
-                        count={
-                          message.parts.filter(
-                            (part) => part.type === 'source-url',
-                          ).length
-                        }
-                      />
-                    )}
-                    <SourcesContent>
+    <div className={`flex h-screen w-full pt-16 ${isMobile ? 'px-2 pb-2' : 'px-4 pb-4'} gap-4`}>
+      {/* Desktop: Side-by-side layout */}
+      {!isMobile && (
+        <>
+          <div className="flex flex-col h-full flex-1">
+            <Conversation className="h-full">
+              <ConversationContent>
+              {messages.map((message) => (
+                <div key={message.id}>
+                  {message.role === 'assistant' && (
+                    <Sources>
+                      {/* Only render SourcesTrigger once per message */}
+                      {message.parts.some(part => part.type === 'source-url') && (
+                        <SourcesTrigger
+                          count={
+                            message.parts.filter(
+                              (part) => part.type === 'source-url',
+                            ).length
+                          }
+                        />
+                      )}
+                      <SourcesContent>
+                        {message.parts.map((part, i) => {
+                          switch (part.type) {
+                            case 'source-url':
+                              return (
+                                <Source
+                                  key={`${message.id}-${i}`}
+                                  href={part.url}
+                                  title={part.url}
+                                />
+                              );
+                            default:
+                              return null;
+                          }
+                        })}
+                      </SourcesContent>
+                    </Sources>
+                  )}
+                  <Message from={message.role} key={message.id}>
+                    <MessageContent>
                       {message.parts.map((part, i) => {
+                        console.log('Message part:', part.type, part);
                         switch (part.type) {
-                          case 'source-url':
+                          case 'text':
                             return (
-                              <Source
+                              <MarkdownWithCitations
                                 key={`${message.id}-${i}`}
-                                href={part.url}
-                                title={part.url}
+                                content={part.text}
+                                sources={message.sources}
                               />
                             );
-                          default:
-                            return null;
-                        }
-                      })}
-                    </SourcesContent>
-                  </Sources>
-                )}
-                <Message from={message.role} key={message.id}>
-                  <MessageContent>
-                    {message.parts.map((part, i) => {
-                      console.log('Message part:', part.type, part);
-                      switch (part.type) {
-                        case 'text':
-                          return (
-                            <MarkdownWithCitations
-                              key={`${message.id}-${i}`}
-                              content={part.text}
-                              sources={message.sources}
-                            />
-                          );
-                        case 'tool-call':
-                          console.log('Rendering tool-call:', part);
-                          return (
-                            <Tool key={`${message.id}-${i}`} defaultOpen>
-                              <ToolHeader 
-                                type={part.toolName} 
-                                state="input-available"
-                              />
-                              <ToolContent>
-                                <ToolInput input={part.input ?? part.args} />
-                              </ToolContent>
-                            </Tool>
-                          );
-                        case 'tool-result':
-                          console.log('Rendering tool-result:', part);
-                          return (
-                            <Tool key={`${message.id}-${i}`} defaultOpen>
-                              <ToolHeader 
-                                type={part.toolName} 
-                                state={part.isError ? "output-error" : "output-available"}
-                              />
-                              <ToolContent>
-                                <ToolInput input={part.input ?? part.args} />
-                                <ToolOutput 
-                                  output={formatToolOutput(part.output ?? part.result)}
-                                  errorText={part.isError ? String(part.output ?? part.result) : undefined}
-                                />
-                              </ToolContent>
-                            </Tool>
-                          );
-                        // Handle specific tool types as fallback
-                        case 'tool-weatherTool':
-                          console.log('Rendering tool-weatherTool:', part);
-                          return (
-                            <Tool key={`${message.id}-${i}`} defaultOpen>
-                              <ToolHeader 
-                                type="weatherTool" 
-                                state={part.state || "output-available"}
-                              />
-                              <ToolContent>
-                                <ToolInput input={part.input || part.args} />
-                                <ToolOutput 
-                                  output={part.output || part.result}
-                                  errorText={part.errorText}
-                                />
-                              </ToolContent>
-                            </Tool>
-                          );
-                        case 'reasoning':
-                          console.log('Reasoning part received:', part);
-                          console.log('Reasoning text content:', part.text);
-                          console.log('Reasoning text length:', part.text ? part.text.length : 0);
-                          console.log('Reasoning state:', part.state);
-                          
-                          // Only render reasoning if there's actual content
-                          if (!part.text || part.text.trim() === '') {
-                            console.log('Empty reasoning content detected, skipping render');
-                            return null;
-                          }
-                          
-                          return (
-                            <Reasoning
-                              key={`${message.id}-${i}`}
-                              className="w-full"
-                              isStreaming={status === 'streaming'}
-                            >
-                              <ReasoningTrigger />
-                              <ReasoningContent>{part.text}</ReasoningContent>
-                            </Reasoning>
-                          );
-                        default:
-                          // Generic handler: any part.type that starts with "tool-" conforms to ToolUIPart
-                          if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
-                            // Cast to any to access ToolUIPart props safely
-                            const toolPart: any = part;
+                          case 'tool-call':
+                            console.log('Rendering tool-call:', part);
                             return (
-                              <Tool key={`${message.id}-${i}`} defaultOpen={toolPart.state === 'output-available' || toolPart.state === 'output-error'}>
-                                <ToolHeader type={toolPart.type.replace('tool-', '')} state={toolPart.state} />
+                              <Tool key={`${message.id}-${i}`} defaultOpen>
+                                <ToolHeader
+                                  type={part.toolName}
+                                  state="input-available"
+                                />
                                 <ToolContent>
-                                  {/* For states where input is defined */}
-                                  {toolPart.input && <ToolInput input={toolPart.input} />}
-                                  {/* Show output or error when available */}
-                                  {toolPart.state?.startsWith('output') && (
-                                    <ToolOutput
-                                      output={formatToolOutput(toolPart.output)}
-                               
-                                      errorText={toolPart.errorText}
-                                    />
-                                  )}
+                                  <ToolInput input={part.input ?? part.args} />
                                 </ToolContent>
                               </Tool>
                             );
-                          }
-                          return null;
-                      }
-                    })}
-                  </MessageContent>
-                </Message>
-              </div>
-            ))}
-            {status === 'submitted' && <Loader />}
-          </ConversationContent>
-          <ConversationScrollButton />
-        </Conversation>
+                          case 'tool-result':
+                            console.log('Rendering tool-result:', part);
+                            return (
+                              <Tool key={`${message.id}-${i}`} defaultOpen>
+                                <ToolHeader
+                                  type={part.toolName}
+                                  state={part.isError ? "output-error" : "output-available"}
+                                />
+                                <ToolContent>
+                                  <ToolInput input={part.input ?? part.args} />
+                                  <ToolOutput
+                                    output={formatToolOutput(part.output ?? part.result)}
+                                    errorText={part.isError ? String(part.output ?? part.result) : undefined}
+                                  />
+                                </ToolContent>
+                              </Tool>
+                            );
+                          // Handle specific tool types as fallback
+                          case 'tool-weatherTool':
+                            console.log('Rendering tool-weatherTool:', part);
+                            return (
+                              <Tool key={`${message.id}-${i}`} defaultOpen>
+                                <ToolHeader
+                                  type="weatherTool"
+                                  state={part.state || "output-available"}
+                                />
+                                <ToolContent>
+                                  <ToolInput input={part.input || part.args} />
+                                  <ToolOutput
+                                    output={part.output || part.result}
+                                    errorText={part.errorText}
+                                  />
+                                </ToolContent>
+                              </Tool>
+                            );
+                          case 'reasoning':
+                            console.log('Reasoning part received:', part);
+                            console.log('Reasoning text content:', part.text);
+                            console.log('Reasoning text length:', part.text ? part.text.length : 0);
+                            console.log('Reasoning state:', part.state);
 
-        <PromptInput onSubmit={handleSubmit} className="mt-4">
-          <PromptInputTextarea
-            onChange={(e) => setInput(e.target.value)}
-            value={input}
-          />
-          <PromptInputToolbar>
-            <PromptInputTools>
-              <PromptInputButton
-                variant={webSearch ? 'default' : 'ghost'}
-                onClick={() => setWebSearch(!webSearch)}
-              >
-                <GlobeIcon size={16} />
-                <span>Search</span>
-              </PromptInputButton>
-              <PromptInputButton
-                variant={enableReasoning && modelSupportsReasoning ? 'default' : 'ghost'}
-                onClick={() => setEnableReasoning(!enableReasoning)}
-                disabled={!modelSupportsReasoning}
-                title={!modelSupportsReasoning ? "Current model doesn't support reasoning" : "Toggle AI reasoning"}
-              >
-                <BrainIcon size={16} />
-                <span>Reasoning</span>
-              </PromptInputButton>
-              <PromptInputButton
-                variant={isEditorVisible ? 'default' : 'ghost'}
-                onClick={() => setIsEditorVisible(!isEditorVisible)}
-              >
-                <PanelRightOpen size={16} />
-                <span>Editor</span>
-              </PromptInputButton>
-              <PromptInputModelSelect
-                onValueChange={(value) => {
-                  setModel(value);
-                  // Log when model changes
-                  console.log('Model changed to:', value);
-                  console.log('Supports reasoning:', reasoningModels.includes(value));
+                            // Only render reasoning if there's actual content
+                            if (!part.text || part.text.trim() === '') {
+                              console.log('Empty reasoning content detected, skipping render');
+                              return null;
+                            }
+
+                            return (
+                              <Reasoning
+                                key={`${message.id}-${i}`}
+                                className="w-full"
+                                isStreaming={status === 'streaming'}
+                              >
+                                <ReasoningTrigger />
+                                <ReasoningContent>{part.text}</ReasoningContent>
+                              </Reasoning>
+                            );
+                          default:
+                            // Generic handler: any part.type that starts with "tool-" conforms to ToolUIPart
+                            if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
+                              // Cast to any to access ToolUIPart props safely
+                              const toolPart: any = part;
+                              return (
+                                <Tool key={`${message.id}-${i}`} defaultOpen={toolPart.state === 'output-available' || toolPart.state === 'output-error'}>
+                                  <ToolHeader type={toolPart.type.replace('tool-', '')} state={toolPart.state} />
+                                  <ToolContent>
+                                    {/* For states where input is defined */}
+                                    {toolPart.input && <ToolInput input={toolPart.input} />}
+                                    {/* Show output or error when available */}
+                                    {toolPart.state?.startsWith('output') && (
+                                      <ToolOutput
+                                        output={formatToolOutput(toolPart.output)}
+
+                                        errorText={toolPart.errorText}
+                                      />
+                                    )}
+                                  </ToolContent>
+                                </Tool>
+                              );
+                            }
+                            return null;
+                        }
+                      })}
+                    </MessageContent>
+                  </Message>
+                </div>
+              ))}
+              {status === 'submitted' && <Loader />}
+            </ConversationContent>
+            <ConversationScrollButton />
+          </Conversation>
+
+          <PromptInput onSubmit={handleSubmit} className="mt-4">
+            <PromptInputTextarea
+              onChange={(e) => setInput(e.target.value)}
+              value={input}
+            />
+            <PromptInputToolbar>
+              <PromptInputTools>
+                <PromptInputButton
+                  variant={webSearch ? 'default' : 'ghost'}
+                  onClick={() => setWebSearch(!webSearch)}
+                >
+                  <GlobeIcon size={16} />
+                  <span>Search</span>
+                </PromptInputButton>
+                <PromptInputButton
+                  variant={enableReasoning && modelSupportsReasoning ? 'default' : 'ghost'}
+                  onClick={() => setEnableReasoning(!enableReasoning)}
+                  disabled={!modelSupportsReasoning}
+                  title={!modelSupportsReasoning ? "Current model doesn't support reasoning" : "Toggle AI reasoning"}
+                >
+                  <BrainIcon size={16} />
+                  <span>Reasoning</span>
+                </PromptInputButton>
+                <PromptInputButton
+                  variant={isEditorVisible ? 'default' : 'ghost'}
+                  onClick={() => setIsEditorVisible(!isEditorVisible)}
+                >
+                  <PanelRightOpen size={16} />
+                  <span>Editor</span>
+                </PromptInputButton>
+                <PromptInputModelSelect
+                  onValueChange={(value) => {
+                    setModel(value);
+                    // Log when model changes
+                    console.log('Model changed to:', value);
+                    console.log('Supports reasoning:', reasoningModels.includes(value));
+                  }}
+                  value={model}
+                >
+                  <PromptInputModelSelectTrigger>
+                    <PromptInputModelSelectValue />
+                  </PromptInputModelSelectTrigger>
+                  <PromptInputModelSelectContent className="max-h-[300px] overflow-y-auto w-[250px]">
+                    {modelGroups.map((group) => (
+                      <div key={group.provider}>
+                        <button
+                          className="flex justify-between w-full p-2 text-left"
+                          onClick={(e) => toggleProvider(group.provider, e)}
+                        >
+                          <h3>{group.provider}</h3>
+                          <span className="text-gray-500">
+                            {openProviders[group.provider] ? '-' : '+'}
+                          </span>
+                        </button>
+                        {openProviders[group.provider] && (
+                          <div className="pl-4">
+                            {group.models.map((model) => (
+                              <PromptInputModelSelectItem key={model.value} value={model.value}>
+                                {model.name}
+                              </PromptInputModelSelectItem>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </PromptInputModelSelectContent>
+                </PromptInputModelSelect>
+              </PromptInputTools>
+              <PromptInputSubmit disabled={!input} status={status} />
+            </PromptInputToolbar>
+          </PromptInput>
+        </div>
+        {isEditorVisible && (
+          <div className="flex-1 h-full border-l relative">
+            <DocumentToolsPanel />
+            <TiptapEditor
+                  onContentChange={setDocumentContent}
+                  onCommentsChange={setComments}
+                />
+          </div>
+        )}
+        </>
+      )}
+
+      {/* Mobile: Full-screen editor with bottom chat drawer */}
+      {isMobile && (
+        <>
+          {/* Full-screen document editor */}
+          <div className="flex-1 h-full relative">
+            <DocumentToolsPanel />
+            <TiptapEditor
+              onContentChange={setDocumentContent}
+              onCommentsChange={setComments}
+            />
+          </div>
+
+          {/* Overlay backdrop when drawer is open */}
+          {chatDrawerOpen && (
+            <div
+              onClick={() => setChatDrawerOpen(false)}
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.5)',
+                zIndex: 1999,
+              }}
+            />
+          )}
+
+          {/* Bottom chat drawer */}
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: chatDrawerOpen ? '95vh' : '48px',
+              background: 'var(--background)',
+              borderTop: '1px solid var(--border)',
+              zIndex: 2000,
+              transition: 'height 0.3s ease',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Drawer handle */}
+            <div
+              onClick={() => setChatDrawerOpen(!chatDrawerOpen)}
+              style={{
+                height: '48px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                borderBottom: chatDrawerOpen ? '1px solid var(--border)' : 'none',
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: '40px',
+                  height: '4px',
+                  borderRadius: '2px',
+                  background: 'var(--muted-foreground)',
+                  marginRight: '8px',
                 }}
-                value={model}
+              />
+              <span className="text-sm font-medium">
+                {chatDrawerOpen ? '▼ Close Chat' : '▲ Open Chat'}
+              </span>
+            </div>
+
+            {/* Chat content */}
+            {chatDrawerOpen && (
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  height: 'calc(95vh - 48px)',
+                }}
               >
-                <PromptInputModelSelectTrigger>
-                  <PromptInputModelSelectValue />
-                </PromptInputModelSelectTrigger>
-                <PromptInputModelSelectContent className="max-h-[300px] overflow-y-auto w-[250px]">
-                  {modelGroups.map((group) => (
-                    <div key={group.provider}>
-                      <button
-                        className="flex justify-between w-full p-2 text-left"
-                        onClick={(e) => toggleProvider(group.provider, e)}
-                      >
-                        <h3>{group.provider}</h3>
-                        <span className="text-gray-500">
-                          {openProviders[group.provider] ? '-' : '+'}
-                        </span>
-                      </button>
-                      {openProviders[group.provider] && (
-                        <div className="pl-4">
-                          {group.models.map((model) => (
-                            <PromptInputModelSelectItem key={model.value} value={model.value}>
-                              {model.name}
-                            </PromptInputModelSelectItem>
-                          ))}
-                        </div>
+                <Conversation className="h-full">
+                  <ConversationContent>
+                  {messages.map((message) => (
+                    <div key={message.id}>
+                      {message.role === 'assistant' && (
+                        <Sources>
+                          {message.parts.some(part => part.type === 'source-url') && (
+                            <SourcesTrigger
+                              count={
+                                message.parts.filter(
+                                  (part) => part.type === 'source-url',
+                                ).length
+                              }
+                            />
+                          )}
+                          <SourcesContent>
+                            {message.parts.map((part, i) => {
+                              switch (part.type) {
+                                case 'source-url':
+                                  return (
+                                    <Source
+                                      key={`${message.id}-${i}`}
+                                      href={part.url}
+                                      title={part.url}
+                                    />
+                                  );
+                                default:
+                                  return null;
+                              }
+                            })}
+                          </SourcesContent>
+                        </Sources>
                       )}
+                      <Message from={message.role} key={message.id}>
+                        <MessageContent>
+                          {message.parts.map((part, i) => {
+                            switch (part.type) {
+                              case 'text':
+                                return (
+                                  <MarkdownWithCitations
+                                    key={`${message.id}-${i}`}
+                                    content={part.text}
+                                    sources={message.sources}
+                                  />
+                                );
+                              case 'tool-call':
+                                return (
+                                  <Tool key={`${message.id}-${i}`} defaultOpen>
+                                    <ToolHeader
+                                      type={part.toolName}
+                                      state="input-available"
+                                    />
+                                    <ToolContent>
+                                      <ToolInput input={part.input ?? part.args} />
+                                    </ToolContent>
+                                  </Tool>
+                                );
+                              case 'tool-result':
+                                return (
+                                  <Tool key={`${message.id}-${i}`} defaultOpen>
+                                    <ToolHeader
+                                      type={part.toolName}
+                                      state={part.isError ? "output-error" : "output-available"}
+                                    />
+                                    <ToolContent>
+                                      <ToolInput input={part.input ?? part.args} />
+                                      <ToolOutput
+                                        output={formatToolOutput(part.output ?? part.result)}
+                                        errorText={part.isError ? String(part.output ?? part.result) : undefined}
+                                      />
+                                    </ToolContent>
+                                  </Tool>
+                                );
+                              case 'reasoning':
+                                if (!part.text || part.text.trim() === '') {
+                                  return null;
+                                }
+                                return (
+                                  <Reasoning
+                                    key={`${message.id}-${i}`}
+                                    className="w-full"
+                                    isStreaming={status === 'streaming'}
+                                  >
+                                    <ReasoningTrigger />
+                                    <ReasoningContent>{part.text}</ReasoningContent>
+                                  </Reasoning>
+                                );
+                              default:
+                                if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
+                                  const toolPart: any = part;
+                                  return (
+                                    <Tool key={`${message.id}-${i}`} defaultOpen={toolPart.state === 'output-available' || toolPart.state === 'output-error'}>
+                                      <ToolHeader type={toolPart.type.replace('tool-', '')} state={toolPart.state} />
+                                      <ToolContent>
+                                        {toolPart.input && <ToolInput input={toolPart.input} />}
+                                        {toolPart.state?.startsWith('output') && (
+                                          <ToolOutput
+                                            output={formatToolOutput(toolPart.output)}
+                                            errorText={toolPart.errorText}
+                                          />
+                                        )}
+                                      </ToolContent>
+                                    </Tool>
+                                  );
+                                }
+                                return null;
+                            }
+                          })}
+                        </MessageContent>
+                      </Message>
                     </div>
                   ))}
-                </PromptInputModelSelectContent>
-              </PromptInputModelSelect>
-            </PromptInputTools>
-            <PromptInputSubmit disabled={!input} status={status} />
-          </PromptInputToolbar>
-        </PromptInput>
-      </div>
-      {isEditorVisible && (
-        <div className="flex-1 h-full border-l relative">
-          <DocumentToolsPanel />
-          <TiptapEditor
-                onContentChange={setDocumentContent}
-                onCommentsChange={setComments}
-              />
-        </div>
+                  {status === 'submitted' && <Loader />}
+                </ConversationContent>
+                <ConversationScrollButton />
+              </Conversation>
+
+              <PromptInput onSubmit={handleSubmit} className="mt-2 mx-2 mb-2">
+                <PromptInputTextarea
+                  onChange={(e) => setInput(e.target.value)}
+                  value={input}
+                  className="text-sm"
+                />
+                <PromptInputToolbar>
+                  <PromptInputTools>
+                    <PromptInputButton
+                      variant={webSearch ? 'default' : 'ghost'}
+                      onClick={() => setWebSearch(!webSearch)}
+                      size="sm"
+                    >
+                      <GlobeIcon size={14} />
+                    </PromptInputButton>
+                    <PromptInputButton
+                      variant={enableReasoning && modelSupportsReasoning ? 'default' : 'ghost'}
+                      onClick={() => setEnableReasoning(!enableReasoning)}
+                      disabled={!modelSupportsReasoning}
+                      size="sm"
+                    >
+                      <BrainIcon size={14} />
+                    </PromptInputButton>
+                    <PromptInputModelSelect
+                      onValueChange={(value) => setModel(value)}
+                      value={model}
+                    >
+                      <PromptInputModelSelectTrigger>
+                        <PromptInputModelSelectValue />
+                      </PromptInputModelSelectTrigger>
+                      <PromptInputModelSelectContent className="max-h-[200px] overflow-y-auto w-[200px]">
+                        {modelGroups.map((group) => (
+                          <div key={group.provider}>
+                            <button
+                              className="flex justify-between w-full p-2 text-left text-xs"
+                              onClick={(e) => toggleProvider(group.provider, e)}
+                            >
+                              <h3>{group.provider}</h3>
+                              <span className="text-gray-500">
+                                {openProviders[group.provider] ? '-' : '+'}
+                              </span>
+                            </button>
+                            {openProviders[group.provider] && (
+                              <div className="pl-3">
+                                {group.models.map((model) => (
+                                  <PromptInputModelSelectItem key={model.value} value={model.value} className="text-xs">
+                                    {model.name}
+                                  </PromptInputModelSelectItem>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </PromptInputModelSelectContent>
+                    </PromptInputModelSelect>
+                  </PromptInputTools>
+                  <PromptInputSubmit disabled={!input} status={status} />
+                </PromptInputToolbar>
+              </PromptInput>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

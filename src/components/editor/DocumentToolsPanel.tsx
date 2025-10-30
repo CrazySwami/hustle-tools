@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -29,6 +29,17 @@ type ActiveTool = 'stats' | 'find' | 'readability' | 'headings' | 'replace' | 't
 export function DocumentToolsPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTool, setActiveTool] = useState<ActiveTool>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile on mount
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Find string state
   const [findTerm, setFindTerm] = useState('');
@@ -102,29 +113,29 @@ export function DocumentToolsPanel() {
   return (
     <>
       {/* Toggle Button (Always Visible) */}
-      <div className="absolute top-4 left-4 z-10">
+      <div className={`absolute ${isMobile ? 'top-2 left-2' : 'top-4 left-4'} z-10`}>
         <Button
           onClick={() => setIsOpen(!isOpen)}
-          size="sm"
+          size={isMobile ? 'sm' : 'sm'}
           variant="outline"
           className="shadow-lg"
         >
-          {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          <span className="ml-2">{isOpen ? 'Hide' : 'Tools'}</span>
+          {isOpen ? <ChevronLeft className={`${isMobile ? 'h-3.5 w-3.5' : 'h-4 w-4'}`} /> : <ChevronRight className={`${isMobile ? 'h-3.5 w-3.5' : 'h-4 w-4'}`} />}
+          <span className={`ml-2 ${isMobile ? 'text-xs' : ''}`}>{isOpen ? 'Hide' : 'Tools'}</span>
         </Button>
       </div>
 
       {/* Slide-in Panel */}
       <div
         className={`absolute top-0 left-0 h-full bg-background border-r border-border shadow-lg transition-all duration-300 ease-in-out z-20 ${
-          isOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full'
+          isOpen ? (isMobile ? 'w-full translate-x-0' : 'w-80 translate-x-0') : 'w-0 -translate-x-full'
         }`}
         style={{ overflow: isOpen ? 'visible' : 'hidden' }}
       >
         {isOpen && (
-          <div className="flex flex-col h-full p-4 overflow-y-auto">
+          <div className={`flex flex-col h-full ${isMobile ? 'p-3' : 'p-4'} overflow-y-auto`}>
             <div className="flex items-center justify-between mb-4 pb-4 border-b">
-              <h2 className="text-lg font-semibold">Document Tools</h2>
+              <h2 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold`}>Document Tools</h2>
               <Button
                 onClick={() => setIsOpen(false)}
                 size="sm"
@@ -135,7 +146,7 @@ export function DocumentToolsPanel() {
             </div>
 
             {/* Tool Buttons */}
-            <div className="space-y-2 mb-4">
+            <div className={`space-y-2 mb-4 ${isMobile ? 'space-y-3' : ''}`}>
               {tools.map((tool) => {
                 const Icon = tool.icon;
                 const isActive = activeTool === tool.id;
@@ -144,17 +155,17 @@ export function DocumentToolsPanel() {
                   <button
                     key={tool.id}
                     onClick={() => handleToolClick(tool.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition-all ${
+                    className={`w-full text-left ${isMobile ? 'p-4' : 'p-3'} rounded-lg border transition-all ${
                       isActive
                         ? 'bg-primary/10 border-primary shadow-sm'
                         : 'bg-card hover:bg-muted/50 border-border'
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      <Icon className={`h-5 w-5 ${isActive ? 'text-primary' : tool.color} flex-shrink-0 mt-0.5`} />
+                      <Icon className={`${isMobile ? 'h-6 w-6' : 'h-5 w-5'} ${isActive ? 'text-primary' : tool.color} flex-shrink-0 mt-0.5`} />
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">{tool.name}</div>
-                        <div className="text-xs text-muted-foreground">{tool.description}</div>
+                        <div className={`font-medium ${isMobile ? 'text-base' : 'text-sm'}`}>{tool.name}</div>
+                        <div className={`${isMobile ? 'text-sm' : 'text-xs'} text-muted-foreground`}>{tool.description}</div>
                       </div>
                     </div>
                   </button>
@@ -164,26 +175,27 @@ export function DocumentToolsPanel() {
 
             {/* Tool-specific Forms */}
             {activeTool === 'find' && (
-              <div className="p-4 bg-muted/30 rounded-lg border space-y-3">
-                <h3 className="font-semibold text-sm mb-2">Find Text</h3>
+              <div className={`${isMobile ? 'p-3' : 'p-4'} bg-muted/30 rounded-lg border space-y-3`}>
+                <h3 className={`font-semibold ${isMobile ? 'text-sm' : 'text-sm'} mb-2`}>Find Text</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="find-term" className="text-xs">Search Term</Label>
+                  <Label htmlFor="find-term" className={`${isMobile ? 'text-sm' : 'text-xs'}`}>Search Term</Label>
                   <Input
                     id="find-term"
                     value={findTerm}
                     onChange={(e) => setFindTerm(e.target.value)}
                     placeholder="Enter text to find..."
-                    className="h-9 text-sm"
+                    className={`${isMobile ? 'h-11 text-base' : 'h-9 text-sm'}`}
                   />
                 </div>
-                <div className="flex items-center gap-4">
+                <div className={`flex ${isMobile ? 'flex-col gap-3' : 'items-center gap-4'}`}>
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="case-sensitive"
                       checked={caseSensitive}
                       onCheckedChange={(checked) => setCaseSensitive(checked as boolean)}
+                      className={`${isMobile ? 'h-5 w-5' : ''}`}
                     />
-                    <Label htmlFor="case-sensitive" className="text-xs cursor-pointer">
+                    <Label htmlFor="case-sensitive" className={`${isMobile ? 'text-sm' : 'text-xs'} cursor-pointer`}>
                       Case sensitive
                     </Label>
                   </div>
@@ -192,8 +204,9 @@ export function DocumentToolsPanel() {
                       id="whole-word"
                       checked={wholeWord}
                       onCheckedChange={(checked) => setWholeWord(checked as boolean)}
+                      className={`${isMobile ? 'h-5 w-5' : ''}`}
                     />
-                    <Label htmlFor="whole-word" className="text-xs cursor-pointer">
+                    <Label htmlFor="whole-word" className={`${isMobile ? 'text-sm' : 'text-xs'} cursor-pointer`}>
                       Whole word
                     </Label>
                   </div>
@@ -202,26 +215,26 @@ export function DocumentToolsPanel() {
             )}
 
             {activeTool === 'replace' && (
-              <div className="p-4 bg-muted/30 rounded-lg border space-y-3">
-                <h3 className="font-semibold text-sm mb-2">Find & Replace</h3>
+              <div className={`${isMobile ? 'p-3' : 'p-4'} bg-muted/30 rounded-lg border space-y-3`}>
+                <h3 className={`font-semibold ${isMobile ? 'text-sm' : 'text-sm'} mb-2`}>Find & Replace</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="replace-find" className="text-xs">Find</Label>
+                  <Label htmlFor="replace-find" className={`${isMobile ? 'text-sm' : 'text-xs'}`}>Find</Label>
                   <Input
                     id="replace-find"
                     value={replaceTerm}
                     onChange={(e) => setReplaceTerm(e.target.value)}
                     placeholder="Text to find..."
-                    className="h-9 text-sm"
+                    className={`${isMobile ? 'h-11 text-base' : 'h-9 text-sm'}`}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="replace-with" className="text-xs">Replace with</Label>
+                  <Label htmlFor="replace-with" className={`${isMobile ? 'text-sm' : 'text-xs'}`}>Replace with</Label>
                   <Input
                     id="replace-with"
                     value={replaceWith}
                     onChange={(e) => setReplaceWith(e.target.value)}
                     placeholder="Replacement text..."
-                    className="h-9 text-sm"
+                    className={`${isMobile ? 'h-11 text-base' : 'h-9 text-sm'}`}
                   />
                 </div>
               </div>

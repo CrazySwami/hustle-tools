@@ -9,6 +9,14 @@ import { ViewEditorCodeWidget } from './ViewEditorCodeWidget';
 import { EditCodeWidget } from './edit-code-widget';
 import { EditCodeMorphWidget } from './edit-code-morph-widget';  // ⭐ NEW: Morph Fast Apply
 import { DocumentMorphWidget } from './document-morph-widget';  // ⭐ NEW: Document Morph Fast Apply
+// Document Analysis & Utility Widgets
+import { TextStatsWidget } from './text-stats-widget';
+import { FindStringWidget } from './find-string-widget';
+import { ReadabilityWidget } from './readability-widget';
+import { HeadingsWidget } from './headings-widget';
+import { FindReplaceWidget } from './find-replace-widget';
+import { TOCWidget } from './toc-widget';
+import { DuplicatesWidget } from './duplicates-widget';
 import { StepPlannerWidget } from './step-planner-widget';
 import { BlogPlannerWidget } from './blog-planner-widget';
 import { BlogWriterWidget } from './blog-writer-widget';
@@ -272,6 +280,29 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
           }}
         />
       );
+
+    // Document analysis tools
+    case 'getTextStats':
+      return <TextStatsWidget data={result} />;
+
+    case 'findString':
+      return <FindStringWidget data={result} />;
+
+    case 'analyzeReadability':
+      return <ReadabilityWidget data={result} />;
+
+    case 'extractHeadings':
+      return <HeadingsWidget data={result} />;
+
+    // Document utility tools
+    case 'findAndReplace':
+      return <FindReplaceWidget data={result} />;
+
+    case 'generateTOC':
+      return <TOCWidget data={result} />;
+
+    case 'findDuplicates':
+      return <DuplicatesWidget data={result} />;
 
     // REMOVED: viewEditorCode tool - code is automatically included in system prompt
     // case 'viewEditorCode': return <ViewEditorCodeWidget ... />;

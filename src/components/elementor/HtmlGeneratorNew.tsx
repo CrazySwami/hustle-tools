@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { CodeIcon, MonitorIcon, TabletIcon, SmartphoneIcon, UploadIcon, ArrowRightIcon, PaletteIcon, WrenchIcon, ImageIcon, CopyIcon, CheckIcon } from '@/components/ui/icons';
+import { CodeIcon, MonitorIcon, TabletIcon, SmartphoneIcon, UploadIcon, ArrowRightIcon, PaletteIcon, WrenchIcon, ImageIcon, CopyIcon, CheckIcon, Zap } from '@/components/ui/icons';
+import { convertToWidgetProgrammatic } from '@/lib/programmatic-widget-converter';
 
 interface HtmlGeneratorProps {
   onSendToConverter?: (html: string, css: string, js: string) => void;
@@ -15,12 +16,13 @@ export function HtmlGeneratorNew({ onSendToConverter, onSendMockups }: HtmlGener
   const [generatedHtml, setGeneratedHtml] = useState('');
   const [generatedCss, setGeneratedCss] = useState('');
   const [generatedJs, setGeneratedJs] = useState('');
-  const [activeCodeTab, setActiveCodeTab] = useState<'html' | 'css' | 'js' | 'preview'>('html');
+  const [generatedPhp, setGeneratedPhp] = useState('');
+  const [activeCodeTab, setActiveCodeTab] = useState<'html' | 'css' | 'js' | 'php' | 'preview'>('html');
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeMockupIndex, setActiveMockupIndex] = useState(0);
   const [previewViewport, setPreviewViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
-  const [copiedCode, setCopiedCode] = useState<'html' | 'css' | 'js' | null>(null);
+  const [copiedCode, setCopiedCode] = useState<'html' | 'css' | 'js' | 'php' | null>(null);
 
   const mockupInputRefs = [
     useRef<HTMLInputElement>(null),
@@ -222,6 +224,72 @@ export function HtmlGeneratorNew({ onSendToConverter, onSendMockups }: HtmlGener
     }
   };
 
+  const handleGenerateQuickWidget = async () => {
+    if (!customPrompt.trim() && !mockups.some(m => m !== null)) {
+      alert('Please provide either a prompt or upload a mockup');
+      return;
+    }
+
+    console.log('⚡ Starting Quick Widget generation...');
+    setIsGenerating(true);
+    setGeneratedHtml('');
+    setGeneratedCss('');
+    setGeneratedJs('');
+    setGeneratedPhp('');
+
+    try {
+      // Step 1: Generate HTML using AI
+      console.log('1️⃣ Generating HTML...');
+      const htmlResponse = await fetch('/api/generate-html', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: customPrompt,
+          desktopMockup: mockups[0],
+          tabletMockup: mockups[1],
+          mobileMockup: mockups[2],
+          model: selectedModel,
+        }),
+      });
+
+      if (!htmlResponse.ok) throw new Error('HTML generation failed');
+      const htmlData = await htmlResponse.json();
+
+      let html = htmlData.html || '';
+      let css = htmlData.css || '';
+      let js = htmlData.js || '';
+
+      // Clean up HTML/CSS/JS (remove wrappers)
+      html = html.replace(/<!DOCTYPE[^>]*>/gi, '');
+      html = html.replace(/<html[^>]*>|<\/html>/gi, '');
+      html = html.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '');
+      html = html.replace(/<body[^>]*>|<\/body>/gi, '');
+      html = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+      html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+      html = html.trim();
+
+      setGeneratedHtml(html);
+      setGeneratedCss(css);
+      setGeneratedJs(js);
+
+      // Step 2: Convert to widget PHP
+      console.log('2️⃣ Converting to widget with programmatic converter...');
+      const widgetPhp = await convertToWidgetProgrammatic(html, css, js, {
+        useAIForMetadata: true,
+      });
+
+      setGeneratedPhp(widgetPhp);
+      setActiveCodeTab('php'); // Switch to PHP tab
+
+      console.log('✅ Quick Widget generated successfully!');
+    } catch (error) {
+      console.error('Quick Widget generation error:', error);
+      alert('Quick Widget generation failed. Check console for details.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleSendToConverter = () => {
     console.log('📤 Sending to converter:', {
       htmlLength: generatedHtml.length,
@@ -336,8 +404,8 @@ export function HtmlGeneratorNew({ onSendToConverter, onSendMockups }: HtmlGener
     }
   };
 
-  const handleCopyCode = async (type: 'html' | 'css' | 'js') => {
-    const code = type === 'html' ? generatedHtml : type === 'css' ? generatedCss : generatedJs;
+  const handleCopyCode = async (type: 'html' | 'css' | 'js' | 'php') => {
+    const code = type === 'html' ? generatedHtml : type === 'css' ? generatedCss : type === 'js' ? generatedJs : generatedPhp;
     try {
       await navigator.clipboard.writeText(code);
       setCopiedCode(type);
@@ -428,6 +496,23 @@ export function HtmlGeneratorNew({ onSendToConverter, onSendMockups }: HtmlGener
               >
                 JS
               </button>
+              {generatedPhp && (
+                <button
+                  onClick={() => setActiveCodeTab('php')}
+                  style={{
+                    padding: '6px 12px',
+                    background: activeCodeTab === 'php' ? '#10b981' : 'transparent',
+                    color: activeCodeTab === 'php' ? '#fff' : 'var(--foreground)',
+                    border: activeCodeTab === 'php' ? 'none' : '1px solid var(--border)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                  }}
+                >
+                  PHP Widget ⚡
+                </button>
+              )}
             </div>
             {generatedHtml && (
               <button
@@ -453,11 +538,17 @@ export function HtmlGeneratorNew({ onSendToConverter, onSendMockups }: HtmlGener
           </div>
           <div style={{ flex: 1, position: 'relative', display: 'flex' }} className="code-container">
             <textarea
-              value={activeCodeTab === 'html' ? generatedHtml : activeCodeTab === 'css' ? generatedCss : generatedJs}
+              value={
+                activeCodeTab === 'html' ? generatedHtml
+                : activeCodeTab === 'css' ? generatedCss
+                : activeCodeTab === 'js' ? generatedJs
+                : generatedPhp
+              }
               onChange={(e) => {
                 if (activeCodeTab === 'html') setGeneratedHtml(e.target.value);
                 else if (activeCodeTab === 'css') setGeneratedCss(e.target.value);
-                else setGeneratedJs(e.target.value);
+                else if (activeCodeTab === 'js') setGeneratedJs(e.target.value);
+                else setGeneratedPhp(e.target.value);
               }}
               placeholder={isGenerating ? 'Generating...' : 'Generated code will appear here'}
               style={{
@@ -471,9 +562,9 @@ export function HtmlGeneratorNew({ onSendToConverter, onSendMockups }: HtmlGener
                 color: 'var(--foreground)',
               }}
             />
-            {(generatedHtml || generatedCss || generatedJs) && (
+            {(generatedHtml || generatedCss || generatedJs || generatedPhp) && (
               <button
-                onClick={() => handleCopyCode(activeCodeTab as 'html' | 'css' | 'js')}
+                onClick={() => handleCopyCode(activeCodeTab as 'html' | 'css' | 'js' | 'php')}
                 className="copy-button"
                 style={{
                   position: 'absolute',
@@ -777,6 +868,37 @@ export function HtmlGeneratorNew({ onSendToConverter, onSendMockups }: HtmlGener
                 <>
                   <PaletteIcon size={16} />
                   Generate HTML, CSS, JS
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleGenerateQuickWidget}
+              disabled={isGenerating}
+              style={{
+                padding: '12px',
+                background: isGenerating ? 'var(--muted)' : '#10b981',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: isGenerating ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+              title="Generate Elementor Widget (Fast - ~15-30 seconds)"
+            >
+              {isGenerating ? (
+                <>
+                  <Zap size={16} className="spin" />
+                  Generating Widget...
+                </>
+              ) : (
+                <>
+                  <Zap size={16} />
+                  Quick Widget ⚡
                 </>
               )}
             </button>

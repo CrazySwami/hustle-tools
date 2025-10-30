@@ -85,6 +85,12 @@ export function Navbar() {
         description: "Plan and write SEO-optimized blog content",
         icon: FileEdit,
       },
+      {
+        title: "AI Doc",
+        href: "/chat-doc",
+        description: "AI-powered document editor with analysis tools",
+        icon: FileText,
+      },
     ],
     media: [
       {
@@ -105,6 +111,7 @@ export function Navbar() {
   const navLinks = [
     { href: "/chat", label: "Chat" },
     { href: "/editor", label: "Editor" },
+    { href: "/chat-doc", label: "AI Doc" },
     { href: "/elementor-editor", label: "Elementor" },
     { href: "/blog-planner", label: "Blog Planner" },
     { href: "/firecrawl", label: "Firecrawl" },

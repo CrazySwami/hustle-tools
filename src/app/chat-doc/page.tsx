@@ -27,6 +27,7 @@ import { MarkdownWithCitations } from '@/components/ai-elements/markdown-with-ci
 import { GlobeIcon, BrainIcon, PanelRightOpen } from 'lucide-react';
 import TiptapEditor from '@/components/editor/TiptapEditor';
 import { Comment } from '@/components/editor/CommentExtension';
+import { DocumentToolsPanel } from '@/components/editor/DocumentToolsPanel';
 import {
   Source,
   Sources,
@@ -558,10 +559,11 @@ const ChatBotDemo = () => {
         </PromptInput>
       </div>
       {isEditorVisible && (
-        <div className="flex-1 h-full border-l">
-          <TiptapEditor 
-                onContentChange={setDocumentContent} 
-                onCommentsChange={setComments} 
+        <div className="flex-1 h-full border-l relative">
+          <DocumentToolsPanel />
+          <TiptapEditor
+                onContentChange={setDocumentContent}
+                onCommentsChange={setComments}
               />
         </div>
       )}

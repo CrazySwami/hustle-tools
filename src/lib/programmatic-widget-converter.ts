@@ -1,0 +1,557 @@
+/**
+ * Programmatic Widget Converter
+ *
+ * Converts HTML/CSS/JS to Elementor PHP widgets using predefined templates.
+ * Much faster than AI-based conversion (~100ms vs 3-5 minutes).
+ *
+ * Flow:
+ * 1. Parse HTML to identify elements
+ * 2. Look up control templates for each element
+ * 3. Generate PHP widget code with all controls
+ * 4. Optionally: Quick AI call for widget metadata
+ */
+
+import controlTemplates from './elementor-control-templates.json';
+
+export interface WidgetMetadata {
+  name: string; // snake_case, e.g., "hero_section"
+  title: string; // Human readable, e.g., "Hero Section"
+  description: string; // One sentence
+  category: string; // e.g., "marketing"
+  icon: string; // e.g., "eicon-banner"
+}
+
+export interface ParsedElement {
+  tag: string;
+  classes: string[];
+  id?: string;
+  text?: string;
+  attributes: Record<string, string>;
+  children: ParsedElement[];
+  selector: string; // CSS selector for this element
+}
+
+/**
+ * Parse HTML and extract element structure
+ */
+export function parseHTML(html: string): ParsedElement[] {
+  if (typeof window === 'undefined') {
+    // Server-side parsing would need a different approach
+    // For now, return empty array on server
+    return [];
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  function parseElement(el: Element, index: number = 0): ParsedElement {
+    const tag = el.tagName.toLowerCase();
+    const classes = Array.from(el.classList);
+    const id = el.id || undefined;
+    const text = el.textContent?.trim() || undefined;
+
+    // Build attributes object
+    const attributes: Record<string, string> = {};
+    Array.from(el.attributes).forEach(attr => {
+      if (attr.name !== 'class' && attr.name !== 'id') {
+        attributes[attr.name] = attr.value;
+      }
+    });
+
+    // Build CSS selector
+    let selector = tag;
+    if (id) selector += `#${id}`;
+    if (classes.length > 0) selector += `.${classes.join('.')}`;
+
+    // Parse children
+    const children = Array.from(el.children).map((child, i) => parseElement(child, i));
+
+    return {
+      tag,
+      classes,
+      id,
+      text,
+      attributes,
+      children,
+      selector
+    };
+  }
+
+  const bodyChildren = Array.from(doc.body.children);
+  return bodyChildren.map((el, i) => parseElement(el, i));
+}
+
+/**
+ * Extract widget metadata from HTML comment or use defaults
+ */
+export function extractMetadataFromHTML(html: string): Partial<WidgetMetadata> | null {
+  // Look for <!-- WIDGET_META ... --> comment
+  const metaMatch = html.match(/<!--\s*WIDGET_META\s*([\s\S]*?)-->/);
+  if (!metaMatch) return null;
+
+  const metaText = metaMatch[1];
+  const metadata: Partial<WidgetMetadata> = {};
+
+  // Parse key: value pairs
+  const lines = metaText.split('\n');
+  lines.forEach(line => {
+    const match = line.match(/(\w+):\s*(.+)/);
+    if (match) {
+      const [, key, value] = match;
+      metadata[key as keyof WidgetMetadata] = value.trim();
+    }
+  });
+
+  return metadata;
+}
+
+/**
+ * Generate widget metadata using Claude Haiku (fast, ~200ms)
+ */
+export async function generateMetadataWithAI(html: string, css: string, js: string): Promise<WidgetMetadata> {
+  // Quick analysis with Haiku
+  const response = await fetch('/api/analyze-widget-metadata', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ html, css, js })
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to generate metadata');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Get control template for an element tag
+ */
+function getControlsForElement(element: ParsedElement): any {
+  const templates = (controlTemplates as any).elementControls;
+  let template = templates[element.tag];
+
+  // Handle extends
+  if (template?.extends) {
+    template = { ...templates[template.extends], ...template };
+  }
+
+  return template || templates['div']; // Default to div if no template
+}
+
+/**
+ * Generate PHP widget code programmatically
+ */
+export function generateWidgetPHP(
+  metadata: WidgetMetadata,
+  elements: ParsedElement[],
+  html: string,
+  css: string,
+  js: string
+): string {
+  const className = toPascalCase(metadata.name) + '_Widget';
+
+  // Generate controls PHP code
+  const controlsCode = generateControlsCode(elements);
+
+  // Generate render PHP code
+  const renderCode = generateRenderCode(elements, html, css, js);
+
+  return `<?php
+/**
+ * ${metadata.title}
+ *
+ * ${metadata.description}
+ *
+ * @package Hustle_Tools
+ */
+
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
+
+class ${className} extends \\Elementor\\Widget_Base {
+
+    /**
+     * Get widget name.
+     */
+    public function get_name() {
+        return '${metadata.name}';
+    }
+
+    /**
+     * Get widget title.
+     */
+    public function get_title() {
+        return esc_html__('${metadata.title}', 'hustle-tools');
+    }
+
+    /**
+     * Get widget icon.
+     */
+    public function get_icon() {
+        return '${metadata.icon}';
+    }
+
+    /**
+     * Get widget categories.
+     */
+    public function get_categories() {
+        return ['${metadata.category}'];
+    }
+
+    /**
+     * Get widget keywords.
+     */
+    public function get_keywords() {
+        return ${generateKeywordsArray(metadata.title, elements)};
+    }
+
+    /**
+     * Register widget controls.
+     */
+    protected function register_controls() {
+${controlsCode}
+    }
+
+    /**
+     * Render widget output on the frontend.
+     */
+    protected function render() {
+${renderCode}
+    }
+}
+`;
+}
+
+/**
+ * Generate controls registration code
+ */
+function generateControlsCode(elements: ParsedElement[]): string {
+  const controls: string[] = [];
+  let controlIndex = 0;
+
+  elements.forEach((element, elementIndex) => {
+    const template = getControlsForElement(element);
+    if (!template) return;
+
+    const sectionId = `section_${element.tag}_${elementIndex}`;
+    const selectorPlaceholder = element.selector;
+
+    // Content Tab Controls
+    if (template.content && template.content.length > 0) {
+      controls.push(`
+        // ===== ${template.label || element.tag.toUpperCase()} - Content =====
+        $this->start_controls_section(
+            '${sectionId}_content',
+            [
+                'label' => esc_html__('${template.label || element.tag} Content', 'hustle-tools'),
+                'tab' => \\Elementor\\Controls_Manager::TAB_CONTENT,
+            ]
+        );
+`);
+
+      template.content.forEach((control: any) => {
+        const controlId = `${element.tag}_${elementIndex}_${control.id}`;
+        const defaultValue = getDefaultValue(control, element);
+        controls.push(generateControlPHP(controlId, control, defaultValue, selectorPlaceholder));
+      });
+
+      controls.push(`
+        $this->end_controls_section();
+`);
+    }
+
+    // Style Tab Controls
+    if (template.style && template.style.length > 0) {
+      controls.push(`
+        // ===== ${template.label || element.tag.toUpperCase()} - Style =====
+        $this->start_controls_section(
+            '${sectionId}_style',
+            [
+                'label' => esc_html__('${template.label || element.tag} Style', 'hustle-tools'),
+                'tab' => \\Elementor\\Controls_Manager::TAB_STYLE,
+            ]
+        );
+`);
+
+      template.style.forEach((control: any) => {
+        const controlId = `${element.tag}_${elementIndex}_${control.id}`;
+        controls.push(generateControlPHP(controlId, control, null, selectorPlaceholder));
+      });
+
+      controls.push(`
+        $this->end_controls_section();
+`);
+    }
+
+    // Advanced Tab Controls
+    if (template.advanced && template.advanced.length > 0) {
+      controls.push(`
+        // ===== ${template.label || element.tag.toUpperCase()} - Advanced =====
+        $this->start_controls_section(
+            '${sectionId}_advanced',
+            [
+                'label' => esc_html__('${template.label || element.tag} Advanced', 'hustle-tools'),
+                'tab' => \\Elementor\\Controls_Manager::TAB_ADVANCED,
+            ]
+        );
+`);
+
+      template.advanced.forEach((control: any) => {
+        const controlId = `${element.tag}_${elementIndex}_${control.id}`;
+        controls.push(generateControlPHP(controlId, control, null, selectorPlaceholder));
+      });
+
+      controls.push(`
+        $this->end_controls_section();
+`);
+    }
+  });
+
+  // Add Custom CSS/JS section
+  controls.push(`
+        // ===== Custom Code =====
+        $this->start_controls_section(
+            'section_custom_code',
+            [
+                'label' => esc_html__('Custom Code', 'hustle-tools'),
+                'tab' => \\Elementor\\Controls_Manager::TAB_ADVANCED,
+            ]
+        );
+
+        $this->add_control(
+            'custom_css',
+            [
+                'label' => esc_html__('Custom CSS', 'hustle-tools'),
+                'type' => \\Elementor\\Controls_Manager::CODE,
+                'language' => 'css',
+                'rows' => 20,
+                'description' => esc_html__('Add custom CSS. Use "selector" to target the widget wrapper.', 'hustle-tools'),
+                'placeholder' => 'selector { color: red; }',
+            ]
+        );
+
+        $this->add_control(
+            'custom_js',
+            [
+                'label' => esc_html__('Custom JavaScript', 'hustle-tools'),
+                'type' => \\Elementor\\Controls_Manager::CODE,
+                'language' => 'javascript',
+                'rows' => 20,
+                'description' => esc_html__('Add custom JavaScript. Code will be wrapped in jQuery(document).ready().', 'hustle-tools'),
+            ]
+        );
+
+        $this->end_controls_section();
+`);
+
+  return controls.join('\n');
+}
+
+/**
+ * Generate single control PHP code
+ */
+function generateControlPHP(id: string, control: any, defaultValue: any, selector: string): string {
+  const type = control.type;
+  const label = control.label;
+
+  // Replace {{SELECTOR}} placeholder
+  const actualSelector = selector;
+  const wrappedSelector = `{{WRAPPER}} ${actualSelector}`;
+
+  let code = `
+        $this->add_control(
+            '${id}',
+            [
+                'label' => esc_html__('${label}', 'hustle-tools'),
+                'type' => \\Elementor\\Controls_Manager::${type},`;
+
+  // Add default value if provided
+  if (defaultValue !== null && defaultValue !== undefined) {
+    code += `\n                'default' => '${escapePhpString(defaultValue)}',`;
+  } else if (control.default) {
+    code += `\n                'default' => '${escapePhpString(control.default)}',`;
+  }
+
+  // Add options for SELECT controls
+  if (control.options) {
+    if (Array.isArray(control.options)) {
+      code += `\n                'options' => [`;
+      control.options.forEach((opt: string) => {
+        code += `\n                    '${opt}' => '${opt}',`;
+      });
+      code += `\n                ],`;
+    }
+  }
+
+  // Add selector for style controls
+  if (control.selector && control.property) {
+    code += `\n                'selectors' => [`;
+    code += `\n                    '${wrappedSelector}' => '${control.property}: {{VALUE}};',`;
+    code += `\n                ],`;
+  }
+
+  // Add dynamic support
+  if (control.dynamic) {
+    code += `\n                'dynamic' => ['active' => true],`;
+  }
+
+  code += `\n            ]
+        );`;
+
+  return code;
+}
+
+/**
+ * Generate render method code
+ */
+function generateRenderCode(elements: ParsedElement[], html: string, css: string, js: string): string {
+  return `        $settings = $this->get_settings_for_display();
+
+        // Render HTML
+        ?>
+${html}
+
+        <?php
+        // Custom CSS
+        if (!empty($settings['custom_css'])) {
+            $custom_css = str_replace('selector', '{{WRAPPER}}', $settings['custom_css']);
+            $custom_css = str_replace('{{WRAPPER}}', '.elementor-element-' . $this->get_id(), $custom_css);
+            ?>
+            <style>
+                <?php echo $custom_css; ?>
+            </style>
+            <?php
+        }
+
+        // Custom JavaScript
+        if (!empty($settings['custom_js'])) {
+            ?>
+            <script>
+                (function($) {
+                    $(document).ready(function() {
+                        <?php echo $settings['custom_js']; ?>
+                    });
+                })(jQuery);
+            </script>
+            <?php
+        }`;
+}
+
+/**
+ * Get default value from element
+ */
+function getDefaultValue(control: any, element: ParsedElement): any {
+  switch (control.id) {
+    case 'heading_text':
+    case 'text':
+    case 'link_text':
+    case 'button_text':
+      return element.text || control.default || '';
+    case 'link_url':
+    case 'button_link':
+      return element.attributes['href'] || '#';
+    case 'image':
+      return element.attributes['src'] ? { url: element.attributes['src'] } : null;
+    case 'alt_text':
+      return element.attributes['alt'] || '';
+    case 'placeholder':
+      return element.attributes['placeholder'] || '';
+    default:
+      return control.default || null;
+  }
+}
+
+/**
+ * Generate keywords array for widget
+ */
+function generateKeywordsArray(title: string, elements: ParsedElement[]): string {
+  const keywords = new Set<string>();
+
+  // Add words from title
+  title.toLowerCase().split(' ').forEach(word => {
+    if (word.length > 3) keywords.add(word);
+  });
+
+  // Add element tags
+  elements.forEach(el => {
+    keywords.add(el.tag);
+  });
+
+  const keywordsArray = Array.from(keywords).slice(0, 10);
+  return `['${keywordsArray.join("', '")}']`;
+}
+
+/**
+ * Helper: Convert to PascalCase
+ */
+function toPascalCase(str: string): string {
+  return str.split('_').map(word =>
+    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  ).join('');
+}
+
+/**
+ * Helper: Escape PHP string
+ */
+function escapePhpString(str: string): string {
+  return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+/**
+ * Main entry point: Convert HTML/CSS/JS to Elementor Widget
+ */
+export async function convertToWidgetProgrammatic(
+  html: string,
+  css: string,
+  js: string,
+  options?: {
+    metadata?: Partial<WidgetMetadata>;
+    useAIForMetadata?: boolean;
+  }
+): Promise<string> {
+  console.log('⚡ Starting programmatic widget conversion...');
+  const startTime = Date.now();
+
+  // 1. Extract or generate metadata
+  let metadata: WidgetMetadata;
+
+  // Try HTML comment first
+  const extractedMeta = extractMetadataFromHTML(html);
+
+  if (extractedMeta && extractedMeta.name && extractedMeta.title) {
+    metadata = {
+      name: extractedMeta.name,
+      title: extractedMeta.title,
+      description: extractedMeta.description || `${extractedMeta.title} widget`,
+      category: extractedMeta.category || 'general',
+      icon: extractedMeta.icon || 'eicon-code'
+    };
+    console.log('✅ Found metadata in HTML comment');
+  } else if (options?.useAIForMetadata) {
+    metadata = await generateMetadataWithAI(html, css, js);
+    console.log('🤖 Generated metadata with AI');
+  } else {
+    // Use defaults
+    metadata = {
+      name: options?.metadata?.name || 'custom_widget',
+      title: options?.metadata?.title || 'Custom Widget',
+      description: options?.metadata?.description || 'A custom widget created with Quick Widget',
+      category: options?.metadata?.category || 'general',
+      icon: options?.metadata?.icon || 'eicon-code'
+    };
+    console.log('📝 Using default metadata');
+  }
+
+  // 2. Parse HTML structure
+  const elements = parseHTML(html);
+  console.log(`📦 Parsed ${elements.length} top-level elements`);
+
+  // 3. Generate PHP widget code
+  const widgetPHP = generateWidgetPHP(metadata, elements, html, css, js);
+
+  const elapsed = Date.now() - startTime;
+  console.log(`⚡ Conversion complete in ${elapsed}ms`);
+
+  return widgetPHP;
+}

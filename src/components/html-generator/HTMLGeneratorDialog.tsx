@@ -13,7 +13,7 @@ interface HTMLGeneratorDialogProps {
   onGenerate: (
     description: string,
     images: Array<{ url: string; filename: string; description?: string }>,
-    mode?: 'section' | 'widget',
+    mode?: 'section' | 'widget' | 'quick-widget',
     useExtractedClasses?: boolean
   ) => Promise<void>;
   onClose: () => void;
@@ -30,7 +30,7 @@ export function HTMLGeneratorDialog({
   const [images, setImages] = useState<Array<{ url: string; filename: string; description?: string }>>(initialImages);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [mode, setMode] = useState<'section' | 'widget'>('section');
+  const [mode, setMode] = useState<'section' | 'widget' | 'quick-widget'>('section');
   const [useExtractedClasses, setUseExtractedClasses] = useState(!!designSystemSummary);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,7 +143,11 @@ export function HTMLGeneratorDialog({
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <FileCodeIcon size={24} style={{ color: 'var(--primary)' }} />
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-              {mode === 'section' ? 'Generate HTML Section' : 'Generate Elementor Widget'}
+              {mode === 'section'
+                ? 'Generate HTML Section'
+                : mode === 'quick-widget'
+                ? 'Quick Widget (Fast)'
+                : 'Generate Elementor Widget'}
             </h2>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -199,6 +203,35 @@ export function HTMLGeneratorDialog({
                 style={{
                   flex: 1,
                   padding: '12px 16px',
+                  border: `2px solid ${mode === 'quick-widget' ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  background: mode === 'quick-widget' ? 'var(--accent)' : 'transparent',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="mode"
+                  value="quick-widget"
+                  checked={mode === 'quick-widget'}
+                  onChange={() => setMode('quick-widget')}
+                  style={{ accentColor: 'var(--primary)' }}
+                />
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '14px' }}>Quick Widget ⚡</div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                    Programmatic (~100ms)
+                  </div>
+                </div>
+              </label>
+              <label
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
                   border: `2px solid ${mode === 'widget' ? 'var(--primary)' : 'var(--border)'}`,
                   borderRadius: '8px',
                   cursor: 'pointer',
@@ -218,9 +251,9 @@ export function HTMLGeneratorDialog({
                   style={{ accentColor: 'var(--primary)' }}
                 />
                 <div>
-                  <div style={{ fontWeight: 500, fontSize: '14px' }}>Elementor Widget</div>
+                  <div style={{ fontWeight: 500, fontSize: '14px' }}>AI Widget 🤖</div>
                   <div style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>
-                    Generate PHP widget class
+                    AI-powered (~3-5min)
                   </div>
                 </div>
               </label>
@@ -454,8 +487,10 @@ export function HTMLGeneratorDialog({
               </>
             ) : mode === 'section' ? (
               'Generate HTML/CSS/JS'
+            ) : mode === 'quick-widget' ? (
+              'Generate Quick Widget ⚡'
             ) : (
-              'Generate Elementor Widget'
+              'Generate AI Widget 🤖'
             )}
           </Button>
         </div>

@@ -1,6 +1,7 @@
 // HTML/CSS/JS generation API with streaming
 import { streamText } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
+import { convertToWidgetProgrammatic } from '@/lib/programmatic-widget-converter';
 
 export const maxDuration = 60;
 
@@ -10,7 +11,7 @@ export async function POST(req: Request) {
       description,
       images = [],
       type = 'html', // 'html', 'css', or 'js'
-      mode = 'section', // 'section' or 'widget'
+      mode = 'section', // 'section', 'widget', or 'quick-widget'
       model = 'anthropic/claude-sonnet-4-5-20250929',
       generatedHtml = '', // Pass HTML to CSS/JS generation
       generatedCss = '', // Pass CSS to JS generation
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
       description: string;
       images: Array<{ url: string; filename: string; description: string }>;
       type: 'html' | 'css' | 'js';
-      mode?: 'section' | 'widget';
+      mode?: 'section' | 'widget' | 'quick-widget';
       model?: string;
       generatedHtml?: string;
       generatedCss?: string;
@@ -35,6 +36,111 @@ export async function POST(req: Request) {
     const imageContext = images.length > 0
       ? `\n\n**Reference Images:**\n${images.map((img, i) => `\nImage ${i + 1} (${img.filename}):\n${img.description}`).join('\n\n')}`
       : '';
+
+    // Quick Widget mode: Use programmatic converter for fast generation
+    if (mode === 'quick-widget') {
+      console.log('⚡ Quick Widget mode: using programmatic converter');
+
+      // If type is 'html', generate all three (HTML/CSS/JS) then convert to PHP
+      if (type === 'html') {
+        // First generate HTML using AI (faster without controls)
+        const htmlPrompt = `Generate clean, semantic HTML for this component (NO DOCTYPE, html, head, body tags):
+
+**Description:** ${description}${imageContext}
+
+**Requirements:**
+- Only the component HTML (e.g., section, div, etc.)
+- Use semantic HTML elements
+- Include appropriate classes for styling
+- Add data attributes where useful
+- NO style or script tags
+- NO surrounding HTML document structure
+
+Generate ONLY the HTML:`;
+
+        const htmlResult = await streamText({
+          model: gateway(model),
+          prompt: htmlPrompt,
+          temperature: 0.7,
+        });
+
+        const html = await htmlResult.text;
+
+        // Then generate CSS
+        const cssPrompt = `Generate CSS for this HTML component:
+
+${html}
+
+**Requirements:**
+- Use class selectors
+- Include hover states where appropriate
+- Add transitions for smooth interactions
+- Use modern CSS (flexbox, grid)
+- NO style tags, just the CSS code
+
+Generate ONLY the CSS:`;
+
+        const cssResult = await streamText({
+          model: gateway(model),
+          prompt: cssPrompt,
+          temperature: 0.7,
+        });
+
+        const css = await cssResult.text;
+
+        // Then generate JS
+        const jsPrompt = `Generate JavaScript for this HTML component:
+
+${html}
+
+**Requirements:**
+- Use vanilla JavaScript or jQuery
+- Add interactivity where appropriate
+- Include event listeners for user interactions
+- NO script tags, just the JS code
+- Can be empty if no JavaScript needed
+
+Generate ONLY the JavaScript (or leave empty if not needed):`;
+
+        const jsResult = await streamText({
+          model: gateway(model),
+          prompt: jsPrompt,
+          temperature: 0.7,
+        });
+
+        const js = await jsResult.text;
+
+        // Now convert to widget using programmatic converter
+        console.log('🔧 Converting to widget with programmatic converter...');
+        const widgetPhp = await convertToWidgetProgrammatic(html, css, js, {
+          useAIForMetadata: true, // Use AI for metadata generation
+        });
+
+        console.log('✅ Quick widget generated!');
+
+        // Return the PHP widget as a stream
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(widgetPhp));
+            controller.close();
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Transfer-Encoding': 'chunked',
+          },
+        });
+      } else {
+        // For CSS/JS types in quick-widget mode, we don't need to do anything special
+        // The widget is already generated when type=html
+        return new Response('', {
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
+      }
+    }
 
     // Widget mode: Generate PHP class with render() method containing the HTML
     if (mode === 'widget' && type === 'html') {

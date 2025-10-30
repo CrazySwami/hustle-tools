@@ -19,8 +19,9 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from '@/components/ai-elements/prompt-input';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
+import { useDocumentContent } from '@/hooks/useDocumentContent';
 import { Response } from '@/components/ai-elements/response';
 import { MarkdownWithCitations } from '@/components/ai-elements/markdown-with-citations';
 import { GlobeIcon, BrainIcon, PanelRightOpen } from 'lucide-react';
@@ -194,10 +195,31 @@ const ChatBotDemo = () => {
   const [model, setModel] = useState<string>(modelGroups[0].models[0].value);
   const [webSearch, setWebSearch] = useState(false);
   const [enableReasoning, setEnableReasoning] = useState(false);
-  const { messages, sendMessage, status } = useChat();
+  // Document content management - synced with TiptapEditor
+  const documentContentStore = useDocumentContent();
+
+  const { messages, sendMessage, status } = useChat({
+    api: '/api/chat-doc', // 🎯 Specialized endpoint for document editing
+  });
   const [isEditorVisible, setIsEditorVisible] = useState(false);
   const [documentContent, setDocumentContent] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
+
+  // Sync document content from TiptapEditor to global store
+  useEffect(() => {
+    if (documentContent) {
+      documentContentStore.updateContent(documentContent);
+    }
+  }, [documentContent]);
+
+  // Sync document content from global store to local state
+  // (useful when Morph widget updates the document)
+  useEffect(() => {
+    const storeContent = documentContentStore.getContent();
+    if (storeContent && storeContent !== documentContent) {
+      setDocumentContent(storeContent);
+    }
+  }, [documentContentStore.content]);
 
   // Track which provider groups are open
   const [openProviders, setOpenProviders] = useState<Record<string, boolean>>({
@@ -282,6 +304,16 @@ const ChatBotDemo = () => {
         selectedModel = 'perplexity/sonar';
       }
 
+      // Get latest document content from store
+      const latestDocContent = documentContentStore.getContent();
+
+      console.log('📄 Sending document chat request:', {
+        model: selectedModel,
+        documentLength: latestDocContent.length,
+        webSearch,
+        enableReasoning: enableReasoning && modelSupportsReasoning,
+      });
+
       sendMessage(
         { text: input },
         {
@@ -289,7 +321,7 @@ const ChatBotDemo = () => {
             model: selectedModel,
             webSearch,
             enableReasoning: enableReasoning && modelSupportsReasoning,
-            documentContent,
+            documentContent: latestDocContent, // 📦 Pass document to API
             comments,
           },
         },

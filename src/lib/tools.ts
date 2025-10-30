@@ -245,6 +245,24 @@ export const editCodeWithMorphTool = tool({
 // Model can see all files (HTML/CSS/JS/PHP) without needing a separate "view" tool
 // See: System prompt in /src/app/api/chat-elementor/route.ts lines 117-147
 
+// Edit Document with Morph Fast Apply - For document/prose editing
+export const editDocumentWithMorphTool = tool({
+  description: 'Edit document content using Morph Fast Apply (98% accuracy, 10x faster than diffs). This is the PREFERRED way to edit prose, articles, blog posts, and documents. Use lazy edits with "... existing text ..." to indicate unchanged sections. Works with ANY model (even Haiku!) because you only write the changes, not complex diff format.',
+  inputSchema: z.object({
+    instruction: z.string().describe('Clear first-person instruction: "I am fixing the grammar in paragraph 3" or "I am adding a conclusion section"'),
+    lazyEdit: z.string().describe('The document changes using "... existing text ..." for unchanged parts. Example:\n... existing text ...\n\n## New Section\n\nThis is the new content I\'m adding.\n\n... existing text ...'),
+  }),
+  execute: async ({ instruction, lazyEdit }) => {
+    return {
+      instruction,
+      lazyEdit,
+      timestamp: new Date().toISOString(),
+      status: 'pending_morph_merge',
+      message: 'Document Morph Fast Apply activated. Merging changes...',
+    };
+  },
+});
+
 // =====================
 // TEST PING TOOL (Simple Diagnostic)
 // =====================
@@ -510,6 +528,7 @@ export const tools = {
   // REMOVED: updateSectionPhp - Replaced by editCodeWithMorph (file='php')
   // REMOVED: testPing - Diagnostic tool no longer needed
   editCodeWithMorph: editCodeWithMorphTool,  // ⭐ THE ONLY CODE TOOL - handles everything!
+  editDocumentWithMorph: editDocumentWithMorphTool, // ⭐ THE ONLY DOCUMENT TOOL - handles everything!
   // REMOVED: switchTab - Tab navigation handled by UI, not tools
   planSteps: planStepsTool,                 // ⭐ Multi-step planning tool
   updateStepProgress: updateStepProgressTool, // ⭐ Step progress tracking

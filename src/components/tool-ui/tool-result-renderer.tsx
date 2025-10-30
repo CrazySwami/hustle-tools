@@ -8,6 +8,7 @@ import { UpdateSectionToolResult } from './UpdateSectionToolResult';
 import { ViewEditorCodeWidget } from './ViewEditorCodeWidget';
 import { EditCodeWidget } from './edit-code-widget';
 import { EditCodeMorphWidget } from './edit-code-morph-widget';  // ⭐ NEW: Morph Fast Apply
+import { DocumentMorphWidget } from './document-morph-widget';  // ⭐ NEW: Document Morph Fast Apply
 import { StepPlannerWidget } from './step-planner-widget';
 import { BlogPlannerWidget } from './blog-planner-widget';
 import { BlogWriterWidget } from './blog-writer-widget';
@@ -252,6 +253,18 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
         <EditCodeMorphWidget
           data={{
             file: result.file || 'html',
+            instruction: result.instruction || '',
+            lazyEdit: result.lazyEdit || '',
+            status: result.status || 'pending',
+            message: result.message || '',
+          }}
+        />
+      );
+
+    case 'editDocumentWithMorph':
+      return (
+        <DocumentMorphWidget
+          data={{
             instruction: result.instruction || '',
             lazyEdit: result.lazyEdit || '',
             status: result.status || 'pending',

@@ -65,7 +65,23 @@ interface PexelsVideo {
   url: string;
 }
 
-export function ImageEditor() {
+interface ImageEditorProps {
+  chatVisible?: boolean;
+  setChatVisible?: (visible: boolean) => void;
+  tabBarVisible?: boolean;
+  setTabBarVisible?: (visible: boolean) => void;
+}
+
+export function ImageEditor({ chatVisible, setChatVisible, tabBarVisible, setTabBarVisible }: ImageEditorProps = {}) {
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   // Generation state
   const [activeTab, setActiveTab] = useState<'generate' | 'edit' | 'background' | 'search' | 'stock'>('generate');
   const [prompt, setPrompt] = useState('');
@@ -384,66 +400,84 @@ export function ImageEditor() {
   };
 
   return (
-    <div className="flex h-full bg-background">
+    <div className="flex flex-col md:flex-row h-full bg-background relative">
       {/* Left Panel - Tools */}
-      <div className="w-80 border-r border-border flex flex-col overflow-hidden">
+      <div className="w-full md:w-80 border-r border-border flex flex-col overflow-hidden">
         {/* Tab Navigation */}
-        <div className="flex border-b border-border">
-          <button
-            onClick={() => setActiveTab('generate')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'generate'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted hover:bg-muted/80 text-muted-foreground'
-            }`}
-          >
-            <Wand2 className="inline-block w-4 h-4 mr-2" />
-            Generate
-          </button>
-          <button
-            onClick={() => setActiveTab('edit')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'edit'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted hover:bg-muted/80 text-muted-foreground'
-            }`}
-          >
-            <Edit3 className="inline-block w-4 h-4 mr-2" />
-            Edit
-          </button>
-          <button
-            onClick={() => setActiveTab('background')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'background'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted hover:bg-muted/80 text-muted-foreground'
-            }`}
-          >
-            <Scissors className="inline-block w-4 h-4 mr-2" />
-            BG Remove
-          </button>
-          <button
-            onClick={() => setActiveTab('search')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'search'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted hover:bg-muted/80 text-muted-foreground'
-            }`}
-          >
-            <Search className="inline-block w-4 h-4 mr-2" />
-            Search
-          </button>
-          <button
-            onClick={() => setActiveTab('stock')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'stock'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted hover:bg-muted/80 text-muted-foreground'
-            }`}
-          >
-            <ImageIcon className="inline-block w-4 h-4 mr-2" />
-            Stock
-          </button>
+        <div className="border-b border-border p-2 md:p-0">
+          {isMobile ? (
+            /* Mobile: Dropdown */
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as any)}
+              className="w-full px-4 py-3 text-sm font-medium border-2 border-border rounded-lg bg-background text-foreground cursor-pointer outline-none shadow-sm"
+            >
+              <option value="generate">🪄 Generate Image</option>
+              <option value="edit">✏️ Edit Image</option>
+              <option value="background">✂️ Remove Background</option>
+              <option value="search">🔍 Reverse Search</option>
+              <option value="stock">📸 Stock Photos</option>
+            </select>
+          ) : (
+            /* Desktop: Buttons */
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('generate')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'generate'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                }`}
+              >
+                <Wand2 className="inline-block w-4 h-4 mr-2" />
+                Generate
+              </button>
+              <button
+                onClick={() => setActiveTab('edit')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'edit'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                }`}
+              >
+                <Edit3 className="inline-block w-4 h-4 mr-2" />
+                Edit
+              </button>
+              <button
+                onClick={() => setActiveTab('background')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'background'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                }`}
+              >
+                <Scissors className="inline-block w-4 h-4 mr-2" />
+                BG Remove
+              </button>
+              <button
+                onClick={() => setActiveTab('search')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'search'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                }`}
+              >
+                <Search className="inline-block w-4 h-4 mr-2" />
+                Search
+              </button>
+              <button
+                onClick={() => setActiveTab('stock')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'stock'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                }`}
+              >
+                <ImageIcon className="inline-block w-4 h-4 mr-2" />
+                Stock
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Tab Content */}
@@ -1296,6 +1330,53 @@ export function ImageEditor() {
           </div>
         )}
       </div>
+
+      {/* Bottom Left: Chat/TabBar Toggle Button (like other tabs) */}
+      {(setChatVisible || setTabBarVisible) && (
+        <button
+          onClick={() => {
+            if (setChatVisible) setChatVisible(!chatVisible);
+            if (setTabBarVisible) setTabBarVisible(!tabBarVisible);
+          }}
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            left: '20px',
+            zIndex: 9999, // Higher z-index to appear above everything
+            background: 'var(--primary)',
+            color: 'var(--primary-foreground)',
+            border: '2px solid var(--background)',
+            borderRadius: '50%',
+            width: '56px',
+            height: '56px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
+          }}
+          title={chatVisible ? 'Hide Chat & Tabs' : 'Show Chat & Tabs'}
+        >
+          {chatVisible ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M3 12h18M3 6h18M3 18h18" />
+            </svg>
+          )}
+        </button>
+      )}
     </div>
   );
 }

@@ -255,15 +255,24 @@ export function ElementorChat({
                               );
                             }
 
-                            // Otherwise render as tool-call (input phase)
-                            console.log('🔨 Tool call in progress (no result yet)');
+                            // Otherwise render as tool-call (input phase) - NO PARAMETERS UI for Morph!
+                            // The Morph widget will show when result arrives, no need to show raw params
+                            console.log('🔨 Morph tool call in progress (waiting for result, hiding params UI)');
                             return (
-                              <Tool key={i} defaultOpen>
-                                <ToolHeader type={toolName} state="input-available" />
-                                <ToolContent>
-                                  <ToolInput input={part.input ?? part.args ?? {}} />
-                                </ToolContent>
-                              </Tool>
+                              <div key={i} style={{
+                                padding: '12px 16px',
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                borderRadius: '8px',
+                                marginBottom: '8px',
+                                color: 'white',
+                                fontSize: '14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                              }}>
+                                <div className="animate-spin">🌀</div>
+                                <span>Morph Fast Apply: Processing {(part.input ?? part.args)?.file?.toUpperCase()} changes...</span>
+                              </div>
                             );
                           }
 

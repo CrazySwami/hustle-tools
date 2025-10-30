@@ -257,6 +257,7 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
             status: result.status || 'pending',
             message: result.message || '',
           }}
+          onSwitchCodeTab={onSwitchCodeTab}
         />
       );
 

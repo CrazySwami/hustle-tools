@@ -440,7 +440,15 @@ export function StyleGuideUnified({
         <h2 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: 600 }}>
           Style Guide - Design System Manager
         </h2>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{
+          display: 'flex',
+          gap: '8px',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          scrollbarWidth: 'thin',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: '4px'
+        }}>
           <button
             onClick={() => setMode('stylekit')}
             style={{
@@ -452,6 +460,8 @@ export function StyleGuideUnified({
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
             📊 Style Kit Editor
@@ -467,6 +477,8 @@ export function StyleGuideUnified({
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
             🎨 Brand Extract
@@ -482,6 +494,8 @@ export function StyleGuideUnified({
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
             📄 Page Extract
@@ -1634,6 +1648,53 @@ export function StyleGuideUnified({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bottom Left: Chat/TabBar Toggle Button */}
+      {(setChatVisible || setTabBarVisible) && (
+        <button
+          onClick={() => {
+            if (setChatVisible) setChatVisible(!chatVisible);
+            if (setTabBarVisible) setTabBarVisible(!tabBarVisible);
+          }}
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            left: '20px',
+            zIndex: 9999,
+            background: 'var(--primary)',
+            color: 'var(--primary-foreground)',
+            border: '2px solid var(--background)',
+            borderRadius: '50%',
+            width: '56px',
+            height: '56px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
+          }}
+          title={chatVisible ? 'Hide Chat & Tabs' : 'Show Chat & Tabs'}
+        >
+          {chatVisible ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M3 12h18M3 6h18M3 18h18" />
+            </svg>
+          )}
+        </button>
       )}
     </div>
   );

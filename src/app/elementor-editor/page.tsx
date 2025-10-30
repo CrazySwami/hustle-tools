@@ -1054,54 +1054,63 @@ export default function ElementorEditorPage() {
                 <option value="usage">Usage</option>
               </select>
             ) : (
-              /* Desktop: Horizontal Tabs */
-              <div style={{ display: 'flex', flex: 1, gap: '8px' }}>
+              /* Desktop: Horizontal Tabs - Scrollable */
+              <div style={{
+                display: 'flex',
+                flex: 1,
+                gap: '8px',
+                overflowX: 'auto',
+                overflowY: 'hidden',
+                scrollbarWidth: 'thin',
+                WebkitOverflowScrolling: 'touch',
+                msOverflowStyle: '-ms-autohiding-scrollbar'
+              }}>
                 <div
                   className={`tab ${activeTab === 'json' ? 'active' : ''}`}
                   onClick={() => setActiveTab('json')}
-                  style={{ whiteSpace: 'nowrap' }}
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   <CodeIcon size={16} /> Code Editor
                 </div>
                 <div
                   className={`tab ${activeTab === 'sections' ? 'active' : ''}`}
                   onClick={() => setActiveTab('sections')}
-                  style={{ whiteSpace: 'nowrap' }}
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   <FileIcon size={16} /> Section Library
                 </div>
                 <div
                   className={`tab ${activeTab === 'playground' ? 'active' : ''}`}
                   onClick={() => setActiveTab('playground')}
-                  style={{ whiteSpace: 'nowrap' }}
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   <GlobeIcon size={16} /> WordPress Playground
                 </div>
                 <div
                   className={`tab ${activeTab === 'site-content' ? 'active' : ''}`}
                   onClick={() => setActiveTab('site-content')}
-                  style={{ whiteSpace: 'nowrap' }}
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   <LayoutIcon size={16} /> Site Content
                 </div>
                 <div
                   className={`tab ${activeTab === 'style-guide' ? 'active' : ''}`}
                   onClick={() => setActiveTab('style-guide')}
-                  style={{ whiteSpace: 'nowrap' }}
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   <PaletteIcon size={16} /> Style Guide
                 </div>
                 <div
                   className={`tab ${activeTab === 'images' ? 'active' : ''}`}
                   onClick={() => setActiveTab('images')}
-                  style={{ whiteSpace: 'nowrap' }}
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   <ImageIcon size={16} /> Images
                 </div>
                 <div
                   className={`tab ${activeTab === 'usage' ? 'active' : ''}`}
                   onClick={() => setActiveTab('usage')}
-                  style={{ whiteSpace: 'nowrap' }}
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   <BarChart3Icon size={16} /> Usage
                 </div>
@@ -1252,7 +1261,12 @@ export default function ElementorEditorPage() {
             </div>
 
             <div className={`tab-panel ${activeTab === 'images' ? 'active' : ''}`} id="imagesPanel" style={{ display: activeTab === 'images' ? 'flex' : 'none' }}>
-              <ImageEditor />
+              <ImageEditor
+                chatVisible={chatVisible}
+                setChatVisible={setChatVisible}
+                tabBarVisible={tabBarVisible}
+                setTabBarVisible={setTabBarVisible}
+              />
             </div>
 
             <div className={`tab-panel ${activeTab === 'usage' ? 'active' : ''}`} id="usagePanel" style={{ display: activeTab === 'usage' ? 'flex' : 'none' }}>

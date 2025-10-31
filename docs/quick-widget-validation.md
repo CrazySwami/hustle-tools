@@ -305,6 +305,8 @@ Always review the PHP tab before deploying:
 
 ## See Also
 
+- [Quick Widget Error Debugging Guide](/docs/quick-widget-error-debugging.md) - **NEW!** Comprehensive debugging guide for runtime errors
 - [Elementor Widget Development Guide](/docs/quick-widget-guide.md)
 - [Programmatic Widget Converter](/docs/programmatic-widget-converter.md)
+- [Quick Widget CSS Scoping](/docs/quick-widget-css-scoping.md)
 - [Elementor Official Docs](https://developers.elementor.com/docs/widgets/)

@@ -78,6 +78,17 @@ const ChatBotDemo = () => {
     setIsEditorVisible(!isEditorVisible);
   };
 
+  // Handle AI edit from bubble menu
+  const handleAIEdit = (selectedText: string, instruction: string) => {
+    const message = `Edit this specific text: "${selectedText}"
+
+Instruction: ${instruction}
+
+IMPORTANT: Use editDocumentWithMorph tool to edit ONLY this highlighted portion. Keep the rest of the document unchanged.`;
+
+    handleSendMessage(message, { webSearchEnabled: false });
+  };
+
   return (
     <div className={`flex h-screen w-full pt-16 ${isMobile ? 'px-2 pb-2' : 'px-4 pb-4'} gap-4`}>
       {/* Desktop: Side-by-side layout */}
@@ -103,6 +114,7 @@ const ChatBotDemo = () => {
                 initialContent={documentContent}
                 onContentChange={setDocumentContent}
                 onCommentsChange={setComments}
+                onAIEdit={handleAIEdit}
               />
             </div>
           )}
@@ -119,6 +131,7 @@ const ChatBotDemo = () => {
               initialContent={documentContent}
               onContentChange={setDocumentContent}
               onCommentsChange={setComments}
+              onAIEdit={handleAIEdit}
             />
           </div>
 

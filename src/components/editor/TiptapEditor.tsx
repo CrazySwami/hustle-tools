@@ -41,7 +41,9 @@ import {
   SeparatorHorizontal,
   CheckSquare,
   TextSelect,
-  MessageSquare
+  MessageSquare,
+  Sparkles,
+  Send
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
@@ -145,12 +147,13 @@ interface TiptapEditorProps {
   onContentChange?: (content: string) => void;
   onCommentsChange?: (comments: Comment[]) => void;
   toolbarActions?: React.ReactNode;
+  onAIEdit?: (selectedText: string, instruction: string) => void;
 }
 
 const savedContent = typeof window !== 'undefined' ? localStorage.getItem('tiptap-document') : null;
 const initialComments = typeof window !== 'undefined' ? localStorage.getItem('tiptap-comments') : null;
 
-export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions }: TiptapEditorProps = {}) {
+export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions, onAIEdit }: TiptapEditorProps = {}) {
   const [isMounted, setIsMounted] = useState(false)
   const [showColorSelector, setShowColorSelector] = useState(false)
   const [showFontSelector, setShowFontSelector] = useState(false)
@@ -166,6 +169,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   const [isCommentsPanelOpen, setIsCommentsPanelOpen] = useState(false)
   const [showAddCommentForm, setShowAddCommentForm] = useState(false)
   const [selectedText, setSelectedText] = useState('')
+  const [aiInstruction, setAiInstruction] = useState('')
   
   // Initialize the editor
   const editor = useEditor({
@@ -234,8 +238,21 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   // Add a new comment
   const handleAddComment = () => {
     if (!editor || !selectedText) return
-    
+
     setShowAddCommentForm(true)
+  }
+
+  // Handle AI edit of selected text
+  const handleAIEdit = () => {
+    if (!editor || !selectedText || !aiInstruction.trim()) return
+
+    // Call the onAIEdit callback if provided
+    if (onAIEdit) {
+      onAIEdit(selectedText, aiInstruction);
+    }
+
+    // Clear the instruction input
+    setAiInstruction('');
   }
   
   // Submit a new comment
@@ -563,40 +580,40 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         
         {/* Bubble Menu */}
         {editor && (
-          <BubbleMenu 
+          <BubbleMenu
             editor={editor}
             tippyOptions={{ duration: 100 }}
-            className="bg-background border rounded-md shadow-md flex p-1 gap-1"
+            className="bg-background border rounded-md shadow-md flex items-center p-1 gap-1"
           >
-            <MenuButton 
+            <MenuButton
               onClick={() => editor.chain().focus().toggleBold().run()}
               isActive={editor.isActive('bold')}
             >
               <Bold className="h-4 w-4" />
             </MenuButton>
-            
-            <MenuButton 
+
+            <MenuButton
               onClick={() => editor.chain().focus().toggleItalic().run()}
               isActive={editor.isActive('italic')}
             >
               <Italic className="h-4 w-4" />
             </MenuButton>
-            
-            <MenuButton 
+
+            <MenuButton
               onClick={() => editor.chain().focus().toggleStrike().run()}
               isActive={editor.isActive('strike')}
             >
               <Strikethrough className="h-4 w-4" />
             </MenuButton>
-            
-            <MenuButton 
+
+            <MenuButton
               onClick={() => editor.chain().focus().toggleUnderline().run()}
               isActive={editor.isActive('underline')}
             >
               <UnderlineIcon className="h-4 w-4" />
             </MenuButton>
-            
-            <MenuButton 
+
+            <MenuButton
               onClick={() => {
                 const url = window.prompt('URL')
                 if (url) {
@@ -607,13 +624,43 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
             >
               <LinkIcon className="h-4 w-4" />
             </MenuButton>
-            
-            <MenuButton 
+
+            <MenuButton
               onClick={handleAddComment}
               disabled={!selectedText}
             >
               <MessageSquare className="h-4 w-4" />
             </MenuButton>
+
+            {/* Divider */}
+            <div className="h-6 w-px bg-border mx-1" />
+
+            {/* AI Edit Section */}
+            <div className="flex items-center gap-1">
+              <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+              <input
+                type="text"
+                value={aiInstruction}
+                onChange={(e) => setAiInstruction(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAIEdit();
+                  }
+                }}
+                placeholder="Tell AI how to edit..."
+                className="px-2 py-1 text-xs bg-muted/50 border border-border rounded focus:outline-none focus:ring-1 focus:ring-purple-500 min-w-[180px]"
+                disabled={!selectedText}
+              />
+              <MenuButton
+                onClick={handleAIEdit}
+                disabled={!selectedText || !aiInstruction.trim()}
+                className="bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
+                title="Send to AI"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </MenuButton>
+            </div>
           </BubbleMenu>
         )}
       </div>

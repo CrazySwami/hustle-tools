@@ -17,6 +17,7 @@ import { useEditorContent } from "@/hooks/useEditorContent";
 import { ElementInspector } from "./ElementInspector";
 import { HTMLGeneratorDialog } from "@/components/html-generator/HTMLGeneratorDialog";
 import { convertToWidgetProgrammatic } from "@/lib/programmatic-widget-converter";
+import { extractCodeFromPhp, isPhpWidget } from "@/lib/php-to-html-converter";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -284,6 +285,61 @@ export function HtmlSectionEditor({
     }
   };
 
+  // Convert PHP widget back to HTML/CSS/JS
+  const handleConvertBackToHtml = () => {
+    if (!section.php || !section.php.trim()) {
+      alert('⚠️ No PHP widget code to convert. This feature works only after generating a widget.');
+      return;
+    }
+
+    const confirmed = confirm(
+      '🔄 Convert Widget Back to HTML?\n\n' +
+      'This will:\n' +
+      '• Extract HTML from the PHP widget\n' +
+      '• Extract CSS and JavaScript\n' +
+      '• Replace PHP tab with extracted code\n' +
+      '• Allow you to edit as simple HTML\n' +
+      '\n⚠️ Note: Elementor control values will be lost.\n' +
+      'You\'ll get the base HTML structure back.\n' +
+      '\nContinue?'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const extracted = extractCodeFromPhp(section.php);
+
+      if (!extracted.success) {
+        alert(`❌ Extraction failed: ${extracted.error || 'Could not extract code from PHP'}`);
+        return;
+      }
+
+      // Update sections with extracted code
+      updateSection({
+        html: extracted.html,
+        css: extracted.css,
+        js: extracted.js,
+        php: '', // Clear PHP to go back to HTML mode
+      });
+
+      // Switch to HTML tab
+      handleCodeTabChange('html');
+
+      alert(
+        '✅ Successfully converted back to HTML!\n\n' +
+        `Extracted:\n` +
+        `• HTML: ${extracted.html.length} characters\n` +
+        `• CSS: ${extracted.css.length} characters\n` +
+        `• JS: ${extracted.js.length} characters\n\n` +
+        'You can now edit as simple HTML/CSS/JS and regenerate the widget when ready.'
+      );
+
+    } catch (error: any) {
+      console.error('❌ Conversion error:', error);
+      alert(`❌ Conversion failed: ${error.message}`);
+    }
+  };
+
   // Track if this is a loaded section (has initial content)
   const hasInitialContent = !!(
     initialSection?.html ||
@@ -484,6 +540,10 @@ export function HtmlSectionEditor({
             label: "🔃 Update Widget",
             onClick: handleConvertToWidget,
             disabled: isConverting,
+          }] : []),
+          ...(section.php ? [{
+            label: "🔄 Convert Back to HTML",
+            onClick: handleConvertBackToHtml,
           }] : []),
           {
             label: "File Tree",

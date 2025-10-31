@@ -513,11 +513,27 @@ export async function convertToWidgetProgrammatic(
   console.log('⚡ Starting programmatic widget conversion...');
   const startTime = Date.now();
 
+  // 0. Clean HTML - remove DOCTYPE, html, head, body, style, script tags
+  let cleanHtml = html;
+  cleanHtml = cleanHtml.replace(/<!DOCTYPE[^>]*>/gi, '');
+  cleanHtml = cleanHtml.replace(/<html[^>]*>|<\/html>/gi, '');
+  cleanHtml = cleanHtml.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '');
+  cleanHtml = cleanHtml.replace(/<body[^>]*>|<\/body>/gi, '');
+  cleanHtml = cleanHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  cleanHtml = cleanHtml.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  cleanHtml = cleanHtml.trim();
+
+  console.log('🧹 Cleaned HTML:', {
+    original: html.length,
+    cleaned: cleanHtml.length,
+    removed: html.length - cleanHtml.length
+  });
+
   // 1. Extract or generate metadata
   let metadata: WidgetMetadata;
 
   // Try HTML comment first
-  const extractedMeta = extractMetadataFromHTML(html);
+  const extractedMeta = extractMetadataFromHTML(cleanHtml);
 
   if (extractedMeta && extractedMeta.name && extractedMeta.title) {
     metadata = {
@@ -529,7 +545,7 @@ export async function convertToWidgetProgrammatic(
     };
     console.log('✅ Found metadata in HTML comment');
   } else if (options?.useAIForMetadata) {
-    metadata = await generateMetadataWithAI(html, css, js);
+    metadata = await generateMetadataWithAI(cleanHtml, css, js);
     console.log('🤖 Generated metadata with AI');
   } else {
     // Use defaults
@@ -543,12 +559,12 @@ export async function convertToWidgetProgrammatic(
     console.log('📝 Using default metadata');
   }
 
-  // 2. Parse HTML structure
-  const elements = parseHTML(html);
+  // 2. Parse HTML structure (use cleaned HTML)
+  const elements = parseHTML(cleanHtml);
   console.log(`📦 Parsed ${elements.length} top-level elements`);
 
-  // 3. Generate PHP widget code
-  const widgetPHP = generateWidgetPHP(metadata, elements, html, css, js);
+  // 3. Generate PHP widget code (use cleaned HTML)
+  const widgetPHP = generateWidgetPHP(metadata, elements, cleanHtml, css, js);
 
   const elapsed = Date.now() - startTime;
   console.log(`⚡ Conversion complete in ${elapsed}ms`);

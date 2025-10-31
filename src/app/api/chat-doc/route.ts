@@ -201,6 +201,9 @@ When user asks "what tools do you have" or "what can you do", list ONLY these to
 
 **Available Tools (COMPLETE LIST):**
 
+**📖 Document Reading:**
+- **getDocumentContent**: Read the current document content. CRITICAL: Use this FIRST when user asks questions about their document (e.g., "what does my document say", "summarize this", "what's the main idea"). You CANNOT see the document unless you call this tool!
+
 **📝 Document Editing:**
 - **editDocumentWithMorph**: 🎯 PRIMARY TOOL - Use this for ALL document writing/editing. Works on empty documents AND existing content. Uses lazy edits (... existing text ...) for precision. 98% accurate, 10x faster than diffs.
 
@@ -229,11 +232,12 @@ When user asks "what tools do you have" or "what can you do", list ONLY these to
 - NO code editing tools (those are on /elementor-editor page)
 
 **CRITICAL INSTRUCTIONS:**
-1. When user asks "what tools do you have" → List ONLY the 11 tools above
-2. When user asks to write/edit document content → Use **editDocumentWithMorph**
-3. When user asks "how many words" or counting questions → Use **getTextStats** or **findString** (you cannot count accurately without tools!)
-4. When user asks about readability → Use **analyzeReadability**
-5. When user wants to replace text → Use **findAndReplace** (more accurate than manual edits)
+1. When user asks "what tools do you have" → List ONLY the 12 tools above
+2. When user asks questions ABOUT their document → Use **getDocumentContent** FIRST! (You cannot see the document otherwise)
+3. When user asks to write/edit document content → Use **editDocumentWithMorph**
+4. When user asks "how many words" or counting questions → Use **getTextStats** or **findString** (you cannot count accurately without tools!)
+5. When user asks about readability → Use **analyzeReadability**
+6. When user wants to replace text → Use **findAndReplace** (more accurate than manual edits)
 
 After using a tool, provide a helpful text response that explains what the tool will do or what results it returned.`;
 
@@ -253,6 +257,33 @@ After using a tool, provide a helpful text response that explains what the tool 
       calculate: tools.calculate,
       generateCode: tools.generateCode,
       manageTask: tools.manageTask,
+
+      // Document reading tool - CRITICAL for AI to see document content
+      getDocumentContent: {
+        ...tools.getDocumentContent,
+        execute: async ({ requestType = 'full' }) => {
+          if (!documentContent) {
+            return {
+              requestType,
+              content: 'No document content available',
+              wordCount: 0,
+              characterCount: 0,
+              message: 'Document is empty or not loaded'
+            };
+          }
+
+          const wordCount = documentContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+          const characterCount = documentContent.length;
+
+          return {
+            requestType,
+            content: documentContent,
+            wordCount,
+            characterCount,
+            message: 'Document content retrieved successfully'
+          };
+        }
+      },
 
       // Document editing
       editDocumentWithMorph: tools.editDocumentWithMorph,  // ⭐ THE PRIMARY DOCUMENT EDITING TOOL

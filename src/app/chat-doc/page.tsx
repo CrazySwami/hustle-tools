@@ -80,11 +80,23 @@ const ChatBotDemo = () => {
 
   // Handle AI edit from bubble menu
   const handleAIEdit = (selectedText: string, instruction: string) => {
-    const message = `Edit this specific text: "${selectedText}"
+    const message = `🎯 TARGETED EDIT REQUEST
 
-Instruction: ${instruction}
+**Selected text to edit:**
+"${selectedText}"
 
-IMPORTANT: Use editDocumentWithMorph tool to edit ONLY this highlighted portion. Keep the rest of the document unchanged.`;
+**Instruction:** ${instruction}
+
+**CRITICAL REQUIREMENTS:**
+1. Use editDocumentWithMorph tool
+2. In the lazyEdit, ONLY include the selected text portion with your changes
+3. Use "... existing text ..." markers for everything BEFORE and AFTER the selected portion
+4. Do NOT include any unchanged parts of the document in your edit
+5. The edit should replace ONLY the selected text, nothing else
+
+**Example format:**
+If the document is "Intro paragraph. [SELECTED TEXT]. Closing paragraph."
+Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTED TEXT]\n... existing text ..."`;
 
     handleSendMessage(message, { webSearchEnabled: false });
   };

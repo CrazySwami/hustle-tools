@@ -435,34 +435,34 @@ export function ElementorChat({
             <DialogTitle>System Prompt Viewer</DialogTitle>
             <DialogDescription>
               This is the exact system prompt sent to the AI with your chat messages.
-              <div className="mt-2 text-xs text-muted-foreground">
-                Model: <span className="font-mono">{selectedModel}</span> |
-                Context: {includeContext ? '✅ Enabled' : '❌ Disabled'} |
-                Web Search: {webSearch ? '✅ Enabled' : '❌ Disabled'}
-              </div>
-              {promptStats && (
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t pt-2">
-                  <div>
-                    <span className="font-semibold">Total Characters:</span> {promptStats.totalChars.toLocaleString()}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Est. Tokens:</span> ~{promptStats.estimatedTokens.toLocaleString()}
-                  </div>
-                  <div>
-                    <span className="font-semibold">HTML Size:</span> {promptStats.htmlChars.toLocaleString()} chars
-                  </div>
-                  <div>
-                    <span className="font-semibold">CSS Size:</span> {promptStats.cssChars.toLocaleString()} chars
-                  </div>
-                  <div>
-                    <span className="font-semibold">JS Size:</span> {promptStats.jsChars.toLocaleString()} chars
-                  </div>
-                  <div>
-                    <span className="font-semibold">PHP Size:</span> {promptStats.phpChars.toLocaleString()} chars
-                  </div>
-                </div>
-              )}
             </DialogDescription>
+            <div className="mt-2 text-xs text-muted-foreground">
+              Model: <span className="font-mono">{selectedModel}</span> |
+              Context: {includeContext ? '✅ Enabled' : '❌ Disabled'} |
+              Web Search: {webSearch ? '✅ Enabled' : '❌ Disabled'}
+            </div>
+            {promptStats && (
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t pt-2">
+                <div>
+                  <span className="font-semibold">Total Characters:</span> {promptStats.totalChars.toLocaleString()}
+                </div>
+                <div>
+                  <span className="font-semibold">Est. Tokens:</span> ~{promptStats.estimatedTokens.toLocaleString()}
+                </div>
+                <div>
+                  <span className="font-semibold">HTML Size:</span> {promptStats.htmlChars.toLocaleString()} chars
+                </div>
+                <div>
+                  <span className="font-semibold">CSS Size:</span> {promptStats.cssChars.toLocaleString()} chars
+                </div>
+                <div>
+                  <span className="font-semibold">JS Size:</span> {promptStats.jsChars.toLocaleString()} chars
+                </div>
+                <div>
+                  <span className="font-semibold">PHP Size:</span> {promptStats.phpChars.toLocaleString()} chars
+                </div>
+              </div>
+            )}
           </DialogHeader>
           <ScrollArea className="h-[60vh] w-full rounded border bg-muted/50 p-4">
             <pre className="text-xs whitespace-pre-wrap font-mono">

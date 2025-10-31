@@ -127,6 +127,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                 onContentChange={setDocumentContent}
                 onCommentsChange={setComments}
                 onAIEdit={handleAIEdit}
+                selectedModel={selectedModel}
               />
             </div>
           )}
@@ -144,6 +145,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
               onContentChange={setDocumentContent}
               onCommentsChange={setComments}
               onAIEdit={handleAIEdit}
+              selectedModel={selectedModel}
             />
           </div>
 

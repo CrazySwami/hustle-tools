@@ -437,7 +437,7 @@ function generateRenderCode(elements: ParsedElement[], html: string, css: string
         const htmlTag = `${controlPrefix}html_tag`;
 
         // Build dynamic heading with controls
-        const dynamicTag = `<?php
+        const dynamicTag = `
         $heading_text_${elementIndex} = $settings['${controlId}'];
         $html_tag_${elementIndex} = !empty($settings['${htmlTag}']) ? $settings['${htmlTag}'] : '${element.tag}';
         $link_${elementIndex} = !empty($settings['${controlPrefix}link']) ? $settings['${controlPrefix}link'] : null;
@@ -469,12 +469,13 @@ function generateRenderCode(elements: ParsedElement[], html: string, css: string
         const controlId = `${controlPrefix}${element.tag === 'button' ? 'button_text' : 'link_text'}`;
         const linkId = `${controlPrefix}${element.tag === 'button' ? 'button_link' : 'link_url'}`;
 
-        const dynamicTag = `<?php
+        const dynamicTag = `
         $link_${elementIndex} = !empty($settings['${linkId}']) ? $settings['${linkId}'] : ['url' => '${href}'];
         ?>
         <${element.tag} href="<?php echo esc_url($link_${elementIndex}['url']); ?>"${element.classes.length > 0 ? ` class="${element.classes.join(' ')}"` : ''}>
             <?php echo esc_html($settings['${controlId}']); ?>
-        </${element.tag}>`;
+        </${element.tag}>
+        <?php`;
 
         dynamicHtml = dynamicHtml.replace(originalTag, dynamicTag);
       }
@@ -486,11 +487,12 @@ function generateRenderCode(elements: ParsedElement[], html: string, css: string
         const imageId = `${controlPrefix}image`;
         const altId = `${controlPrefix}alt_text`;
 
-        const dynamicTag = `<?php
+        const dynamicTag = `
         $image_${elementIndex} = !empty($settings['${imageId}']) ? $settings['${imageId}'] : ['url' => '${src}'];
         $alt_${elementIndex} = !empty($settings['${altId}']) ? $settings['${altId}'] : '${alt}';
         ?>
-        <img src="<?php echo esc_url($image_${elementIndex}['url']); ?>" alt="<?php echo esc_attr($alt_${elementIndex}); ?>"${element.classes.length > 0 ? ` class="${element.classes.join(' ')}"` : ''}>`;
+        <img src="<?php echo esc_url($image_${elementIndex}['url']); ?>" alt="<?php echo esc_attr($alt_${elementIndex}); ?>"${element.classes.length > 0 ? ` class="${element.classes.join(' ')}"` : ''}>
+        <?php`;
 
         dynamicHtml = dynamicHtml.replace(originalTag, dynamicTag);
       }

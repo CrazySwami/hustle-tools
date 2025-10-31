@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Zap, Loader2, CheckCircle2, XCircle, AlertCircle, FileText } from 'lucide-react';
+import { Zap, CheckCircle2, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useDocumentContent } from '@/hooks/useDocumentContent';
 import { useUsageTracking } from '@/hooks/useUsageTracking';
 
@@ -18,36 +17,43 @@ interface DocumentMorphWidgetProps {
 
 type WidgetState = 'idle' | 'loading' | 'success' | 'error';
 
-export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
-  console.log('📝 DocumentMorphWidget rendered with data:', data);
+// Animated loading dots component
+function LoadingDots() {
+  return (
+    <div className="flex gap-1">
+      <span className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+      <span className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+      <span className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce"></span>
+    </div>
+  );
+}
 
+export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
   const { content, updateContent } = useDocumentContent();
   const { recordUsage } = useUsageTracking();
 
   const [state, setState] = useState<WidgetState>('idle');
+  const [isExpanded, setIsExpanded] = useState(true);
   const [originalDoc, setOriginalDoc] = useState<string>('');
-  const [mergedDoc, setMergedDoc] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [stats, setStats] = useState<any>(null);
-  const [usage, setUsage] = useState<any>(null);
 
   // Load current document on mount
   useEffect(() => {
     setOriginalDoc(content);
+  }, [content]);
 
-    console.log(`📄 Loaded document content:`, {
-      length: content.length,
-      lazyEditLength: data.lazyEdit.length,
-      efficiency: `${Math.round((data.lazyEdit.length / (content.length || 1)) * 100)}%`,
-    });
-  }, [content, data.lazyEdit.length]);
+  // Auto-collapse after successful application
+  useEffect(() => {
+    if (state === 'success') {
+      setTimeout(() => setIsExpanded(false), 1500);
+    }
+  }, [state]);
 
   const handleApplyChanges = async () => {
     try {
       setState('loading');
       setErrorMessage('');
-
-      console.log(`🚀 Calling Morph API for document...`);
 
       const response = await fetch('/api/morph-apply', {
         method: 'POST',
@@ -56,7 +62,7 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
           instruction: data.instruction,
           originalCode: originalDoc,
           lazyEdit: data.lazyEdit,
-          fileType: 'document', // Special type for document editing
+          fileType: 'document',
         }),
       });
 
@@ -66,16 +72,7 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
         throw new Error(result.error || `Morph API failed: ${response.statusText}`);
       }
 
-      console.log('✅ Morph merge successful:', {
-        originalLength: result.stats.originalLength,
-        mergedLength: result.stats.mergedLength,
-        tokensUsed: result.usage.totalTokens,
-        cost: `$${result.usage.cost.toFixed(6)}`,
-        durationMs: result.stats.durationMs,
-      });
-
       // Update document with merged content
-      setMergedDoc(result.mergedCode);
       updateContent(result.mergedCode);
 
       // Record usage for tracking
@@ -86,10 +83,7 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
         cacheReadTokens: 0,
       });
 
-      // Save stats for display
       setStats(result.stats);
-      setUsage(result.usage);
-
       setState('success');
     } catch (error: any) {
       console.error('❌ Morph merge failed:', error);
@@ -101,168 +95,135 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
   const getStateIcon = () => {
     switch (state) {
       case 'loading':
-        return <Loader2 className="h-4 w-4 animate-spin" />;
+        return <LoadingDots />;
       case 'success':
         return <CheckCircle2 className="h-4 w-4 text-green-500" />;
       case 'error':
         return <XCircle className="h-4 w-4 text-red-500" />;
       default:
-        return <Zap className="h-4 w-4 text-blue-500" />;
+        return <Zap className="h-4 w-4 text-purple-500" />;
     }
   };
 
-  const getStateColor = () => {
+  const getStateBg = () => {
     switch (state) {
       case 'loading':
-        return 'border-blue-500';
+        return 'bg-blue-500/5 border-blue-500/20';
       case 'success':
-        return 'border-green-500';
+        return 'bg-green-500/5 border-green-500/20';
       case 'error':
-        return 'border-red-500';
+        return 'bg-red-500/5 border-red-500/20';
       default:
-        return 'border-blue-500';
+        return 'bg-purple-500/5 border-purple-500/20';
     }
   };
 
   return (
-    <Card className={`document-morph-widget border-2 ${getStateColor()} shadow-lg`}>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          {getStateIcon()}
-          <FileText className="h-4 w-4 text-blue-500" />
-          <span>📝 Document Morph Fast Apply</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Instruction */}
-        <div className="text-sm">
-          <div className="font-semibold text-muted-foreground mb-1">Instruction:</div>
-          <div className="p-2 bg-muted rounded text-sm">{data.instruction}</div>
-        </div>
-
-        {/* Lazy Edit Preview */}
-        <div className="text-sm">
-          <div className="font-semibold text-muted-foreground mb-1">
-            Changes ({data.lazyEdit.length} chars):
+    <div className={`my-3 rounded-lg border ${getStateBg()} transition-all duration-200`}>
+      {/* Collapsed 1-line view */}
+      {!isExpanded && (
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-muted/30 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            {getStateIcon()}
+            <span className="text-sm font-medium">AI Document Edit</span>
           </div>
-          <pre className="p-3 bg-muted rounded text-xs overflow-x-auto max-h-64 overflow-y-auto border whitespace-pre-wrap">
-            {data.lazyEdit}
-          </pre>
-        </div>
+          <span className="text-xs text-muted-foreground flex-1 text-left truncate">
+            {data.instruction}
+          </span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        </button>
+      )}
 
-        {/* Stats (After Success) */}
-        {state === 'success' && stats && usage && (
-          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
-            <div className="text-sm space-y-1">
-              <div className="font-semibold text-green-700 dark:text-green-300 mb-2">
-                ✅ Document Updated!
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <span className="text-muted-foreground">Original:</span>{' '}
-                  <span className="font-mono">{stats.originalLength} chars</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Merged:</span>{' '}
-                  <span className="font-mono">{stats.mergedLength} chars</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Tokens:</span>{' '}
-                  <span className="font-mono">{usage.totalTokens}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Cost:</span>{' '}
-                  <span className="font-mono">${usage.cost.toFixed(6)}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Duration:</span>{' '}
-                  <span className="font-mono">{stats.durationMs}ms</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Efficiency:</span>{' '}
-                  <span className="font-mono">{stats.efficiency}</span>
-                </div>
-              </div>
+      {/* Expanded view */}
+      {isExpanded && (
+        <div className="p-4 space-y-3">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {getStateIcon()}
+              <span className="text-sm font-semibold">AI Document Edit</span>
+              {state === 'success' && stats && (
+                <span className="text-xs text-green-600 dark:text-green-400">
+                  ✓ Applied in {stats.durationMs}ms
+                </span>
+              )}
             </div>
-          </div>
-        )}
-
-        {/* Error Message */}
-        {state === 'error' && errorMessage && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-red-700 dark:text-red-300">
-                <div className="font-semibold mb-1">Update Failed</div>
-                <div className="text-xs">{errorMessage}</div>
-                <div className="text-xs mt-2 text-muted-foreground">
-                  Try again or use direct document replacement instead.
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Action Button */}
-        {state === 'idle' && (
-          <Button
-            onClick={handleApplyChanges}
-            className="w-full bg-blue-600 hover:bg-blue-700"
-          >
-            <Zap className="h-4 w-4 mr-2" />
-            {originalDoc ? 'Apply Changes to Document' : 'Write New Document'}
-          </Button>
-        )}
-
-        {state === 'loading' && (
-          <Button disabled className="w-full">
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Merging with Morph...
-          </Button>
-        )}
-
-        {state === 'success' && (
-          <div className="flex gap-2">
-            <Button
-              onClick={() => {
-                setState('idle');
-                setMergedDoc('');
-                setStats(null);
-                setUsage(null);
-              }}
-              variant="outline"
-              className="flex-1"
+            <button
+              onClick={() => setIsExpanded(false)}
+              className="p-1 hover:bg-muted/50 rounded transition-colors"
             >
-              Reset
-            </Button>
-            <Button className="flex-1 bg-green-600 hover:bg-green-700" disabled>
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Applied
-            </Button>
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            </button>
           </div>
-        )}
 
-        {state === 'error' && (
-          <Button
-            onClick={handleApplyChanges}
-            variant="destructive"
-            className="w-full"
-          >
-            Retry
-          </Button>
-        )}
+          {/* Instruction */}
+          <div className="text-sm bg-muted/30 rounded px-3 py-2">
+            <span className="text-muted-foreground text-xs">Instruction:</span>
+            <p className="mt-0.5">{data.instruction}</p>
+          </div>
 
-        {/* Info Box */}
-        <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
-          <div className="flex items-start gap-1">
-            <Zap className="h-3 w-3 flex-shrink-0 mt-0.5" />
-            <div>
-              <strong>Document Morph:</strong> 10,500 tok/sec, 98% accuracy. Changes merge
-              into your document in ~100ms. Perfect for editing prose, articles, and content.
+          {/* Error Message */}
+          {state === 'error' && errorMessage && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded text-sm text-red-600 dark:text-red-400">
+              <div className="flex items-start gap-2">
+                <XCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-medium">Failed to apply changes</div>
+                  <div className="text-xs mt-1 opacity-80">{errorMessage}</div>
+                </div>
+              </div>
             </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            {state === 'idle' && (
+              <Button
+                onClick={handleApplyChanges}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 h-9"
+              >
+                <Zap className="h-3.5 w-3.5 mr-1.5" />
+                Apply Changes
+              </Button>
+            )}
+
+            {state === 'loading' && (
+              <Button disabled className="flex-1 h-9">
+                <LoadingDots />
+                <span className="ml-2">Applying...</span>
+              </Button>
+            )}
+
+            {state === 'success' && (
+              <Button disabled className="flex-1 bg-green-600 h-9">
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                Applied
+              </Button>
+            )}
+
+            {state === 'error' && (
+              <Button
+                onClick={handleApplyChanges}
+                variant="destructive"
+                className="flex-1 h-9"
+              >
+                Retry
+              </Button>
+            )}
           </div>
+
+          {/* Stats footer (only when idle) */}
+          {state === 'idle' && (
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <Zap className="h-3 w-3" />
+              <span>Fast Apply • 98% accuracy • ~100ms merge</span>
+            </div>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }

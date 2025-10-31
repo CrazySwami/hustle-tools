@@ -302,7 +302,8 @@ export function HtmlSectionEditor({
     }
   };
 
-  // Sync section content to global state when section changes (loading from library)
+  // Sync section content to global state ONLY when section ID changes (loading from library)
+  // DO NOT sync on content changes - that would overwrite Morph/tool edits!
   useEffect(() => {
     setAllContent({
       html: section.html || '',
@@ -310,7 +311,7 @@ export function HtmlSectionEditor({
       js: section.js || '',
       php: section.php || ''
     });
-  }, [section.id, section.html, section.css, section.js, section.php, setAllContent]);
+  }, [section.id, setAllContent]);
 
 
   // Update section when streamed content changes

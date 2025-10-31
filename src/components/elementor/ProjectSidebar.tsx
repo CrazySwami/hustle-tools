@@ -15,6 +15,7 @@ interface ProjectSidebarProps {
   activeGroupId: string | null;
   onSelectGroup: (id: string) => void;
   onCreateGroup: () => void;
+  onSplitHtml?: () => void; // NEW: Opens HTML Splitter dialog
   onRenameGroup: (id: string, name: string) => void;
   onDuplicateGroup: (id: string) => void;
   onDeleteGroup: (id: string) => void;
@@ -26,6 +27,7 @@ export function ProjectSidebar({
   activeGroupId,
   onSelectGroup,
   onCreateGroup,
+  onSplitHtml,
   onRenameGroup,
   onDuplicateGroup,
   onDeleteGroup,
@@ -106,35 +108,65 @@ export function ProjectSidebar({
       <div style={{
         padding: '12px',
         background: '#2d2d2d',
-        borderBottom: '1px solid #3e3e3e',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+        borderBottom: '1px solid #3e3e3e'
       }}>
-        <span style={{
-          fontSize: '11px',
-          fontWeight: 600,
-          color: '#888',
-          textTransform: 'uppercase'
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '8px'
         }}>
-          Projects
-        </span>
-        <button
-          onClick={onCreateGroup}
-          style={{
-            padding: '4px 10px',
-            background: '#007acc',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '12px',
-            cursor: 'pointer',
-            fontWeight: 600
-          }}
-          title="Create new project"
-        >
-          + New
-        </button>
+          <span style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            color: '#888',
+            textTransform: 'uppercase'
+          }}>
+            Projects
+          </span>
+          <button
+            onClick={onCreateGroup}
+            style={{
+              padding: '4px 10px',
+              background: '#007acc',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+            title="Create new project"
+          >
+            + New
+          </button>
+        </div>
+
+        {/* Split HTML Button */}
+        {onSplitHtml && (
+          <button
+            onClick={onSplitHtml}
+            style={{
+              width: '100%',
+              padding: '6px 10px',
+              background: 'transparent',
+              color: '#007acc',
+              border: '1px solid #007acc',
+              borderRadius: '4px',
+              fontSize: '11px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
+            title="Split full HTML page into sections"
+          >
+            <span>✂️</span>
+            <span>Split HTML Page</span>
+          </button>
+        )}
       </div>
 
       {/* Group List */}

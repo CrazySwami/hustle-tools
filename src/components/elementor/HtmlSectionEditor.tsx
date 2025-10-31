@@ -21,6 +21,7 @@ import { extractCodeFromPhp, isPhpWidget } from "@/lib/php-to-html-converter";
 import { useFileGroups } from "@/hooks/useFileGroups";
 import { ProjectSidebar } from "./ProjectSidebar";
 import { NewGroupDialog } from "./NewGroupDialog";
+import { HtmlSplitter } from "./HtmlSplitter";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -65,6 +66,7 @@ export function HtmlSectionEditor({
   // File Groups Management
   const fileGroups = useFileGroups();
   const [showNewGroupDialog, setShowNewGroupDialog] = useState(false);
+  const [showHtmlSplitter, setShowHtmlSplitter] = useState(false);
   const [showProjectSidebar, setShowProjectSidebar] = useState(true); // Show by default on desktop
 
   // Legacy section state (keep for backward compatibility with props)
@@ -1475,6 +1477,7 @@ export function HtmlSectionEditor({
                   activeGroupId={fileGroups.activeGroupId}
                   onSelectGroup={fileGroups.selectGroup}
                   onCreateGroup={() => setShowNewGroupDialog(true)}
+                  onSplitHtml={() => setShowHtmlSplitter(true)}
                   onRenameGroup={fileGroups.renameGroup}
                   onDuplicateGroup={fileGroups.duplicateGroup}
                   onDeleteGroup={fileGroups.deleteGroup}
@@ -2251,6 +2254,38 @@ export function HtmlSectionEditor({
             const newGroup = fileGroups.createNewGroup(name, type, template);
             fileGroups.selectGroup(newGroup.id);
             setShowNewGroupDialog(false);
+          }}
+        />
+      )}
+
+      {/* HTML Splitter Dialog */}
+      {showHtmlSplitter && (
+        <HtmlSplitter
+          onClose={() => setShowHtmlSplitter(false)}
+          onImport={(sections) => {
+            // Create a new file group for each selected section
+            sections.forEach((section, index) => {
+              const sectionName = section.classes.length > 0
+                ? section.classes[0] // Use first class as name
+                : `${section.type}-${index + 1}`; // Fallback to type + index
+
+              const newGroup = fileGroups.createNewGroup(
+                sectionName,
+                'html', // All imported sections are HTML type
+                'empty'
+              );
+
+              // Set the HTML content for this group
+              fileGroups.updateGroupFile(newGroup.id, 'html', section.html);
+
+              // If it's the first section, make it active
+              if (index === 0) {
+                fileGroups.selectGroup(newGroup.id);
+              }
+            });
+
+            setShowHtmlSplitter(false);
+            alert(`✅ Created ${sections.length} project${sections.length === 1 ? '' : 's'} from HTML page`);
           }}
         />
       )}

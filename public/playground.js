@@ -2025,6 +2025,37 @@ window.deployElementorWidget = async function(widgetPhp, widgetCss = '', widgetJ
 
         console.log('📦 Widget details:', { className: widgetClassName, slug: widgetSlug });
 
+        // CRITICAL: Check for PHP syntax errors BEFORE deploying
+        const syntaxCheckCode = `<?php
+            $widget_code = <<<'PHPCODE'
+${widgetPhp}
+PHPCODE;
+
+            // Write to temp file and check syntax
+            $temp_file = '/tmp/widget-check.php';
+            file_put_contents($temp_file, $widget_code);
+
+            exec('php -l ' . $temp_file . ' 2>&1', $output, $return_code);
+
+            if ($return_code !== 0) {
+                echo 'PHP_SYNTAX_ERROR: ' . implode("\\n", $output);
+            } else {
+                echo 'PHP_SYNTAX_OK';
+            }
+
+            unlink($temp_file);
+        ?>`;
+
+        console.log('🔍 Checking PHP syntax...');
+        const syntaxCheck = await playgroundClient.run({ code: syntaxCheckCode });
+        console.log('📋 Syntax check result:', syntaxCheck.text);
+
+        if (syntaxCheck.text.includes('PHP_SYNTAX_ERROR')) {
+            const errorMsg = syntaxCheck.text.replace('PHP_SYNTAX_ERROR: ', '');
+            console.error('❌ PHP SYNTAX ERROR IN WIDGET:', errorMsg);
+            throw new Error(`Widget has PHP syntax errors:\n\n${errorMsg}\n\nFix these errors and try again.`);
+        }
+
         // Create plugin directory
         const pluginSlug = `elementor-${widgetSlug}`;
         const pluginDir = `/wordpress/wp-content/plugins/${pluginSlug}`;

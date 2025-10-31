@@ -13,6 +13,44 @@
 
 import controlTemplates from './elementor-control-templates.json';
 
+/**
+ * Scope CSS with {{WRAPPER}} to prevent global style leaks
+ * This is CRITICAL for widget isolation - without it, widgets conflict with each other
+ */
+export function scopeCSS(css: string): string {
+  if (!css || !css.trim()) return css;
+
+  return css.replace(
+    /(^|\})\s*([^{@]+)\s*\{/gm,
+    (match, before, selector) => {
+      // Skip @media, @keyframes, @font-face, etc.
+      if (selector.trim().startsWith('@')) {
+        return match;
+      }
+
+      // Skip pseudo-elements and pseudo-classes when standalone
+      if (/^:/.test(selector.trim())) {
+        return match;
+      }
+
+      // Add {{WRAPPER}} to each selector in comma-separated list
+      const scoped = selector
+        .split(',')
+        .map((s: string) => {
+          const trimmed = s.trim();
+          // Skip if already has {{WRAPPER}}
+          if (trimmed.includes('{{WRAPPER}}')) {
+            return trimmed;
+          }
+          return `{{WRAPPER}} ${trimmed}`;
+        })
+        .join(', ');
+
+      return `${before} ${scoped} {`;
+    }
+  );
+}
+
 export interface WidgetMetadata {
   name: string; // snake_case, e.g., "hero_section"
   title: string; // Human readable, e.g., "Hero Section"
@@ -826,7 +864,7 @@ export async function convertToWidgetProgrammatic(
     metadata?: Partial<WidgetMetadata>;
     useAIForMetadata?: boolean;
   }
-): Promise<string> {
+): Promise<{ widgetPhp: string; widgetCss: string; widgetJs: string }> {
   console.log('⚡ Starting programmatic widget conversion...');
   const startTime = Date.now();
 
@@ -886,8 +924,12 @@ export async function convertToWidgetProgrammatic(
   const filteredCSS = extractRelevantCSS(css, classes, ids);
   console.log(`🎯 CSS filtering: ${css.length} → ${filteredCSS.length} chars (${Math.round((1 - filteredCSS.length / css.length) * 100)}% reduction)`);
 
-  // 4. Generate PHP widget code (use cleaned HTML and filtered CSS)
-  const widgetPHP = generateWidgetPHP(metadata, elements, cleanHtml, filteredCSS, js);
+  // 4. Scope CSS with {{WRAPPER}} to prevent global style leaks
+  const scopedCSS = scopeCSS(filteredCSS);
+  console.log(`🔒 CSS scoped with {{WRAPPER}} prefix`);
+
+  // 5. Generate PHP widget code (use cleaned HTML and scoped CSS)
+  const widgetPHP = generateWidgetPHP(metadata, elements, cleanHtml, scopedCSS, js);
 
   // 4. Validate generated PHP code
   const { validatePhpWidget, formatValidationResult } = await import('./php-syntax-validator');
@@ -921,5 +963,9 @@ export async function convertToWidgetProgrammatic(
   console.log(`⚡ Conversion complete in ${elapsed}ms`);
   console.log('✅ Widget code validated successfully');
 
-  return widgetPHP;
+  return {
+    widgetPhp: widgetPHP,
+    widgetCss: scopedCSS,
+    widgetJs: js
+  };
 }

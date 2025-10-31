@@ -268,7 +268,7 @@ export function HtmlSectionEditor({
 
     try {
       // Convert to widget using programmatic converter
-      const widgetPhp = await convertToWidgetProgrammatic(
+      const { widgetPhp, widgetCss, widgetJs } = await convertToWidgetProgrammatic(
         editorHtml,
         editorCss,
         editorJs,
@@ -286,11 +286,11 @@ export function HtmlSectionEditor({
       const newProjectName = `${fileGroups.activeGroup?.name || 'Section'} (Widget)`;
       const newGroup = fileGroups.createNewGroup(newProjectName, 'php', 'empty');
 
-      // Set the PHP widget code and preserve HTML/CSS/JS for reference
+      // Set the PHP widget code with SCOPED CSS and JS
       fileGroups.updateGroupFile(newGroup.id, 'php', widgetPhp);
-      fileGroups.updateGroupFile(newGroup.id, 'html', editorHtml);
-      fileGroups.updateGroupFile(newGroup.id, 'css', editorCss);
-      fileGroups.updateGroupFile(newGroup.id, 'js', editorJs);
+      fileGroups.updateGroupFile(newGroup.id, 'html', editorHtml); // Preserve original HTML for reference
+      fileGroups.updateGroupFile(newGroup.id, 'css', widgetCss); // SCOPED CSS with {{WRAPPER}}
+      fileGroups.updateGroupFile(newGroup.id, 'js', widgetJs); // Widget JS
 
       // Switch to new PHP widget project
       fileGroups.selectGroup(newGroup.id);
@@ -301,7 +301,7 @@ export function HtmlSectionEditor({
       // Show completion modal
       setShowCompletionModal(true);
 
-      alert(`✅ Created new widget project: "${newProjectName}"!\n\nOriginal HTML project preserved.`);
+      alert(`✅ Created new widget project: "${newProjectName}"!\n\nOriginal HTML project preserved.\n\n⚠️ CSS has been scoped with {{WRAPPER}} to prevent style conflicts.`);
 
     } catch (error: any) {
       alert(`❌ Quick Widget generation failed: ${error.message}`);
@@ -2370,7 +2370,7 @@ export function HtmlSectionEditor({
             }
 
             // Use programmatic Quick Widget converter
-            const widgetPhp = await convertToWidgetProgrammatic(
+            const { widgetPhp, widgetCss, widgetJs } = await convertToWidgetProgrammatic(
               group.html,
               group.css,
               group.js,
@@ -2383,8 +2383,10 @@ export function HtmlSectionEditor({
               }
             );
 
-            // Update group to PHP type with generated widget
+            // Update group to PHP type with generated widget and scoped CSS
             fileGroups.updateGroupFile(groupId, 'php', widgetPhp);
+            fileGroups.updateGroupFile(groupId, 'css', widgetCss); // SCOPED CSS
+            fileGroups.updateGroupFile(groupId, 'js', widgetJs);
 
             // Extract widget name from PHP (look for get_name() return value)
             const nameMatch = widgetPhp.match(/return\s+['"]([^'"]+)['"]/);

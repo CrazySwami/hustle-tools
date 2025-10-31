@@ -80,10 +80,15 @@ function checkOrphanedPhpTags(lines: string[], errors: ValidationError[]): void 
 
     if (inRenderMethod) {
       // Check for orphaned <?php when already in PHP mode
-      if (inPhpMode && trimmed.startsWith('<?php') && !trimmed.startsWith('<?php echo') && !trimmed.startsWith('<?php if')) {
-        // Exception: Allow <?php after ?> (closing HTML block)
+      if (inPhpMode && trimmed === '<?php') {
+        // Exception 1: Allow <?php after ?> (closing HTML block)
         const prevLine = lines[index - 1]?.trim();
-        if (prevLine && !prevLine.endsWith('?>')) {
+        const prevLineEndsWithClose = prevLine && prevLine.endsWith('?>');
+
+        // Exception 2: Allow <?php after } (closing if/loop block)
+        const prevLineIsClosingBrace = prevLine === '}';
+
+        if (!prevLineEndsWithClose && !prevLineIsClosingBrace) {
           errors.push({
             type: 'syntax',
             message: `Orphaned <?php tag on line ${index + 1}. Already in PHP mode.`,

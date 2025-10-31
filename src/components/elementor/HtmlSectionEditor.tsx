@@ -22,6 +22,7 @@ import { useFileGroups } from "@/hooks/useFileGroups";
 import { ProjectSidebar } from "./ProjectSidebar";
 import { NewGroupDialog } from "./NewGroupDialog";
 import { HtmlSplitter } from "./HtmlSplitter";
+import { BatchWidgetConverter } from "./BatchWidgetConverter";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -67,6 +68,7 @@ export function HtmlSectionEditor({
   const fileGroups = useFileGroups();
   const [showNewGroupDialog, setShowNewGroupDialog] = useState(false);
   const [showHtmlSplitter, setShowHtmlSplitter] = useState(false);
+  const [showBatchConverter, setShowBatchConverter] = useState(false);
   const [showProjectSidebar, setShowProjectSidebar] = useState(true); // Show by default on desktop
 
   // Legacy section state (keep for backward compatibility with props)
@@ -647,6 +649,11 @@ export function HtmlSectionEditor({
             label: isConverting ? "⏳ Converting..." : "⚡ Quick Widget (Fast)",
             onClick: handleQuickWidget,
             disabled: isConverting || !editorHtml.trim(),
+          },
+          {
+            label: "⚡ Batch Convert Widgets",
+            onClick: () => setShowBatchConverter(true),
+            disabled: isConverting,
             divider: true,
           },
           ...(section.php ? [{
@@ -2286,6 +2293,43 @@ export function HtmlSectionEditor({
 
             setShowHtmlSplitter(false);
             alert(`✅ Created ${sections.length} project${sections.length === 1 ? '' : 's'} from HTML page`);
+          }}
+        />
+      )}
+
+      {/* Batch Widget Converter Dialog */}
+      {showBatchConverter && (
+        <BatchWidgetConverter
+          groups={fileGroups.groups}
+          onClose={() => setShowBatchConverter(false)}
+          onConvert={async (groupId) => {
+            const group = fileGroups.groups.find(g => g.id === groupId);
+            if (!group) {
+              throw new Error('Group not found');
+            }
+
+            // Use programmatic Quick Widget converter
+            const widgetPhp = await convertToWidgetProgrammatic(
+              group.html,
+              group.css,
+              group.js,
+              {
+                metadata: {
+                  name: group.name.toLowerCase().replace(/\s+/g, '_'),
+                  title: group.name,
+                },
+                useAIForMetadata: true // Use AI for naming
+              }
+            );
+
+            // Update group to PHP type with generated widget
+            fileGroups.updateGroupFile(groupId, 'php', widgetPhp);
+
+            // Extract widget name from PHP (look for get_name() return value)
+            const nameMatch = widgetPhp.match(/return\s+['"]([^'"]+)['"]/);
+            const widgetName = nameMatch ? nameMatch[1] : group.name;
+
+            return { widgetName };
           }}
         />
       )}

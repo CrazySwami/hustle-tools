@@ -16,6 +16,7 @@ import { OptionsButton } from "@/components/ui/OptionsButton";
 import { useEditorContent } from "@/hooks/useEditorContent";
 import { ElementInspector } from "./ElementInspector";
 import { HTMLGeneratorDialog } from "@/components/html-generator/HTMLGeneratorDialog";
+import { convertToWidgetProgrammatic } from "@/lib/programmatic-widget-converter";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -221,6 +222,68 @@ export function HtmlSectionEditor({
     }
   };
 
+  // Quick Widget generation using programmatic converter
+  const handleQuickWidget = async () => {
+    if (!editorHtml.trim()) {
+      alert('⚠️ No HTML content to convert. Please add HTML code first.');
+      return;
+    }
+
+    if (section.php) {
+      alert('⚠️ Already in widget mode! Use "Deploy to Playground" to test this widget.');
+      return;
+    }
+
+    const confirmed = confirm(
+      '⚡ Generate Quick Widget?\n\n' +
+      'This will:\n' +
+      '• Use template-based conversion (~100ms)\n' +
+      '• Generate comprehensive Elementor controls\n' +
+      '• Use AI for widget naming only\n' +
+      '• 10-20x faster than AI widget generation\n' +
+      '\nContinue?'
+    );
+
+    if (!confirmed) return;
+
+    setIsConverting(true);
+    setConversionProgress('Generating widget with programmatic converter...');
+
+    try {
+      // Convert to widget using programmatic converter
+      const widgetPhp = await convertToWidgetProgrammatic(
+        editorHtml,
+        editorCss,
+        editorJs,
+        {
+          useAIForMetadata: true, // Use AI for widget name/title/description
+        }
+      );
+
+      // Extract widget class name for modal
+      const classMatch = widgetPhp.match(/class\s+(\w+)\s+extends/);
+      if (classMatch) {
+        setConvertedWidgetName(classMatch[1]);
+      }
+
+      // Update PHP field with generated widget
+      updateSection({ php: widgetPhp });
+
+      // Switch to PHP tab to show the generated widget
+      handleCodeTabChange('php');
+
+      // Show completion modal
+      setShowCompletionModal(true);
+
+    } catch (error: any) {
+      alert(`❌ Quick Widget generation failed: ${error.message}`);
+      console.error('Quick Widget error:', error);
+    } finally {
+      setIsConverting(false);
+      setConversionProgress('');
+    }
+  };
+
   // Track if this is a loaded section (has initial content)
   const hasInitialContent = !!(
     initialSection?.html ||
@@ -402,8 +465,13 @@ export function HtmlSectionEditor({
             onClick: () => setShowSaveDialog(true),
           },
           {
-            label: isConverting ? "⏳ Converting..." : "🔄 Generate Widget",
+            label: isConverting ? "⏳ Converting..." : "🔄 Generate Widget (AI)",
             onClick: handleConvertToWidget,
+            disabled: isConverting || !editorHtml.trim(),
+          },
+          {
+            label: isConverting ? "⏳ Converting..." : "⚡ Quick Widget (Fast)",
+            onClick: handleQuickWidget,
             disabled: isConverting || !editorHtml.trim(),
             divider: true,
           },

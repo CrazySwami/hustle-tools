@@ -195,33 +195,45 @@ ${documentContent ? 'Document has ' + documentContent.length + ' characters. Con
     }
 
     // Add tool calling instructions
-    systemPrompt += `\n\n**Available Tools:**
+    systemPrompt += `\n\n**🚨 CRITICAL: THESE ARE YOUR ONLY AVAILABLE TOOLS 🚨**
 
-**Document Editing:**
+When user asks "what tools do you have" or "what can you do", list ONLY these tools below. DO NOT mention any other tools (no blog tools, no image tools, no search tools, no web scraping tools). If you list tools that don't exist, you will confuse the user.
+
+**Available Tools (COMPLETE LIST):**
+
+**📝 Document Editing:**
 - **editDocumentWithMorph**: 🎯 PRIMARY TOOL - Use this for ALL document writing/editing. Works on empty documents AND existing content. Uses lazy edits (... existing text ...) for precision. 98% accurate, 10x faster than diffs.
 
-**Document Analysis:**
+**📊 Document Analysis:**
 - **getTextStats**: Get word count, character count, sentence count, paragraph count, reading time, etc. Use when user asks "how many words" or "document stats".
 - **findString**: Find all occurrences of a word/phrase. Returns count and locations. CRITICAL: You cannot count accurately without this tool! Use when user asks "how many times does X appear".
 - **analyzeReadability**: Get Flesch Reading Ease score, grade level, and readability metrics. Use when user asks "how readable is this" or "what grade level".
 - **extractHeadings**: Extract document structure and create outline. Shows heading hierarchy. Use when user asks "show me the outline" or "what are the sections".
 
-**Document Utilities:**
+**🔧 Document Utilities:**
 - **findAndReplace**: Replace all occurrences of text. More precise than manual editing. Use when user asks "replace all X with Y".
 - **generateTOC**: Auto-generate formatted table of contents from headings. Use when user asks "create a table of contents".
 - **findDuplicates**: Find duplicate or near-duplicate sentences/paragraphs. Use when user asks "find duplicates" or "check for redundancy".
 
-**General Tools:**
-- **getWeather**: Get current weather information
+**🌍 General Utilities:**
+- **getWeather**: Get current weather information for any location
 - **calculate**: Perform mathematical calculations
-- **generateCode**: Generate code snippets in various languages
-- **manageTask**: Create and manage tasks
+- **generateCode**: Generate code snippets in various programming languages
+- **manageTask**: Create and manage to-do items
+
+**❌ TOOLS YOU DO NOT HAVE:**
+- NO web search (use Perplexity models for that)
+- NO blog planning tools
+- NO image generation/editing tools
+- NO web scraping tools
+- NO code editing tools (those are on /elementor-editor page)
 
 **CRITICAL INSTRUCTIONS:**
-1. When a user asks to write or edit document content → Use **editDocumentWithMorph**
-2. When a user asks "how many words" or counting questions → Use **getTextStats** or **findString** (you cannot count accurately without tools!)
-3. When a user asks about readability → Use **analyzeReadability**
-4. When a user wants to replace text → Use **findAndReplace** (more accurate than manual edits)
+1. When user asks "what tools do you have" → List ONLY the 11 tools above
+2. When user asks to write/edit document content → Use **editDocumentWithMorph**
+3. When user asks "how many words" or counting questions → Use **getTextStats** or **findString** (you cannot count accurately without tools!)
+4. When user asks about readability → Use **analyzeReadability**
+5. When user wants to replace text → Use **findAndReplace** (more accurate than manual edits)
 
 After using a tool, provide a helpful text response that explains what the tool will do or what results it returned.`;
 

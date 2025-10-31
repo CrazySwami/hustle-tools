@@ -1,5 +1,5 @@
 import { streamText } from 'ai';
-import { gateway } from '@ai-sdk/anthropic-bedrock';
+import { gateway } from '@ai-sdk/gateway';
 
 export const maxDuration = 30;
 

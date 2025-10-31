@@ -301,7 +301,12 @@ export function HtmlSectionEditor({
 
   // Convert PHP widget back to HTML/CSS/JS
   const handleConvertBackToHtml = () => {
-    if (!section.php || !section.php.trim()) {
+    if (!fileGroups.activeGroup) {
+      alert('⚠️ No active project.');
+      return;
+    }
+
+    if (!fileGroups.activeGroup.php || !fileGroups.activeGroup.php.trim()) {
       alert('⚠️ No PHP widget code to convert. This feature works only after generating a widget.');
       return;
     }
@@ -309,43 +314,47 @@ export function HtmlSectionEditor({
     const confirmed = confirm(
       '🔄 Convert Widget Back to HTML?\n\n' +
       'This will:\n' +
-      '• Extract HTML from the PHP widget\n' +
-      '• Extract CSS and JavaScript\n' +
-      '• Replace PHP tab with extracted code\n' +
-      '• Allow you to edit as simple HTML\n' +
-      '\n⚠️ Note: Elementor control values will be lost.\n' +
-      'You\'ll get the base HTML structure back.\n' +
+      '• Extract HTML/CSS/JS from the PHP widget\n' +
+      '• Create a NEW HTML project\n' +
+      '• Keep the original PHP widget intact\n' +
+      '\n✅ Your original widget will NOT be modified.\n' +
       '\nContinue?'
     );
 
     if (!confirmed) return;
 
     try {
-      const extracted = extractCodeFromPhp(section.php);
+      const extracted = extractCodeFromPhp(fileGroups.activeGroup.php);
 
       if (!extracted.success) {
         alert(`❌ Extraction failed: ${extracted.error || 'Could not extract code from PHP'}`);
         return;
       }
 
-      // Update sections with extracted code
-      updateSection({
-        html: extracted.html,
-        css: extracted.css,
-        js: extracted.js,
-        php: '', // Clear PHP to go back to HTML mode
-      });
+      // Create NEW HTML project (preserve original PHP widget)
+      const newProjectName = `${fileGroups.activeGroup.name} (HTML)`;
+      const newGroup = fileGroups.createNewGroup(newProjectName, 'html', 'empty');
+
+      // Set extracted content
+      fileGroups.updateGroupFile(newGroup.id, 'html', extracted.html);
+      fileGroups.updateGroupFile(newGroup.id, 'css', extracted.css);
+      fileGroups.updateGroupFile(newGroup.id, 'js', extracted.js);
+
+      // Switch to new HTML project
+      fileGroups.selectGroup(newGroup.id);
 
       // Switch to HTML tab
       handleCodeTabChange('html');
 
       alert(
-        '✅ Successfully converted back to HTML!\n\n' +
+        '✅ Created new HTML project!\n\n' +
+        `Project: "${newProjectName}"\n\n` +
         `Extracted:\n` +
         `• HTML: ${extracted.html.length} characters\n` +
         `• CSS: ${extracted.css.length} characters\n` +
         `• JS: ${extracted.js.length} characters\n\n` +
-        'You can now edit as simple HTML/CSS/JS and regenerate the widget when ready.'
+        '✅ Original PHP widget preserved.\n' +
+        'You can now edit the HTML version separately.'
       );
 
     } catch (error: any) {
@@ -1481,6 +1490,7 @@ export function HtmlSectionEditor({
                   onSelectGroup={fileGroups.selectGroup}
                   onCreateGroup={() => setShowNewGroupDialog(true)}
                   onSplitHtml={() => setShowHtmlSplitter(true)}
+                  onClose={() => setShowProjectSidebar(false)}
                   onRenameGroup={fileGroups.renameGroup}
                   onDuplicateGroup={fileGroups.duplicateGroup}
                   onDeleteGroup={fileGroups.deleteGroup}
@@ -1488,10 +1498,15 @@ export function HtmlSectionEditor({
                 />
               )}
 
-              {/* Left File Tree Panel - Desktop only */}
-              {!isMobile && showFileTree && (
+              {/* Left File Tree Panel - Mobile & Desktop */}
+              {showFileTree && (
                 <div style={{
-                  width: "200px",
+                  width: isMobile ? "100vw" : "200px",
+                  height: isMobile ? "100vh" : "auto",
+                  position: isMobile ? "fixed" : "relative",
+                  top: isMobile ? 0 : "auto",
+                  left: isMobile ? 0 : "auto",
+                  zIndex: isMobile ? 9999 : "auto",
                   background: "#252526",
                   borderRight: "1px solid #3e3e3e",
                   display: "flex",
@@ -1506,9 +1521,31 @@ export function HtmlSectionEditor({
                     fontSize: "11px",
                     fontWeight: 600,
                     color: "#888",
-                    textTransform: "uppercase"
+                    textTransform: "uppercase",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
                   }}>
-                    Files
+                    <span>Files</span>
+                    {/* Close button (mobile only) */}
+                    {isMobile && (
+                      <button
+                        onClick={() => setShowFileTree(false)}
+                        style={{
+                          padding: "4px 8px",
+                          background: "transparent",
+                          color: "#cccccc",
+                          border: "1px solid #3e3e3e",
+                          borderRadius: "4px",
+                          fontSize: "16px",
+                          cursor: "pointer",
+                          lineHeight: 1
+                        }}
+                        title="Close"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
 
                   {/* File List */}

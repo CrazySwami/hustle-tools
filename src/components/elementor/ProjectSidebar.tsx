@@ -16,6 +16,7 @@ interface ProjectSidebarProps {
   onSelectGroup: (id: string) => void;
   onCreateGroup: () => void;
   onSplitHtml?: () => void; // NEW: Opens HTML Splitter dialog
+  onClose?: () => void; // NEW: Close sidebar (for mobile)
   onRenameGroup: (id: string, name: string) => void;
   onDuplicateGroup: (id: string) => void;
   onDeleteGroup: (id: string) => void;
@@ -28,6 +29,7 @@ export function ProjectSidebar({
   onSelectGroup,
   onCreateGroup,
   onSplitHtml,
+  onClose,
   onRenameGroup,
   onDuplicateGroup,
   onDeleteGroup,
@@ -95,9 +97,17 @@ export function ProjectSidebar({
     }, 0);
   }
 
+  // Detect mobile
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   return (
     <div style={{
-      width: '220px',
+      width: isMobile ? '100vw' : '220px',
+      height: isMobile ? '100vh' : 'auto',
+      position: isMobile ? 'fixed' : 'relative',
+      top: isMobile ? 0 : 'auto',
+      left: isMobile ? 0 : 'auto',
+      zIndex: isMobile ? 9999 : 'auto',
       background: '#252526',
       borderRight: '1px solid #3e3e3e',
       display: 'flex',
@@ -124,22 +134,43 @@ export function ProjectSidebar({
           }}>
             Projects
           </span>
-          <button
-            onClick={onCreateGroup}
-            style={{
-              padding: '4px 10px',
-              background: '#007acc',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '12px',
-              cursor: 'pointer',
-              fontWeight: 600
-            }}
-            title="Create new project"
-          >
-            + New
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              onClick={onCreateGroup}
+              style={{
+                padding: '4px 10px',
+                background: '#007acc',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '12px',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+              title="Create new project"
+            >
+              + New
+            </button>
+            {/* Close button (mobile only) */}
+            {isMobile && onClose && (
+              <button
+                onClick={onClose}
+                style={{
+                  padding: '4px 8px',
+                  background: 'transparent',
+                  color: '#cccccc',
+                  border: '1px solid #3e3e3e',
+                  borderRadius: '4px',
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  lineHeight: 1
+                }}
+                title="Close"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Split HTML Button */}

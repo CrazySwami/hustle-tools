@@ -249,12 +249,13 @@ export function HtmlSectionEditor({
     }
 
     const confirmed = confirm(
-      '⚡ Generate Quick Widget?\n\n' +
+      '⚡ Generate Elementor Widget?\n\n' +
       'This will:\n' +
-      '• Use template-based conversion (~100ms)\n' +
+      '• Extract only relevant CSS (filters out unused styles)\n' +
+      '• Scope CSS with {{WRAPPER}} to prevent conflicts\n' +
       '• Generate comprehensive Elementor controls\n' +
-      '• Use AI for widget naming only\n' +
-      '• 10-20x faster than AI widget generation\n' +
+      '• Validate PHP syntax before saving\n' +
+      '• Use AI for widget naming only (~200ms)\n' +
       '\nContinue?'
     );
 
@@ -641,12 +642,7 @@ export function HtmlSectionEditor({
             onClick: () => setShowSaveDialog(true),
           },
           {
-            label: isConverting ? "⏳ Converting..." : "🔄 Generate Widget (AI)",
-            onClick: handleConvertToWidget,
-            disabled: isConverting || !editorHtml.trim(),
-          },
-          {
-            label: isConverting ? "⏳ Converting..." : "⚡ Quick Widget (Fast)",
+            label: isConverting ? "⏳ Converting..." : "⚡ Generate Widget",
             onClick: handleQuickWidget,
             disabled: isConverting || !editorHtml.trim(),
           },

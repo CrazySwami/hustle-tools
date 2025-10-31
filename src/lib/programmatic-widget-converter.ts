@@ -500,13 +500,18 @@ function generateRenderCode(elements: ParsedElement[], html: string, css: string
     }
   });
 
+  // Ensure HTML doesn't have orphaned PHP tags
+  // If dynamicHtml contains <?php, it's already mixed mode
+  // Otherwise, wrap it in ?> ... <?php
+  const hasPhpTags = dynamicHtml.includes('<?php');
+
   return `        $settings = $this->get_settings_for_display();
 
         // Render HTML with dynamic controls
-        ?>
+        ${hasPhpTags ? '' : '?>'}
 ${dynamicHtml}
+${hasPhpTags ? '' : '<?php'}
 
-        <?php
         // Custom CSS
         if (!empty($settings['custom_css'])) {
             $custom_css = str_replace('selector', '{{WRAPPER}}', $settings['custom_css']);

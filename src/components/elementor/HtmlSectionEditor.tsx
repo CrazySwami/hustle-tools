@@ -256,6 +256,8 @@ export function HtmlSectionEditor({
       '• Generate comprehensive Elementor controls\n' +
       '• Validate PHP syntax before saving\n' +
       '• Use AI for widget naming only (~200ms)\n' +
+      '• Create a NEW widget project\n' +
+      '• Keep the original HTML project intact\n' +
       '\nContinue?'
     );
 
@@ -275,20 +277,31 @@ export function HtmlSectionEditor({
         }
       );
 
-      // Extract widget class name for modal
+      // Extract widget class name for project naming
       const classMatch = widgetPhp.match(/class\s+(\w+)\s+extends/);
-      if (classMatch) {
-        setConvertedWidgetName(classMatch[1]);
-      }
+      const widgetClassName = classMatch ? classMatch[1] : 'Widget';
+      setConvertedWidgetName(widgetClassName);
 
-      // Update PHP field with generated widget
-      updateSection({ php: widgetPhp });
+      // Create NEW PHP widget project (preserve original HTML project)
+      const newProjectName = `${fileGroups.activeGroup?.name || 'Section'} (Widget)`;
+      const newGroup = fileGroups.createNewGroup(newProjectName, 'php', 'empty');
+
+      // Set the PHP widget code and preserve HTML/CSS/JS for reference
+      fileGroups.updateGroupFile(newGroup.id, 'php', widgetPhp);
+      fileGroups.updateGroupFile(newGroup.id, 'html', editorHtml);
+      fileGroups.updateGroupFile(newGroup.id, 'css', editorCss);
+      fileGroups.updateGroupFile(newGroup.id, 'js', editorJs);
+
+      // Switch to new PHP widget project
+      fileGroups.selectGroup(newGroup.id);
 
       // Switch to PHP tab to show the generated widget
       handleCodeTabChange('php');
 
       // Show completion modal
       setShowCompletionModal(true);
+
+      alert(`✅ Created new widget project: "${newProjectName}"!\n\nOriginal HTML project preserved.`);
 
     } catch (error: any) {
       alert(`❌ Quick Widget generation failed: ${error.message}`);

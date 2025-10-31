@@ -18,6 +18,9 @@ import { ElementInspector } from "./ElementInspector";
 import { HTMLGeneratorDialog } from "@/components/html-generator/HTMLGeneratorDialog";
 import { convertToWidgetProgrammatic } from "@/lib/programmatic-widget-converter";
 import { extractCodeFromPhp, isPhpWidget } from "@/lib/php-to-html-converter";
+import { useFileGroups } from "@/hooks/useFileGroups";
+import { ProjectSidebar } from "./ProjectSidebar";
+import { NewGroupDialog } from "./NewGroupDialog";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -59,6 +62,12 @@ export function HtmlSectionEditor({
   setTabBarVisible,
   onEditElementInChat,
 }: HtmlSectionEditorProps) {
+  // File Groups Management
+  const fileGroups = useFileGroups();
+  const [showNewGroupDialog, setShowNewGroupDialog] = useState(false);
+  const [showProjectSidebar, setShowProjectSidebar] = useState(true); // Show by default on desktop
+
+  // Legacy section state (keep for backward compatibility with props)
   const [section, setSection] = useState<Section>(
     initialSection || createSection(),
   );
@@ -511,6 +520,59 @@ export function HtmlSectionEditor({
       }));
     }
   }, [streamedHtml, streamedCss, streamedJs, hasInitialContent]);
+
+  // Sync active file group with editor content
+  useEffect(() => {
+    if (fileGroups.activeGroup) {
+      // Load active group content into editor
+      console.log('📂 Loading active group:', fileGroups.activeGroup.name);
+      setAllContent({
+        html: fileGroups.activeGroup.html,
+        css: fileGroups.activeGroup.css,
+        js: fileGroups.activeGroup.js,
+        php: fileGroups.activeGroup.php || '',
+      });
+
+      // Update section for backward compatibility
+      setSection(prev => ({
+        ...prev,
+        name: fileGroups.activeGroup!.name,
+        html: fileGroups.activeGroup!.html,
+        css: fileGroups.activeGroup!.css,
+        js: fileGroups.activeGroup!.js,
+        php: fileGroups.activeGroup!.php,
+      }));
+
+      // Switch to appropriate tab based on group type
+      if (fileGroups.activeGroup.type === 'php' && fileGroups.activeGroup.php) {
+        handleCodeTabChange('php');
+      } else {
+        handleCodeTabChange('html');
+      }
+    } else if (fileGroups.groups.length === 0) {
+      // No groups exist, create a default one
+      console.log('📦 No groups found, creating default group');
+      const defaultGroup = fileGroups.createNewGroup('Untitled Project', 'html', 'empty');
+      fileGroups.selectGroup(defaultGroup.id);
+    }
+  }, [fileGroups.activeGroupId]);
+
+  // Save active group content when editor changes (debounced auto-save)
+  useEffect(() => {
+    if (!fileGroups.activeGroup) return;
+
+    const timeoutId = setTimeout(() => {
+      console.log('💾 Auto-saving active group:', fileGroups.activeGroup.name);
+      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'html', editorHtml);
+      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'css', editorCss);
+      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'js', editorJs);
+      if (editorPhp) {
+        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'php', editorPhp);
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [editorHtml, editorCss, editorJs, editorPhp, fileGroups.activeGroup?.id]);
 
   // Generate preview HTML with all styles and scripts (uses global state for latest content)
   const generatePreviewHTML = (): string => {
@@ -1361,8 +1423,22 @@ export function HtmlSectionEditor({
               </button>
             </div>
 
-            {/* Code Editor with File Tree */}
+            {/* Code Editor with Project Sidebar + File Tree */}
             <div style={{ flex: 1, overflow: "hidden", background: "#1e1e1e", display: "flex" }}>
+              {/* Project Sidebar - Desktop only */}
+              {!isMobile && showProjectSidebar && (
+                <ProjectSidebar
+                  groups={fileGroups.groups}
+                  activeGroupId={fileGroups.activeGroupId}
+                  onSelectGroup={fileGroups.selectGroup}
+                  onCreateGroup={() => setShowNewGroupDialog(true)}
+                  onRenameGroup={fileGroups.renameGroup}
+                  onDuplicateGroup={fileGroups.duplicateGroup}
+                  onDeleteGroup={fileGroups.deleteGroup}
+                  onSaveToLibrary={fileGroups.saveToLibrary}
+                />
+              )}
+
               {/* Left File Tree Panel - Desktop only */}
               {!isMobile && showFileTree && (
                 <div style={{
@@ -2115,6 +2191,18 @@ export function HtmlSectionEditor({
             </div>
           </div>
         </div>
+      )}
+
+      {/* New Group Dialog */}
+      {showNewGroupDialog && (
+        <NewGroupDialog
+          onClose={() => setShowNewGroupDialog(false)}
+          onCreate={(name, type, template) => {
+            const newGroup = fileGroups.createNewGroup(name, type, template);
+            fileGroups.selectGroup(newGroup.id);
+            setShowNewGroupDialog(false);
+          }}
+        />
       )}
     </div>
   );

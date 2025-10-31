@@ -690,8 +690,23 @@ export async function convertToWidgetProgrammatic(
   // 3. Generate PHP widget code (use cleaned HTML)
   const widgetPHP = generateWidgetPHP(metadata, elements, cleanHtml, css, js);
 
+  // 4. Validate generated PHP code
+  const { validatePhpWidget, formatValidationResult } = await import('./php-syntax-validator');
+  const validation = validatePhpWidget(widgetPHP);
+
+  if (!validation.valid) {
+    const errorReport = formatValidationResult(validation);
+    console.error('❌ Widget validation failed:', errorReport);
+    throw new Error(`Widget validation failed:\n\n${errorReport}`);
+  }
+
+  if (validation.warnings.length > 0) {
+    console.warn('⚠️  Widget validation warnings:', formatValidationResult(validation));
+  }
+
   const elapsed = Date.now() - startTime;
   console.log(`⚡ Conversion complete in ${elapsed}ms`);
+  console.log('✅ Widget code validated successfully');
 
   return widgetPHP;
 }

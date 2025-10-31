@@ -1,6 +1,5 @@
 // AI Gateway chat endpoint for Elementor JSON Editor
 import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
-import { gateway } from '@ai-sdk/gateway';
 import { tools } from '@/lib/tools';
 
 export const maxDuration = 60;
@@ -117,29 +116,34 @@ ${includeContext && currentSection && (currentSection.html || currentSection.css
 
 **📄 HTML FILE (${currentSection.html?.length || 0} characters):**
 \`\`\`html
-${currentSection.html?.substring(0, 1000) || '(empty file)'}
-${currentSection.html?.length > 1000 ? '...(truncated - ask if you need to see more)' : ''}
+${currentSection.html?.substring(0, 5000) || '(empty file)'}
+${currentSection.html?.length > 5000 ? '\n...(file continues - total ' + currentSection.html.length + ' chars. You can see first 5000 chars. If you need to edit text beyond this, ask user for surrounding context)' : ''}
 \`\`\`
 
 **🎨 CSS FILE (${currentSection.css?.length || 0} characters):**
 \`\`\`css
-${currentSection.css?.substring(0, 1000) || '(empty file)'}
-${currentSection.css?.length > 1000 ? '...(truncated - ask if you need to see more)' : ''}
+${currentSection.css?.substring(0, 5000) || '(empty file)'}
+${currentSection.css?.length > 5000 ? '\n...(file continues - total ' + currentSection.css.length + ' chars. You can see first 5000 chars)' : ''}
 \`\`\`
 
 **⚡ JS FILE (${currentSection.js?.length || 0} characters):**
 \`\`\`javascript
-${currentSection.js?.substring(0, 1000) || '(empty file)'}
-${currentSection.js?.length > 1000 ? '...(truncated - ask if you need to see more)' : ''}
+${currentSection.js?.substring(0, 3000) || '(empty file)'}
+${currentSection.js?.length > 3000 ? '\n...(file continues - total ' + currentSection.js.length + ' chars. You can see first 3000 chars)' : ''}
 \`\`\`
 
 **🔧 PHP FILE (${currentSection.php?.length || 0} characters):**
 \`\`\`php
-${currentSection.php?.substring(0, 1000) || '(empty file)'}
-${currentSection.php?.length > 1000 ? '...(truncated - ask if you need to see more)' : ''}
+${currentSection.php?.substring(0, 5000) || '(empty file)'}
+${currentSection.php?.length > 5000 ? '\n...(file continues - total ' + currentSection.php.length + ' chars. You can see first 5000 chars)' : ''}
 \`\`\`
 
-**IMPORTANT:** You CAN see all the code above! Each file is clearly labeled. When user asks "can you see my code", say YES and reference the specific files shown above. Use \`editCodeWithMorph\` to write or edit any of these files.
+**IMPORTANT:**
+- You CAN see the code above (first 3000-5000 characters of each file)
+- Each file is labeled with its full length
+- When user asks to edit specific text, search within the visible portion first
+- If text isn't visible, ask user to provide surrounding context or use file search
+- Use \`editCodeWithMorph\` with lazy markers to edit any visible portion
 ` : `
 ❌ NO - No section currently loaded in the editor.
 
@@ -213,7 +217,19 @@ After using a tool, provide a helpful text response that explains what the tool 
     // HTML generation should be triggered naturally by the model based on system prompt
     // Check last user message for context
     const lastUserMessage = messages[messages.length - 1];
-    const userText = lastUserMessage?.parts?.[0]?.text || '';
+
+    // Safely extract text from message - handle both content string and parts array
+    let userText = '';
+    if (lastUserMessage) {
+      if ('content' in lastUserMessage && typeof lastUserMessage.content === 'string') {
+        userText = lastUserMessage.content;
+      } else if ('parts' in lastUserMessage && Array.isArray(lastUserMessage.parts)) {
+        const textPart = lastUserMessage.parts.find((p: any) =>
+          p && typeof p === 'object' && 'type' in p && p.type === 'text' && 'text' in p
+        );
+        userText = (textPart as any)?.text || '';
+      }
+    }
 
     // Log edit requests for debugging
     const editKeywords = ['edit', 'change', 'modify', 'update', 'fix', 'alter', 'adjust', 'create', 'add', 'make'];
@@ -224,9 +240,7 @@ After using a tool, provide a helpful text response that explains what the tool 
     }
 
     const streamConfig: any = {
-      model: gateway(model, {
-        apiKey: process.env.AI_GATEWAY_API_KEY!,
-      }),
+      model: model, // Just pass the model string (gateway is handled automatically)
       system: systemPrompt,
       messages: convertedMessages,
       tools: toolsConfig,
@@ -255,7 +269,6 @@ After using a tool, provide a helpful text response that explains what the tool 
     return result.toUIMessageStreamResponse({
       sendSources: true,
       sendReasoning: true,
-      sendToolResults: true,
       messageMetadata: ({ part }) => {
         // Send usage data when stream completes
         if (part.type === 'finish') {

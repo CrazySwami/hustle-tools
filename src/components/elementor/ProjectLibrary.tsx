@@ -69,13 +69,18 @@ export function ProjectLibrary({
     });
   };
 
-  // Count non-empty files
+  // Count non-empty files based on project type
   const countFiles = (project: FileGroup) => {
     let count = 0;
-    if (project.html?.trim()) count++;
-    if (project.css?.trim()) count++;
-    if (project.js?.trim()) count++;
-    if (project.php?.trim()) count++;
+    if (project.type === 'html') {
+      // HTML projects: count HTML, CSS, JS
+      if (project.html?.trim()) count++;
+      if (project.css?.trim()) count++;
+      if (project.js?.trim()) count++;
+    } else if (project.type === 'php') {
+      // PHP Widget projects: count ONLY PHP
+      if (project.php?.trim()) count++;
+    }
     return count;
   };
 
@@ -338,61 +343,68 @@ export function ProjectLibrary({
                   Files
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {selectedProject.html && (
-                    <div style={{
-                      background: '#2d2d2d',
-                      padding: '12px',
-                      borderRadius: '6px',
-                      border: '1px solid #3e3e3e'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span>📄</span>
-                          <span style={{ fontSize: '13px', fontWeight: 500 }}>HTML</span>
+                  {/* For HTML projects: show HTML, CSS, JS */}
+                  {selectedProject.type === 'html' && (
+                    <>
+                      {selectedProject.html && (
+                        <div style={{
+                          background: '#2d2d2d',
+                          padding: '12px',
+                          borderRadius: '6px',
+                          border: '1px solid #3e3e3e'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span>📄</span>
+                              <span style={{ fontSize: '13px', fontWeight: 500 }}>HTML</span>
+                            </div>
+                            <span style={{ fontSize: '12px', color: '#888' }}>
+                              {selectedProject.html.length} chars
+                            </span>
+                          </div>
                         </div>
-                        <span style={{ fontSize: '12px', color: '#888' }}>
-                          {selectedProject.html.length} chars
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  {selectedProject.css && (
-                    <div style={{
-                      background: '#2d2d2d',
-                      padding: '12px',
-                      borderRadius: '6px',
-                      border: '1px solid #3e3e3e'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span>🎨</span>
-                          <span style={{ fontSize: '13px', fontWeight: 500 }}>CSS</span>
+                      )}
+                      {selectedProject.css && (
+                        <div style={{
+                          background: '#2d2d2d',
+                          padding: '12px',
+                          borderRadius: '6px',
+                          border: '1px solid #3e3e3e'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span>🎨</span>
+                              <span style={{ fontSize: '13px', fontWeight: 500 }}>CSS</span>
+                            </div>
+                            <span style={{ fontSize: '12px', color: '#888' }}>
+                              {selectedProject.css.length} chars
+                            </span>
+                          </div>
                         </div>
-                        <span style={{ fontSize: '12px', color: '#888' }}>
-                          {selectedProject.css.length} chars
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  {selectedProject.js && (
-                    <div style={{
-                      background: '#2d2d2d',
-                      padding: '12px',
-                      borderRadius: '6px',
-                      border: '1px solid #3e3e3e'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span>⚡</span>
-                          <span style={{ fontSize: '13px', fontWeight: 500 }}>JavaScript</span>
+                      )}
+                      {selectedProject.js && (
+                        <div style={{
+                          background: '#2d2d2d',
+                          padding: '12px',
+                          borderRadius: '6px',
+                          border: '1px solid #3e3e3e'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span>⚡</span>
+                              <span style={{ fontSize: '13px', fontWeight: 500 }}>JavaScript</span>
+                            </div>
+                            <span style={{ fontSize: '12px', color: '#888' }}>
+                              {selectedProject.js.length} chars
+                            </span>
+                          </div>
                         </div>
-                        <span style={{ fontSize: '12px', color: '#888' }}>
-                          {selectedProject.js.length} chars
-                        </span>
-                      </div>
-                    </div>
+                      )}
+                    </>
                   )}
-                  {selectedProject.php && (
+
+                  {/* For PHP Widget projects: show ONLY PHP */}
+                  {selectedProject.type === 'php' && selectedProject.php && (
                     <div style={{
                       background: '#2d2d2d',
                       padding: '12px',

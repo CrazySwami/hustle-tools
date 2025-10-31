@@ -245,6 +245,156 @@ export const editCodeWithMorphTool = tool({
 // Model can see all files (HTML/CSS/JS/PHP) without needing a separate "view" tool
 // See: System prompt in /src/app/api/chat-elementor/route.ts lines 117-147
 
+// Edit Document with Morph Fast Apply - For document/prose editing
+export const editDocumentWithMorphTool = tool({
+  description: 'Edit document content using Morph Fast Apply (98% accuracy, 10x faster than diffs). This is the PREFERRED way to edit prose, articles, blog posts, and documents. Use lazy edits with "... existing text ..." to indicate unchanged sections. Works with ANY model (even Haiku!) because you only write the changes, not complex diff format.',
+  inputSchema: z.object({
+    instruction: z.string().describe('Clear first-person instruction: "I am fixing the grammar in paragraph 3" or "I am adding a conclusion section"'),
+    lazyEdit: z.string().describe('The document changes using "... existing text ..." for unchanged parts. Example:\n... existing text ...\n\n## New Section\n\nThis is the new content I\'m adding.\n\n... existing text ...'),
+  }),
+  execute: async ({ instruction, lazyEdit }) => {
+    return {
+      instruction,
+      lazyEdit,
+      timestamp: new Date().toISOString(),
+      status: 'pending_morph_merge',
+      message: 'Document Morph Fast Apply activated. Merging changes...',
+    };
+  },
+});
+
+// =====================
+// DOCUMENT ANALYSIS TOOLS
+// =====================
+
+// Text Statistics Tool - Get detailed statistics about the document
+export const getTextStatsTool = tool({
+  description: 'Get detailed statistics about the document: word count, character count, sentence count, paragraph count, average sentence length, reading time. Use this when user asks "how many words", "count the words", "document stats", or "reading time".',
+  inputSchema: z.object({
+    includeSpaces: z.boolean().optional().default(true).describe('Include spaces in character count'),
+  }),
+  execute: async ({ includeSpaces }) => {
+    return {
+      includeSpaces,
+      timestamp: new Date().toISOString(),
+      status: 'ready_to_count',
+      message: 'Text statistics tool activated. Ready to analyze document...',
+    };
+  },
+});
+
+// Find String Tool - Find all occurrences of a string
+export const findStringTool = tool({
+  description: 'Find all occurrences of a specific word or phrase in the document. Returns count and locations. Use when user asks "how many times does X appear", "find all instances of", or "search for". CRITICAL: This tool can COUNT accurately - you cannot count reliably without it!',
+  inputSchema: z.object({
+    searchTerm: z.string().describe('The word or phrase to search for'),
+    caseSensitive: z.boolean().optional().default(false).describe('Whether to match case exactly'),
+    wholeWord: z.boolean().optional().default(false).describe('Whether to match whole words only'),
+  }),
+  execute: async ({ searchTerm, caseSensitive, wholeWord }) => {
+    return {
+      searchTerm,
+      caseSensitive,
+      wholeWord,
+      timestamp: new Date().toISOString(),
+      status: 'ready_to_search',
+      message: `Find tool activated. Ready to search for "${searchTerm}"...`,
+    };
+  },
+});
+
+// Readability Analysis Tool - Analyze document readability
+export const analyzeReadabilityTool = tool({
+  description: 'Analyze document readability using Flesch Reading Ease score, Flesch-Kincaid Grade Level, and other metrics. Use when user asks "how readable is this", "what grade level", or "readability score".',
+  inputSchema: z.object({
+    detailed: z.boolean().optional().default(false).describe('Include detailed breakdown of complex words, long sentences, etc.'),
+  }),
+  execute: async ({ detailed }) => {
+    return {
+      detailed,
+      timestamp: new Date().toISOString(),
+      status: 'ready_to_analyze',
+      message: 'Readability analysis tool activated. Ready to analyze...',
+    };
+  },
+});
+
+// Extract Headings Tool - Get document structure/outline
+export const extractHeadingsTool = tool({
+  description: 'Extract all headings from the document to create an outline or table of contents. Shows heading hierarchy (H1, H2, H3). Use when user asks "show me the outline", "what are the sections", or "table of contents".',
+  inputSchema: z.object({
+    maxLevel: z.number().optional().default(6).describe('Maximum heading level to include (1-6)'),
+  }),
+  execute: async ({ maxLevel }) => {
+    return {
+      maxLevel,
+      timestamp: new Date().toISOString(),
+      status: 'ready_to_extract',
+      message: 'Heading extraction tool activated. Ready to extract structure...',
+    };
+  },
+});
+
+// Find and Replace Tool - Replace all occurrences of a string
+export const findAndReplaceTool = tool({
+  description: 'Find and replace all occurrences of a word or phrase in the document. More precise than editing manually. Use when user asks "replace all X with Y" or "change every instance of".',
+  inputSchema: z.object({
+    find: z.string().describe('The text to find'),
+    replace: z.string().describe('The text to replace it with'),
+    caseSensitive: z.boolean().optional().default(false).describe('Whether to match case exactly'),
+    wholeWord: z.boolean().optional().default(false).describe('Whether to match whole words only'),
+  }),
+  execute: async ({ find, replace, caseSensitive, wholeWord }) => {
+    return {
+      find,
+      replace,
+      caseSensitive,
+      wholeWord,
+      timestamp: new Date().toISOString(),
+      status: 'ready_to_replace',
+      message: `Find and replace tool activated. Ready to replace "${find}" with "${replace}"...`,
+    };
+  },
+});
+
+// Generate Table of Contents Tool - Auto-generate TOC from headings
+export const generateTOCTool = tool({
+  description: 'Automatically generate a formatted table of contents from document headings. Includes section numbers and page links. Use when user asks "create a table of contents" or "add a TOC".',
+  inputSchema: z.object({
+    numbered: z.boolean().optional().default(true).describe('Include section numbers (1.1, 1.2, etc.)'),
+    maxLevel: z.number().optional().default(3).describe('Maximum heading level to include (1-6)'),
+    style: z.enum(['markdown', 'html', 'plain']).optional().default('markdown').describe('Output format for TOC'),
+  }),
+  execute: async ({ numbered, maxLevel, style }) => {
+    return {
+      numbered,
+      maxLevel,
+      style,
+      timestamp: new Date().toISOString(),
+      status: 'ready_to_generate',
+      message: 'TOC generator activated. Ready to create table of contents...',
+    };
+  },
+});
+
+// Duplicate Detection Tool - Find repeated sentences or paragraphs
+export const findDuplicatesTool = tool({
+  description: 'Find duplicate or near-duplicate sentences and paragraphs in the document. Helps identify redundant content. Use when user asks "find duplicates", "any repeated content", or "check for redundancy".',
+  inputSchema: z.object({
+    sensitivity: z.enum(['exact', 'high', 'medium', 'low']).optional().default('high').describe('How similar text must be to count as duplicate'),
+    minLength: z.number().optional().default(10).describe('Minimum word count to check for duplicates'),
+  }),
+  execute: async ({ sensitivity, minLength }) => {
+    return {
+      sensitivity,
+      minLength,
+      timestamp: new Date().toISOString(),
+      status: 'ready_to_scan',
+      message: 'Duplicate detection tool activated. Ready to scan for redundancy...',
+    };
+  },
+});
+
 // =====================
 // TEST PING TOOL (Simple Diagnostic)
 // =====================
@@ -510,6 +660,16 @@ export const tools = {
   // REMOVED: updateSectionPhp - Replaced by editCodeWithMorph (file='php')
   // REMOVED: testPing - Diagnostic tool no longer needed
   editCodeWithMorph: editCodeWithMorphTool,  // ⭐ THE ONLY CODE TOOL - handles everything!
+  editDocumentWithMorph: editDocumentWithMorphTool, // ⭐ THE ONLY DOCUMENT TOOL - handles everything!
+  // Document Analysis Tools
+  getTextStats: getTextStatsTool,            // ⭐ Word count, reading time, statistics
+  findString: findStringTool,                // ⭐ Find occurrences of text
+  analyzeReadability: analyzeReadabilityTool, // ⭐ Flesch score, grade level
+  extractHeadings: extractHeadingsTool,      // ⭐ Document outline/structure
+  // Document Utility Tools
+  findAndReplace: findAndReplaceTool,        // ⭐ Replace all occurrences
+  generateTOC: generateTOCTool,              // ⭐ Auto-generate table of contents
+  findDuplicates: findDuplicatesTool,        // ⭐ Detect redundant content
   // REMOVED: switchTab - Tab navigation handled by UI, not tools
   planSteps: planStepsTool,                 // ⭐ Multi-step planning tool
   updateStepProgress: updateStepProgressTool, // ⭐ Step progress tracking

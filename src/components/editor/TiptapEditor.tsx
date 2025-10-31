@@ -41,12 +41,24 @@ import {
   SeparatorHorizontal,
   CheckSquare,
   TextSelect,
-  MessageSquare
+  MessageSquare,
+  Sparkles,
+  Send,
+  Wand2,
+  Plus,
+  Minimize2,
+  RotateCw,
+  ArrowRight,
+  Smile,
+  Search,
+  MessageCircle,
+  ChevronRight
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
 import CommentExtension, { Comment } from './CommentExtension'
 import CommentsPanel, { AddCommentForm } from './CommentsPanel'
+import { AIBubbleMenuContent } from './AIBubbleMenu'
 import '@/styles/comments.css'
 
 const MenuButton = ({ 
@@ -141,15 +153,18 @@ const FontSelector = ({
 }
 
 interface TiptapEditorProps {
+  initialContent?: string;
   onContentChange?: (content: string) => void;
   onCommentsChange?: (comments: Comment[]) => void;
   toolbarActions?: React.ReactNode;
+  onAIEdit?: (selectedText: string, instruction: string) => void;
+  selectedModel?: string;
 }
 
-const initialContent = typeof window !== 'undefined' ? localStorage.getItem('tiptap-document') : null;
+const savedContent = typeof window !== 'undefined' ? localStorage.getItem('tiptap-document') : null;
 const initialComments = typeof window !== 'undefined' ? localStorage.getItem('tiptap-comments') : null;
 
-export default function TiptapEditor({ onContentChange, onCommentsChange, toolbarActions }: TiptapEditorProps = {}) {
+export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions, onAIEdit, selectedModel }: TiptapEditorProps = {}) {
   const [isMounted, setIsMounted] = useState(false)
   const [showColorSelector, setShowColorSelector] = useState(false)
   const [showFontSelector, setShowFontSelector] = useState(false)
@@ -165,6 +180,9 @@ export default function TiptapEditor({ onContentChange, onCommentsChange, toolba
   const [isCommentsPanelOpen, setIsCommentsPanelOpen] = useState(false)
   const [showAddCommentForm, setShowAddCommentForm] = useState(false)
   const [selectedText, setSelectedText] = useState('')
+  const [aiInstruction, setAiInstruction] = useState('')
+  const [showAIMenu, setShowAIMenu] = useState(false)
+  const [isInlineProcessing, setIsInlineProcessing] = useState(false)
   
   // Initialize the editor
   const editor = useEditor({
@@ -197,7 +215,7 @@ export default function TiptapEditor({ onContentChange, onCommentsChange, toolba
         },
       }),
     ],
-    content: initialContent ? JSON.parse(initialContent) : '<p>Hello, start typing here...</p>',
+    content: initialContent || (savedContent ? JSON.parse(savedContent) : '<p>Hello, start typing here...</p>'),
     editorProps: {
       attributes: {
         class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none w-full max-w-none min-h-[calc(100vh-16rem)]',
@@ -223,11 +241,97 @@ export default function TiptapEditor({ onContentChange, onCommentsChange, toolba
     setIsMounted(true)
   }, [])
 
+  // Update editor content when initialContent prop changes
+  useEffect(() => {
+    if (editor && initialContent && initialContent !== editor.getText()) {
+      editor.commands.setContent(initialContent);
+    }
+  }, [editor, initialContent]);
+
   // Add a new comment
   const handleAddComment = () => {
     if (!editor || !selectedText) return
-    
+
     setShowAddCommentForm(true)
+  }
+
+  // Handle AI edit of selected text (for custom instruction)
+  const handleAIEdit = () => {
+    if (!editor || !selectedText || !aiInstruction.trim()) return
+
+    // Call the onAIEdit callback if provided
+    if (onAIEdit) {
+      onAIEdit(selectedText, aiInstruction);
+    }
+
+    // Clear the instruction input
+    setAiInstruction('');
+    setShowAIMenu(false);
+  }
+
+  // Handle inline AI actions (replace text directly in editor)
+  const handleInlineAction = async (action: string) => {
+    if (!editor || !selectedText) return
+
+    setIsInlineProcessing(true);
+    setShowAIMenu(false);
+
+    const { from, to } = editor.state.selection;
+
+    try {
+      // Get instruction based on action
+      const instructions: Record<string, string> = {
+        improve: 'Polish and enhance this text, making it more professional and clear',
+        expand: 'Add more detail and elaboration to this text',
+        simplify: 'Make this text clearer and easier to understand',
+        rewrite: 'Rewrite this text in a different way while keeping the same meaning',
+        continue: 'Continue writing from where this text ends',
+        tone: 'Adjust the writing style and tone of this text to be more engaging'
+      };
+
+      const instruction = instructions[action] || 'Improve this text';
+
+      // Call the inline edit API with the selected model
+      const response = await fetch('/api/inline-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: selectedText,
+          instruction,
+          model: selectedModel || 'anthropic/claude-haiku-4-5-20251001' // Use chat's selected model or default to Haiku
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.editedText) {
+        // Replace the selected text with the edited version
+        editor.chain()
+          .focus()
+          .deleteRange({ from, to })
+          .insertContentAt(from, result.editedText)
+          .setTextSelection({ from, to: from + result.editedText.length })
+          .run();
+      }
+    } catch (error) {
+      console.error('Inline edit failed:', error);
+    } finally {
+      setIsInlineProcessing(false);
+    }
+  }
+
+  // Handle chat actions (send to chat)
+  const handleChatAction = (action: string) => {
+    if (!editor || !selectedText || !onAIEdit) return
+
+    const instructions: Record<string, string> = {
+      research: `Research and verify this information with web search: "${selectedText}"`,
+      ask: `Answer this question about the selected text: "${selectedText}"`
+    };
+
+    const instruction = instructions[action] || selectedText;
+    onAIEdit(selectedText, instruction);
+    setShowAIMenu(false);
   }
   
   // Submit a new comment
@@ -555,57 +659,93 @@ export default function TiptapEditor({ onContentChange, onCommentsChange, toolba
         
         {/* Bubble Menu */}
         {editor && (
-          <BubbleMenu 
+          <BubbleMenu
             editor={editor}
             tippyOptions={{ duration: 100 }}
-            className="bg-background border rounded-md shadow-md flex p-1 gap-1"
+            className="bg-background border rounded-lg shadow-xl overflow-hidden"
           >
-            <MenuButton 
-              onClick={() => editor.chain().focus().toggleBold().run()}
-              isActive={editor.isActive('bold')}
-            >
-              <Bold className="h-4 w-4" />
-            </MenuButton>
-            
-            <MenuButton 
-              onClick={() => editor.chain().focus().toggleItalic().run()}
-              isActive={editor.isActive('italic')}
-            >
-              <Italic className="h-4 w-4" />
-            </MenuButton>
-            
-            <MenuButton 
-              onClick={() => editor.chain().focus().toggleStrike().run()}
-              isActive={editor.isActive('strike')}
-            >
-              <Strikethrough className="h-4 w-4" />
-            </MenuButton>
-            
-            <MenuButton 
-              onClick={() => editor.chain().focus().toggleUnderline().run()}
-              isActive={editor.isActive('underline')}
-            >
-              <UnderlineIcon className="h-4 w-4" />
-            </MenuButton>
-            
-            <MenuButton 
-              onClick={() => {
-                const url = window.prompt('URL')
-                if (url) {
-                  editor.chain().focus().setLink({ href: url }).run()
-                }
-              }}
-              isActive={editor.isActive('link')}
-            >
-              <LinkIcon className="h-4 w-4" />
-            </MenuButton>
-            
-            <MenuButton 
-              onClick={handleAddComment}
-              disabled={!selectedText}
-            >
-              <MessageSquare className="h-4 w-4" />
-            </MenuButton>
+            {!showAIMenu ? (
+              // Compact view with formatting buttons + AI button
+              <div className="flex items-center p-1 gap-1">
+                <MenuButton
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                  isActive={editor.isActive('bold')}
+                >
+                  <Bold className="h-4 w-4" />
+                </MenuButton>
+
+                <MenuButton
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                  isActive={editor.isActive('italic')}
+                >
+                  <Italic className="h-4 w-4" />
+                </MenuButton>
+
+                <MenuButton
+                  onClick={() => editor.chain().focus().toggleStrike().run()}
+                  isActive={editor.isActive('strike')}
+                >
+                  <Strikethrough className="h-4 w-4" />
+                </MenuButton>
+
+                <MenuButton
+                  onClick={() => editor.chain().focus().toggleUnderline().run()}
+                  isActive={editor.isActive('underline')}
+                >
+                  <UnderlineIcon className="h-4 w-4" />
+                </MenuButton>
+
+                <MenuButton
+                  onClick={() => {
+                    const url = window.prompt('URL')
+                    if (url) {
+                      editor.chain().focus().setLink({ href: url }).run()
+                    }
+                  }}
+                  isActive={editor.isActive('link')}
+                >
+                  <LinkIcon className="h-4 w-4" />
+                </MenuButton>
+
+                <MenuButton
+                  onClick={handleAddComment}
+                  disabled={!selectedText}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                </MenuButton>
+
+                {/* Divider */}
+                <div className="h-6 w-px bg-border mx-1" />
+
+                {/* AI Menu Button */}
+                <MenuButton
+                  onClick={() => setShowAIMenu(true)}
+                  disabled={!selectedText}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+                  title="AI Actions"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span className="text-xs ml-1 font-medium">AI</span>
+                  <ChevronRight className="h-3 w-3 ml-0.5" />
+                </MenuButton>
+              </div>
+            ) : (
+              // Expanded AI menu
+              <div className="relative">
+                <button
+                  onClick={() => setShowAIMenu(false)}
+                  className="absolute top-2 right-2 p-1 hover:bg-muted rounded transition-colors z-10"
+                >
+                  <span className="text-xl leading-none">×</span>
+                </button>
+                <AIBubbleMenuContent
+                  onInlineAction={handleInlineAction}
+                  onChatAction={handleChatAction}
+                  isProcessing={isInlineProcessing}
+                  hasSelection={!!selectedText}
+                />
+              </div>
+            )}
           </BubbleMenu>
         )}
       </div>

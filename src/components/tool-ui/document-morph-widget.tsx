@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Zap, CheckCircle2, XCircle, ChevronDown, ChevronUp, FileCode } from 'lucide-react';
-import { useEditorContent } from '@/hooks/useEditorContent';
+import { Zap, CheckCircle2, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { useDocumentContent } from '@/hooks/useDocumentContent';
 import { useUsageTracking } from '@/hooks/useUsageTracking';
 
-interface EditCodeMorphWidgetProps {
+interface DocumentMorphWidgetProps {
   data: {
-    file: 'html' | 'css' | 'js' | 'php';
     instruction: string;
     lazyEdit: string;
     status?: string;
@@ -29,22 +28,20 @@ function LoadingDots() {
   );
 }
 
-export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
-  const { getContent, updateContent } = useEditorContent();
+export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
+  const { content, updateContent } = useDocumentContent();
   const { recordUsage } = useUsageTracking();
 
   const [state, setState] = useState<WidgetState>('idle');
   const [isExpanded, setIsExpanded] = useState(true);
-  const [originalCode, setOriginalCode] = useState<string>('');
+  const [originalDoc, setOriginalDoc] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [stats, setStats] = useState<any>(null);
 
-  // Load current code on mount
+  // Load current document on mount
   useEffect(() => {
-    const allContent = getContent();
-    const currentCode = allContent[data.file] || '';
-    setOriginalCode(currentCode);
-  }, [data.file, getContent]);
+    setOriginalDoc(content);
+  }, [content]);
 
   // Auto-collapse after successful application
   useEffect(() => {
@@ -63,9 +60,9 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           instruction: data.instruction,
-          originalCode,
+          originalCode: originalDoc,
           lazyEdit: data.lazyEdit,
-          fileType: data.file,
+          fileType: 'document',
         }),
       });
 
@@ -75,8 +72,8 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
         throw new Error(result.error || `Morph API failed: ${response.statusText}`);
       }
 
-      // Update editor with merged code
-      updateContent(data.file, result.mergedCode);
+      // Update document with merged content
+      updateContent(result.mergedCode);
 
       // Record usage for tracking
       recordUsage('morph/v3-fast', {
@@ -104,7 +101,7 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
       case 'error':
         return <XCircle className="h-4 w-4 text-red-500" />;
       default:
-        return <Zap className="h-4 w-4 text-blue-500" />;
+        return <Zap className="h-4 w-4 text-purple-500" />;
     }
   };
 
@@ -117,28 +114,8 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
       case 'error':
         return 'bg-red-500/5 border-red-500/20';
       default:
-        return 'bg-blue-500/5 border-blue-500/20';
+        return 'bg-purple-500/5 border-purple-500/20';
     }
-  };
-
-  const getFileLabel = () => {
-    const labels: Record<string, string> = {
-      html: 'HTML',
-      css: 'CSS',
-      js: 'JavaScript',
-      php: 'PHP',
-    };
-    return labels[data.file] || data.file.toUpperCase();
-  };
-
-  const getFileColor = () => {
-    const colors: Record<string, string> = {
-      html: 'text-orange-600',
-      css: 'text-blue-600',
-      js: 'text-yellow-600',
-      php: 'text-purple-600',
-    };
-    return colors[data.file] || 'text-gray-600';
   };
 
   return (
@@ -151,11 +128,7 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
         >
           <div className="flex items-center gap-2">
             {getStateIcon()}
-            <FileCode className={`h-4 w-4 ${getFileColor()}`} />
-            <span className="text-sm font-medium">AI Code Edit</span>
-            <span className={`text-xs font-mono ${getFileColor()}`}>
-              {getFileLabel()}
-            </span>
+            <span className="text-sm font-medium">AI Document Edit</span>
           </div>
           <span className="text-xs text-muted-foreground flex-1 text-left truncate">
             {data.instruction}
@@ -171,11 +144,7 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {getStateIcon()}
-              <FileCode className={`h-4 w-4 ${getFileColor()}`} />
-              <span className="text-sm font-semibold">AI Code Edit</span>
-              <span className={`text-xs font-mono ${getFileColor()} bg-muted/50 px-1.5 py-0.5 rounded`}>
-                {getFileLabel()}
-              </span>
+              <span className="text-sm font-semibold">AI Document Edit</span>
               {state === 'success' && stats && (
                 <span className="text-xs text-green-600 dark:text-green-400">
                   ✓ Applied in {stats.durationMs}ms
@@ -214,7 +183,7 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
             {state === 'idle' && (
               <Button
                 onClick={handleApplyChanges}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 h-9"
+                className="flex-1 bg-purple-600 hover:bg-purple-700 h-9"
               >
                 <Zap className="h-3.5 w-3.5 mr-1.5" />
                 Apply Changes

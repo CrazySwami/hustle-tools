@@ -2131,20 +2131,45 @@ add_action( 'elementor/frontend/after_register_scripts', '${widgetSlug}_enqueue_
         const activateResult = await playgroundClient.run({ code: activateCode });
         console.log('🔌 Activation result:', activateResult.text);
 
-        // Force Elementor to refresh widget library
+        // Force Elementor to refresh widget library and reload editor
         const refreshCode = `<?php
             require_once '/wordpress/wp-load.php';
 
-            // Clear Elementor cache
+            // Clear Elementor cache and regenerate
             if ( class_exists( '\\Elementor\\Plugin' ) ) {
+                // Clear all Elementor caches
                 \\Elementor\\Plugin::instance()->files_manager->clear_cache();
-                echo 'Elementor cache cleared';
+
+                // Regenerate CSS files
+                if ( method_exists( \\Elementor\\Plugin::instance()->files_manager, 'regenerate_all_files' ) ) {
+                    \\Elementor\\Plugin::instance()->files_manager->regenerate_all_files();
+                }
+
+                // Force widget cache refresh
+                delete_transient( 'elementor_remote_info_api_data_' . ELEMENTOR_VERSION );
+                wp_cache_flush();
+
+                echo 'SUCCESS: Elementor cache cleared and regenerated';
+            } else {
+                echo 'ERROR: Elementor not loaded';
             }
         ?>`;
 
         try {
             const refreshResult = await playgroundClient.run({ code: refreshCode });
             console.log('🔄 Cache refresh result:', refreshResult.text);
+
+            // If we're in an Elementor editor, try to reload it
+            try {
+                // Check if we're in an iframe with Elementor editor
+                const iframeDoc = playgroundClient.iframe?.contentDocument || playgroundClient.iframe?.contentWindow?.document;
+                if (iframeDoc && iframeDoc.location.href.includes('elementor')) {
+                    console.log('🔄 Reloading Elementor editor...');
+                    iframeDoc.location.reload();
+                }
+            } catch (e) {
+                console.log('⚠️ Could not reload Elementor editor (may not be open)');
+            }
         } catch (error) {
             console.warn('⚠️ Could not clear Elementor cache:', error);
         }

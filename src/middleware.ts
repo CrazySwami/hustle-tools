@@ -30,6 +30,7 @@ export async function middleware(request: NextRequest) {
     '/firecrawl',
     '/page-extractor',
     '/chat',
+    '/chat-doc',
     '/chat-doc-editor',
     '/editor',
     '/elementor-editor',

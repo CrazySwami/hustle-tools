@@ -59,7 +59,7 @@ export function FindStringWidget({ data }: FindStringWidgetProps) {
 
     setOccurrences(found);
     setCount(found.length);
-  }, [data.searchTerm, data.caseSensitive, data.wholeWord, getContent]);
+  }, [data.searchTerm, data.caseSensitive, data.wholeWord, content]);
 
   return (
     <div className="my-4 rounded-lg border border-border/50 bg-card overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">

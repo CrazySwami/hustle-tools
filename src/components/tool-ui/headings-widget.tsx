@@ -42,7 +42,7 @@ export function HeadingsWidget({ data }: HeadingsWidgetProps) {
     });
 
     setHeadings(found);
-  }, [data.maxLevel, getContent]);
+  }, [data.maxLevel, content]);
 
   return (
     <div className="my-4 rounded-lg border border-border/50 bg-card overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">

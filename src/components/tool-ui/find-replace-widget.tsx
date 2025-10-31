@@ -18,7 +18,7 @@ interface FindReplaceWidgetProps {
 export function FindReplaceWidget({ data }: FindReplaceWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle');
-  const { getContent, updateContent } = useDocumentContent();
+  const { content, updateContent } = useDocumentContent();
   const [replacementCount, setReplacementCount] = useState(0);
   const [preview, setPreview] = useState<string[]>([]);
 
@@ -58,7 +58,7 @@ export function FindReplaceWidget({ data }: FindReplaceWidgetProps) {
     }
 
     setPreview(previewItems);
-  }, [data.find, data.replace, data.caseSensitive, data.wholeWord, getContent]);
+  }, [data.find, data.replace, data.caseSensitive, data.wholeWord, content]);
 
   const handleReplace = async () => {
     setStatus('loading');

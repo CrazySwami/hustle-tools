@@ -21,7 +21,7 @@ type WidgetState = 'idle' | 'loading' | 'success' | 'error';
 export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
   console.log('📝 DocumentMorphWidget rendered with data:', data);
 
-  const { getContent, updateContent } = useDocumentContent();
+  const { content, updateContent } = useDocumentContent();
   const { recordUsage } = useUsageTracking();
 
   const [state, setState] = useState<WidgetState>('idle');
@@ -33,15 +33,14 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
 
   // Load current document on mount
   useEffect(() => {
-    const currentDoc = getContent();
-    setOriginalDoc(currentDoc);
+    setOriginalDoc(content);
 
     console.log(`📄 Loaded document content:`, {
-      length: currentDoc.length,
+      length: content.length,
       lazyEditLength: data.lazyEdit.length,
-      efficiency: `${Math.round((data.lazyEdit.length / (currentDoc.length || 1)) * 100)}%`,
+      efficiency: `${Math.round((data.lazyEdit.length / (content.length || 1)) * 100)}%`,
     });
-  }, [getContent]);
+  }, [content, data.lazyEdit.length]);
 
   const handleApplyChanges = async () => {
     try {

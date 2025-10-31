@@ -91,7 +91,7 @@ export function ReadabilityWidget({ data }: ReadabilityWidgetProps) {
       avgSyllablesPerWord: (syllableCount / wordCount).toFixed(2),
       avgWordsPerSentence: (wordCount / sentenceCount).toFixed(1),
     });
-  }, [data.detailed, getContent]);
+  }, [data.detailed, content]);
 
   if (!readability) {
     return <div className="text-sm text-muted-foreground">Analyzing readability...</div>;

@@ -94,7 +94,7 @@ export function TOCWidget({ data }: TOCWidgetProps) {
     }
 
     setToc(generated);
-  }, [data.numbered, data.maxLevel, data.style, getContent]);
+  }, [data.numbered, data.maxLevel, data.style, content]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(toc);

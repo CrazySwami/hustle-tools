@@ -57,15 +57,14 @@ Respond ONLY with valid JSON in this exact format:
   "icon": "eicon-name"
 }`;
 
-    const result = streamText({
+    const result = await streamText({
       model: gateway('anthropic/claude-haiku-4-5-20251001'),
       prompt,
       maxTokens: 300,
       temperature: 0.7,
     });
 
-    const { text } = await result;
-    const textContent = text.trim();
+    const textContent = (await result.text).trim();
 
     // Extract JSON if wrapped in markdown code blocks
     let jsonText = textContent;

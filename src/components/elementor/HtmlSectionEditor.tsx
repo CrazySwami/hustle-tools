@@ -1381,8 +1381,47 @@ export function HtmlSectionEditor({
                 position: "relative",
               }}
             >
-              {/* Current file display - always show */}
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {/* Toggle Buttons (left side) */}
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                {/* Toggle Project Sidebar */}
+                <button
+                  onClick={() => setShowProjectSidebar(!showProjectSidebar)}
+                  title={showProjectSidebar ? "Hide Projects" : "Show Projects"}
+                  style={{
+                    padding: "4px 8px",
+                    background: showProjectSidebar ? "#2d2d2d" : "transparent",
+                    border: "1px solid #3e3e3e",
+                    borderRadius: "4px",
+                    color: showProjectSidebar ? "#ffffff" : "#888",
+                    fontSize: "11px",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  📦
+                </button>
+
+                {/* Toggle File Tree */}
+                <button
+                  onClick={() => setShowFileTree(!showFileTree)}
+                  title={showFileTree ? "Hide Files" : "Show Files"}
+                  style={{
+                    padding: "4px 8px",
+                    background: showFileTree ? "#2d2d2d" : "transparent",
+                    border: "1px solid #3e3e3e",
+                    borderRadius: "4px",
+                    color: showFileTree ? "#ffffff" : "#888",
+                    fontSize: "11px",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  📁
+                </button>
+              </div>
+
+              {/* Current file display */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "12px" }}>
                 <span style={{
                   fontSize: isMobile ? "14px" : "13px",
                   color: "#ffffff",
@@ -1391,10 +1430,14 @@ export function HtmlSectionEditor({
                   alignItems: "center",
                   gap: "6px"
                 }}>
-                  {activeCodeTab === 'html' && '📄 index.html'}
-                  {activeCodeTab === 'css' && '🎨 styles.css'}
-                  {activeCodeTab === 'js' && '⚡ script.js'}
-                  {activeCodeTab === 'php' && '🔧 widget.php'}
+                  {(() => {
+                    const isPhpWidget = fileGroups.activeGroup?.type === 'php';
+                    if (activeCodeTab === 'html') return '📄 index.html';
+                    if (activeCodeTab === 'css') return isPhpWidget ? '🎨 widget.css' : '🎨 styles.css';
+                    if (activeCodeTab === 'js') return isPhpWidget ? '⚡ widget.js' : '⚡ script.js';
+                    if (activeCodeTab === 'php') return '🔧 widget.php';
+                    return '';
+                  })()}
                 </span>
               </div>
 
@@ -1425,8 +1468,8 @@ export function HtmlSectionEditor({
 
             {/* Code Editor with Project Sidebar + File Tree */}
             <div style={{ flex: 1, overflow: "hidden", background: "#1e1e1e", display: "flex" }}>
-              {/* Project Sidebar - Desktop only */}
-              {!isMobile && showProjectSidebar && (
+              {/* Project Sidebar - Works on both desktop and mobile */}
+              {showProjectSidebar && (
                 <ProjectSidebar
                   groups={fileGroups.groups}
                   activeGroupId={fileGroups.activeGroupId}
@@ -1464,12 +1507,19 @@ export function HtmlSectionEditor({
 
                   {/* File List */}
                   <div style={{ flex: 1, overflow: "auto" }}>
-                    {[
-                      { tab: 'html', icon: '📄', name: 'index.html', lang: 'HTML' },
-                      { tab: 'css', icon: '🎨', name: 'styles.css', lang: 'CSS' },
-                      { tab: 'js', icon: '⚡', name: 'script.js', lang: 'JavaScript' },
-                      { tab: 'php', icon: '🔧', name: 'widget.php', lang: 'PHP' }
-                    ].map((file) => (
+                    {(() => {
+                      const isPhpWidget = fileGroups.activeGroup?.type === 'php';
+                      const files = isPhpWidget ? [
+                        { tab: 'php', icon: '🔧', name: 'widget.php', lang: 'PHP' },
+                        { tab: 'css', icon: '🎨', name: 'widget.css', lang: 'CSS' },
+                        { tab: 'js', icon: '⚡', name: 'widget.js', lang: 'JavaScript' }
+                      ] : [
+                        { tab: 'html', icon: '📄', name: 'index.html', lang: 'HTML' },
+                        { tab: 'css', icon: '🎨', name: 'styles.css', lang: 'CSS' },
+                        { tab: 'js', icon: '⚡', name: 'script.js', lang: 'JavaScript' }
+                      ];
+                      return files;
+                    })().map((file) => (
                       <button
                         key={file.tab}
                         onClick={() => handleCodeTabChange(file.tab as 'html' | 'css' | 'js' | 'php')}

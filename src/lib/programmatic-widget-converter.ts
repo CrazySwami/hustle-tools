@@ -522,13 +522,19 @@ function generateRenderCode(elements: ParsedElement[], html: string, css: string
   // Static HTML is pure HTML, so we DO add ?> at start
   const hasPhpTags = dynamicHtml.includes('<?php');
 
+  // Check if dynamicHtml ends in PHP mode or HTML mode
+  // If it ends with "<?php", we're already back in PHP mode
+  // If it ends with "?>", we're in HTML mode and need to reopen PHP
+  const endsInPhpMode = dynamicHtml.trim().endsWith('<?php');
+  const endsWithCloseTag = dynamicHtml.trim().endsWith('?>');
+
   return `        $settings = $this->get_settings_for_display();
 
         // Render HTML with dynamic controls
         ${hasPhpTags ? '' : '?>'}
 ${dynamicHtml}
 
-        <?php
+        ${endsInPhpMode ? '' : '<?php'}
         // Custom CSS
         if (!empty($settings['custom_css'])) {
             $custom_css = str_replace('selector', '{{WRAPPER}}', $settings['custom_css']);

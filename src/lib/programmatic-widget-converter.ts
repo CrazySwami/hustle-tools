@@ -82,6 +82,93 @@ export function parseHTML(html: string): ParsedElement[] {
 }
 
 /**
+ * Collect all CSS classes and IDs from parsed elements
+ */
+export function collectSelectors(elements: ParsedElement[]): { classes: string[], ids: string[] } {
+  const classes = new Set<string>();
+  const ids = new Set<string>();
+
+  function traverse(element: ParsedElement) {
+    // Add classes (with dot prefix for CSS matching)
+    element.classes.forEach(cls => {
+      if (cls.trim()) {
+        classes.add(`.${cls.trim()}`);
+      }
+    });
+
+    // Add ID (with hash prefix for CSS matching)
+    if (element.id) {
+      ids.add(`#${element.id}`);
+    }
+
+    // Recursively traverse children
+    element.children.forEach(child => traverse(child));
+  }
+
+  elements.forEach(el => traverse(el));
+
+  return {
+    classes: Array.from(classes),
+    ids: Array.from(ids)
+  };
+}
+
+/**
+ * Extract only relevant CSS rules that match the HTML selectors
+ *
+ * This prevents bloated CSS in widgets by filtering out unrelated styles.
+ * Based on the proven approach from the batch widget generator.
+ */
+export function extractRelevantCSS(allCSS: string, classes: string[], ids: string[]): string {
+  if (!allCSS || !allCSS.trim()) {
+    return '';
+  }
+
+  console.log('🎨 Extracting relevant CSS:', {
+    totalCSS: allCSS.length,
+    selectors: classes.length + ids.length
+  });
+
+  // Split CSS into individual rules
+  // Matches: selector { declarations }
+  const rules = allCSS.match(/[^{}]+\{[^}]*\}/g) || [];
+
+  const relevant: string[] = [];
+
+  rules.forEach(rule => {
+    const parts = rule.split('{');
+    if (parts.length < 2) return;
+
+    const selector = parts[0].trim();
+    const declarations = '{' + parts.slice(1).join('{');
+
+    // Skip @media, @keyframes, @font-face (these are handled separately)
+    if (selector.startsWith('@')) {
+      relevant.push(rule); // Keep @ rules
+      return;
+    }
+
+    // Check if selector matches any of our collected classes/IDs
+    const matches = classes.some(cls => selector.includes(cls)) ||
+                   ids.some(id => selector.includes(id));
+
+    if (matches) {
+      relevant.push(rule);
+    }
+  });
+
+  const extractedCSS = relevant.join('\n\n');
+
+  console.log('✅ CSS extraction complete:', {
+    originalRules: rules.length,
+    extractedRules: relevant.length,
+    reduction: `${Math.round((1 - relevant.length / rules.length) * 100)}%`
+  });
+
+  return extractedCSS;
+}
+
+/**
  * Extract widget metadata from HTML comment or use defaults
  */
 export function extractMetadataFromHTML(html: string): Partial<WidgetMetadata> | null {
@@ -794,8 +881,13 @@ export async function convertToWidgetProgrammatic(
   const elements = parseHTML(cleanHtml);
   console.log(`📦 Parsed ${elements.length} top-level elements`);
 
-  // 3. Generate PHP widget code (use cleaned HTML)
-  const widgetPHP = generateWidgetPHP(metadata, elements, cleanHtml, css, js);
+  // 3. Extract relevant CSS (filter out unrelated styles)
+  const { classes, ids } = collectSelectors(elements);
+  const filteredCSS = extractRelevantCSS(css, classes, ids);
+  console.log(`🎯 CSS filtering: ${css.length} → ${filteredCSS.length} chars (${Math.round((1 - filteredCSS.length / css.length) * 100)}% reduction)`);
+
+  // 4. Generate PHP widget code (use cleaned HTML and filtered CSS)
+  const widgetPHP = generateWidgetPHP(metadata, elements, cleanHtml, filteredCSS, js);
 
   // 4. Validate generated PHP code
   const { validatePhpWidget, formatValidationResult } = await import('./php-syntax-validator');

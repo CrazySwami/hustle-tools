@@ -141,15 +141,16 @@ const FontSelector = ({
 }
 
 interface TiptapEditorProps {
+  initialContent?: string;
   onContentChange?: (content: string) => void;
   onCommentsChange?: (comments: Comment[]) => void;
   toolbarActions?: React.ReactNode;
 }
 
-const initialContent = typeof window !== 'undefined' ? localStorage.getItem('tiptap-document') : null;
+const savedContent = typeof window !== 'undefined' ? localStorage.getItem('tiptap-document') : null;
 const initialComments = typeof window !== 'undefined' ? localStorage.getItem('tiptap-comments') : null;
 
-export default function TiptapEditor({ onContentChange, onCommentsChange, toolbarActions }: TiptapEditorProps = {}) {
+export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions }: TiptapEditorProps = {}) {
   const [isMounted, setIsMounted] = useState(false)
   const [showColorSelector, setShowColorSelector] = useState(false)
   const [showFontSelector, setShowFontSelector] = useState(false)
@@ -197,7 +198,7 @@ export default function TiptapEditor({ onContentChange, onCommentsChange, toolba
         },
       }),
     ],
-    content: initialContent ? JSON.parse(initialContent) : '<p>Hello, start typing here...</p>',
+    content: initialContent || (savedContent ? JSON.parse(savedContent) : '<p>Hello, start typing here...</p>'),
     editorProps: {
       attributes: {
         class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none w-full max-w-none min-h-[calc(100vh-16rem)]',
@@ -222,6 +223,13 @@ export default function TiptapEditor({ onContentChange, onCommentsChange, toolba
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  // Update editor content when initialContent prop changes
+  useEffect(() => {
+    if (editor && initialContent && initialContent !== editor.getText()) {
+      editor.commands.setContent(initialContent);
+    }
+  }, [editor, initialContent]);
 
   // Add a new comment
   const handleAddComment = () => {

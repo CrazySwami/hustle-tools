@@ -100,6 +100,7 @@ const ChatBotDemo = () => {
             <div className="flex-1 h-full border-l relative">
               <DocumentToolsPanel />
               <TiptapEditor
+                initialContent={documentContent}
                 onContentChange={setDocumentContent}
                 onCommentsChange={setComments}
               />
@@ -115,6 +116,7 @@ const ChatBotDemo = () => {
           <div className="flex-1 h-full relative">
             <DocumentToolsPanel />
             <TiptapEditor
+              initialContent={documentContent}
               onContentChange={setDocumentContent}
               onCommentsChange={setComments}
             />

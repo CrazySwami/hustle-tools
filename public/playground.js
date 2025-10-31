@@ -2131,6 +2131,24 @@ add_action( 'elementor/frontend/after_register_scripts', '${widgetSlug}_enqueue_
         const activateResult = await playgroundClient.run({ code: activateCode });
         console.log('🔌 Activation result:', activateResult.text);
 
+        // Force Elementor to refresh widget library
+        const refreshCode = `<?php
+            require_once '/wordpress/wp-load.php';
+
+            // Clear Elementor cache
+            if ( class_exists( '\\Elementor\\Plugin' ) ) {
+                \\Elementor\\Plugin::instance()->files_manager->clear_cache();
+                echo 'Elementor cache cleared';
+            }
+        ?>`;
+
+        try {
+            const refreshResult = await playgroundClient.run({ code: refreshCode });
+            console.log('🔄 Cache refresh result:', refreshResult.text);
+        } catch (error) {
+            console.warn('⚠️ Could not clear Elementor cache:', error);
+        }
+
         updatePlaygroundStatus('✅ Widget deployed successfully!', 'success');
 
         return {

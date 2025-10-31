@@ -513,7 +513,7 @@ export async function convertToWidgetProgrammatic(
   console.log('⚡ Starting programmatic widget conversion...');
   const startTime = Date.now();
 
-  // 0. Clean HTML - remove DOCTYPE, html, head, body, style, script tags
+  // 0. Clean HTML - remove DOCTYPE, html, head, body, style, script tags, and HTML comments
   let cleanHtml = html;
   cleanHtml = cleanHtml.replace(/<!DOCTYPE[^>]*>/gi, '');
   cleanHtml = cleanHtml.replace(/<html[^>]*>|<\/html>/gi, '');
@@ -521,6 +521,7 @@ export async function convertToWidgetProgrammatic(
   cleanHtml = cleanHtml.replace(/<body[^>]*>|<\/body>/gi, '');
   cleanHtml = cleanHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
   cleanHtml = cleanHtml.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  cleanHtml = cleanHtml.replace(/<!--[\s\S]*?-->/g, ''); // Remove HTML comments
   cleanHtml = cleanHtml.trim();
 
   console.log('🧹 Cleaned HTML:', {

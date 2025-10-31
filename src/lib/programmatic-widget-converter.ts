@@ -500,9 +500,9 @@ function generateRenderCode(elements: ParsedElement[], html: string, css: string
     }
   });
 
-  // Ensure HTML doesn't have orphaned PHP tags
-  // If dynamicHtml contains <?php, it's already mixed mode
-  // Otherwise, wrap it in ?> ... <?php
+  // Check if we need to manage PHP tag transitions
+  // Dynamic HTML has embedded <?php...?> blocks, so we DON'T add ?> at start
+  // Static HTML is pure HTML, so we DO add ?> at start
   const hasPhpTags = dynamicHtml.includes('<?php');
 
   return `        $settings = $this->get_settings_for_display();
@@ -510,8 +510,8 @@ function generateRenderCode(elements: ParsedElement[], html: string, css: string
         // Render HTML with dynamic controls
         ${hasPhpTags ? '' : '?>'}
 ${dynamicHtml}
-${hasPhpTags ? '' : '<?php'}
 
+        <?php
         // Custom CSS
         if (!empty($settings['custom_css'])) {
             $custom_css = str_replace('selector', '{{WRAPPER}}', $settings['custom_css']);

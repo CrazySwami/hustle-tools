@@ -1319,55 +1319,22 @@ export function HtmlSectionEditor({
                 position: "relative",
               }}
             >
-              {/* File Selector Dropdown (only show if file tree is enabled) */}
-              {showFileTree && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ fontSize: "11px", color: "#888", fontWeight: 600, textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                    File:
-                  </span>
-                  <select
-                    value={activeCodeTab}
-                    onChange={(e) => handleCodeTabChange(e.target.value as 'html' | 'css' | 'js' | 'php')}
-                    style={{
-                      padding: isMobile ? "8px 12px" : "6px 12px",
-                      background: "#1e1e1e",
-                      color: "#ffffff",
-                      border: "1px solid #3e3e3e",
-                      borderRadius: "6px",
-                      fontSize: isMobile ? "14px" : "13px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      outline: "none",
-                      minHeight: isMobile ? "40px" : "32px",
-                      minWidth: isMobile ? "150px" : "180px",
-                    }}
-                  >
-                    <option value="html">📄 index.html</option>
-                    <option value="css">🎨 styles.css</option>
-                    <option value="js">⚡ script.js</option>
-                    <option value="php">🔧 widget.php</option>
-                  </select>
-                </div>
-              )}
-
-              {/* Show current file when file tree is hidden */}
-              {!showFileTree && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{
-                    fontSize: isMobile ? "14px" : "13px",
-                    color: "#ffffff",
-                    fontWeight: 500,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px"
-                  }}>
-                    {activeCodeTab === 'html' && '📄 index.html'}
-                    {activeCodeTab === 'css' && '🎨 styles.css'}
-                    {activeCodeTab === 'js' && '⚡ script.js'}
-                    {activeCodeTab === 'php' && '🔧 widget.php'}
-                  </span>
-                </div>
-              )}
+              {/* Current file display - always show */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{
+                  fontSize: isMobile ? "14px" : "13px",
+                  color: "#ffffff",
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}>
+                  {activeCodeTab === 'html' && '📄 index.html'}
+                  {activeCodeTab === 'css' && '🎨 styles.css'}
+                  {activeCodeTab === 'js' && '⚡ script.js'}
+                  {activeCodeTab === 'php' && '🔧 widget.php'}
+                </span>
+              </div>
 
               {/* Preview Button - Fixed position on right */}
               <button
@@ -1394,14 +1361,85 @@ export function HtmlSectionEditor({
               </button>
             </div>
 
-            {/* Code Editor */}
-            <div style={{ flex: 1, overflow: "hidden", background: "#1e1e1e" }}>
-              {/* Debug: Log editor value */}
-              {console.log(
-                `📝 Editor rendering - ${activeCodeTab}:`,
-                section[activeCodeTab]?.substring(0, 100) || "(empty)",
+            {/* Code Editor with File Tree */}
+            <div style={{ flex: 1, overflow: "hidden", background: "#1e1e1e", display: "flex" }}>
+              {/* Left File Tree Panel - Desktop only */}
+              {!isMobile && showFileTree && (
+                <div style={{
+                  width: "200px",
+                  background: "#252526",
+                  borderRight: "1px solid #3e3e3e",
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden"
+                }}>
+                  {/* File Tree Header */}
+                  <div style={{
+                    padding: "8px 12px",
+                    background: "#2d2d2d",
+                    borderBottom: "1px solid #3e3e3e",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: "#888",
+                    textTransform: "uppercase"
+                  }}>
+                    Files
+                  </div>
+
+                  {/* File List */}
+                  <div style={{ flex: 1, overflow: "auto" }}>
+                    {[
+                      { tab: 'html', icon: '📄', name: 'index.html', lang: 'HTML' },
+                      { tab: 'css', icon: '🎨', name: 'styles.css', lang: 'CSS' },
+                      { tab: 'js', icon: '⚡', name: 'script.js', lang: 'JavaScript' },
+                      { tab: 'php', icon: '🔧', name: 'widget.php', lang: 'PHP' }
+                    ].map((file) => (
+                      <button
+                        key={file.tab}
+                        onClick={() => handleCodeTabChange(file.tab as 'html' | 'css' | 'js' | 'php')}
+                        style={{
+                          width: "100%",
+                          padding: "8px 12px",
+                          background: activeCodeTab === file.tab ? "#2d2d2d" : "transparent",
+                          border: "none",
+                          borderLeft: activeCodeTab === file.tab ? "2px solid #007acc" : "2px solid transparent",
+                          color: activeCodeTab === file.tab ? "#ffffff" : "#cccccc",
+                          fontSize: "13px",
+                          fontWeight: activeCodeTab === file.tab ? 500 : 400,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          textAlign: "left",
+                          transition: "all 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (activeCodeTab !== file.tab) {
+                            e.currentTarget.style.background = "#2a2d2e";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (activeCodeTab !== file.tab) {
+                            e.currentTarget.style.background = "transparent";
+                          }
+                        }}
+                      >
+                        <span style={{ fontSize: "16px" }}>{file.icon}</span>
+                        <span style={{ flex: 1 }}>{file.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
-              <Editor
+
+              {/* Editor Area */}
+              <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                {/* Debug: Log editor value */}
+                {console.log(
+                  `📝 Editor rendering - ${activeCodeTab}:`,
+                  section[activeCodeTab]?.substring(0, 100) || "(empty)",
+                )}
+                <Editor
                 height="100%"
                 language={
                   activeCodeTab === "js"
@@ -1496,6 +1534,7 @@ export function HtmlSectionEditor({
                   overviewRulerLanes: isMobile ? 0 : 3, // Hide overview ruler on mobile
                 }}
               />
+              </div>
             </div>
           </div>
         </div>

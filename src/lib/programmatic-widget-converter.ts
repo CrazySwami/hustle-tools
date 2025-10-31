@@ -308,15 +308,22 @@ function generateControlsCode(elements: ParsedElement[], css: string, js: string
     }
   });
 
-  // CRITICAL: Strip dangerous global selectors BEFORE escaping
+  // CRITICAL: Strip dangerous global selectors BEFORE scoping
   // These selectors break the Elementor editor by affecting the entire page
   let cleanedCss = css
     .replace(/\bbody\s*,?\s*/gi, '')     // Remove "body" selector
     .replace(/\bhtml\s*,?\s*/gi, '')     // Remove "html" selector
     .replace(/^\s*,\s*/gm, '');          // Clean up leading commas
 
+  // CRITICAL: Scope CSS with {{WRAPPER}} prefix to prevent global conflicts
+  const scopedCss = scopeCSS(cleanedCss);
+  console.log('🎯 CSS Scoping Applied:', {
+    original: cleanedCss.substring(0, 100) + '...',
+    scoped: scopedCss.substring(0, 100) + '...'
+  });
+
   // Escape CSS for PHP string literals
-  const escapedCss = cleanedCss
+  const escapedCss = scopedCss
     .replace(/\\/g, '\\\\')  // Escape backslashes
     .replace(/'/g, "\\'")     // Escape single quotes
     .replace(/\n/g, '\\n')    // Preserve newlines
@@ -633,6 +640,92 @@ function toPascalCase(str: string): string {
  */
 function escapePhpString(str: string): string {
   return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+/**
+ * Scope CSS selectors with {{WRAPPER}} prefix
+ *
+ * This prevents widget CSS from affecting elements globally.
+ * Example: .hero { padding: 20px; } becomes {{WRAPPER}} .hero { padding: 20px; }
+ *
+ * Skips: @media, @keyframes, @font-face, and other @ rules
+ */
+function scopeCSS(css: string): string {
+  if (!css || !css.trim()) return css;
+
+  // Split CSS into lines for processing
+  const lines = css.split('\n');
+  const scopedLines: string[] = [];
+  let insideAtRule = false;
+  let atRuleDepth = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Track @ rules (media queries, keyframes, etc.)
+    if (trimmed.startsWith('@')) {
+      insideAtRule = true;
+      scopedLines.push(line);
+      continue;
+    }
+
+    // Track brace depth inside @ rules
+    if (insideAtRule) {
+      if (trimmed.includes('{')) atRuleDepth++;
+      if (trimmed.includes('}')) atRuleDepth--;
+      if (atRuleDepth === 0) insideAtRule = false;
+      scopedLines.push(line);
+      continue;
+    }
+
+    // Skip empty lines and comments
+    if (!trimmed || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('//')) {
+      scopedLines.push(line);
+      continue;
+    }
+
+    // Check if this is a selector line (ends with { or next non-empty line has {)
+    const hasOpenBrace = trimmed.includes('{');
+    const nextNonEmptyLine = lines.slice(i + 1).find(l => l.trim());
+    const nextHasOpenBrace = nextNonEmptyLine?.trim().startsWith('{');
+
+    if (hasOpenBrace || nextHasOpenBrace) {
+      // This is a selector line
+      let selector = hasOpenBrace ? trimmed.split('{')[0].trim() : trimmed;
+
+      // Skip if already has {{WRAPPER}}
+      if (selector.includes('{{WRAPPER}}')) {
+        scopedLines.push(line);
+        continue;
+      }
+
+      // Split by commas (handle multiple selectors)
+      const selectors = selector.split(',').map(s => s.trim());
+      const scopedSelectors = selectors.map(sel => {
+        // Don't scope pseudo-elements or pseudo-classes that start with :
+        // These need to stay attached to their parent selector
+        if (sel.startsWith(':')) return sel;
+
+        // Add {{WRAPPER}} prefix
+        return `{{WRAPPER}} ${sel}`;
+      });
+
+      // Reconstruct the line
+      const scopedSelector = scopedSelectors.join(', ');
+      if (hasOpenBrace) {
+        const restOfLine = trimmed.substring(trimmed.indexOf('{'));
+        scopedLines.push(line.replace(trimmed, scopedSelector + ' ' + restOfLine));
+      } else {
+        scopedLines.push(line.replace(trimmed, scopedSelector));
+      }
+    } else {
+      // Not a selector line (property, closing brace, etc.)
+      scopedLines.push(line);
+    }
+  }
+
+  return scopedLines.join('\n');
 }
 
 /**

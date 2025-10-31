@@ -523,10 +523,12 @@ function generateRenderCode(elements: ParsedElement[], html: string, css: string
   const hasPhpTags = dynamicHtml.includes('<?php');
 
   // Check if dynamicHtml ends in PHP mode or HTML mode
-  // If it ends with "<?php", we're already back in PHP mode
-  // If it ends with "?>", we're in HTML mode and need to reopen PHP
-  const endsInPhpMode = dynamicHtml.trim().endsWith('<?php');
-  const endsWithCloseTag = dynamicHtml.trim().endsWith('?>');
+  // Look at the last PHP-related tag to determine mode
+  const lastPhpOpen = dynamicHtml.lastIndexOf('<?php');
+  const lastPhpClose = dynamicHtml.lastIndexOf('?>');
+
+  // If last <?php comes after last ?>, we're in PHP mode
+  const endsInPhpMode = lastPhpOpen > lastPhpClose;
 
   return `        $settings = $this->get_settings_for_display();
 
@@ -703,6 +705,20 @@ export async function convertToWidgetProgrammatic(
   if (!validation.valid) {
     const errorReport = formatValidationResult(validation);
     console.error('❌ Widget validation failed:', errorReport);
+
+    // Debug: Show the render method to see what's wrong
+    const renderMatch = widgetPHP.match(/protected function render\(\)[^{]*\{([\s\S]*?)\n    \}/);
+    if (renderMatch) {
+      console.log('🔍 Generated render() method (around error lines):');
+      const renderLines = renderMatch[1].split('\n');
+      renderLines.forEach((line, i) => {
+        const lineNum = i + 1;
+        // Highlight error lines
+        const hasError = validation.errors.some(e => e.line && Math.abs(e.line - lineNum) < 3);
+        console.log(`${hasError ? '❌' : '  '} ${lineNum}: ${line}`);
+      });
+    }
+
     throw new Error(`Widget validation failed:\n\n${errorReport}`);
   }
 

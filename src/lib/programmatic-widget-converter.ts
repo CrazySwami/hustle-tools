@@ -540,6 +540,12 @@ ${hasPhpTags ? '' : '\n        <?php'}
         if (!empty($settings['custom_css'])) {
             $custom_css = str_replace('selector', '{{WRAPPER}}', $settings['custom_css']);
             $custom_css = str_replace('{{WRAPPER}}', '.elementor-element-' . $this->get_id(), $custom_css);
+
+            // IMPORTANT: Scope CSS to prevent leaking to page
+            // Remove dangerous global selectors that would break the editor
+            $custom_css = preg_replace('/\\bbody\\s*,?\\s*/i', '', $custom_css);
+            $custom_css = preg_replace('/\\bhtml\\s*,?\\s*/i', '', $custom_css);
+            $custom_css = preg_replace('/^\\s*,/m', '', $custom_css); // Clean up leading commas
             ?>
             <style>
                 <?php echo $custom_css; ?>

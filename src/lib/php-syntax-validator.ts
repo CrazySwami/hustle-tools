@@ -46,6 +46,9 @@ export function validatePhpWidget(phpCode: string): ValidationResult {
   // ===== 4. CHECK FOR UNESCAPED OUTPUT =====
   checkUnescapedOutput(phpCode, warnings);
 
+  // ===== 5. CHECK FOR DANGEROUS CSS SELECTORS =====
+  checkDangerousCss(phpCode, warnings);
+
   // ===== 5. CHECK FOR INVALID CONTROL NAMES =====
   checkControlNames(phpCode, errors);
 
@@ -175,6 +178,28 @@ function checkUnescapedOutput(phpCode: string, warnings: ValidationWarning[]): v
     warnings.push({
       type: 'security',
       message: `Found ${unescapedEcho.length} potentially unescaped output statements. Consider using esc_html(), esc_url(), or esc_attr().`,
+    });
+  }
+}
+
+/**
+ * Check for dangerous CSS selectors that could break the editor
+ */
+function checkDangerousCss(phpCode: string, warnings: ValidationWarning[]): void {
+  // Check if custom_css default value contains dangerous selectors
+  const cssDefaultMatch = phpCode.match(/'default'\s*=>\s*'([^']+)'/);
+  if (!cssDefaultMatch) return;
+
+  const cssContent = cssDefaultMatch[1];
+
+  // Check for body/html selectors (these break the Elementor editor)
+  const hasBodySelector = /\\bbody\s*[,{]/i.test(cssContent);
+  const hasHtmlSelector = /\\bhtml\s*[,{]/i.test(cssContent);
+
+  if (hasBodySelector || hasHtmlSelector) {
+    warnings.push({
+      type: 'best-practice',
+      message: `Custom CSS contains global 'body' or 'html' selectors. These will be automatically removed to prevent breaking the Elementor editor. Scope your CSS to the widget using class selectors instead.`,
     });
   }
 }

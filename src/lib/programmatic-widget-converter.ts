@@ -151,7 +151,7 @@ export function generateWidgetPHP(
   const className = toPascalCase(metadata.name) + '_Widget';
 
   // Generate controls PHP code
-  const controlsCode = generateControlsCode(elements);
+  const controlsCode = generateControlsCode(elements, css, js);
 
   // Generate render PHP code
   const renderCode = generateRenderCode(elements, html, css, js);
@@ -226,7 +226,7 @@ ${renderCode}
 /**
  * Generate controls registration code
  */
-function generateControlsCode(elements: ParsedElement[]): string {
+function generateControlsCode(elements: ParsedElement[], css: string, js: string): string {
   const controls: string[] = [];
   let controlIndex = 0;
 
@@ -308,6 +308,19 @@ function generateControlsCode(elements: ParsedElement[]): string {
     }
   });
 
+  // Escape CSS and JS for PHP string literals
+  const escapedCss = css
+    .replace(/\\/g, '\\\\')  // Escape backslashes
+    .replace(/'/g, "\\'")     // Escape single quotes
+    .replace(/\n/g, '\\n')    // Preserve newlines
+    .replace(/\r/g, '');      // Remove carriage returns
+
+  const escapedJs = js
+    .replace(/\\/g, '\\\\')   // Escape backslashes
+    .replace(/'/g, "\\'")     // Escape single quotes
+    .replace(/\n/g, '\\n')    // Preserve newlines
+    .replace(/\r/g, '');      // Remove carriage returns
+
   // Add Custom CSS/JS section
   controls.push(`
         // ===== Custom Code =====
@@ -328,6 +341,7 @@ function generateControlsCode(elements: ParsedElement[]): string {
                 'rows' => 20,
                 'description' => esc_html__('Add custom CSS. Use "selector" to target the widget wrapper.', 'hustle-tools'),
                 'placeholder' => 'selector { color: red; }',
+                'default' => '${escapedCss}',
             ]
         );
 
@@ -339,6 +353,7 @@ function generateControlsCode(elements: ParsedElement[]): string {
                 'language' => 'javascript',
                 'rows' => 20,
                 'description' => esc_html__('Add custom JavaScript. Code will be wrapped in jQuery(document).ready().', 'hustle-tools'),
+                'default' => '${escapedJs}',
             ]
         );
 

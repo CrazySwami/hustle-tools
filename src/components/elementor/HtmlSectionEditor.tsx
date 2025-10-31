@@ -601,6 +601,21 @@ export function HtmlSectionEditor({
     return () => clearTimeout(timeoutId);
   }, [editorHtml, editorCss, editorJs, editorPhp, fileGroups.activeGroup?.id]);
 
+  // Listen for select-project event from Project Library
+  useEffect(() => {
+    const handleSelectProject = (event: CustomEvent) => {
+      const { projectId } = event.detail;
+      console.log('📂 Received select-project event:', projectId);
+      fileGroups.selectGroup(projectId);
+    };
+
+    window.addEventListener('select-project' as any, handleSelectProject);
+
+    return () => {
+      window.removeEventListener('select-project' as any, handleSelectProject);
+    };
+  }, [fileGroups]);
+
   // Generate preview HTML with all styles and scripts (uses global state for latest content)
   const generatePreviewHTML = (): string => {
     const inlineStyles = sectionSettingsToCSS(section.settings);

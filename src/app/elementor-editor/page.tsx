@@ -16,7 +16,7 @@ import { StyleKitEditorNew } from '@/components/elementor/StyleKitEditorNew';
 import { StyleGuideUnified } from '@/components/elementor/StyleGuideUnified';
 import { HtmlSectionEditor } from '@/components/elementor/HtmlSectionEditor';
 import { VisualSectionEditor } from '@/components/elementor/VisualSectionEditor';
-import { SectionLibrary } from '@/components/elementor/SectionLibrary';
+import { ProjectLibrary } from '@/components/elementor/ProjectLibrary';
 import { PageSplitter } from '@/components/elementor/PageSplitter';
 import { ImageEditor } from '@/components/elementor/ImageEditor';
 import { UsageTrackingTab } from '@/components/elementor/UsageTrackingTab';
@@ -275,7 +275,7 @@ export default function ElementorEditorPage() {
     { key: 'b', modifiers: ['ctrl'], description: 'Toggle chat panel', category: 'Help & Navigation' },
     { key: '1', modifiers: ['ctrl'], description: 'Go to Code Editor', category: 'Help & Navigation' },
     // { key: '2', modifiers: ['ctrl'], description: 'Go to Visual Editor', category: 'Help & Navigation' },
-    { key: '3', modifiers: ['ctrl'], description: 'Go to Section Library', category: 'Help & Navigation' },
+    { key: '3', modifiers: ['ctrl'], description: 'Go to Project Library', category: 'Help & Navigation' },
     { key: '4', modifiers: ['ctrl'], description: 'Go to WordPress Playground', category: 'Help & Navigation' },
     { key: '5', modifiers: ['ctrl'], description: 'Go to Site Content', category: 'Help & Navigation' },
     { key: '6', modifiers: ['ctrl'], description: 'Go to Style Guide', category: 'Help & Navigation' },
@@ -337,7 +337,7 @@ export default function ElementorEditorPage() {
       modifiers: ['ctrl'],
       handler: () => {
         setActiveTab('sections');
-        toast.info('Switched to Section Library');
+        toast.info('Switched to Project Library');
       }
     },
     {
@@ -955,8 +955,7 @@ export default function ElementorEditorPage() {
 
       {/* Main container - using exact class names from original CSS */}
       <div className="chat-editor-container" style={{
-        marginTop: '64px', // Fixed navbar height (h-16 = 64px)
-        height: 'calc(100vh - 64px)',
+        height: '100vh',
         paddingBottom: isMobile ? '48px' : '0' // Smaller chat drawer on mobile
       }}>
         {/* Desktop: Left Panel Chat */}
@@ -1046,7 +1045,7 @@ export default function ElementorEditorPage() {
                 }}
               >
                 <option value="json">Code Editor</option>
-                <option value="sections">Section Library</option>
+                <option value="sections">Project Library</option>
                 <option value="playground">WordPress Playground</option>
                 <option value="site-content">Site Content</option>
                 <option value="style-guide">Style Guide</option>
@@ -1077,7 +1076,7 @@ export default function ElementorEditorPage() {
                   onClick={() => setActiveTab('sections')}
                   style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
-                  <FileIcon size={16} /> Section Library
+                  <FileIcon size={16} /> Project Library
                 </div>
                 <div
                   className={`tab ${activeTab === 'playground' ? 'active' : ''}`}
@@ -1198,28 +1197,17 @@ export default function ElementorEditorPage() {
             </div>
 
             <div className={`tab-panel ${activeTab === 'sections' ? 'active' : ''}`} id="sectionsPanel" style={{ display: activeTab === 'sections' ? 'flex' : 'none' }}>
-              <SectionLibrary
+              <ProjectLibrary
                 chatVisible={chatVisible}
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}
                 setTabBarVisible={setTabBarVisible}
-                onExportToPlayground={(sections) => {
-                  console.log('📋 Exporting sections to playground:', sections.length);
-                  alert(`✨ Coming soon: Export ${sections.length} sections to WordPress Playground`);
-                }}
-                onLoadInEditor={(section) => {
-                  console.log('📝 Loading section in editor:', {
-                    name: section.name,
-                    id: section.id,
-                    htmlLength: section.html?.length || 0,
-                    cssLength: section.css?.length || 0,
-                    jsLength: section.js?.length || 0
-                  });
-                  // Clear streamed code to prevent conflicts
-                  setStreamedCode({ html: '', css: '', js: '' });
-                  setLoadedSection(section);
-                  setCurrentSection(section); // Also update currentSection so chat can see it
-                  setActiveTab('json'); // Switch to Section Editor tab
+                onOpenProject={(projectId) => {
+                  console.log('📝 Opening project in editor:', projectId);
+                  // Switch to Code Editor tab
+                  setActiveTab('html');
+                  // Trigger project selection via custom event
+                  window.dispatchEvent(new CustomEvent('select-project', { detail: { projectId } }));
                 }}
               />
             </div>

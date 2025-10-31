@@ -535,8 +535,7 @@ function generateRenderCode(elements: ParsedElement[], html: string, css: string
         // Render HTML with dynamic controls
         ${hasPhpTags ? '' : '?>'}
 ${dynamicHtml}
-
-        ${endsInPhpMode ? '' : '<?php'}
+${hasPhpTags ? '' : '\n        <?php'}
         // Custom CSS
         if (!empty($settings['custom_css'])) {
             $custom_css = str_replace('selector', '{{WRAPPER}}', $settings['custom_css']);

@@ -99,11 +99,14 @@ function checkOrphanedPhpTags(lines: string[], errors: ValidationError[]): void 
       }
 
       // Track PHP mode transitions
-      if (trimmed.includes('?>')) {
-        inPhpMode = false; // Exited PHP mode
-      }
-      if (trimmed.startsWith('<?php')) {
-        inPhpMode = true; // Entered PHP mode
+      // Check the LAST occurrence to handle lines like "<?php echo ... ?>"
+      const lastClose = trimmed.lastIndexOf('?>');
+      const lastOpen = trimmed.lastIndexOf('<?php');
+
+      if (lastClose > lastOpen) {
+        inPhpMode = false; // Line ends with ?>, so we're in HTML mode
+      } else if (lastOpen !== -1) {
+        inPhpMode = true; // Line ends with <?php, so we're in PHP mode
       }
     }
 

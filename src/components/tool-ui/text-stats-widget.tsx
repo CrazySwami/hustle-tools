@@ -13,11 +13,11 @@ interface TextStatsWidgetProps {
 
 export function TextStatsWidget({ data }: TextStatsWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const { getContent } = useDocumentContent();
+  const { content } = useDocumentContent();
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    const document = getContent();
+    const document = content;
 
     // Calculate stats
     const words = document.trim().split(/\s+/).filter(w => w.length > 0).length;
@@ -41,7 +41,7 @@ export function TextStatsWidget({ data }: TextStatsWidgetProps) {
       avgSentenceLength: sentences > 0 ? Math.round(words / sentences) : 0,
       avgWordLength: words > 0 ? Math.round(charactersWithoutSpaces / words) : 0,
     });
-  }, [getContent]);
+  }, [content]);
 
   if (!stats) {
     return <div className="text-sm text-muted-foreground">Calculating statistics...</div>;

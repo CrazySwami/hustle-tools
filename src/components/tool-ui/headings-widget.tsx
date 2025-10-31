@@ -19,11 +19,11 @@ interface Heading {
 
 export function HeadingsWidget({ data }: HeadingsWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const { getContent } = useDocumentContent();
+  const { content } = useDocumentContent();
   const [headings, setHeadings] = useState<Heading[]>([]);
 
   useEffect(() => {
-    const document = getContent();
+    const document = content;
     const lines = document.split('\n');
     const found: Heading[] = [];
 

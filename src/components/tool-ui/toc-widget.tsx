@@ -23,11 +23,11 @@ interface Heading {
 export function TOCWidget({ data }: TOCWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
-  const { getContent } = useDocumentContent();
+  const { content } = useDocumentContent();
   const [toc, setToc] = useState('');
 
   useEffect(() => {
-    const document = getContent();
+    const document = content;
     const lines = document.split('\n');
     const headings: Heading[] = [];
 

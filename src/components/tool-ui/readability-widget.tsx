@@ -13,11 +13,11 @@ interface ReadabilityWidgetProps {
 
 export function ReadabilityWidget({ data }: ReadabilityWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const { getContent } = useDocumentContent();
+  const { content } = useDocumentContent();
   const [readability, setReadability] = useState<any>(null);
 
   useEffect(() => {
-    const document = getContent();
+    const document = content;
 
     // Calculate readability metrics
     const words = document.trim().split(/\s+/).filter(w => w.length > 0);

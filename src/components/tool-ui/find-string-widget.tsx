@@ -21,12 +21,12 @@ interface Occurrence {
 
 export function FindStringWidget({ data }: FindStringWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const { getContent } = useDocumentContent();
+  const { content } = useDocumentContent();
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    const document = getContent();
+    const document = content;
     const lines = document.split('\n');
     const found: Occurrence[] = [];
 

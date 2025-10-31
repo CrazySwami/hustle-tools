@@ -19,11 +19,11 @@ interface Duplicate {
 
 export function DuplicatesWidget({ data }: DuplicatesWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const { getContent } = useDocumentContent();
+  const { content } = useDocumentContent();
   const [duplicates, setDuplicates] = useState<Duplicate[]>([]);
 
   useEffect(() => {
-    const document = getContent();
+    const document = content;
     const paragraphs = document.split(/\n\n+/).filter(p => p.trim().length > 0);
     const found: Duplicate[] = [];
     const minWords = data.minLength || 10;

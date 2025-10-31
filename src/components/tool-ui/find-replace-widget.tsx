@@ -23,7 +23,7 @@ export function FindReplaceWidget({ data }: FindReplaceWidgetProps) {
   const [preview, setPreview] = useState<string[]>([]);
 
   useEffect(() => {
-    const document = getContent();
+    const document = content;
     let searchPattern: RegExp;
 
     try {
@@ -64,7 +64,7 @@ export function FindReplaceWidget({ data }: FindReplaceWidgetProps) {
     setStatus('loading');
 
     try {
-      const document = getContent();
+      const document = content;
       let searchPattern: RegExp;
 
       try {

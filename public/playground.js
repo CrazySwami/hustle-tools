@@ -2056,6 +2056,50 @@ PHPCODE;
             throw new Error(`Widget has PHP syntax errors:\n\n${errorMsg}\n\nFix these errors and try again.`);
         }
 
+        // Test widget instantiation to catch runtime errors
+        const runtimeCheckCode = `<?php
+            error_reporting(E_ALL);
+            ini_set('display_errors', 1);
+
+            require_once '/wordpress/wp-load.php';
+
+            $widget_code = <<<'PHPCODE'
+${widgetPhp}
+PHPCODE;
+
+            // Write widget to temp file
+            $temp_file = '/tmp/widget-test.php';
+            file_put_contents($temp_file, $widget_code);
+
+            // Try to load and instantiate the widget
+            try {
+                require_once $temp_file;
+
+                // Try to instantiate the widget class
+                $class_name = '${widgetClassName}';
+                if (class_exists($class_name)) {
+                    $widget = new $class_name();
+                    echo 'PHP_RUNTIME_OK';
+                } else {
+                    echo 'PHP_RUNTIME_ERROR: Class ' . $class_name . ' not found in widget.php';
+                }
+            } catch (Throwable $e) {
+                echo 'PHP_RUNTIME_ERROR: ' . $e->getMessage() . ' in ' . $e->getFile() . ' on line ' . $e->getLine();
+            }
+
+            unlink($temp_file);
+        ?>`;
+
+        console.log('🧪 Testing widget instantiation...');
+        const runtimeCheck = await playgroundClient.run({ code: runtimeCheckCode });
+        console.log('📋 Runtime check result:', runtimeCheck.text);
+
+        if (runtimeCheck.text.includes('PHP_RUNTIME_ERROR')) {
+            const errorMsg = runtimeCheck.text.replace('PHP_RUNTIME_ERROR: ', '');
+            console.error('❌ PHP RUNTIME ERROR IN WIDGET:', errorMsg);
+            throw new Error(`Widget has runtime errors:\n\n${errorMsg}\n\nFix these errors and try again.`);
+        }
+
         // Create plugin directory
         const pluginSlug = `elementor-${widgetSlug}`;
         const pluginDir = `/wordpress/wp-content/plugins/${pluginSlug}`;

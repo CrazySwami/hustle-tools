@@ -39,6 +39,7 @@ export function ProjectSidebar({
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
 
   // Handle right-click on group
   const handleContextMenu = (e: React.MouseEvent, groupId: string) => {
@@ -219,25 +220,18 @@ export function ProjectSidebar({
               key={group.id}
               onClick={() => onSelectGroup(group.id)}
               onContextMenu={(e) => handleContextMenu(e, group.id)}
+              onMouseEnter={() => setHoveredGroupId(group.id)}
+              onMouseLeave={() => setHoveredGroupId(null)}
               style={{
                 padding: '10px 12px',
-                background: activeGroupId === group.id ? '#2d2d2d' : 'transparent',
+                background: activeGroupId === group.id ? '#2d2d2d' : (hoveredGroupId === group.id ? '#2a2d2e' : 'transparent'),
                 borderLeft: activeGroupId === group.id ? '3px solid #007acc' : '3px solid transparent',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
                 transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                if (activeGroupId !== group.id) {
-                  e.currentTarget.style.background = '#2a2d2e';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeGroupId !== group.id) {
-                  e.currentTarget.style.background = 'transparent';
-                }
+                position: 'relative',
               }}
             >
               {/* Active Indicator */}
@@ -286,6 +280,40 @@ export function ProjectSidebar({
                 }}>
                   {group.name}
                 </span>
+              )}
+
+              {/* Delete Button (shows on hover) */}
+              {hoveredGroupId === group.id && renamingGroupId !== group.id && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(group);
+                  }}
+                  title="Delete project"
+                  style={{
+                    padding: '4px 6px',
+                    background: 'transparent',
+                    border: '1px solid #3e3e3e',
+                    borderRadius: '4px',
+                    color: '#f48771',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#f48771';
+                    e.currentTarget.style.color = '#1e1e1e';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#f48771';
+                  }}
+                >
+                  🗑️
+                </button>
               )}
             </div>
           ))

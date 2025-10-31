@@ -340,6 +340,60 @@ export function HtmlSectionEditor({
     }
   };
 
+  // Download widget PHP file
+  const handleDownloadWidgetPhp = () => {
+    if (!section.php || !section.php.trim()) {
+      alert('⚠️ No PHP widget code to download. Generate a widget first.');
+      return;
+    }
+
+    const blob = new Blob([section.php], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'widget.php';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Download widget CSS file
+  const handleDownloadWidgetCss = () => {
+    if (!editorCss.trim()) {
+      alert('⚠️ No CSS code to download. Add CSS code first.');
+      return;
+    }
+
+    const blob = new Blob([editorCss], { type: 'text/css' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'widget.css';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Download widget JS file
+  const handleDownloadWidgetJs = () => {
+    if (!editorJs.trim()) {
+      alert('⚠️ No JavaScript code to download. Add JS code first.');
+      return;
+    }
+
+    const blob = new Blob([editorJs], { type: 'text/javascript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'widget.js';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // Track if this is a loaded section (has initial content)
   const hasInitialContent = !!(
     initialSection?.html ||
@@ -544,6 +598,19 @@ export function HtmlSectionEditor({
           ...(section.php ? [{
             label: "🔄 Convert Back to HTML",
             onClick: handleConvertBackToHtml,
+            divider: true,
+          }] : []),
+          ...(section.php ? [{
+            label: "📥 Download widget.php",
+            onClick: handleDownloadWidgetPhp,
+          }] : []),
+          ...(editorCss.trim() ? [{
+            label: "📥 Download widget.css",
+            onClick: handleDownloadWidgetCss,
+          }] : []),
+          ...(editorJs.trim() ? [{
+            label: "📥 Download widget.js",
+            onClick: handleDownloadWidgetJs,
           }] : []),
           {
             label: "File Tree",

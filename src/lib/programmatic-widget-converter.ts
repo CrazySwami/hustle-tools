@@ -406,11 +406,105 @@ function generateControlPHP(id: string, control: any, defaultValue: any, selecto
  * Generate render method code
  */
 function generateRenderCode(elements: ParsedElement[], html: string, css: string, js: string): string {
+  // Generate dynamic PHP code that uses the controls
+  let dynamicHtml = html;
+
+  // For each parsed element, inject PHP variables for editable content
+  elements.forEach((element, elementIndex) => {
+    const controlPrefix = `${element.tag}_${elementIndex}_`;
+
+    // Replace text content with PHP variable if this element has text
+    if (element.text && element.text.trim()) {
+      // Handle headings (h1, h2, etc.)
+      if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(element.tag)) {
+        const originalTag = `<${element.tag}${element.classes.length > 0 ? ' class="' + element.classes.join(' ') + '"' : ''}>${element.text}</${element.tag}>`;
+        const controlId = `${controlPrefix}heading_text`;
+        const htmlTag = `${controlPrefix}html_tag`;
+
+        // Build dynamic heading with controls
+        const dynamicTag = `<?php
+        $heading_text_${elementIndex} = $settings['${controlId}'];
+        $html_tag_${elementIndex} = !empty($settings['${htmlTag}']) ? $settings['${htmlTag}'] : '${element.tag}';
+        $link_${elementIndex} = !empty($settings['${controlPrefix}link']) ? $settings['${controlPrefix}link'] : null;
+
+        // Add render attributes
+        $this->add_render_attribute('heading_${elementIndex}', 'class', '${element.classes.join(' ')}');
+        ?>
+        <?php if ($link_${elementIndex} && !empty($link_${elementIndex}['url'])) : ?>
+            <a href="<?php echo esc_url($link_${elementIndex}['url']); ?>"
+               <?php echo !empty($link_${elementIndex}['is_external']) ? 'target="_blank"' : ''; ?>
+               <?php echo !empty($link_${elementIndex}['nofollow']) ? 'rel="nofollow"' : ''; ?>>
+                <<?php echo esc_attr($html_tag_${elementIndex}); ?> <?php echo $this->get_render_attribute_string('heading_${elementIndex}'); ?>>
+                    <?php echo esc_html($heading_text_${elementIndex}); ?>
+                </<?php echo esc_attr($html_tag_${elementIndex}); ?>>
+            </a>
+        <?php else : ?>
+            <<?php echo esc_attr($html_tag_${elementIndex}); ?> <?php echo $this->get_render_attribute_string('heading_${elementIndex}'); ?>>
+                <?php echo esc_html($heading_text_${elementIndex}); ?>
+            </<?php echo esc_attr($html_tag_${elementIndex}); ?>>
+        <?php endif; ?>`;
+
+        dynamicHtml = dynamicHtml.replace(originalTag, dynamicTag);
+      }
+      // Handle buttons/links
+      else if (element.tag === 'a' || element.tag === 'button') {
+        const href = element.attributes['href'] || '#';
+        const buttonText = element.text;
+        const originalTag = new RegExp(`<${element.tag}[^>]*>${escapeRegex(buttonText)}</${element.tag}>`, 'g');
+        const controlId = `${controlPrefix}${element.tag === 'button' ? 'button_text' : 'link_text'}`;
+        const linkId = `${controlPrefix}${element.tag === 'button' ? 'button_link' : 'link_url'}`;
+
+        const dynamicTag = `<?php
+        $link_${elementIndex} = !empty($settings['${linkId}']) ? $settings['${linkId}'] : ['url' => '${href}'];
+        ?>
+        <${element.tag} href="<?php echo esc_url($link_${elementIndex}['url']); ?>"${element.classes.length > 0 ? ` class="${element.classes.join(' ')}"` : ''}>
+            <?php echo esc_html($settings['${controlId}']); ?>
+        </${element.tag}>`;
+
+        dynamicHtml = dynamicHtml.replace(originalTag, dynamicTag);
+      }
+      // Handle images
+      else if (element.tag === 'img') {
+        const src = element.attributes['src'] || '';
+        const alt = element.attributes['alt'] || '';
+        const originalTag = new RegExp(`<img[^>]*src="${escapeRegex(src)}"[^>]*>`, 'g');
+        const imageId = `${controlPrefix}image`;
+        const altId = `${controlPrefix}alt_text`;
+
+        const dynamicTag = `<?php
+        $image_${elementIndex} = !empty($settings['${imageId}']) ? $settings['${imageId}'] : ['url' => '${src}'];
+        $alt_${elementIndex} = !empty($settings['${altId}']) ? $settings['${altId}'] : '${alt}';
+        ?>
+        <img src="<?php echo esc_url($image_${elementIndex}['url']); ?>" alt="<?php echo esc_attr($alt_${elementIndex}); ?>"${element.classes.length > 0 ? ` class="${element.classes.join(' ')}"` : ''}>`;
+
+        dynamicHtml = dynamicHtml.replace(originalTag, dynamicTag);
+      }
+      // Handle regular text elements (p, span, div with text)
+      else if (['p', 'span', 'div', 'label'].includes(element.tag) && element.text) {
+        const originalTag = new RegExp(`<${element.tag}([^>]*)>${escapeRegex(element.text)}</${element.tag}>`, 'g');
+        const controlId = `${controlPrefix}text`;
+
+        const dynamicTag = `<${element.tag}$1><?php echo esc_html($settings['${controlId}']); ?></${element.tag}>`;
+        dynamicHtml = dynamicHtml.replace(originalTag, dynamicTag);
+      }
+    }
+
+    // Handle input placeholders
+    if (element.tag === 'input' && element.attributes['placeholder']) {
+      const placeholder = element.attributes['placeholder'];
+      const controlId = `${controlPrefix}placeholder`;
+      dynamicHtml = dynamicHtml.replace(
+        `placeholder="${placeholder}"`,
+        `placeholder="<?php echo esc_attr($settings['${controlId}']); ?>"`
+      );
+    }
+  });
+
   return `        $settings = $this->get_settings_for_display();
 
-        // Render HTML
+        // Render HTML with dynamic controls
         ?>
-${html}
+${dynamicHtml}
 
         <?php
         // Custom CSS
@@ -436,6 +530,13 @@ ${html}
             </script>
             <?php
         }`;
+}
+
+/**
+ * Helper: Escape string for use in regex
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

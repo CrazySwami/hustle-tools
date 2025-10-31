@@ -1,5 +1,5 @@
 import { streamText } from 'ai';
-import { createModel } from '@/lib/ai-models';
+import { gateway } from '@ai-sdk/gateway';
 
 export const runtime = 'nodejs';
 
@@ -58,7 +58,7 @@ Respond ONLY with valid JSON in this exact format:
 }`;
 
     const result = await streamText({
-      model: createModel('anthropic/claude-haiku-4-5-20251001'),
+      model: gateway('anthropic/claude-haiku-4-5-20251001'),
       prompt,
       maxTokens: 300,
       temperature: 0.7,

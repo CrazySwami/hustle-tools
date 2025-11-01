@@ -24,6 +24,7 @@ import { NewGroupDialog } from "./NewGroupDialog";
 import { HtmlSplitter } from "./HtmlSplitter";
 import { BatchWidgetConverter } from "./BatchWidgetConverter";
 import { WidgetValidationModal } from "./WidgetValidationModal";
+import { GenerateProjectModal } from "./GenerateProjectModal";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -89,6 +90,7 @@ export function HtmlSectionEditor({
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFileTree, setShowFileTree] = useState(true); // Show by default on desktop
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const { globalCss, cssVariables } = useGlobalStylesheet();
@@ -825,6 +827,11 @@ export function HtmlSectionEditor({
         isMobile={isMobile}
         isVisible={isTabVisible}
         options={[
+          {
+            label: "🚀 Generate New Project",
+            onClick: () => setShowGenerateModal(true),
+            divider: true,
+          },
           {
             label: "💾 Save to Library",
             onClick: () => setShowSaveDialog(true),
@@ -2612,6 +2619,34 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           if (!chatVisible && setChatVisible) {
             setChatVisible(true);
           }
+        }}
+      />
+
+      {/* Generate Project Modal */}
+      <GenerateProjectModal
+        isOpen={showGenerateModal}
+        onClose={() => setShowGenerateModal(false)}
+        selectedModel={undefined}
+        onGenerate={(code) => {
+          // Update the section with generated code
+          updateSection({
+            html: code.html,
+            css: code.css,
+            js: code.js,
+          });
+
+          // Update global editor content
+          setAllContent({
+            html: code.html,
+            css: code.css,
+            js: code.js,
+          });
+
+          // Switch to HTML tab to show generated code
+          setActiveEditorTab('html');
+
+          // Show success message
+          alert('✅ Project generated successfully! Code has been loaded into the editor.');
         }}
       />
     </div>

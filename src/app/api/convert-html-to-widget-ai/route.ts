@@ -200,7 +200,7 @@ ${js || '// No JavaScript provided'}
     });
 
     // Return the streaming response
-    return result.toDataStreamResponse();
+    return result.toTextStreamResponse();
 
   } catch (error: any) {
     console.error('❌ AI Widget Conversion Error:', error);

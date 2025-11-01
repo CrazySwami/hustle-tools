@@ -339,6 +339,8 @@ protected function render() {
 \`\`\`
 
 ### Advanced Tab (Custom CSS/JS, Animations)
+**CRITICAL**: Use heredoc syntax for CSS/JS defaults to avoid quote escaping issues!
+
 \`\`\`php
 \\$this->start_controls_section(
     'advanced_section',
@@ -354,7 +356,9 @@ protected function render() {
         'label' => __('Custom CSS', 'hustle-tools'),
         'type' => \\Elementor\\Controls_Manager::CODE,
         'language' => 'css',
-        'default' => '${css?.replace(/'/g, "\\'")}',
+        'default' => <<<CSS
+${css || '/* No CSS */'}
+CSS,
     ]
 );
 
@@ -364,7 +368,9 @@ protected function render() {
         'label' => __('Custom JavaScript', 'hustle-tools'),
         'type' => \\Elementor\\Controls_Manager::CODE,
         'language' => 'javascript',
-        'default' => '${js?.replace(/'/g, "\\'")}',
+        'default' => <<<JS
+${js || '// No JS'}
+JS,
     ]
 );
 
@@ -414,6 +420,7 @@ protected function render() {
 7. **TRANSLATIONS**: Wrap labels with \`__('Text', 'hustle-tools')\`
 8. **DEFAULTS**: Include original HTML/CSS/JS as defaults
 9. **ABSPATH CHECK**: Start with \`if (!defined('ABSPATH')) exit;\`
+10. **HEREDOC FOR CSS/JS**: ALWAYS use heredoc syntax (<<<CSS / <<<JS) for CSS/JS defaults to avoid quote escaping issues
 
 ---
 

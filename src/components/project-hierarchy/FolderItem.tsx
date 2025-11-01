@@ -32,6 +32,7 @@ export function FolderItem({
   const folder = node.data as FolderType;
 
   const handleToggle = () => {
+    console.log('Toggling folder:', node.id, node.name);
     toggleFolder(node.id);
   };
 

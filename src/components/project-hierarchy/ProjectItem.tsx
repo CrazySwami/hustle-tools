@@ -34,6 +34,7 @@ export function ProjectItem({
   const project = node.data as Project;
 
   const handleToggle = () => {
+    console.log('Toggling project:', node.id, node.name);
     toggleProject(node.id);
   };
 

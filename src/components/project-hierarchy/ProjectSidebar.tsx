@@ -14,7 +14,7 @@
  * - Search/filter
  */
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Search, ChevronLeft, ChevronRight, FolderPlus, FileText } from 'lucide-react';
 import { ProjectTree } from './ProjectTree';
 import { CreateProjectDialog } from './CreateProjectDialog';
@@ -47,25 +47,42 @@ export function ProjectSidebar({
   const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [selectedProjectForFolder, setSelectedProjectForFolder] = useState<string | undefined>();
 
-  // Build tree structure
-  const tree = buildProjectTree(
-    projects,
-    folders,
-    documents,
-    uiState.expandedProjects,
-    uiState.expandedFolders
-  );
+  // Debug logging
+  useEffect(() => {
+    console.log('ProjectSidebar re-rendered:', {
+      projectsCount: projects.length,
+      foldersCount: folders.length,
+      documentsCount: documents.length,
+      expandedProjects: uiState.expandedProjects,
+      expandedFolders: uiState.expandedFolders,
+    });
+  }, [projects, folders, documents, uiState]);
+
+  // Build tree structure - memoized
+  const tree = useMemo(() => {
+    const builtTree = buildProjectTree(
+      projects,
+      folders,
+      documents,
+      uiState.expandedProjects,
+      uiState.expandedFolders
+    );
+    console.log('Tree rebuilt:', builtTree);
+    return builtTree;
+  }, [projects, folders, documents, uiState.expandedProjects, uiState.expandedFolders]);
 
   // Filter tree by search query
-  const filteredTree = searchQuery
-    ? tree.filter(node => {
-        // For projects: check name
-        if (node.type === 'project') {
-          return node.name.toLowerCase().includes(searchQuery.toLowerCase());
-        }
-        return false;
-      })
-    : tree;
+  const filteredTree = useMemo(() => {
+    if (!searchQuery) return tree;
+
+    return tree.filter(node => {
+      // For projects: check name
+      if (node.type === 'project') {
+        return node.name.toLowerCase().includes(searchQuery.toLowerCase());
+      }
+      return false;
+    });
+  }, [tree, searchQuery]);
 
   const handleCreateFolder = (projectId: string) => {
     setSelectedProjectForFolder(projectId);

@@ -286,10 +286,9 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
             >
               {/* Sidebar Panel - slides in and pushes editor */}
               <div
-                className="h-full bg-background border-r border-border flex-shrink-0 transition-all duration-300 ease-out"
+                className="h-full bg-background border-r border-border flex-shrink-0 transition-all duration-300 ease-out overflow-hidden"
                 style={{
                   width: isSidebarVisible ? '320px' : '0px',
-                  marginLeft: isSidebarVisible ? '0px' : '-320px',
                 }}
               >
                 {/* Only render sidebar content when visible or animating */}

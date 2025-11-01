@@ -14,9 +14,10 @@ interface PlaygroundViewProps {
   setChatVisible?: (visible: boolean) => void;
   tabBarVisible?: boolean;
   setTabBarVisible?: (visible: boolean) => void;
+  isTabVisible?: boolean;
 }
 
-export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygroundReady, chatVisible, setChatVisible, tabBarVisible, setTabBarVisible }: PlaygroundViewProps) {
+export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygroundReady, chatVisible, setChatVisible, tabBarVisible, setTabBarVisible, isTabVisible = true }: PlaygroundViewProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [playgroundReady, setPlaygroundReady] = useState(false);
   const [status, setStatus] = useState('');
@@ -263,6 +264,7 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
         pageActions={
           <OptionsButton
             isMobile={isMobile}
+            isVisible={isTabVisible}
             options={[
               {
                 label: '🚀 Launch',

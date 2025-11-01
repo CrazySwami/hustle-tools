@@ -1121,6 +1121,7 @@ export default function ElementorEditorPage() {
                 streamedJs={streamedCode.js}
                 activeCodeTab={activeCodeTab}
                 onCodeTabChange={setActiveCodeTab}
+                isTabVisible={activeTab === 'json'}
                 onSendChatMessage={(message) => {
                   // Send message to chat from validation modal
                   sendMessage({ content: message, role: 'user' });
@@ -1177,6 +1178,7 @@ export default function ElementorEditorPage() {
               <PlaygroundView
                 json={currentJson}
                 isActive={activeTab === 'playground'}
+                isTabVisible={activeTab === 'playground'}
                 chatVisible={chatVisible}
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}
@@ -1194,6 +1196,7 @@ export default function ElementorEditorPage() {
 
             <div className={`tab-panel ${activeTab === 'sections' ? 'active' : ''}`} id="sectionsPanel" style={{ display: activeTab === 'sections' ? 'flex' : 'none' }}>
               <ProjectLibrary
+                isTabVisible={activeTab === 'sections'}
                 chatVisible={chatVisible}
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}
@@ -1211,6 +1214,7 @@ export default function ElementorEditorPage() {
             <div className={`tab-panel ${activeTab === 'site-content' ? 'active' : ''}`} id="siteContentPanel" style={{ display: activeTab === 'site-content' ? 'flex' : 'none' }}>
               <SiteContentManager
                 playgroundReady={playgroundReady}
+                isTabVisible={activeTab === 'site-content'}
                 chatVisible={chatVisible}
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}
@@ -1237,6 +1241,7 @@ export default function ElementorEditorPage() {
 
             <div className={`tab-panel ${activeTab === 'style-guide' ? 'active' : ''}`} id="styleGuidePanel" style={{ display: activeTab === 'style-guide' ? 'flex' : 'none' }}>
               <StyleGuideUnified
+                isTabVisible={activeTab === 'style-guide'}
                 chatVisible={chatVisible}
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}

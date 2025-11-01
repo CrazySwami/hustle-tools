@@ -17,9 +17,10 @@ interface OptionsButtonProps {
   options: OptionItem[];
   position?: { bottom?: string; left?: string; right?: string; top?: string };
   isMobile?: boolean;
+  isVisible?: boolean; // For tab-based layouts - controls portal rendering
 }
 
-export function OptionsButton({ options, position, isMobile = false }: OptionsButtonProps) {
+export function OptionsButton({ options, position, isMobile = false, isVisible = true }: OptionsButtonProps) {
   // Smart default positioning: account for mobile chat drawer
   const defaultPosition = {
     bottom: isMobile ? '25px' : '20px', // Lower on mobile to clear chat drawer
@@ -200,10 +201,15 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
     </div>
   );
 
-  // On mobile: render into bottom-nav-right portal
+  // On mobile: render into bottom-nav-right portal (only if visible)
   // On desktop: render with absolute positioning
-  if (isMobile && bottomNavRight) {
+  if (isMobile && bottomNavRight && isVisible) {
     return createPortal(mobileButton, bottomNavRight);
+  }
+
+  // If not visible on mobile, don't render anything
+  if (isMobile && !isVisible) {
+    return null;
   }
 
   return desktopButton;

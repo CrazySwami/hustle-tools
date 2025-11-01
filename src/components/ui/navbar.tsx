@@ -318,11 +318,11 @@ export function Navbar() {
         >
           {/* Water-fill hover animation background */}
           <div
-            className="absolute inset-0 bg-foreground dark:bg-background transition-all duration-500 ease-out translate-y-full group-hover:translate-y-0 rounded-full"
+            className="absolute inset-0 bg-foreground dark:bg-white transition-all duration-500 ease-out translate-y-full group-hover:translate-y-0 rounded-full"
           />
 
           {/* Text with color inversion on hover */}
-          <span className="relative z-10 transition-colors duration-500 group-hover:text-background group-hover:dark:text-foreground">
+          <span className="relative z-10 transition-colors duration-500 group-hover:text-background dark:group-hover:text-black">
             {isMobile ? 'HT' : 'Hustle Tools'}
           </span>
         </button>

@@ -14,6 +14,7 @@ interface StyleGuideProps {
   setChatVisible?: (visible: boolean) => void;
   tabBarVisible?: boolean;
   setTabBarVisible?: (visible: boolean) => void;
+  isTabVisible?: boolean;
 }
 
 export function StyleGuide({
@@ -21,6 +22,7 @@ export function StyleGuide({
   setChatVisible,
   tabBarVisible,
   setTabBarVisible,
+  isTabVisible = true,
 }: StyleGuideProps = {}) {
   const {
     globalCss,
@@ -662,6 +664,7 @@ export function StyleGuide({
       {/* Options Button */}
       <OptionsButton
         isMobile={isMobile}
+        isVisible={isTabVisible}
         options={[
           // Edit CSS
           {

@@ -13,6 +13,7 @@ interface SiteContentManagerProps {
   setChatVisible?: (visible: boolean) => void;
   tabBarVisible?: boolean;
   setTabBarVisible?: (visible: boolean) => void;
+  isTabVisible?: boolean;
 }
 
 interface PageData {
@@ -41,7 +42,7 @@ interface PageData {
   };
 }
 
-export function SiteContentManager({ onPush, onPull, playgroundReady, chatVisible, setChatVisible, tabBarVisible, setTabBarVisible }: SiteContentManagerProps) {
+export function SiteContentManager({ onPush, onPull, playgroundReady, chatVisible, setChatVisible, tabBarVisible, setTabBarVisible, isTabVisible = true }: SiteContentManagerProps) {
   const [activeTab, setActiveTab] = useState<'settings' | 'pages'>('settings');
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -950,6 +951,7 @@ export function SiteContentManager({ onPush, onPull, playgroundReady, chatVisibl
         pageActions={
           <OptionsButton
             isMobile={isMobile}
+            isVisible={isTabVisible}
             options={[
               // Settings/Pages toggle
               {

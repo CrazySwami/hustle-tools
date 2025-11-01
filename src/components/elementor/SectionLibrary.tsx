@@ -18,9 +18,10 @@ interface SectionLibraryProps {
   setChatVisible?: (visible: boolean) => void;
   tabBarVisible?: boolean;
   setTabBarVisible?: (visible: boolean) => void;
+  isTabVisible?: boolean;
 }
 
-export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisible, setChatVisible, tabBarVisible, setTabBarVisible }: SectionLibraryProps) {
+export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisible, setChatVisible, tabBarVisible, setTabBarVisible, isTabVisible = true }: SectionLibraryProps) {
   const { globalCss, lastUpdated } = useGlobalStylesheet();
   const toast = useToast();
   const [sections, setSections] = useState<Section[]>([]);
@@ -930,6 +931,7 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
         pageActions={
           <OptionsButton
             isMobile={isMobile}
+            isVisible={isTabVisible}
             options={[
               // Library view toggle
               {

@@ -1,6 +1,5 @@
 // AI-based HTML to Elementor Widget converter using Claude Sonnet 4.5
 import { streamText } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 
 export const maxDuration = 60;
 
@@ -130,11 +129,7 @@ export async function POST(req: Request) {
     console.log('📊 Parsed Elements:', parsedElements.length);
 
     // Step 2: AI Enhancement with Sonnet 4.5
-    const anthropic = createAnthropic({
-      apiKey: process.env.AI_GATEWAY_API_KEY,
-      baseURL: 'https://gateway.ai.cloudflare.com/v1/6f90d9dd78ebf00d5d3e7c0e20c68d0f/hustle-tools/anthropic',
-    });
-
+    // AI Gateway is handled automatically by model string (same as chat-elementor)
     const prompt = `You are an expert Elementor widget developer with deep knowledge of the Elementor Widget_Base API. Generate a production-ready Elementor widget PHP class.
 
 **PARSED HTML ELEMENTS:**
@@ -440,7 +435,7 @@ class ${widgetName.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.s
 Do NOT include any text before \`<?php\` or after the closing \`}\`. ONLY output the PHP code.`;
 
     const result = streamText({
-      model: anthropic('claude-sonnet-4-5-20250929'),
+      model: 'anthropic/claude-sonnet-4-5-20250929', // AI Gateway handled automatically
       prompt,
       temperature: 0.7,
       maxTokens: 16000,

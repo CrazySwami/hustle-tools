@@ -845,6 +845,37 @@ export function HtmlSectionEditor({
             onClick: handleDeployWidget,
             divider: true,
           }] : []),
+          ...(section.php ? [{
+            label: "✅ Validate Widget Code",
+            onClick: async () => {
+              if (!section.php) return;
+
+              setShowValidationModal(true);
+              setIsValidating(true);
+
+              try {
+                const validationResponse = await fetch('/api/validate-widget', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    widgetPhp: section.php,
+                    widgetName: section.name || 'widget',
+                    widgetTitle: section.name || 'Widget',
+                  }),
+                });
+
+                if (validationResponse.ok) {
+                  const validationData = await validationResponse.json();
+                  setValidationResult(validationData);
+                }
+              } catch (error: any) {
+                console.error('Validation failed:', error);
+                alert(`❌ Validation failed: ${error.message}`);
+              } finally {
+                setIsValidating(false);
+              }
+            },
+          }] : []),
           ...(section.php && editorHtml.trim() ? [{
             label: "🔃 Update Widget",
             onClick: handleConvertToWidget,

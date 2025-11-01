@@ -58,8 +58,14 @@ export function useProjects() {
     color?: string;
     icon?: string;
   }) => {
+    console.log('[createProject] Creating:', data);
     const project = projectStorage.create(data);
-    setProjects(prev => [...prev, project]);
+    console.log('[createProject] Created:', project);
+    setProjects(prev => {
+      const newProjects = [...prev, project];
+      console.log('[createProject] New projects array:', newProjects);
+      return newProjects;
+    });
     return project;
   }, []);
 
@@ -123,8 +129,14 @@ export function useFolders(projectId?: string) {
     color?: string;
     icon?: string;
   }) => {
+    console.log('[createFolder] Creating:', data);
     const folder = folderStorage.create(data);
-    setFolders(prev => [...prev, folder]);
+    console.log('[createFolder] Created:', folder);
+    setFolders(prev => {
+      const newFolders = [...prev, folder];
+      console.log('[createFolder] New folders array:', newFolders);
+      return newFolders;
+    });
     return folder;
   }, []);
 
@@ -202,8 +214,14 @@ export function useDocuments(projectId?: string, folderId?: string) {
     folderId?: string;
     tags?: string[];
   }) => {
+    console.log('[createDocument] Creating:', data);
     const document = documentStorage.create(data);
-    setDocuments(prev => [...prev, document]);
+    console.log('[createDocument] Created:', document);
+    setDocuments(prev => {
+      const newDocuments = [...prev, document];
+      console.log('[createDocument] New documents array:', newDocuments);
+      return newDocuments;
+    });
     return document;
   }, []);
 
@@ -268,14 +286,20 @@ export function useProjectUIState() {
   }, []);
 
   const toggleFolder = useCallback((folderId: string) => {
+    console.log('[toggleFolder] Before:', uiState.expandedFolders);
     uiStateStorage.toggleFolder(folderId);
-    setUIState(uiStateStorage.get());
-  }, []);
+    const newState = uiStateStorage.get();
+    console.log('[toggleFolder] After:', newState.expandedFolders);
+    setUIState({ ...newState }); // Force new object reference
+  }, [uiState]);
 
   const toggleProject = useCallback((projectId: string) => {
+    console.log('[toggleProject] Before:', uiState.expandedProjects);
     uiStateStorage.toggleProject(projectId);
-    setUIState(uiStateStorage.get());
-  }, []);
+    const newState = uiStateStorage.get();
+    console.log('[toggleProject] After:', newState.expandedProjects);
+    setUIState({ ...newState }); // Force new object reference
+  }, [uiState]);
 
   const selectDocument = useCallback((documentId: string) => {
     updateUIState({ selectedDocumentId: documentId });

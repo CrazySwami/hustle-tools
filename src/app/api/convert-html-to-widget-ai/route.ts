@@ -135,11 +135,9 @@ export async function POST(req: Request) {
       baseURL: 'https://gateway.ai.cloudflare.com/v1/6f90d9dd78ebf00d5d3e7c0e20c68d0f/hustle-tools/anthropic',
     });
 
-    const prompt = `You are an expert Elementor widget developer. I have programmatically parsed an HTML structure and identified all elements that need controls.
+    const prompt = `You are an expert Elementor widget developer with deep knowledge of the Elementor Widget_Base API. Generate a production-ready Elementor widget PHP class.
 
-**YOUR TASK:** Generate a complete, production-ready Elementor widget PHP class that includes comprehensive controls for EVERY element identified.
-
-**PARSED ELEMENTS:**
+**PARSED HTML ELEMENTS:**
 ${JSON.stringify(parsedElements, null, 2)}
 
 **ORIGINAL HTML:**
@@ -147,7 +145,7 @@ ${JSON.stringify(parsedElements, null, 2)}
 ${html}
 \`\`\`
 
-**ORIGINAL CSS:**
+**ORIGINAL CSS (Already scoped with {{WRAPPER}}):**
 \`\`\`css
 ${css || '/* No CSS provided */'}
 \`\`\`
@@ -162,55 +160,272 @@ ${js || '// No JavaScript provided'}
 - Title: ${widgetTitle || 'Custom Section'}
 - Description: ${widgetDescription || 'Convert this HTML section to an Elementor widget'}
 
-**CRITICAL REQUIREMENTS:**
+---
 
-1. **CORRECT CLASS STRUCTURE**: The widget MUST extend \`\\Elementor\\Widget_Base\` (with double backslash). Example:
-   \`\`\`php
-   class My_Widget extends \\Elementor\\Widget_Base {
-   \`\`\`
+## ELEMENTOR WIDGET_BASE API REQUIREMENTS
 
-2. **REQUIRED METHODS**: Include these EXACT methods:
-   - \`public function get_name()\` - Return widget slug
-   - \`public function get_title()\` - Return widget title
-   - \`public function get_icon()\` - Return Elementor icon class
-   - \`public function get_categories()\` - Return \`['hustle-tools']\`
-   - \`protected function register_controls()\` - Register ALL controls
-   - \`protected function render()\` - Output the HTML
+### 1. Class Structure (CRITICAL)
+\`\`\`php
+class ${widgetName.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('_')}_Widget extends \\Elementor\\Widget_Base {
+    // MUST extend \\Elementor\\Widget_Base (double backslash)
+}
+\`\`\`
 
-3. **GUARANTEE ALL CONTROLS**: For each element in the parsed list, you MUST create ALL the controls specified in "controlsNeeded"
+### 2. Required Methods (EXACT signatures)
+\`\`\`php
+public function get_name() {
+    return '${widgetName}'; // Widget slug (lowercase, underscores)
+}
 
-4. **PRESERVE STRUCTURE**: The render() method must output HTML that matches the original structure exactly
+public function get_title() {
+    return __('${widgetTitle}', 'hustle-tools'); // Translatable title
+}
 
-5. **CSS SCOPING**: The CSS will be automatically scoped with {{WRAPPER}} prefix, so you can reference the original selectors in your PHP comments
+public function get_icon() {
+    return 'eicon-code'; // Elementor icon class
+}
 
-6. **ORGANIZE INTELLIGENTLY**: Group related controls into logical sections:
-   - Content Tab: Text content, images, links, media
-   - Style Tab: Typography, colors, backgrounds, borders, shadows, spacing
-   - Advanced Tab: Custom CSS, Custom JS, animations, visibility
+public function get_categories() {
+    return ['hustle-tools']; // Custom category
+}
 
-7. **ELEMENT CLASS/ID DISPLAY**: In every control description, show the CSS selector:
-   \`'description' => 'CSS Selector: .class-name | ID: #element-id'\`
+protected function register_controls() {
+    // Register ALL controls here
+}
 
-8. **CUSTOM CSS/JS BOXES**: Include Custom CSS and Custom JavaScript code boxes in Advanced tab with the original CSS/JS as defaults
+protected function render() {
+    \\$settings = \\$this->get_settings_for_display();
+    // Output HTML with dynamic values
+}
+\`\`\`
 
-9. **WIDGET CATEGORY**: Use category ['hustle-tools'] to group all widgets together
+---
 
-10. **SEMANTIC NAMING**: Use intelligent control names based on context (e.g., "hero_title" not "text_1")
+## ELEMENTOR CONTROL TYPES REFERENCE
 
-11. **RESPONSIVE CONTROLS**: Use add_responsive_control() for spacing, typography where appropriate
+### Data Controls (Return single value)
+- **TEXT**: \`'type' => \\Elementor\\Controls_Manager::TEXT\`
+- **TEXTAREA**: \`'type' => \\Elementor\\Controls_Manager::TEXTAREA\`
+- **NUMBER**: \`'type' => \\Elementor\\Controls_Manager::NUMBER\`
+- **SELECT**: \`'type' => \\Elementor\\Controls_Manager::SELECT, 'options' => [...]\`
+- **CHOOSE**: \`'type' => \\Elementor\\Controls_Manager::CHOOSE, 'options' => [...]\` (Icon buttons)
+- **SWITCHER**: \`'type' => \\Elementor\\Controls_Manager::SWITCHER, 'return_value' => 'yes'\`
+- **COLOR**: \`'type' => \\Elementor\\Controls_Manager::COLOR\`
+- **CODE**: \`'type' => \\Elementor\\Controls_Manager::CODE, 'language' => 'css|html|javascript'\`
 
-12. **NO SHORTCUTS**: Do not skip ANY element. Every element must have corresponding controls.
+### Multi-Value Controls
+- **URL**: \`'type' => \\Elementor\\Controls_Manager::URL, 'default' => ['url' => '', 'is_external' => false]\`
+- **MEDIA**: \`'type' => \\Elementor\\Controls_Manager::MEDIA, 'default' => ['url' => '']\`
+- **ICONS**: \`'type' => \\Elementor\\Controls_Manager::ICONS\`
+- **GALLERY**: \`'type' => \\Elementor\\Controls_Manager::GALLERY\`
 
-13. **DYNAMIC RENDERING**: In the render() method, use \$settings = \$this->get_settings_for_display() and dynamically inject control values into the HTML
+### Unit Controls
+- **SLIDER**: \`'type' => \\Elementor\\Controls_Manager::SLIDER, 'range' => ['px' => ['min' => 0, 'max' => 100]]\`
+- **DIMENSIONS**: \`'type' => \\Elementor\\Controls_Manager::DIMENSIONS, 'size_units' => ['px', 'em', '%']\`
 
-14. **ABSPATH CHECK**: Start with:
-    \`\`\`php
-    if ( ! defined( 'ABSPATH' ) ) {
-        exit; // Exit if accessed directly
+### Group Controls (CRITICAL ACTIVATION PATTERN)
+**Typography** (MUST activate first):
+\`\`\`php
+\\$this->add_group_control(
+    \\Elementor\\Group_Control_Typography::get_type(),
+    [
+        'name' => 'heading_typography',
+        'selector' => '{{WRAPPER}} .heading',
+    ]
+);
+\`\`\`
+
+**Background** (MUST set type first):
+\`\`\`php
+\\$this->add_group_control(
+    \\Elementor\\Group_Control_Background::get_type(),
+    [
+        'name' => 'section_background',
+        'selector' => '{{WRAPPER}} .section',
+    ]
+);
+\`\`\`
+
+**Border**:
+\`\`\`php
+\\$this->add_group_control(
+    \\Elementor\\Group_Control_Border::get_type(),
+    [
+        'name' => 'button_border',
+        'selector' => '{{WRAPPER}} .button',
+    ]
+);
+\`\`\`
+
+**Box Shadow**, **Text Shadow**, **Text Stroke**, **CSS Filters**: Similar pattern
+
+### UI Controls (No value returned)
+- **HEADING**: Section dividers \`'type' => \\Elementor\\Controls_Manager::HEADING\`
+- **DIVIDER**: Visual separator \`'type' => \\Elementor\\Controls_Manager::DIVIDER\`
+
+---
+
+## CONTROL REGISTRATION PATTERNS
+
+### Content Tab (Text, Media, Links)
+\`\`\`php
+\\$this->start_controls_section(
+    'content_section',
+    [
+        'label' => __('Content', 'hustle-tools'),
+        'tab' => \\Elementor\\Controls_Manager::TAB_CONTENT,
+    ]
+);
+
+\\$this->add_control(
+    'heading_text',
+    [
+        'label' => __('Heading Text', 'hustle-tools'),
+        'type' => \\Elementor\\Controls_Manager::TEXT,
+        'default' => 'Default heading',
+        'dynamic' => ['active' => true],
+    ]
+);
+
+\\$this->add_control(
+    'image',
+    [
+        'label' => __('Image', 'hustle-tools'),
+        'type' => \\Elementor\\Controls_Manager::MEDIA,
+        'default' => ['url' => \\Elementor\\Utils::get_placeholder_image_src()],
+    ]
+);
+
+\\$this->end_controls_section();
+\`\`\`
+
+### Style Tab (Typography, Colors, Spacing)
+\`\`\`php
+\\$this->start_controls_section(
+    'style_section',
+    [
+        'label' => __('Style', 'hustle-tools'),
+        'tab' => \\Elementor\\Controls_Manager::TAB_STYLE,
+    ]
+);
+
+\\$this->add_group_control(
+    \\Elementor\\Group_Control_Typography::get_type(),
+    [
+        'name' => 'heading_typography',
+        'selector' => '{{WRAPPER}} .heading',
+    ]
+);
+
+\\$this->add_control(
+    'heading_color',
+    [
+        'label' => __('Color', 'hustle-tools'),
+        'type' => \\Elementor\\Controls_Manager::COLOR,
+        'selectors' => [
+            '{{WRAPPER}} .heading' => 'color: {{VALUE}};',
+        ],
+    ]
+);
+
+\\$this->add_responsive_control(
+    'heading_padding',
+    [
+        'label' => __('Padding', 'hustle-tools'),
+        'type' => \\Elementor\\Controls_Manager::DIMENSIONS,
+        'size_units' => ['px', 'em', '%'],
+        'selectors' => [
+            '{{WRAPPER}} .heading' => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
+        ],
+    ]
+);
+
+\\$this->end_controls_section();
+\`\`\`
+
+### Advanced Tab (Custom CSS/JS, Animations)
+\`\`\`php
+\\$this->start_controls_section(
+    'advanced_section',
+    [
+        'label' => __('Advanced', 'hustle-tools'),
+        'tab' => \\Elementor\\Controls_Manager::TAB_ADVANCED,
+    ]
+);
+
+\\$this->add_control(
+    'custom_css',
+    [
+        'label' => __('Custom CSS', 'hustle-tools'),
+        'type' => \\Elementor\\Controls_Manager::CODE,
+        'language' => 'css',
+        'default' => '${css?.replace(/'/g, "\\'")}',
+    ]
+);
+
+\\$this->add_control(
+    'custom_js',
+    [
+        'label' => __('Custom JavaScript', 'hustle-tools'),
+        'type' => \\Elementor\\Controls_Manager::CODE,
+        'language' => 'javascript',
+        'default' => '${js?.replace(/'/g, "\\'")}',
+    ]
+);
+
+\\$this->end_controls_section();
+\`\`\`
+
+---
+
+## RENDER METHOD REQUIREMENTS
+
+\`\`\`php
+protected function render() {
+    \\$settings = \\$this->get_settings_for_display();
+
+    // Output custom CSS
+    if (!empty(\\$settings['custom_css'])) {
+        echo '<style>' . \\$settings['custom_css'] . '</style>';
     }
-    \`\`\`
 
-**OUTPUT FORMAT:** Generate ONLY the complete PHP widget class. Start with:
+    // Output HTML with dynamic values
+    ?>
+    <div class="custom-widget">
+        <h1 class="heading"><?php echo esc_html(\\$settings['heading_text']); ?></h1>
+        <?php if (!empty(\\$settings['image']['url'])): ?>
+            <img src="<?php echo esc_url(\\$settings['image']['url']); ?>" alt="">
+        <?php endif; ?>
+    </div>
+    <?php
+
+    // Output custom JS
+    if (!empty(\\$settings['custom_js'])) {
+        echo '<script>' . \\$settings['custom_js'] . '</script>';
+    }
+}
+\`\`\`
+
+---
+
+## CRITICAL REQUIREMENTS
+
+1. **NO SHORTCUTS**: Create controls for EVERY element in the parsed list
+2. **SEMANTIC NAMING**: Use descriptive names (e.g., \`hero_title\` not \`text_1\`)
+3. **CSS SCOPING**: All CSS already has {{WRAPPER}} prefix
+4. **DYNAMIC VALUES**: Use \`\\$settings['control_name']\` in render()
+5. **ESCAPE OUTPUT**: Use \`esc_html()\`, \`esc_url()\`, \`esc_attr()\`
+6. **RESPONSIVE**: Use \`add_responsive_control()\` for spacing
+7. **TRANSLATIONS**: Wrap labels with \`__('Text', 'hustle-tools')\`
+8. **DEFAULTS**: Include original HTML/CSS/JS as defaults
+9. **ABSPATH CHECK**: Start with \`if (!defined('ABSPATH')) exit;\`
+
+---
+
+## OUTPUT FORMAT
+
+Generate ONLY the complete PHP widget class. Start with:
+
 \`\`\`php
 <?php
 if ( ! defined( 'ABSPATH' ) ) {
@@ -218,11 +433,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class ${widgetName.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('_')}_Widget extends \\Elementor\\Widget_Base {
-    // ... implementation
+    // ... complete implementation
 }
 \`\`\`
 
-Do NOT include any text before <?php or after the closing }. ONLY output the PHP code.`;
+Do NOT include any text before \`<?php\` or after the closing \`}\`. ONLY output the PHP code.`;
 
     const result = streamText({
       model: anthropic('claude-sonnet-4-5-20250929'),

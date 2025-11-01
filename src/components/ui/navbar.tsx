@@ -289,7 +289,7 @@ export function Navbar() {
           position: 'fixed',
           left: `${position.x}px`,
           top: `${position.y}px`,
-          zIndex: 3100, // Below chat drawer (3200) but above content
+          zIndex: 3250, // Above chat drawer handle (3200) so button is visible
           cursor: isDragging ? 'grabbing' : 'grab',
           transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           userSelect: 'none',

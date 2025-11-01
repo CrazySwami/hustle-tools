@@ -15,10 +15,11 @@
  */
 
 import { useState } from 'react';
-import { Plus, Search, ChevronLeft, ChevronRight, FolderPlus } from 'lucide-react';
+import { Plus, Search, ChevronLeft, ChevronRight, FolderPlus, FileText } from 'lucide-react';
 import { ProjectTree } from './ProjectTree';
 import { CreateProjectDialog } from './CreateProjectDialog';
 import { CreateFolderDialog } from './CreateFolderDialog';
+import { CreateDocumentDialog } from './CreateDocumentDialog';
 import { useProjects, useFolders, useDocuments, useProjectUIState, buildProjectTree } from '@/hooks/useProjectHierarchy';
 import { cn } from '@/lib/utils';
 
@@ -43,6 +44,7 @@ export function ProjectSidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [selectedProjectForFolder, setSelectedProjectForFolder] = useState<string | undefined>();
 
   // Build tree structure
@@ -98,6 +100,13 @@ export function ProjectSidebar({
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
           <h2 className="text-sm font-semibold text-foreground">Documents</h2>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowCreateDocument(true)}
+              className="p-1.5 hover:bg-accent rounded transition-colors"
+              title="New Document"
+            >
+              <FileText className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+            </button>
             <button
               onClick={() => setShowCreateProject(true)}
               className="p-1.5 hover:bg-accent rounded transition-colors"
@@ -176,6 +185,11 @@ export function ProjectSidebar({
           setSelectedProjectForFolder(undefined);
         }}
         projectId={selectedProjectForFolder}
+      />
+
+      <CreateDocumentDialog
+        open={showCreateDocument}
+        onClose={() => setShowCreateDocument(false)}
       />
     </>
   );

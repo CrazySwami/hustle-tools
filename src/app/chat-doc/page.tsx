@@ -281,32 +281,30 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
           {/* Right Panel: Tiptap Editor with Sidebar Overlay */}
           {isEditorVisible && (
             <div
-              className="h-full relative"
+              className="h-full relative overflow-hidden"
               style={{ width: `${100 - chatPanelWidth}%` }}
             >
-              {/* Sidebar Overlay */}
+              {/* Backdrop - only show when sidebar visible */}
               {isSidebarVisible && (
-                <>
-                  {/* Backdrop */}
-                  <div
-                    className="absolute inset-0 bg-black/20 z-40 transition-opacity"
-                    onClick={() => setIsSidebarVisible(false)}
-                  />
-                  {/* Sidebar Panel */}
-                  <div
-                    className="absolute left-0 top-0 bottom-0 w-80 bg-background border-r border-border z-50 shadow-lg transition-transform duration-200 ease-out"
-                    style={{
-                      transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
-                    }}
-                  >
-                    <ProjectSidebar
-                      onDocumentSelect={setSelectedDocumentId}
-                      selectedDocumentId={selectedDocumentId}
-                      onToggleCollapse={() => setIsSidebarVisible(false)}
-                    />
-                  </div>
-                </>
+                <div
+                  className="absolute inset-0 bg-black/20 z-40 transition-opacity duration-200"
+                  onClick={() => setIsSidebarVisible(false)}
+                />
               )}
+
+              {/* Sidebar Panel - always rendered for animation */}
+              <div
+                className="absolute left-0 top-0 bottom-0 w-80 bg-background border-r border-border z-50 shadow-lg transition-transform duration-300 ease-out"
+                style={{
+                  transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
+                }}
+              >
+                <ProjectSidebar
+                  onDocumentSelect={setSelectedDocumentId}
+                  selectedDocumentId={selectedDocumentId}
+                  onToggleCollapse={() => setIsSidebarVisible(false)}
+                />
+              </div>
 
               {/* Editor */}
               <TiptapEditor
@@ -327,33 +325,31 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
       {isMobile && (
         <>
           {/* Full-screen document editor with sidebar overlay */}
-          <div className="flex-1 h-full relative w-full min-w-0">
-            {/* Sidebar Overlay (Mobile) */}
+          <div className="flex-1 h-full relative w-full min-w-0 overflow-hidden">
+            {/* Backdrop - only show when sidebar visible */}
             {isSidebarVisible && (
-              <>
-                {/* Backdrop */}
-                <div
-                  className="fixed inset-0 bg-black/50 z-[9998]"
-                  onClick={() => setIsSidebarVisible(false)}
-                />
-                {/* Sidebar Panel - Full width slide-in from left */}
-                <div
-                  className="fixed left-0 top-0 bottom-0 w-full bg-background z-[9999] transition-transform duration-300 ease-out"
-                  style={{
-                    transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
-                  }}
-                >
-                  <ProjectSidebar
-                    onDocumentSelect={(id) => {
-                      setSelectedDocumentId(id);
-                      setIsSidebarVisible(false); // Auto-close on mobile after selecting
-                    }}
-                    selectedDocumentId={selectedDocumentId}
-                    onToggleCollapse={() => setIsSidebarVisible(false)}
-                  />
-                </div>
-              </>
+              <div
+                className="fixed inset-0 bg-black/50 z-[9998] transition-opacity duration-200"
+                onClick={() => setIsSidebarVisible(false)}
+              />
             )}
+
+            {/* Sidebar Panel - 80% width slide-over from left (mobile) */}
+            <div
+              className="fixed left-0 top-0 bottom-0 w-[80%] max-w-sm bg-background border-r border-border z-[9999] shadow-2xl transition-transform duration-300 ease-out"
+              style={{
+                transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
+              }}
+            >
+              <ProjectSidebar
+                onDocumentSelect={(id) => {
+                  setSelectedDocumentId(id);
+                  setIsSidebarVisible(false); // Auto-close on mobile after selecting
+                }}
+                selectedDocumentId={selectedDocumentId}
+                onToggleCollapse={() => setIsSidebarVisible(false)}
+              />
+            </div>
 
             <TiptapEditor
               initialContent={documentContent}

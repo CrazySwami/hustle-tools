@@ -643,6 +643,24 @@ export const reverseImageSearchTool = tool({
   },
 });
 
+// Validate Elementor Widget PHP Code
+export const validateWidgetTool = tool({
+  description: 'Validate an Elementor widget PHP file against best practices and requirements. Returns detailed validation report with scores. Use this BEFORE deploying widgets or when user asks to "check" or "validate" the code. Only works on PHP widget projects.',
+  inputSchema: z.object({
+    projectName: z.string().optional().describe('Optional: Name of the PHP widget project to validate. If not provided, validates the currently active project.'),
+  }),
+  execute: async ({ projectName }) => {
+    return {
+      projectName: projectName || 'current',
+      timestamp: new Date().toISOString(),
+      status: 'validation_requested',
+      message: projectName
+        ? `Validating widget project: ${projectName}`
+        : 'Validating current PHP widget project',
+    };
+  },
+});
+
 export const tools = {
   googleSearch: googleSearchTool,
   getWeather: weatherTool,
@@ -679,4 +697,5 @@ export const tools = {
   editImage: editImageTool,                  // ⭐ AI image editing
   removeBackground: removeBackgroundTool,    // ⭐ Background removal
   reverseImageSearch: reverseImageSearchTool, // ⭐ Reverse image search
+  validateWidget: validateWidgetTool,        // ⭐ Validate Elementor widget PHP code
 };

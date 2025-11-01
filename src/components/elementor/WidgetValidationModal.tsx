@@ -243,10 +243,39 @@ export function WidgetValidationModal({
             padding: '16px 24px',
             borderTop: '1px solid var(--border)',
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             gap: '12px'
           }}
         >
+          <div>
+            {validationResult && validationResult.checks.some(c => !c.passed) && onFixIssues && (
+              <button
+                onClick={() => {
+                  onFixIssues();
+                  onClose();
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: 'var(--primary)',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              >
+                🔧 Fix Issues with AI
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
             style={{

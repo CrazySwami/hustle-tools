@@ -143,43 +143,47 @@ export default function APIMonitorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-background px-4 py-6 md:p-8 md:pt-20">
+      <div className="max-w-7xl mx-auto space-y-6 md:space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">API Monitor</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl md:text-3xl font-bold">API Monitor</h1>
+            <p className="text-sm md:text-base text-muted-foreground mt-1">
               Real-time tracking of all API calls, token usage, and costs
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => setAutoRefresh(!autoRefresh)}
+              size="sm"
+              className="flex-1 md:flex-none"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-              {autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
+              <span className="hidden sm:inline">{autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}</span>
+              <span className="sm:hidden">{autoRefresh ? 'Auto ON' : 'Auto OFF'}</span>
             </Button>
-            <Button variant="outline" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
-              Export
+            <Button variant="outline" onClick={handleExport} size="sm" className="flex-1 md:flex-none">
+              <Download className="w-4 h-4 md:mr-2" />
+              <span className="hidden md:inline">Export</span>
             </Button>
-            <Button variant="destructive" onClick={handleClear}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Clear
+            <Button variant="destructive" onClick={handleClear} size="sm" className="flex-1 md:flex-none">
+              <Trash2 className="w-4 h-4 md:mr-2" />
+              <span className="hidden md:inline">Clear</span>
             </Button>
           </div>
         </div>
 
         {/* Time Range Selector */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-2">
           {(['1h', '24h', '7d', 'all'] as const).map((range) => (
             <Button
               key={range}
               variant={timeRange === range ? 'default' : 'outline'}
               onClick={() => setTimeRange(range)}
               size="sm"
+              className="whitespace-nowrap"
             >
               {range === '1h' ? 'Last Hour' : range === '24h' ? 'Last 24 Hours' : range === '7d' ? 'Last 7 Days' : 'All Time'}
             </Button>
@@ -314,49 +318,49 @@ export default function APIMonitorPage() {
         {/* Recent API Calls */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle>Recent API Calls</CardTitle>
                 <CardDescription>Last 100 API requests</CardDescription>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 md:flex-row">
                 <input
                   type="text"
                   placeholder="Filter endpoint..."
                   value={filterEndpoint}
                   onChange={(e) => setFilterEndpoint(e.target.value)}
-                  className="px-3 py-1 text-sm border border-border rounded-md bg-background"
+                  className="px-3 py-2 text-sm border border-border rounded-md bg-background w-full md:w-auto"
                 />
                 <input
                   type="text"
                   placeholder="Filter provider..."
                   value={filterProvider}
                   onChange={(e) => setFilterProvider(e.target.value)}
-                  className="px-3 py-1 text-sm border border-border rounded-md bg-background"
+                  className="px-3 py-2 text-sm border border-border rounded-md bg-background w-full md:w-auto"
                 />
                 <input
                   type="text"
                   placeholder="Filter model..."
                   value={filterModel}
                   onChange={(e) => setFilterModel(e.target.value)}
-                  className="px-3 py-1 text-sm border border-border rounded-md bg-background"
+                  className="px-3 py-2 text-sm border border-border rounded-md bg-background w-full md:w-auto"
                 />
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto -mx-6 md:mx-0">
+              <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="border-b border-border text-left text-sm text-muted-foreground">
-                    <th className="pb-2">Time</th>
+                    <th className="pb-2 pl-6 md:pl-0">Time</th>
                     <th className="pb-2">Endpoint</th>
-                    <th className="pb-2">Provider</th>
-                    <th className="pb-2">Model</th>
+                    <th className="pb-2 hidden md:table-cell">Provider</th>
+                    <th className="pb-2 hidden md:table-cell">Model</th>
                     <th className="pb-2">Status</th>
-                    <th className="pb-2">Time (ms)</th>
-                    <th className="pb-2">Tokens</th>
-                    <th className="pb-2">Cost</th>
+                    <th className="pb-2 hidden sm:table-cell">Time (ms)</th>
+                    <th className="pb-2 hidden lg:table-cell">Tokens</th>
+                    <th className="pb-2 pr-6 md:pr-0">Cost</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -365,13 +369,13 @@ export default function APIMonitorPage() {
                       key={log.id}
                       className="border-b border-border/50 hover:bg-muted/50 transition-colors"
                     >
-                      <td className="py-2 text-sm">
+                      <td className="py-3 text-xs md:text-sm pl-6 md:pl-0 whitespace-nowrap">
                         {new Date(log.timestamp).toLocaleTimeString()}
                       </td>
-                      <td className="py-2 text-sm font-mono">{log.endpoint}</td>
-                      <td className="py-2 text-sm capitalize">{log.provider || '-'}</td>
-                      <td className="py-2 text-sm font-mono text-xs">{log.model || '-'}</td>
-                      <td className="py-2">
+                      <td className="py-3 text-xs md:text-sm font-mono truncate max-w-[150px] md:max-w-none">{log.endpoint}</td>
+                      <td className="py-3 text-xs md:text-sm capitalize hidden md:table-cell">{log.provider || '-'}</td>
+                      <td className="py-3 text-xs font-mono hidden md:table-cell truncate max-w-[120px]">{log.model || '-'}</td>
+                      <td className="py-3">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                             log.success
@@ -382,18 +386,18 @@ export default function APIMonitorPage() {
                           {log.responseStatus}
                         </span>
                       </td>
-                      <td className="py-2 text-sm">{log.responseTime}ms</td>
-                      <td className="py-2 text-sm">
+                      <td className="py-3 text-xs md:text-sm hidden sm:table-cell whitespace-nowrap">{log.responseTime}ms</td>
+                      <td className="py-3 text-xs md:text-sm hidden lg:table-cell">
                         {log.totalTokens ? formatNumber(log.totalTokens) : '-'}
                       </td>
-                      <td className="py-2 text-sm font-semibold">
+                      <td className="py-3 text-xs md:text-sm font-semibold pr-6 md:pr-0 whitespace-nowrap">
                         {log.estimatedCost ? formatCost(log.estimatedCost) : '-'}
                       </td>
                     </tr>
                   ))}
                   {logs.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-muted-foreground">
+                      <td colSpan={8} className="py-8 text-center text-muted-foreground text-sm">
                         No API calls recorded yet
                       </td>
                     </tr>

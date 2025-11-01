@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Wand2, Edit3, Scissors, Search, ImageIcon, Settings, Copy as CopyIcon } from 'lucide-react';
+import { Wand2, Edit3, Scissors, Search, ImageIcon, Settings, Copy as CopyIcon, Menu, X } from 'lucide-react';
 import { GenerateTab } from '@/components/image-editor/GenerateTab';
 import { EditTab } from '@/components/image-editor/EditTab';
 import { BackgroundRemovalTab } from '@/components/image-editor/BackgroundRemovalTab';
@@ -15,20 +15,54 @@ export default function ImageEditorPage() {
   const [activeTab, setActiveTab] = useState<'generate' | 'edit' | 'background' | 'search' | 'stock' | 'processing' | 'duplicate'>('processing');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageHistory, setImageHistory] = useState<Array<{ url: string; label: string }>>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const addToHistory = (url: string, label: string) => {
     setImageHistory(prev => [{ url, label }, ...prev.slice(0, 19)]); // Keep last 20
   };
 
+  const handleTabChange = (tab: typeof activeTab) => {
+    setActiveTab(tab);
+    setMobileMenuOpen(false); // Close mobile menu after selection
+  };
+
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex flex-col md:flex-row h-screen bg-background">
+      {/* Mobile Header with Menu Toggle */}
+      <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
+        <h1 className="text-lg font-semibold">Image Editor</h1>
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 hover:bg-muted rounded-lg transition-colors"
+        >
+          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </div>
+
       {/* Left Sidebar - Tools */}
-      <div className="w-80 border-r border-border flex flex-col overflow-hidden bg-card">
+      <div className={`
+        ${mobileMenuOpen ? 'flex' : 'hidden'} md:flex
+        fixed md:relative inset-0 md:inset-auto
+        z-50 md:z-auto
+        w-full md:w-80
+        border-r border-border
+        flex-col overflow-hidden
+        bg-card md:bg-card
+        ${mobileMenuOpen ? 'mt-[73px]' : ''}
+      `}>
+        {/* Mobile Backdrop */}
+        {mobileMenuOpen && (
+          <div
+            className="md:hidden fixed inset-0 bg-black/50 -z-10"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+
         {/* Tab Navigation */}
         <div className="border-b border-border">
           <div className="p-2 space-y-1">
             <button
-              onClick={() => setActiveTab('processing')}
+              onClick={() => handleTabChange('processing')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === 'processing'
                   ? 'bg-primary text-primary-foreground'
@@ -39,7 +73,7 @@ export default function ImageEditorPage() {
               Process Image
             </button>
             <button
-              onClick={() => setActiveTab('generate')}
+              onClick={() => handleTabChange('generate')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === 'generate'
                   ? 'bg-primary text-primary-foreground'
@@ -50,7 +84,7 @@ export default function ImageEditorPage() {
               Generate Image
             </button>
             <button
-              onClick={() => setActiveTab('edit')}
+              onClick={() => handleTabChange('edit')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === 'edit'
                   ? 'bg-primary text-primary-foreground'
@@ -61,7 +95,7 @@ export default function ImageEditorPage() {
               Edit with AI
             </button>
             <button
-              onClick={() => setActiveTab('background')}
+              onClick={() => handleTabChange('background')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === 'background'
                   ? 'bg-primary text-primary-foreground'
@@ -72,7 +106,7 @@ export default function ImageEditorPage() {
               Remove Background
             </button>
             <button
-              onClick={() => setActiveTab('search')}
+              onClick={() => handleTabChange('search')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === 'search'
                   ? 'bg-primary text-primary-foreground'
@@ -83,7 +117,7 @@ export default function ImageEditorPage() {
               Reverse Search
             </button>
             <button
-              onClick={() => setActiveTab('stock')}
+              onClick={() => handleTabChange('stock')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === 'stock'
                   ? 'bg-primary text-primary-foreground'
@@ -94,7 +128,7 @@ export default function ImageEditorPage() {
               Stock Photos
             </button>
             <button
-              onClick={() => setActiveTab('duplicate')}
+              onClick={() => handleTabChange('duplicate')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === 'duplicate'
                   ? 'bg-primary text-primary-foreground'

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractLogos, extractColors, extractFonts } from '@/lib/brand-extractor';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+
   try {
     const { url } = await req.json();
 
@@ -94,6 +97,17 @@ export async function POST(req: NextRequest) {
     console.log(`✅ Found ${fonts.length} fonts`);
 
     // 7. Return analysis
+    // Log successful brand analysis (this doesn't use AI, but we track it for completeness)
+    apiMonitor.log({
+      endpoint: '/api/analyze-brand',
+      method: 'POST',
+      provider: 'none', // This is web scraping, not AI
+      model: 'none',
+      responseStatus: 200,
+      responseTime: Date.now() - startTime,
+      success: true,
+    });
+
     return NextResponse.json({
       url,
       title,
@@ -103,6 +117,17 @@ export async function POST(req: NextRequest) {
       extractedAt: new Date().toISOString(),
     });
   } catch (error) {
+    apiMonitor.log({
+      endpoint: '/api/analyze-brand',
+      method: 'POST',
+      provider: 'none',
+      model: 'none',
+      responseStatus: 500,
+      responseTime: Date.now() - startTime,
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to analyze brand',
+    });
+
     console.error('❌ Brand analysis error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to analyze brand' },

@@ -2,10 +2,13 @@
 import { streamText } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
 import { convertToWidgetProgrammatic } from '@/lib/programmatic-widget-converter';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+
   try {
     const {
       description,
@@ -577,6 +580,25 @@ NOTHING else. No markdown. No explanations.`,
       }),
       prompt: prompts[type],
       temperature: 0.7,
+      onFinish: async ({ usage }) => {
+        const responseTime = Date.now() - startTime;
+        const [provider, modelName] = model.includes('/')
+          ? model.split('/')
+          : ['unknown', model];
+
+        apiMonitor.log({
+          endpoint: '/api/generate-html-stream',
+          method: 'POST',
+          provider,
+          model: modelName || model,
+          responseStatus: 200,
+          responseTime,
+          success: true,
+          promptTokens: usage?.promptTokens || 0,
+          completionTokens: usage?.completionTokens || 0,
+          totalTokens: usage?.totalTokens || 0,
+        });
+      },
     });
 
     console.log(`✅ Streaming ${type.toUpperCase()} response`);
@@ -631,6 +653,19 @@ NOTHING else. No markdown. No explanations.`,
     });
 
   } catch (error: any) {
+    const responseTime = Date.now() - startTime;
+
+    apiMonitor.log({
+      endpoint: '/api/generate-html-stream',
+      method: 'POST',
+      provider: 'unknown',
+      model: 'unknown',
+      responseStatus: 500,
+      responseTime,
+      success: false,
+      error: error.message || 'HTML generation failed',
+    });
+
     console.error('❌ HTML generation error:', error);
     return Response.json(
       {

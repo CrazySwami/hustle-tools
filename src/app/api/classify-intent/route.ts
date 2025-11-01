@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export const runtime = 'edge';
 
@@ -11,6 +12,8 @@ interface IntentClassification {
 }
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+
   try {
     const { message, conversationHistory } = await req.json();
 
@@ -96,6 +99,18 @@ Rules:
       classification = JSON.parse(jsonStr);
 
       console.log('🎯 Intent classified:', classification);
+
+      // Log successful classification
+      apiMonitor.log({
+        endpoint: '/api/classify-intent',
+        method: 'POST',
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        responseStatus: 200,
+        responseTime: Date.now() - startTime,
+        success: true,
+        // Token usage not available from raw fetch response
+      });
     } catch (parseError) {
       console.error('❌ Failed to parse classification:', content);
 
@@ -107,11 +122,36 @@ Rules:
         targetElements: [],
         reasoning: 'Parse error, using safe fallback'
       };
+
+      // Log parse error
+      apiMonitor.log({
+        endpoint: '/api/classify-intent',
+        method: 'POST',
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        responseStatus: 200,
+        responseTime: Date.now() - startTime,
+        success: false,
+        error: 'Parse error, using safe fallback',
+      });
     }
 
     return NextResponse.json(classification);
 
   } catch (error: any) {
+    const responseTime = Date.now() - startTime;
+
+    apiMonitor.log({
+      endpoint: '/api/classify-intent',
+      method: 'POST',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      responseStatus: 500,
+      responseTime,
+      success: false,
+      error: error.message,
+    });
+
     console.error('❌ Intent classification error:', error);
 
     // Safe fallback on any error

@@ -12,13 +12,14 @@ interface BottomNavProps {
 export function BottomNav({ pageActions, mobileOnly = true }: BottomNavProps) {
   return (
     <div
-      className={`fixed bottom-0 left-0 right-0 z-[9998] pointer-events-none ${
+      className={`fixed bottom-0 left-0 right-0 pointer-events-none ${
         mobileOnly ? 'md:hidden' : ''
       }`}
       style={{
-        paddingBottom: '10px', // 10px from bottom edge
+        paddingBottom: '58px', // 48px chat handle height + 10px spacing
         paddingLeft: '10px',
         paddingRight: '10px',
+        zIndex: 3100, // Below chat drawer (3200) but above content
       }}
     >
       <div className="flex items-end justify-between max-w-screen-xl mx-auto">

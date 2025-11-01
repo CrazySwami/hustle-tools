@@ -35,23 +35,23 @@ export function DocumentItem({
     }
   };
 
-  const paddingLeft = depth * 12 + 20; // Extra padding for documents (no chevron)
+  const paddingLeft = depth * 12 + 24; // Extra padding for documents (no chevron)
 
   return (
     <div
       className={cn(
-        "group flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors text-sm",
+        "group flex items-center gap-1.5 px-1.5 py-1 rounded cursor-pointer transition-all text-sm",
         isSelected
-          ? "bg-primary/10 text-primary"
-          : "hover:bg-muted/50"
+          ? "bg-primary/15 text-primary font-medium"
+          : "hover:bg-accent/60 text-foreground/85"
       )}
       style={{ paddingLeft: `${paddingLeft}px` }}
       onClick={() => onSelect?.(document.id)}
     >
       {/* Icon */}
       <FileText className={cn(
-        "w-3.5 h-3.5 flex-shrink-0",
-        isSelected ? "text-primary" : "text-muted-foreground"
+        "w-3 h-3 flex-shrink-0",
+        isSelected ? "text-primary" : "text-muted-foreground/70"
       )} />
 
       {/* Name */}
@@ -61,20 +61,20 @@ export function DocumentItem({
 
       {/* Tags indicator */}
       {document.tags && document.tags.length > 0 && (
-        <Tags className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+        <Tags className="w-2.5 h-2.5 text-muted-foreground/60 flex-shrink-0" />
       )}
 
-      {/* Actions (show on hover) */}
+      {/* Actions (show on hover) - ClickUp Style */}
       <div className="relative opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={(e) => {
             e.stopPropagation();
             setShowMenu(!showMenu);
           }}
-          className="p-1 hover:bg-muted rounded transition-colors"
+          className="p-1 hover:bg-accent/80 rounded transition-colors"
           title="More options"
         >
-          <MoreVertical className="w-3.5 h-3.5" />
+          <MoreVertical className="w-3 h-3 text-muted-foreground" />
         </button>
 
         {showMenu && (

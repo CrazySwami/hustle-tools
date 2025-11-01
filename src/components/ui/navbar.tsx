@@ -294,7 +294,7 @@ export function Navbar() {
           position: 'fixed',
           left: `${position.x}px`,
           top: `${position.y}px`,
-          zIndex: 9999,
+          zIndex: 3100, // Below chat drawer (3200) but above content
           cursor: isDragging ? 'grabbing' : 'grab',
           transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           userSelect: 'none',
@@ -332,7 +332,7 @@ export function Navbar() {
       {!isMobile && menuOpen && (
         <div
           ref={menuRef}
-          className="fixed z-[9998] bg-card/95 backdrop-blur-md border border-border rounded-lg shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
+          className="fixed z-[3150] bg-card/95 backdrop-blur-md border border-border rounded-lg shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
           style={{
             left: `${position.x}px`,
             top: corner.includes('bottom') ? 'auto' : `${position.y + 60}px`,
@@ -461,7 +461,7 @@ export function Navbar() {
           {/* Backdrop */}
           {menuOpen && (
             <div
-              className="fixed inset-0 bg-black/50 z-[9997] animate-in fade-in duration-200"
+              className="fixed inset-0 bg-black/50 z-[3140] animate-in fade-in duration-200"
               onClick={() => setMenuOpen(false)}
             />
           )}
@@ -470,7 +470,7 @@ export function Navbar() {
           <div
             ref={menuRef}
             className={cn(
-              "fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-white dark:bg-background border-r border-border z-[9998] overflow-y-auto transition-transform duration-300 ease-out",
+              "fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-white dark:bg-background border-r border-border z-[3150] overflow-y-auto transition-transform duration-300 ease-out",
               menuOpen ? "translate-x-0" : "-translate-x-full"
             )}
           >

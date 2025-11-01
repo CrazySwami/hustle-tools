@@ -47,53 +47,59 @@ export function ProjectItem({
 
   return (
     <div>
-      {/* Project Row */}
+      {/* Project Row - ClickUp Style */}
       <div
         className={cn(
-          "group flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors",
+          "group flex items-center gap-1.5 px-1.5 py-1 rounded hover:bg-accent/60 cursor-pointer transition-all",
           "text-sm"
         )}
-        style={{ paddingLeft: `${paddingLeft}px` }}
+        style={{ paddingLeft: `${paddingLeft + 4}px` }}
       >
         {/* Expand/Collapse */}
         <button
           onClick={handleToggle}
-          className="p-0.5 hover:bg-muted rounded transition-colors flex-shrink-0"
+          className="p-0.5 hover:bg-accent/80 rounded transition-colors flex-shrink-0"
         >
           {node.isExpanded ? (
-            <ChevronDown className="w-3.5 h-3.5" />
+            <ChevronDown className="w-3 h-3 text-muted-foreground" />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5" />
+            <ChevronRight className="w-3 h-3 text-muted-foreground" />
           )}
         </button>
 
         {/* Icon */}
-        <span className="text-base flex-shrink-0">
+        <span className="text-sm flex-shrink-0 opacity-70">
           {node.icon || '📁'}
         </span>
 
         {/* Name */}
-        <span className="flex-1 truncate font-medium" onClick={handleToggle}>
+        <span className="flex-1 truncate font-medium text-foreground/90" onClick={handleToggle}>
           {node.name}
         </span>
 
-        {/* Actions (show on hover) */}
+        {/* Actions (show on hover) - ClickUp Style */}
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={() => onCreateFolder?.(project.id)}
-            className="p-1 hover:bg-muted rounded transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCreateFolder?.(project.id);
+            }}
+            className="p-1 hover:bg-accent/80 rounded transition-colors"
             title="New Folder"
           >
-            <FolderPlus className="w-3.5 h-3.5" />
+            <FolderPlus className="w-3 h-3 text-muted-foreground" />
           </button>
 
           <div className="relative">
             <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="p-1 hover:bg-muted rounded transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMenu(!showMenu);
+              }}
+              className="p-1 hover:bg-accent/80 rounded transition-colors"
               title="More options"
             >
-              <MoreVertical className="w-3.5 h-3.5" />
+              <MoreVertical className="w-3 h-3 text-muted-foreground" />
             </button>
 
             {showMenu && (

@@ -20,13 +20,11 @@ const ChatBotDemo = () => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | undefined>(undefined);
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true); // Project sidebar visibility
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false); // Project sidebar visibility (overlay on editor)
 
-  // Resizable divider state
-  const [leftPanelWidth, setLeftPanelWidth] = useState(20); // 20% for sidebar (was 40% for chat)
-  const [middlePanelWidth, setMiddlePanelWidth] = useState(35); // 35% for chat
+  // Resizable divider state - now just for chat/editor split
+  const [chatPanelWidth, setChatPanelWidth] = useState(40); // 40% for chat
   const [isResizing, setIsResizing] = useState(false);
-  const [resizingDivider, setResizingDivider] = useState<'left' | 'right' | null>(null); // Which divider is being resized
 
   // Document content management - synced with TiptapEditor
   const documentContentStore = useDocumentContent();
@@ -127,39 +125,25 @@ const ChatBotDemo = () => {
     setIsEditorVisible(!isEditorVisible);
   };
 
-  // Resizable divider handlers for three panels
-  const handleMouseDown = (divider: 'left' | 'right') => {
+  // Resizable divider handlers for chat/editor split
+  const handleMouseDown = () => {
     setIsResizing(true);
-    setResizingDivider(divider);
   };
 
   const handleMouseMove = (e: MouseEvent) => {
-    if (!isResizing || !resizingDivider) return;
+    if (!isResizing) return;
 
     const containerWidth = window.innerWidth;
-    const mousePercent = (e.clientX / containerWidth) * 100;
+    const newWidth = (e.clientX / containerWidth) * 100;
 
-    if (resizingDivider === 'left') {
-      // Resizing sidebar/chat divider
-      // Constrain sidebar between 15% and 35%
-      if (mousePercent >= 15 && mousePercent <= 35) {
-        setLeftPanelWidth(mousePercent);
-      }
-    } else if (resizingDivider === 'right') {
-      // Resizing chat/editor divider
-      // Chat starts at leftPanelWidth, constrain between 25% and 50% of remaining space
-      const chatStartPercent = leftPanelWidth;
-      const chatWidth = mousePercent - chatStartPercent;
-
-      if (chatWidth >= 25 && chatWidth <= 50) {
-        setMiddlePanelWidth(chatWidth);
-      }
+    // Constrain between 25% and 60%
+    if (newWidth >= 25 && newWidth <= 60) {
+      setChatPanelWidth(newWidth);
     }
   };
 
   const handleMouseUp = () => {
     setIsResizing(false);
-    setResizingDivider(null);
   };
 
   // Add/remove event listeners for resizing
@@ -251,46 +235,13 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
 
   return (
     <div className={`flex h-screen w-full max-w-full overflow-x-hidden ${isMobile ? 'px-2 py-2' : 'px-4 py-4'} gap-0`}>
-      {/* Desktop: Three-panel layout with resizable dividers */}
+      {/* Desktop: Two-panel layout (Chat | Editor) with sidebar overlay on editor */}
       {!isMobile && (
         <>
-          {/* Left Panel: Project Sidebar */}
-          {isSidebarVisible && (
-            <>
-              <div
-                className="flex flex-col h-full"
-                style={{ width: `${leftPanelWidth}%` }}
-              >
-                <ProjectSidebar
-                  onDocumentSelect={setSelectedDocumentId}
-                  selectedDocumentId={selectedDocumentId}
-                />
-              </div>
-
-              {/* Left Divider (between sidebar and chat) */}
-              <div
-                onMouseDown={() => handleMouseDown('left')}
-                style={{
-                  width: '4px',
-                  cursor: 'col-resize',
-                  background: 'var(--border)',
-                  position: 'relative',
-                  transition: isResizing ? 'none' : 'background 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isResizing) e.currentTarget.style.background = 'var(--primary)';
-                }}
-                onMouseLeave={(e) => {
-                  if (!isResizing) e.currentTarget.style.background = 'var(--border)';
-                }}
-              />
-            </>
-          )}
-
-          {/* Middle Panel: Chat */}
+          {/* Left Panel: Chat */}
           <div
             className="flex flex-col h-full"
-            style={{ width: isSidebarVisible ? `${middlePanelWidth}%` : (isEditorVisible ? `${leftPanelWidth + middlePanelWidth}%` : '100%') }}
+            style={{ width: isEditorVisible ? `${chatPanelWidth}%` : '100%' }}
           >
             <DocumentChat
               messages={messages}
@@ -307,10 +258,10 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
             />
           </div>
 
-          {/* Right Divider (between chat and editor) */}
+          {/* Divider (between chat and editor) */}
           {isEditorVisible && (
             <div
-              onMouseDown={() => handleMouseDown('right')}
+              onMouseDown={handleMouseDown}
               style={{
                 width: '4px',
                 cursor: 'col-resize',
@@ -327,18 +278,45 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
             />
           )}
 
-          {/* Right Panel: Tiptap Editor */}
+          {/* Right Panel: Tiptap Editor with Sidebar Overlay */}
           {isEditorVisible && (
             <div
               className="h-full relative"
-              style={{ width: isSidebarVisible ? `${100 - leftPanelWidth - middlePanelWidth}%` : `${100 - leftPanelWidth - middlePanelWidth}%` }}
+              style={{ width: `${100 - chatPanelWidth}%` }}
             >
+              {/* Sidebar Overlay */}
+              {isSidebarVisible && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className="absolute inset-0 bg-black/20 z-40 transition-opacity"
+                    onClick={() => setIsSidebarVisible(false)}
+                  />
+                  {/* Sidebar Panel */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-80 bg-background border-r border-border z-50 shadow-lg transition-transform duration-200 ease-out"
+                    style={{
+                      transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
+                    }}
+                  >
+                    <ProjectSidebar
+                      onDocumentSelect={setSelectedDocumentId}
+                      selectedDocumentId={selectedDocumentId}
+                      onToggleCollapse={() => setIsSidebarVisible(false)}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Editor */}
               <TiptapEditor
                 initialContent={documentContent}
                 onContentChange={setDocumentContent}
                 onCommentsChange={setComments}
                 onAIEdit={handleAIEdit}
                 selectedModel={selectedModel}
+                onToggleSidebar={() => setIsSidebarVisible(!isSidebarVisible)}
+                isSidebarVisible={isSidebarVisible}
               />
             </div>
           )}
@@ -348,14 +326,43 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
       {/* Mobile: Full-screen editor with bottom chat drawer */}
       {isMobile && (
         <>
-          {/* Full-screen document editor */}
+          {/* Full-screen document editor with sidebar overlay */}
           <div className="flex-1 h-full relative w-full min-w-0">
+            {/* Sidebar Overlay (Mobile) */}
+            {isSidebarVisible && (
+              <>
+                {/* Backdrop */}
+                <div
+                  className="fixed inset-0 bg-black/50 z-[9998]"
+                  onClick={() => setIsSidebarVisible(false)}
+                />
+                {/* Sidebar Panel - Full width slide-in from left */}
+                <div
+                  className="fixed left-0 top-0 bottom-0 w-full bg-background z-[9999] transition-transform duration-300 ease-out"
+                  style={{
+                    transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
+                  }}
+                >
+                  <ProjectSidebar
+                    onDocumentSelect={(id) => {
+                      setSelectedDocumentId(id);
+                      setIsSidebarVisible(false); // Auto-close on mobile after selecting
+                    }}
+                    selectedDocumentId={selectedDocumentId}
+                    onToggleCollapse={() => setIsSidebarVisible(false)}
+                  />
+                </div>
+              </>
+            )}
+
             <TiptapEditor
               initialContent={documentContent}
               onContentChange={setDocumentContent}
               onCommentsChange={setComments}
               onAIEdit={handleAIEdit}
               selectedModel={selectedModel}
+              onToggleSidebar={() => setIsSidebarVisible(!isSidebarVisible)}
+              isSidebarVisible={isSidebarVisible}
             />
           </div>
 

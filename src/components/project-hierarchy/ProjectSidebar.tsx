@@ -93,55 +93,55 @@ export function ProjectSidebar({
 
   return (
     <>
-      <div className="flex flex-col h-full border-r border-border bg-card">
-        {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b border-border">
-          <h2 className="text-sm font-semibold">Projects</h2>
+      <div className="flex flex-col h-full bg-background">
+        {/* Header - ClickUp Style */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+          <h2 className="text-sm font-semibold text-foreground">Documents</h2>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setShowCreateProject(true)}
-              className="p-1.5 hover:bg-muted rounded-md transition-colors"
+              className="p-1.5 hover:bg-accent rounded transition-colors"
               title="New Project"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 text-muted-foreground hover:text-foreground" />
             </button>
             {onToggleCollapse && (
               <button
                 onClick={onToggleCollapse}
-                className="p-1.5 hover:bg-muted rounded-md transition-colors"
-                title="Collapse sidebar"
+                className="p-1.5 hover:bg-accent rounded transition-colors"
+                title="Close sidebar"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-4 h-4 text-muted-foreground hover:text-foreground" />
               </button>
             )}
           </div>
         </div>
 
-        {/* Search */}
-        <div className="p-2 border-b border-border">
+        {/* Search - Minimal Style */}
+        <div className="px-3 py-2">
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search projects..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-2 py-1.5 text-sm bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full pl-9 pr-3 py-2 text-sm bg-accent/50 border-0 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 focus:bg-accent placeholder:text-muted-foreground/60"
             />
           </div>
         </div>
 
-        {/* Tree View */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide p-2">
+        {/* Tree View - Clean scrolling */}
+        <div className="flex-1 overflow-y-auto scrollbar-hide px-2 py-1">
           {filteredTree.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center p-4">
-              <p className="text-sm text-muted-foreground mb-3">
-                {searchQuery ? 'No projects found' : 'No projects yet'}
+            <div className="flex flex-col items-center justify-center h-32 text-center px-4">
+              <p className="text-sm text-muted-foreground mb-2">
+                {searchQuery ? 'No documents found' : 'No projects yet'}
               </p>
               {!searchQuery && (
                 <button
                   onClick={() => setShowCreateProject(true)}
-                  className="text-sm text-primary hover:underline"
+                  className="text-xs text-primary hover:underline font-medium"
                 >
                   Create your first project
                 </button>
@@ -157,9 +157,9 @@ export function ProjectSidebar({
           )}
         </div>
 
-        {/* Footer Stats */}
-        <div className="p-2 border-t border-border text-xs text-muted-foreground">
-          {projects.length} {projects.length === 1 ? 'project' : 'projects'} • {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+        {/* Footer Stats - Minimal */}
+        <div className="px-4 py-2 border-t border-border/50 text-xs text-muted-foreground/70">
+          {projects.length} {projects.length === 1 ? 'project' : 'projects'} · {documents.length} {documents.length === 1 ? 'doc' : 'docs'}
         </div>
       </div>
 

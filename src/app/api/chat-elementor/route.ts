@@ -1,5 +1,5 @@
 // AI Gateway chat endpoint for Elementor JSON Editor
-import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
+import { streamText, UIMessage, convertToModelMessages, stepCountIs, tool } from 'ai';
 import { tools } from '@/lib/tools';
 import { apiMonitor } from '@/lib/api-monitor';
 
@@ -29,6 +29,10 @@ export async function POST(req: Request) {
       includeContext: boolean;
     } = await req.json();
 
+    // Detect project type for validation tool
+    const hasPhpCode = currentSection?.php && currentSection.php.length > 0;
+    const projectType = hasPhpCode ? 'PHP Widget' : 'HTML Section';
+
     console.log('📨 Elementor Chat request:', {
       model,
       messageCount: messages.length,
@@ -43,6 +47,7 @@ export async function POST(req: Request) {
       generateCode: tools.generateCode,
       manageTask: tools.manageTask,
       editCodeWithMorph: tools.editCodeWithMorph,  // ⭐ THE ONLY CODE TOOL
+      ...(hasPhpCode ? { validateWidget: tools.validateWidget } : {}), // ⭐ PHP VALIDATION
     }));
 
     // Convert messages with error handling (same as main chat)
@@ -163,7 +168,17 @@ When user asks "can you see my code", say NO - the editor is empty.
 
 **When user asks "can you see my code":**
 - If files are shown above with ✅: Say "Yes, I can see your [HTML/CSS/JS/PHP] code" and reference specific content
-- If you see ❌: Say "No, the editor appears empty"`;
+- If you see ❌: Say "No, the editor appears empty"
+
+${currentSection ? `
+**🎯 CURRENT PROJECT:**
+- Name: ${currentSection.name || 'Untitled'}
+- Type: ${projectType}
+- Files: ${['html', 'css', 'js', ...(hasPhpCode ? ['php'] : [])].join(', ')}
+
+When using editCodeWithMorph or validateWidget tools, you are working with the "${currentSection.name || 'Untitled'}" project.
+${hasPhpCode ? '\n⚠️ This is a PHP widget project. You can use the validateWidget tool to check code quality before deployment.' : ''}
+` : ''}`;
 
     // Enable web search for Perplexity models (same as main chat)
     if (webSearch && model.startsWith('perplexity/')) {
@@ -182,6 +197,7 @@ ${Object.keys(currentJson).length > 0 ? 'Current page has: ' + JSON.stringify(cu
     // Add tool calling instructions
     systemPrompt += `\n\n**Available Tools:**
 - **editCodeWithMorph**: 🎯 PRIMARY TOOL - Use this for ALL code writing/editing. Works on empty files AND existing code. Uses lazy edits (// ... existing code ...) for precision. 98% accurate, 10x faster than diffs.
+${hasPhpCode ? '- **validateWidget**: ✅ Validate PHP widget code against Elementor best practices. Returns detailed report with scores and specific issues. Use BEFORE deployment or when user asks to "check" or "validate" the widget.\n' : ''}
 - **getWeather**: Get current weather information
 - **calculate**: Perform mathematical calculations
 - **generateCode**: Generate code snippets in various languages
@@ -189,11 +205,60 @@ ${Object.keys(currentJson).length > 0 ? 'Current page has: ' + JSON.stringify(cu
 
 **CRITICAL INSTRUCTIONS:**
 When a user asks to write or edit code (e.g., "create a hero section", "change the button color", "add a navbar"), you MUST use the editCodeWithMorph tool. This tool works on BOTH empty files AND existing code.
-
+${hasPhpCode ? '\nWhen a user asks to "validate", "check", or "verify" the widget code, use the validateWidget tool to get a detailed quality report.\n' : ''}
 After using a tool, provide a helpful text response that explains what the tool will do or what results it returned.`;
 
     // Configure options based on model type
     const options = model.startsWith('perplexity/') && webSearch ? { search: true } : undefined;
+
+    // Create custom validateWidget tool that has access to currentSection
+    const validateWidgetWithContext = tool({
+      description: tools.validateWidget.description,
+      parameters: tools.validateWidget.parameters,
+      execute: async ({ projectName }: { projectName?: string }) => {
+        // Check if we have PHP code to validate
+        if (!hasPhpCode || !currentSection?.php) {
+          return {
+            error: 'No PHP widget code found in current project',
+            projectName: projectName || currentSection?.name || 'unknown',
+            projectType,
+          };
+        }
+
+        try {
+          // Call validation API
+          const validationResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/validate-widget`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              widgetPhp: currentSection.php,
+              widgetName: currentSection.name || 'widget',
+              widgetTitle: currentSection.name || 'Widget',
+            }),
+          });
+
+          if (!validationResponse.ok) {
+            return {
+              error: 'Validation API request failed',
+              status: validationResponse.status,
+            };
+          }
+
+          const validationResult = await validationResponse.json();
+
+          return {
+            ...validationResult,
+            projectName: projectName || currentSection.name || 'current',
+            projectType: 'PHP Widget',
+          };
+        } catch (error: any) {
+          return {
+            error: 'Validation request failed',
+            details: error.message,
+          };
+        }
+      },
+    });
 
     const toolsConfig = {
       getWeather: tools.getWeather,
@@ -205,6 +270,7 @@ After using a tool, provide a helpful text response that explains what the tool 
       // REMOVED: testPing - diagnostic tool no longer needed
       // REMOVED: switchTab - tab navigation handled by UI, not tools
       editCodeWithMorph: tools.editCodeWithMorph,  // ⭐ THE ONLY CODE TOOL - Works on empty AND existing files
+      ...(hasPhpCode ? { validateWidget: validateWidgetWithContext } : {}), // ⭐ PHP VALIDATION TOOL - Only available for PHP widgets
     };
 
     console.log('🚀 Calling streamText...', {

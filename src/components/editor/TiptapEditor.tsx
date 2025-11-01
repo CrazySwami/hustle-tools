@@ -383,12 +383,14 @@ interface TiptapEditorProps {
   toolbarActions?: React.ReactNode;
   onAIEdit?: (selectedText: string, instruction: string, enableWebSearch?: boolean) => void;
   selectedModel?: string;
+  onToggleSidebar?: () => void;
+  isSidebarVisible?: boolean;
 }
 
 const savedContent = typeof window !== 'undefined' ? localStorage.getItem('tiptap-document') : null;
 const initialComments = typeof window !== 'undefined' ? localStorage.getItem('tiptap-comments') : null;
 
-export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions, onAIEdit, selectedModel }: TiptapEditorProps = {}) {
+export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions, onAIEdit, selectedModel, onToggleSidebar, isSidebarVisible }: TiptapEditorProps = {}) {
   const [isMounted, setIsMounted] = useState(false)
   const [showColorSelector, setShowColorSelector] = useState(false)
   const [showHighlightSelector, setShowHighlightSelector] = useState(false)
@@ -765,6 +767,19 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       <div className="border rounded-lg bg-background shadow-sm h-full flex flex-col w-full max-w-full overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center gap-1 p-2 bg-muted/20 border-b overflow-x-auto min-w-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 10 }}>
+          {/* Sidebar Toggle (ClickUp-style) */}
+          {onToggleSidebar && (
+            <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
+              <MenuButton
+                onClick={onToggleSidebar}
+                isActive={isSidebarVisible}
+                title="Toggle Document Hierarchy"
+              >
+                <AlignJustify className="h-4 w-4" />
+              </MenuButton>
+            </div>
+          )}
+
           {/* Text formatting */}
           <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
             <MenuButton 

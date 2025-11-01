@@ -278,44 +278,42 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
             />
           )}
 
-          {/* Right Panel: Tiptap Editor with Sidebar Overlay */}
+          {/* Right Panel: Tiptap Editor with Sidebar that pushes content */}
           {isEditorVisible && (
             <div
-              className="h-full relative overflow-hidden"
+              className="h-full flex overflow-hidden"
               style={{ width: `${100 - chatPanelWidth}%` }}
             >
-              {/* Backdrop - only show when sidebar visible */}
-              {isSidebarVisible && (
-                <div
-                  className="absolute inset-0 bg-black/20 z-40 transition-opacity duration-200"
-                  onClick={() => setIsSidebarVisible(false)}
-                />
-              )}
-
-              {/* Sidebar Panel - always rendered for animation */}
+              {/* Sidebar Panel - slides in and pushes editor */}
               <div
-                className="absolute left-0 top-0 bottom-0 w-80 bg-background border-r border-border z-50 shadow-lg transition-transform duration-300 ease-out"
+                className="h-full bg-background border-r border-border flex-shrink-0 transition-all duration-300 ease-out"
                 style={{
-                  transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
+                  width: isSidebarVisible ? '320px' : '0px',
+                  marginLeft: isSidebarVisible ? '0px' : '-320px',
                 }}
               >
-                <ProjectSidebar
-                  onDocumentSelect={setSelectedDocumentId}
-                  selectedDocumentId={selectedDocumentId}
-                  onToggleCollapse={() => setIsSidebarVisible(false)}
-                />
+                {/* Only render sidebar content when visible or animating */}
+                <div className="w-80 h-full">
+                  <ProjectSidebar
+                    onDocumentSelect={setSelectedDocumentId}
+                    selectedDocumentId={selectedDocumentId}
+                    onToggleCollapse={() => setIsSidebarVisible(false)}
+                  />
+                </div>
               </div>
 
-              {/* Editor */}
-              <TiptapEditor
-                initialContent={documentContent}
-                onContentChange={setDocumentContent}
-                onCommentsChange={setComments}
-                onAIEdit={handleAIEdit}
-                selectedModel={selectedModel}
-                onToggleSidebar={() => setIsSidebarVisible(!isSidebarVisible)}
-                isSidebarVisible={isSidebarVisible}
-              />
+              {/* Editor - gets pushed to the right when sidebar opens */}
+              <div className="flex-1 h-full overflow-hidden">
+                <TiptapEditor
+                  initialContent={documentContent}
+                  onContentChange={setDocumentContent}
+                  onCommentsChange={setComments}
+                  onAIEdit={handleAIEdit}
+                  selectedModel={selectedModel}
+                  onToggleSidebar={() => setIsSidebarVisible(!isSidebarVisible)}
+                  isSidebarVisible={isSidebarVisible}
+                />
+              </div>
             </div>
           )}
         </>

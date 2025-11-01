@@ -881,6 +881,23 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 </div>
               )}
             </div>
+
+            <div className="relative dropdown-container">
+              <MenuButton
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowLineHeightSelector(!showLineHeightSelector)
+                }}
+                title="Line Height"
+              >
+                <LineHeightIcon className="h-4 w-4" />
+              </MenuButton>
+              {showLineHeightSelector && (
+                <div className="absolute z-[9999] top-full left-0 mt-1">
+                  <LineHeightSelector editor={editor} />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Headings and blocks */}

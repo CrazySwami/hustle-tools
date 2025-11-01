@@ -62,6 +62,11 @@ function getDefaultState(): EditorState {
  * Load state from localStorage
  */
 export function loadEditorState(): EditorState {
+  // Check if running in browser (not SSR)
+  if (typeof window === 'undefined') {
+    return getDefaultState();
+  }
+
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) {
@@ -87,6 +92,11 @@ export function loadEditorState(): EditorState {
  * Save state to localStorage
  */
 export function saveEditorState(state: EditorState): void {
+  // Check if running in browser (not SSR)
+  if (typeof window === 'undefined') {
+    return;
+  }
+
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (error) {
@@ -536,6 +546,11 @@ export function getStorageInfo(): { used: number; limit: number; percentage: num
  * Migrate from old single-section format
  */
 export function migrateFromOldFormat(): boolean {
+  // Check if running in browser (not SSR)
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
   // Check if new format already exists
   const existing = localStorage.getItem(STORAGE_KEY);
   if (existing) {
@@ -590,6 +605,11 @@ export function migrateFromOldFormat(): boolean {
  * Save group to Section Library (for backward compatibility)
  */
 export function saveGroupToLibrary(group: FileGroup): void {
+  // Check if running in browser (not SSR)
+  if (typeof window === 'undefined') {
+    return;
+  }
+
   const sections = JSON.parse(localStorage.getItem('html-sections') || '[]');
 
   const librarySection = {
@@ -612,6 +632,11 @@ export function saveGroupToLibrary(group: FileGroup): void {
  * Load group from Section Library
  */
 export function loadGroupFromLibrary(libraryId: string): FileGroup | null {
+  // Check if running in browser (not SSR)
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
   const sections = JSON.parse(localStorage.getItem('html-sections') || '[]');
   const librarySection = sections.find((s: any) => s.id === libraryId);
 

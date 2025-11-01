@@ -764,9 +764,9 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
   return (
     <>
-      <div className="border rounded-lg bg-background shadow-sm h-full flex flex-col w-full max-w-full overflow-hidden">
+      <div className="border rounded-lg bg-background shadow-sm h-full flex flex-col w-full overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center gap-1 p-2 bg-muted/20 border-b overflow-x-auto min-w-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 10 }}>
+        <div className="flex items-center gap-1 p-2 pl-3 bg-muted/20 border-b overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 10 }}>
           {/* Sidebar Toggle (ClickUp-style) */}
           {onToggleSidebar && (
             <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">

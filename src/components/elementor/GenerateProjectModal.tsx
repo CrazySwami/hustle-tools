@@ -251,7 +251,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
                     </h3>
                   </div>
                   <p style={{ margin: '0 0 0 28px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
-                    Widget-ready code with proper {{'{WRAPPER}'}} scoping for Elementor
+                    Widget-ready code with proper {'{WRAPPER}'} scoping for Elementor
                   </p>
                 </div>
               </label>
@@ -330,18 +330,11 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
                 <div style={{
                   width: '100%',
                   height: '4px',
-                  background: 'var(--muted)',
+                  background: 'var(--primary)',
                   borderRadius: '2px',
-                  overflow: 'hidden',
                   margin: '20px 0',
-                }}>
-                  <div style={{
-                    height: '100%',
-                    background: 'var(--primary)',
-                    animation: 'progress 2s ease-in-out infinite',
-                    width: '30%',
-                  }} />
-                </div>
+                  opacity: 0.6,
+                }} />
               )}
             </div>
           )}
@@ -392,14 +385,6 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
           </div>
         )}
       </div>
-
-      <style jsx>{`
-        @keyframes progress {
-          0% { transform: translateX(-100%); }
-          50% { transform: translateX(400%); }
-          100% { transform: translateX(-100%); }
-        }
-      `}</style>
     </div>
   );
 }

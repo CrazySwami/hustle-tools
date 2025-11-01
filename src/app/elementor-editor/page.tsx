@@ -30,6 +30,7 @@ import type { Toast } from '@/components/ui/Toast';
 import { KeyboardShortcutsModal, type KeyboardShortcut } from '@/components/ui/KeyboardShortcutsModal';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useToast } from '@/hooks/useToast';
+import { BottomNav } from '@/components/ui/BottomNav';
 
 const SAMPLE_JSON = {
   widgetType: "custom_html_section",
@@ -1369,6 +1370,9 @@ export default function ElementorEditorPage() {
           shortcuts={keyboardShortcuts}
         />
       )}
+
+      {/* Bottom Navigation - Mobile Only */}
+      <BottomNav />
       </>
     </GlobalStylesheetProvider>
   );

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Activity, DollarSign, Zap, TrendingUp, Download, Trash2, RefreshCw, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { BottomNav } from '@/components/ui/BottomNav';
 
 interface APILog {
   id: string;
@@ -408,6 +409,9 @@ export default function APIMonitorPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bottom Navigation - Mobile Only */}
+      <BottomNav />
     </div>
   );
 }

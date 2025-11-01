@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Upload, Wand2, Edit3, Scissors, Search, Download, Copy, Loader2, CheckCircle, XCircle, ExternalLink, Image as ImageIcon, Video } from 'lucide-react';
+import { BottomNav } from '@/components/ui/BottomNav';
 
 type ImageProvider = 'openai' | 'gemini';
 type OpenAIModel = 'dall-e-3' | 'gpt-image-1';
@@ -1331,51 +1332,30 @@ export function ImageEditor({ chatVisible, setChatVisible, tabBarVisible, setTab
         )}
       </div>
 
-      {/* Bottom Left: Chat/TabBar Toggle Button (like other tabs) */}
+      {/* Bottom Navigation with Chat/TabBar Toggle Button */}
       {(setChatVisible || setTabBarVisible) && (
-        <button
-          onClick={() => {
-            if (setChatVisible) setChatVisible(!chatVisible);
-            if (setTabBarVisible) setTabBarVisible(!tabBarVisible);
-          }}
-          style={{
-            position: 'fixed',
-            bottom: '20px',
-            left: '20px',
-            zIndex: 9999, // Higher z-index to appear above everything
-            background: 'var(--primary)',
-            color: 'var(--primary-foreground)',
-            border: '2px solid var(--background)',
-            borderRadius: '50%',
-            width: '56px',
-            height: '56px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.4)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
-          }}
-          title={chatVisible ? 'Hide Chat & Tabs' : 'Show Chat & Tabs'}
-        >
-          {chatVisible ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M3 12h18M3 6h18M3 18h18" />
-            </svg>
-          )}
-        </button>
+        <BottomNav
+          pageActions={
+            <button
+              onClick={() => {
+                if (setChatVisible) setChatVisible(!chatVisible);
+                if (setTabBarVisible) setTabBarVisible(!tabBarVisible);
+              }}
+              className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-110 transition-transform border-2 border-background"
+              title={chatVisible ? 'Hide Chat & Tabs' : 'Show Chat & Tabs'}
+            >
+              {chatVisible ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M3 12h18M3 6h18M3 18h18" />
+                </svg>
+              )}
+            </button>
+          }
+        />
       )}
     </div>
   );

@@ -9,6 +9,7 @@ import { sectionsToElementorTemplate, generateSectionsPreviewHTML } from '@/lib/
 import { useToast } from '@/hooks/useToast';
 import { LoadingButton } from '@/components/ui/LoadingOverlay';
 import { OptionsButton, type OptionItem } from '@/components/ui/OptionsButton';
+import { BottomNav } from '@/components/ui/BottomNav';
 
 interface SectionLibraryProps {
   onExportToPlayground?: (sections: Section[]) => void;
@@ -924,81 +925,85 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
       </div>
       )}
 
-      {/* Options Button */}
-      <OptionsButton
-        isMobile={isMobile}
-        options={[
-          // Library view toggle
-          {
-            label: libraryTab === 'sections' ? '🎨 Switch to Style Kits' : '📄 Switch to Sections',
-            onClick: () => setLibraryTab(libraryTab === 'sections' ? 'style-kits' : 'sections'),
-            divider: true
-          },
-          // Sections actions (only show when on sections tab)
-          ...(libraryTab === 'sections' ? [
-            {
-              label: '+ New Section',
-              onClick: createNewSection
-            },
-            {
-              label: '✂️ Split Page',
-              onClick: () => setViewMode('split-page')
-            },
-            {
-              label: '📋 Preview All',
-              onClick: previewAllInPlayground,
-              disabled: sections.length === 0
-            },
-            {
-              label: '🔄 Update Playground',
-              onClick: updatePlaygroundPreview,
-              disabled: sections.length === 0 || isUpdatingPlayground
-            },
-            {
-              label: '⬇️ Export Sections',
-              onClick: exportSections,
-              disabled: sections.length === 0
-            },
-            {
-              label: '⬆️ Import Sections',
-              onClick: importSections,
-              divider: true
-            }
-          ] : [
-            // Style kits actions (only show when on style-kits tab)
-            {
-              label: '+ New Style Kit',
-              onClick: createNewStyleKit
-            },
-            {
-              label: '⬆️ Import CSS',
-              onClick: importStyleKit,
-              divider: true
-            }
-          ]),
-          // Desktop-only sidebar toggle
-          ...(!isMobile ? [{
-            label: sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar',
-            onClick: () => setSidebarVisible(!sidebarVisible),
-            type: 'toggle' as const,
-            active: sidebarVisible,
-            divider: true
-          }] : []),
-          // Chat toggle
-          ...(setChatVisible ? [{
-            label: chatVisible ? 'Hide Chat' : 'Show Chat',
-            onClick: () => setChatVisible(!chatVisible),
-            type: 'toggle' as const,
-            active: chatVisible
-          }] : []),
-          // Tab bar toggle
-          ...(setTabBarVisible ? [{
-            label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
-            onClick: () => setTabBarVisible(!tabBarVisible),
-            type: 'toggle' as const,
-            active: tabBarVisible
-          }] : [])
-        ]}
+      {/* Bottom Navigation with Options Button */}
+      <BottomNav
+        pageActions={
+          <OptionsButton
+            isMobile={isMobile}
+            options={[
+              // Library view toggle
+              {
+                label: libraryTab === 'sections' ? '🎨 Switch to Style Kits' : '📄 Switch to Sections',
+                onClick: () => setLibraryTab(libraryTab === 'sections' ? 'style-kits' : 'sections'),
+                divider: true
+              },
+              // Sections actions (only show when on sections tab)
+              ...(libraryTab === 'sections' ? [
+                {
+                  label: '+ New Section',
+                  onClick: createNewSection
+                },
+                {
+                  label: '✂️ Split Page',
+                  onClick: () => setViewMode('split-page')
+                },
+                {
+                  label: '📋 Preview All',
+                  onClick: previewAllInPlayground,
+                  disabled: sections.length === 0
+                },
+                {
+                  label: '🔄 Update Playground',
+                  onClick: updatePlaygroundPreview,
+                  disabled: sections.length === 0 || isUpdatingPlayground
+                },
+                {
+                  label: '⬇️ Export Sections',
+                  onClick: exportSections,
+                  disabled: sections.length === 0
+                },
+                {
+                  label: '⬆️ Import Sections',
+                  onClick: importSections,
+                  divider: true
+                }
+              ] : [
+                // Style kits actions (only show when on style-kits tab)
+                {
+                  label: '+ New Style Kit',
+                  onClick: createNewStyleKit
+                },
+                {
+                  label: '⬆️ Import CSS',
+                  onClick: importStyleKit,
+                  divider: true
+                }
+              ]),
+              // Desktop-only sidebar toggle
+              ...(!isMobile ? [{
+                label: sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar',
+                onClick: () => setSidebarVisible(!sidebarVisible),
+                type: 'toggle' as const,
+                active: sidebarVisible,
+                divider: true
+              }] : []),
+              // Chat toggle
+              ...(setChatVisible ? [{
+                label: chatVisible ? 'Hide Chat' : 'Show Chat',
+                onClick: () => setChatVisible(!chatVisible),
+                type: 'toggle' as const,
+                active: chatVisible
+              }] : []),
+              // Tab bar toggle
+              ...(setTabBarVisible ? [{
+                label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
+                onClick: () => setTabBarVisible(!tabBarVisible),
+                type: 'toggle' as const,
+                active: tabBarVisible
+              }] : [])
+            ]}
+          />
+        }
       />
     </div>
   );

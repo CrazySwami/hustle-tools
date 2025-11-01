@@ -49,6 +49,7 @@ import {
 } from '@/components/ai-elements/tool';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
 import { cn } from '@/lib/utils';
+import { BottomNav } from '@/components/ui/BottomNav';
 
 // Define interfaces for model and model groups
 interface Model {
@@ -494,12 +495,15 @@ const ChatBotDemo = () => {
       </div>
       {isEditorVisible && (
         <div className="flex-1 h-full border-l">
-          <TiptapEditor 
-                onContentChange={setDocumentContent} 
-                onCommentsChange={setComments} 
+          <TiptapEditor
+                onContentChange={setDocumentContent}
+                onCommentsChange={setComments}
               />
         </div>
       )}
+
+      {/* Bottom Navigation - Mobile Only */}
+      <BottomNav />
     </div>
   );
 };

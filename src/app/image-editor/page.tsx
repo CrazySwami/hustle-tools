@@ -10,6 +10,7 @@ import { StockPhotosTab } from '@/components/image-editor/StockPhotosTab';
 import { ProcessingTab } from '@/components/image-editor/ProcessingTab';
 import { DuplicationTab } from '@/components/image-editor/DuplicationTab';
 import { ImagePreview } from '@/components/image-editor/ImagePreview';
+import { BottomNav } from '@/components/ui/BottomNav';
 
 export default function ImageEditorPage() {
   const [activeTab, setActiveTab] = useState<'generate' | 'edit' | 'background' | 'search' | 'stock' | 'processing' | 'duplicate'>('processing');
@@ -198,6 +199,9 @@ export default function ImageEditorPage() {
           addToHistory={addToHistory}
         />
       </div>
+
+      {/* Bottom Navigation - Mobile Only */}
+      <BottomNav />
     </div>
   );
 }

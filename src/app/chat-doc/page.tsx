@@ -6,6 +6,7 @@ import { useDocumentContent } from '@/hooks/useDocumentContent';
 import TiptapEditor from '@/components/editor/TiptapEditor';
 import { Comment } from '@/components/editor/CommentExtension';
 import { DocumentChat } from '@/components/editor/DocumentChat';
+import { BottomNav } from '@/components/ui/BottomNav';
 
 
 const ChatBotDemo = () => {
@@ -365,6 +366,9 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
           </div>
         </>
       )}
+
+      {/* Bottom Navigation - Mobile Only */}
+      <BottomNav />
     </div>
   );
 };

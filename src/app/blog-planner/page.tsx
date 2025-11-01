@@ -5,6 +5,7 @@ import { useChat } from '@ai-sdk/react';
 import { Calendar, FileText } from 'lucide-react';
 import { UniversalChat } from '@/components/chat/UniversalChat';
 import { BlogTopic } from '@/lib/blog-planner-utils';
+import { BottomNav } from '@/components/ui/BottomNav';
 
 export default function BlogPlannerPage() {
   const [selectedModel, setSelectedModel] = useState('anthropic/claude-sonnet-4-5-20250929');
@@ -149,6 +150,9 @@ export default function BlogPlannerPage() {
           )}
         </div>
       </div>
+
+      {/* Bottom Navigation - Mobile Only */}
+      <BottomNav />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCwIcon, ExternalLinkIcon, EyeIcon, DownloadIcon, PackageIcon } from 'lucide-react';
 import { OptionsButton } from '@/components/ui/OptionsButton';
+import { BottomNav } from '@/components/ui/BottomNav';
 
 interface PlaygroundViewProps {
   json: any;
@@ -210,52 +211,6 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
 
   return (
     <div className="playground-container" id="playgroundContainer" style={{ position: 'relative', height: '100%' }}>
-      {/* Options Button */}
-      <OptionsButton
-        isMobile={isMobile}
-        options={[
-          {
-            label: '🚀 Launch',
-            onClick: launchPlayground,
-            disabled: isLoading || !playgroundReady
-          },
-          {
-            label: '🔄 Update & Open',
-            onClick: refreshPlayground,
-            disabled: isLoading || !playgroundReady
-          },
-          {
-            label: '👁️ View Live',
-            onClick: viewPage,
-            disabled: !playgroundReady
-          },
-          {
-            label: '⬇️ Pull Changes',
-            onClick: pullFromPlayground,
-            disabled: isLoading || !playgroundReady
-          },
-          {
-            label: '📦 Export Site',
-            onClick: exportSite,
-            disabled: isLoading || !playgroundReady,
-            divider: true
-          },
-          // Chat toggle
-          ...(setChatVisible ? [{
-            label: chatVisible ? 'Hide Chat' : 'Show Chat',
-            onClick: () => setChatVisible(!chatVisible),
-            type: 'toggle' as const,
-            active: chatVisible
-          }] : []),
-          // Tab bar toggle
-          ...(setTabBarVisible ? [{
-            label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
-            onClick: () => setTabBarVisible(!tabBarVisible),
-            type: 'toggle' as const,
-            active: tabBarVisible
-          }] : [])
-        ]}
-      />
 
       {/* Floating Status Messages - All Screen Sizes */}
       {status && (
@@ -301,6 +256,57 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
         id="playgroundIframe"
         className="playground-iframe"
         title="WordPress Playground"
+      />
+
+      {/* Bottom Navigation with OptionsButton */}
+      <BottomNav
+        pageActions={
+          <OptionsButton
+            isMobile={isMobile}
+            options={[
+              {
+                label: '🚀 Launch',
+                onClick: launchPlayground,
+                disabled: isLoading || !playgroundReady
+              },
+              {
+                label: '🔄 Update & Open',
+                onClick: refreshPlayground,
+                disabled: isLoading || !playgroundReady
+              },
+              {
+                label: '👁️ View Live',
+                onClick: viewPage,
+                disabled: !playgroundReady
+              },
+              {
+                label: '⬇️ Pull Changes',
+                onClick: pullFromPlayground,
+                disabled: isLoading || !playgroundReady
+              },
+              {
+                label: '📦 Export Site',
+                onClick: exportSite,
+                disabled: isLoading || !playgroundReady,
+                divider: true
+              },
+              // Chat toggle
+              ...(setChatVisible ? [{
+                label: chatVisible ? 'Hide Chat' : 'Show Chat',
+                onClick: () => setChatVisible(!chatVisible),
+                type: 'toggle' as const,
+                active: chatVisible
+              }] : []),
+              // Tab bar toggle
+              ...(setTabBarVisible ? [{
+                label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
+                onClick: () => setTabBarVisible(!tabBarVisible),
+                type: 'toggle' as const,
+                active: tabBarVisible
+              }] : [])
+            ]}
+          />
+        }
       />
     </div>
   );

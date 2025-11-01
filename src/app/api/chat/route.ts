@@ -70,7 +70,7 @@ export async function POST(req: Request) {
 
     const {
       messages,
-      model,
+      model = 'anthropic/claude-haiku-4-5-20251001', // Default to Haiku if not provided
       webSearch,
       enableReasoning = false, // New parameter to toggle reasoning
       enableTools = true, // New parameter to toggle tool calling
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
       currentSection, // For Elementor editor (if called from there)
     }: {
       messages: UIMessage[];
-      model: string;
+      model?: string; // Make optional since we provide default
       webSearch: boolean;
       enableReasoning?: boolean;
       enableTools?: boolean;

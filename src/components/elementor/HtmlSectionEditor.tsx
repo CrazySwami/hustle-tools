@@ -23,6 +23,7 @@ import { ProjectSidebar } from "./ProjectSidebar";
 import { NewGroupDialog } from "./NewGroupDialog";
 import { HtmlSplitter } from "./HtmlSplitter";
 import { BatchWidgetConverter } from "./BatchWidgetConverter";
+import { WidgetValidationModal } from "./WidgetValidationModal";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -117,6 +118,11 @@ export function HtmlSectionEditor({
   const [conversionProgress, setConversionProgress] = useState('');
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [convertedWidgetName, setConvertedWidgetName] = useState('');
+
+  // Widget validation state
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<any>(null);
 
   // HTML Generator Dialog state
   const [showGeneratorDialog, setShowGeneratorDialog] = useState(false);
@@ -387,18 +393,44 @@ export function HtmlSectionEditor({
           );
 
           if (deployResult.success) {
-            alert(`✅ Widget Generated & Deployed Successfully!\n\n` +
-              `Widget: "${newProjectName}"\n` +
-              `Class: ${widgetClassName}\n\n` +
-              `✅ Deployed to WordPress Playground\n` +
-              `✅ Original HTML project preserved\n` +
-              `✅ CSS scoped with {{WRAPPER}}\n\n` +
-              `Next steps:\n` +
-              `1. Go to WordPress Playground tab\n` +
-              `2. Edit any page with Elementor\n` +
-              `3. Find your widget in the "Hustle Tools" category\n` +
-              `4. Drag it onto the page!`
-            );
+            // Run AI validation after successful deployment
+            setConversionProgress('🔍 Validating widget code with AI...');
+            setShowValidationModal(true);
+            setIsValidating(true);
+
+            try {
+              const validationResponse = await fetch('/api/validate-widget', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  widgetPhp: cleanWidgetPhp,
+                  widgetName,
+                  widgetTitle
+                })
+              });
+
+              if (validationResponse.ok) {
+                const validationData = await validationResponse.json();
+                setValidationResult(validationData);
+                console.log('✅ Validation complete:', validationData);
+              } else {
+                console.error('❌ Validation API error');
+                setValidationResult({
+                  checks: [],
+                  overallScore: 0,
+                  summary: 'Validation failed to complete'
+                });
+              }
+            } catch (validationError: any) {
+              console.error('❌ Validation error:', validationError);
+              setValidationResult({
+                checks: [],
+                overallScore: 0,
+                summary: `Validation error: ${validationError.message}`
+              });
+            } finally {
+              setIsValidating(false);
+            }
           } else {
             throw new Error(deployResult.message || 'Deployment failed');
           }
@@ -2510,6 +2542,15 @@ export function HtmlSectionEditor({
           }}
         />
       )}
+
+      {/* Widget Validation Modal */}
+      <WidgetValidationModal
+        isOpen={showValidationModal}
+        onClose={() => setShowValidationModal(false)}
+        validationResult={validationResult}
+        isValidating={isValidating}
+        widgetName={convertedWidgetName}
+      />
     </div>
   );
 }

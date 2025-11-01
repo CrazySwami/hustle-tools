@@ -323,8 +323,18 @@ export function HtmlSectionEditor({
         setConversionProgress(`🤖 Generating... ${widgetPhp.length} characters`);
       }
 
+      // Clean up markdown code fences if present (AI sometimes wraps output in ```php ... ```)
+      let cleanWidgetPhp = widgetPhp.trim();
+      if (cleanWidgetPhp.startsWith('```')) {
+        // Remove opening fence (```php or ```)
+        cleanWidgetPhp = cleanWidgetPhp.replace(/^```[a-z]*\n?/, '');
+        // Remove closing fence (```)
+        cleanWidgetPhp = cleanWidgetPhp.replace(/\n?```\s*$/, '');
+        cleanWidgetPhp = cleanWidgetPhp.trim();
+      }
+
       // Extract widget class name for project naming
-      const classMatch = widgetPhp.match(/class\s+(\w+)\s+extends/);
+      const classMatch = cleanWidgetPhp.match(/class\s+(\w+)\s+extends/);
       const widgetClassName = classMatch ? classMatch[1] : 'Widget';
       setConvertedWidgetName(widgetClassName);
 
@@ -333,7 +343,7 @@ export function HtmlSectionEditor({
       const newGroup = fileGroups.createNewGroup(newProjectName, 'php', 'empty');
 
       // Set the PHP widget code with SCOPED CSS and JS
-      fileGroups.updateGroupFile(newGroup.id, 'php', widgetPhp);
+      fileGroups.updateGroupFile(newGroup.id, 'php', cleanWidgetPhp);
       fileGroups.updateGroupFile(newGroup.id, 'html', editorHtml); // Preserve original HTML for reference
       fileGroups.updateGroupFile(newGroup.id, 'css', scopedCss); // SCOPED CSS with {{WRAPPER}}
       fileGroups.updateGroupFile(newGroup.id, 'js', editorJs || ''); // Widget JS
@@ -351,7 +361,7 @@ export function HtmlSectionEditor({
         // Call the global deployElementorWidget function from playground.js
         if (typeof window !== 'undefined' && (window as any).deployElementorWidget) {
           const deployResult = await (window as any).deployElementorWidget(
-            widgetPhp,
+            cleanWidgetPhp,
             scopedCss,
             editorJs || '',
             widgetClassName

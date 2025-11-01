@@ -58,12 +58,13 @@ export function Navbar() {
     if (savedCorner && userHasDragged) {
       setCorner(savedCorner);
     } else {
-      // Set default based on current screen size
-      const defaultCorner = isMobile ? 'bottom-right' : 'top-left';
+      // Check actual window width instead of relying on isMobile state (which may not be set yet)
+      const actuallyMobile = window.innerWidth < 768;
+      const defaultCorner = actuallyMobile ? 'bottom-right' : 'top-left';
       setCorner(defaultCorner);
       localStorage.setItem('nav-corner', defaultCorner);
     }
-  }, []);
+  }, []); // Empty dependency array - only run once on mount
 
   // Calculate position based on corner
   useEffect(() => {

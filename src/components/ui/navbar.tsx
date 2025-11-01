@@ -228,9 +228,9 @@ export function Navbar() {
     ],
     media: [
       {
-        title: "Image Processing",
-        href: "/image-alterations",
-        description: "Compress and blur images in bulk",
+        title: "Image Editor",
+        href: "/image-editor",
+        description: "AI-powered image generation and editing",
         icon: ImageIcon,
       },
       {

@@ -27,6 +27,7 @@ export async function middleware(request: NextRequest) {
     '/login',
     '/signup',
     '/image-alterations',
+    '/image-editor',
     '/firecrawl',
     '/page-extractor',
     '/chat',

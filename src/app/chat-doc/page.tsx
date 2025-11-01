@@ -7,6 +7,8 @@ import TiptapEditor from '@/components/editor/TiptapEditor';
 import { Comment } from '@/components/editor/CommentExtension';
 import { DocumentChat } from '@/components/editor/DocumentChat';
 import { BottomNav } from '@/components/ui/BottomNav';
+import { ProjectSidebar } from '@/components/project-hierarchy/ProjectSidebar';
+import { useDocuments } from '@/hooks/useProjectHierarchy';
 
 
 const ChatBotDemo = () => {
@@ -17,13 +19,20 @@ const ChatBotDemo = () => {
   const [documentContent, setDocumentContent] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | undefined>(undefined);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true); // Project sidebar visibility
 
   // Resizable divider state
-  const [leftPanelWidth, setLeftPanelWidth] = useState(40); // 40% for chat
+  const [leftPanelWidth, setLeftPanelWidth] = useState(20); // 20% for sidebar (was 40% for chat)
+  const [middlePanelWidth, setMiddlePanelWidth] = useState(35); // 35% for chat
   const [isResizing, setIsResizing] = useState(false);
+  const [resizingDivider, setResizingDivider] = useState<'left' | 'right' | null>(null); // Which divider is being resized
 
   // Document content management - synced with TiptapEditor
   const documentContentStore = useDocumentContent();
+
+  // Get documents hook to load selected document
+  const { documents, updateDocument } = useDocuments();
 
   const { messages, sendMessage, isLoading, reload, status } = useChat({
     api: '/api/chat-doc', // 🎯 Specialized endpoint for document editing
@@ -44,11 +53,34 @@ const ChatBotDemo = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Sync document content from TiptapEditor to global store
+  // Load selected document into editor
   useEffect(() => {
-    // Always sync, even if empty (empty string is valid state)
+    if (selectedDocumentId) {
+      const doc = documents.find(d => d.id === selectedDocumentId);
+      if (doc) {
+        setDocumentContent(doc.content);
+      }
+    }
+  }, [selectedDocumentId, documents]);
+
+  // Sync document content from TiptapEditor to global store AND save to selected document
+  useEffect(() => {
+    // Always sync to global store
     documentContentStore.updateContent(documentContent);
-  }, [documentContent]);
+
+    // Auto-save to selected document if one is selected
+    if (selectedDocumentId && documentContent) {
+      const doc = documents.find(d => d.id === selectedDocumentId);
+      if (doc && doc.content !== documentContent) {
+        // Debounce auto-save (only save if content actually changed)
+        const timeoutId = setTimeout(() => {
+          updateDocument(selectedDocumentId, { content: documentContent });
+        }, 1000); // 1 second debounce
+
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [documentContent, selectedDocumentId, documents, updateDocument]);
 
   // Sync document content from global store to local state
   // (useful when Morph widget updates the document)
@@ -95,25 +127,39 @@ const ChatBotDemo = () => {
     setIsEditorVisible(!isEditorVisible);
   };
 
-  // Resizable divider handlers
-  const handleMouseDown = () => {
+  // Resizable divider handlers for three panels
+  const handleMouseDown = (divider: 'left' | 'right') => {
     setIsResizing(true);
+    setResizingDivider(divider);
   };
 
   const handleMouseMove = (e: MouseEvent) => {
-    if (!isResizing) return;
+    if (!isResizing || !resizingDivider) return;
 
     const containerWidth = window.innerWidth;
-    const newWidth = (e.clientX / containerWidth) * 100;
+    const mousePercent = (e.clientX / containerWidth) * 100;
 
-    // Constrain between 25% and 60%
-    if (newWidth >= 25 && newWidth <= 60) {
-      setLeftPanelWidth(newWidth);
+    if (resizingDivider === 'left') {
+      // Resizing sidebar/chat divider
+      // Constrain sidebar between 15% and 35%
+      if (mousePercent >= 15 && mousePercent <= 35) {
+        setLeftPanelWidth(mousePercent);
+      }
+    } else if (resizingDivider === 'right') {
+      // Resizing chat/editor divider
+      // Chat starts at leftPanelWidth, constrain between 25% and 50% of remaining space
+      const chatStartPercent = leftPanelWidth;
+      const chatWidth = mousePercent - chatStartPercent;
+
+      if (chatWidth >= 25 && chatWidth <= 50) {
+        setMiddlePanelWidth(chatWidth);
+      }
     }
   };
 
   const handleMouseUp = () => {
     setIsResizing(false);
+    setResizingDivider(null);
   };
 
   // Add/remove event listeners for resizing
@@ -204,13 +250,47 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
   };
 
   return (
-    <div className={`flex h-screen w-full max-w-full overflow-x-hidden ${isMobile ? 'px-2 py-2' : 'px-4 py-4'} gap-4`}>
-      {/* Desktop: Side-by-side layout with resizable divider */}
+    <div className={`flex h-screen w-full max-w-full overflow-x-hidden ${isMobile ? 'px-2 py-2' : 'px-4 py-4'} gap-0`}>
+      {/* Desktop: Three-panel layout with resizable dividers */}
       {!isMobile && (
         <>
+          {/* Left Panel: Project Sidebar */}
+          {isSidebarVisible && (
+            <>
+              <div
+                className="flex flex-col h-full"
+                style={{ width: `${leftPanelWidth}%` }}
+              >
+                <ProjectSidebar
+                  onDocumentSelect={setSelectedDocumentId}
+                  selectedDocumentId={selectedDocumentId}
+                />
+              </div>
+
+              {/* Left Divider (between sidebar and chat) */}
+              <div
+                onMouseDown={() => handleMouseDown('left')}
+                style={{
+                  width: '4px',
+                  cursor: 'col-resize',
+                  background: 'var(--border)',
+                  position: 'relative',
+                  transition: isResizing ? 'none' : 'background 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isResizing) e.currentTarget.style.background = 'var(--primary)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isResizing) e.currentTarget.style.background = 'var(--border)';
+                }}
+              />
+            </>
+          )}
+
+          {/* Middle Panel: Chat */}
           <div
             className="flex flex-col h-full"
-            style={{ width: isEditorVisible ? `${leftPanelWidth}%` : '100%' }}
+            style={{ width: isSidebarVisible ? `${middlePanelWidth}%` : (isEditorVisible ? `${leftPanelWidth + middlePanelWidth}%` : '100%') }}
           >
             <DocumentChat
               messages={messages}
@@ -227,10 +307,10 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
             />
           </div>
 
-          {/* Resizable divider */}
+          {/* Right Divider (between chat and editor) */}
           {isEditorVisible && (
             <div
-              onMouseDown={handleMouseDown}
+              onMouseDown={() => handleMouseDown('right')}
               style={{
                 width: '4px',
                 cursor: 'col-resize',
@@ -247,10 +327,11 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
             />
           )}
 
+          {/* Right Panel: Tiptap Editor */}
           {isEditorVisible && (
             <div
               className="h-full relative"
-              style={{ width: `${100 - leftPanelWidth}%` }}
+              style={{ width: isSidebarVisible ? `${100 - leftPanelWidth - middlePanelWidth}%` : `${100 - leftPanelWidth - middlePanelWidth}%` }}
             >
               <TiptapEditor
                 initialContent={documentContent}

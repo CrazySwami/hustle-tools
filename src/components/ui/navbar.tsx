@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search, X, Sun, Moon, Activity, MessageSquare, Mic } from "lucide-react"
@@ -34,9 +35,9 @@ export function Navbar() {
 
       if (!userHasDragged && wasMobile !== nowMobile) {
         if (nowMobile) {
-          // Switching to mobile: move to bottom-right
-          setCorner('bottom-right');
-          localStorage.setItem('nav-corner', 'bottom-right');
+          // Switching to mobile: move to bottom-LEFT (updated)
+          setCorner('bottom-left');
+          localStorage.setItem('nav-corner', 'bottom-left');
         } else {
           // Switching to desktop: move to top-left
           setCorner('top-left');
@@ -52,15 +53,25 @@ export function Navbar() {
 
   // Initialize position from localStorage on mount
   useEffect(() => {
-    const savedCorner = localStorage.getItem('nav-corner') as Corner | null;
     const userHasDragged = localStorage.getItem('nav-user-dragged') === 'true';
+    const actuallyMobile = window.innerWidth < 768;
 
-    if (savedCorner && userHasDragged) {
-      setCorner(savedCorner);
+    if (userHasDragged) {
+      // User has manually positioned the button - respect their choice
+      const savedCorner = localStorage.getItem('nav-corner') as Corner | null;
+      if (savedCorner) {
+        console.log('📍 Navbar: User dragged, using saved position:', savedCorner);
+        setCorner(savedCorner);
+      }
     } else {
-      // Check actual window width instead of relying on isMobile state (which may not be set yet)
-      const actuallyMobile = window.innerWidth < 768;
-      const defaultCorner = actuallyMobile ? 'bottom-right' : 'top-left';
+      // User hasn't dragged - always set based on current screen size
+      // UPDATED: Mobile now uses bottom-LEFT, desktop stays top-left
+      const defaultCorner = actuallyMobile ? 'bottom-left' : 'top-left';
+      console.log('📍 Navbar: Auto-positioning based on screen width:', {
+        width: window.innerWidth,
+        isMobile: actuallyMobile,
+        position: defaultCorner
+      });
       setCorner(defaultCorner);
       localStorage.setItem('nav-corner', defaultCorner);
     }
@@ -69,11 +80,13 @@ export function Navbar() {
   // Calculate position based on corner
   useEffect(() => {
     const updatePosition = () => {
-      const margin = 16; // 16px margin from edges
+      const margin = 16; // 16px margin from edges for desktop
+      const mobileMargin = 10; // 10px margin for mobile (aligned with BottomNav)
       const buttonWidth = isMobile ? 56 : 180; // Mobile: 56px circle, Desktop: 180px pill
       const buttonHeight = 56; // Both use 56px height
-      // On mobile, add extra margin from bottom to align with typical action buttons (80-100px from bottom)
-      const bottomMargin = isMobile ? 80 : margin;
+      // Use 10px margin on mobile for bottom positioning (matches BottomNav)
+      const bottomMargin = isMobile ? mobileMargin : margin;
+      const sideMargin = isMobile ? mobileMargin : margin;
 
       switch (corner) {
         case 'top-left':
@@ -83,10 +96,10 @@ export function Navbar() {
           setPosition({ x: window.innerWidth - buttonWidth - margin, y: margin });
           break;
         case 'bottom-left':
-          setPosition({ x: margin, y: window.innerHeight - buttonHeight - bottomMargin });
+          setPosition({ x: sideMargin, y: window.innerHeight - buttonHeight - bottomMargin });
           break;
         case 'bottom-right':
-          setPosition({ x: window.innerWidth - buttonWidth - margin, y: window.innerHeight - buttonHeight - bottomMargin });
+          setPosition({ x: window.innerWidth - buttonWidth - sideMargin, y: window.innerHeight - buttonHeight - bottomMargin });
           break;
       }
     };

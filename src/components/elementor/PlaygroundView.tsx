@@ -52,12 +52,12 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
     return () => clearInterval(checkPlayground);
   }, []);
 
-  // Auto-launch playground when tab becomes active for the first time
+  // Auto-launch playground in background as soon as script is ready (no need to wait for tab activation)
   useEffect(() => {
-    if (isActive && playgroundReady && !hasLaunchedRef.current) {
+    if (playgroundReady && !hasLaunchedRef.current) {
       hasLaunchedRef.current = true;
       setTimeout(() => {
-        console.log('🚀 Auto-launching WordPress Playground...');
+        console.log('🚀 Auto-launching WordPress Playground in background...');
         setIsLoading(true);
         setStatus('Auto-launching WordPress Playground...');
         (window as any).openPlaygroundDirect()
@@ -81,7 +81,7 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
           });
       }, 500);
     }
-  }, [isActive, playgroundReady, onPlaygroundReady]);
+  }, [playgroundReady, onPlaygroundReady]); // Removed isActive - launch immediately when ready
 
   // Update generatedJSON when json prop changes
   useEffect(() => {

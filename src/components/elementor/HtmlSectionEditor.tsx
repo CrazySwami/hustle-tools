@@ -269,12 +269,31 @@ export function HtmlSectionEditor({
 
     try {
       // Scope CSS with {{WRAPPER}} before sending to AI
+      // Skip global selectors (body, html, *) and at-rules (@font-face, @keyframes, @media)
+      const globalSelectors = ['body', 'html', '*', ':root'];
+
       const scopedCss = editorCss.replace(
         /(^|\})\s*([^{@]+)\s*\{/gm,
         (match, before, selector) => {
-          if (selector.trim().startsWith('@') || /^:/.test(selector.trim())) {
+          const trimmedSelector = selector.trim();
+
+          // Skip at-rules (@font-face, @keyframes, @media)
+          if (trimmedSelector.startsWith('@') || /^:/.test(trimmedSelector)) {
             return match;
           }
+
+          // Skip global selectors (body, html, *, :root)
+          const hasGlobalSelector = selector.split(',').some((s: string) => {
+            const sel = s.trim().split(/\s+/)[0]; // Get first part before space
+            return globalSelectors.includes(sel) || globalSelectors.some(g => s.trim().startsWith(g + ' '));
+          });
+
+          if (hasGlobalSelector) {
+            console.warn(`⚠️ Skipping global selector: ${trimmedSelector} (global selectors like body/html shouldn't be in widgets)`);
+            return match; // Keep as-is, don't scope
+          }
+
+          // Scope all other selectors with {{WRAPPER}}
           const scoped = selector.split(',').map((s: string) => {
             const trimmed = s.trim();
             return trimmed.includes('{{WRAPPER}}') ? trimmed : `{{WRAPPER}} ${trimmed}`;

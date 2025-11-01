@@ -339,7 +339,7 @@ protected function render() {
 \`\`\`
 
 ### Advanced Tab (Custom CSS/JS, Animations)
-**CRITICAL**: Use heredoc syntax for CSS/JS defaults to avoid quote escaping issues!
+**CRITICAL**: Use heredoc syntax for CSS/JS defaults AND insert CSS/JS AS-IS without modification!
 
 \`\`\`php
 \\$this->start_controls_section(
@@ -377,6 +377,12 @@ JS,
 \\$this->end_controls_section();
 \`\`\`
 
+**CRITICAL CSS RULES:**
+- The CSS provided is ALREADY SCOPED with {{WRAPPER}} - DO NOT add more {{WRAPPER}} tokens
+- Insert the CSS EXACTLY as provided in the heredoc - DO NOT modify it
+- ALL widget code must be INSIDE the class - NEVER put CSS/JS outside the closing }
+-@font-face, @keyframes, @media rules are already properly formatted - DO NOT scope them
+
 ---
 
 ## RENDER METHOD REQUIREMENTS
@@ -413,14 +419,16 @@ protected function render() {
 
 1. **NO SHORTCUTS**: Create controls for EVERY element in the parsed list
 2. **SEMANTIC NAMING**: Use descriptive names (e.g., \`hero_title\` not \`text_1\`)
-3. **CSS SCOPING**: All CSS already has {{WRAPPER}} prefix
+3. **CSS SCOPING**: All CSS already has {{WRAPPER}} prefix - DO NOT add more
 4. **DYNAMIC VALUES**: Use \`\\$settings['control_name']\` in render()
 5. **ESCAPE OUTPUT**: Use \`esc_html()\`, \`esc_url()\`, \`esc_attr()\`
 6. **RESPONSIVE**: Use \`add_responsive_control()\` for spacing
 7. **TRANSLATIONS**: Wrap labels with \`__('Text', 'hustle-tools')\`
 8. **DEFAULTS**: Include original HTML/CSS/JS as defaults
 9. **ABSPATH CHECK**: Start with \`if (!defined('ABSPATH')) exit;\`
-10. **HEREDOC FOR CSS/JS**: ALWAYS use heredoc syntax (<<<CSS / <<<JS) for CSS/JS defaults to avoid quote escaping issues
+10. **HEREDOC FOR CSS/JS**: ALWAYS use heredoc syntax (<<<CSS / <<<JS) for CSS/JS defaults
+11. **INSERT CSS AS-IS**: The CSS in the heredoc must be EXACTLY as provided - DO NOT modify, add tokens, or change it
+12. **ALL CODE INSIDE CLASS**: NEVER put any code outside the class closing } - all widget code must be inside the class
 
 ---
 

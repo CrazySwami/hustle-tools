@@ -303,7 +303,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
               </div>
 
               {/* Editor - gets pushed to the right when sidebar opens */}
-              <div className="flex-1 h-full overflow-hidden">
+              <div className="flex-1 h-full overflow-hidden p-2">
                 <TiptapEditor
                   initialContent={documentContent}
                   onContentChange={setDocumentContent}

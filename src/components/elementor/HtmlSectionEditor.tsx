@@ -236,7 +236,7 @@ export function HtmlSectionEditor({
     }
   };
 
-  // Quick Widget generation using programmatic converter
+  // AI Widget: Generate using Claude Sonnet 4.5 with auto-deploy
   const handleQuickWidget = async () => {
     if (!editorHtml.trim()) {
       alert('⚠️ No HTML content to convert. Please add HTML code first.');
@@ -249,33 +249,79 @@ export function HtmlSectionEditor({
     }
 
     const confirmed = confirm(
-      '⚡ Generate Elementor Widget?\n\n' +
+      '🤖 Generate Elementor Widget with AI?\n\n' +
       'This will:\n' +
-      '• Extract only relevant CSS (filters out unused styles)\n' +
+      '• Use Claude Sonnet 4.5 to generate complete PHP widget\n' +
       '• Scope CSS with {{WRAPPER}} to prevent conflicts\n' +
-      '• Generate comprehensive Elementor controls\n' +
-      '• Validate PHP syntax before saving\n' +
-      '• Use AI for widget naming only (~200ms)\n' +
-      '• Create a NEW widget project\n' +
-      '• Keep the original HTML project intact\n' +
+      '• Create comprehensive Elementor controls for ALL elements\n' +
+      '• Auto-deploy to WordPress Playground\n' +
+      '• Widget appears immediately in Elementor editor\n' +
+      '\n⏱️ Takes 10-30 seconds (AI generation)\n' +
+      '💰 Cost: ~$0.05-0.15 per widget\n' +
+      '\n✅ This matches your proven working batch script\n' +
       '\nContinue?'
     );
 
     if (!confirmed) return;
 
     setIsConverting(true);
-    setConversionProgress('Generating widget with programmatic converter...');
+    setConversionProgress('🤖 AI generating PHP widget code...');
 
     try {
-      // Convert to widget using programmatic converter
-      const { widgetPhp, widgetCss, widgetJs } = await convertToWidgetProgrammatic(
-        editorHtml,
-        editorCss,
-        editorJs,
-        {
-          useAIForMetadata: true, // Use AI for widget name/title/description
+      // Scope CSS with {{WRAPPER}} before sending to AI
+      const scopedCss = editorCss.replace(
+        /(^|\})\s*([^{@]+)\s*\{/gm,
+        (match, before, selector) => {
+          if (selector.trim().startsWith('@') || /^:/.test(selector.trim())) {
+            return match;
+          }
+          const scoped = selector.split(',').map((s: string) => {
+            const trimmed = s.trim();
+            return trimmed.includes('{{WRAPPER}}') ? trimmed : `{{WRAPPER}} ${trimmed}`;
+          }).join(', ');
+          return `${before} ${scoped} {`;
         }
       );
+
+      // Generate widget metadata
+      const widgetName = fileGroups.activeGroup?.name.toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'custom_section';
+      const widgetTitle = fileGroups.activeGroup?.name || 'Custom Section';
+
+      // Call AI widget converter API
+      const response = await fetch('/api/convert-html-to-widget-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          html: editorHtml,
+          css: scopedCss,
+          js: editorJs,
+          widgetName,
+          widgetTitle,
+          widgetDescription: `Generated widget from ${widgetName}`
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `API error: ${response.status}`);
+      }
+
+      // Read the streamed PHP response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const decoder = new TextDecoder();
+      let widgetPhp = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        widgetPhp += chunk;
+        setConversionProgress(`🤖 Generating... ${widgetPhp.length} characters`);
+      }
 
       // Extract widget class name for project naming
       const classMatch = widgetPhp.match(/class\s+(\w+)\s+extends/);
@@ -289,8 +335,8 @@ export function HtmlSectionEditor({
       // Set the PHP widget code with SCOPED CSS and JS
       fileGroups.updateGroupFile(newGroup.id, 'php', widgetPhp);
       fileGroups.updateGroupFile(newGroup.id, 'html', editorHtml); // Preserve original HTML for reference
-      fileGroups.updateGroupFile(newGroup.id, 'css', widgetCss); // SCOPED CSS with {{WRAPPER}}
-      fileGroups.updateGroupFile(newGroup.id, 'js', widgetJs); // Widget JS
+      fileGroups.updateGroupFile(newGroup.id, 'css', scopedCss); // SCOPED CSS with {{WRAPPER}}
+      fileGroups.updateGroupFile(newGroup.id, 'js', editorJs || ''); // Widget JS
 
       // Switch to new PHP widget project
       fileGroups.selectGroup(newGroup.id);
@@ -306,8 +352,8 @@ export function HtmlSectionEditor({
         if (typeof window !== 'undefined' && (window as any).deployElementorWidget) {
           const deployResult = await (window as any).deployElementorWidget(
             widgetPhp,
-            widgetCss,
-            widgetJs || '',
+            scopedCss,
+            editorJs || '',
             widgetClassName
           );
 

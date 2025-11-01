@@ -164,33 +164,65 @@ ${js || '// No JavaScript provided'}
 
 **CRITICAL REQUIREMENTS:**
 
-1. **GUARANTEE ALL CONTROLS**: For each element in the parsed list, you MUST create ALL the controls specified in "controlsNeeded"
+1. **CORRECT CLASS STRUCTURE**: The widget MUST extend \`\\Elementor\\Widget_Base\` (with double backslash). Example:
+   \`\`\`php
+   class My_Widget extends \\Elementor\\Widget_Base {
+   \`\`\`
 
-2. **PRESERVE STRUCTURE**: The render() method must output HTML that matches the original structure exactly
+2. **REQUIRED METHODS**: Include these EXACT methods:
+   - \`public function get_name()\` - Return widget slug
+   - \`public function get_title()\` - Return widget title
+   - \`public function get_icon()\` - Return Elementor icon class
+   - \`public function get_categories()\` - Return \`['hustle-tools']\`
+   - \`protected function register_controls()\` - Register ALL controls
+   - \`protected function render()\` - Output the HTML
 
-3. **CSS SCOPING**: The CSS will be automatically scoped with {{WRAPPER}} prefix, so you can reference the original selectors in your PHP comments
+3. **GUARANTEE ALL CONTROLS**: For each element in the parsed list, you MUST create ALL the controls specified in "controlsNeeded"
 
-4. **ORGANIZE INTELLIGENTLY**: Group related controls into logical sections:
+4. **PRESERVE STRUCTURE**: The render() method must output HTML that matches the original structure exactly
+
+5. **CSS SCOPING**: The CSS will be automatically scoped with {{WRAPPER}} prefix, so you can reference the original selectors in your PHP comments
+
+6. **ORGANIZE INTELLIGENTLY**: Group related controls into logical sections:
    - Content Tab: Text content, images, links, media
    - Style Tab: Typography, colors, backgrounds, borders, shadows, spacing
    - Advanced Tab: Custom CSS, Custom JS, animations, visibility
 
-5. **ELEMENT CLASS/ID DISPLAY**: In every control description, show the CSS selector:
+7. **ELEMENT CLASS/ID DISPLAY**: In every control description, show the CSS selector:
    \`'description' => 'CSS Selector: .class-name | ID: #element-id'\`
 
-6. **CUSTOM CSS/JS BOXES**: Include Custom CSS and Custom JavaScript code boxes in Advanced tab with the original CSS/JS as defaults
+8. **CUSTOM CSS/JS BOXES**: Include Custom CSS and Custom JavaScript code boxes in Advanced tab with the original CSS/JS as defaults
 
-7. **WIDGET CATEGORY**: Use category ['hustle-tools'] to group all widgets together
+9. **WIDGET CATEGORY**: Use category ['hustle-tools'] to group all widgets together
 
-8. **SEMANTIC NAMING**: Use intelligent control names based on context (e.g., "hero_title" not "text_1")
+10. **SEMANTIC NAMING**: Use intelligent control names based on context (e.g., "hero_title" not "text_1")
 
-9. **RESPONSIVE CONTROLS**: Use add_responsive_control() for spacing, typography where appropriate
+11. **RESPONSIVE CONTROLS**: Use add_responsive_control() for spacing, typography where appropriate
 
-10. **NO SHORTCUTS**: Do not skip ANY element. Every element must have corresponding controls.
+12. **NO SHORTCUTS**: Do not skip ANY element. Every element must have corresponding controls.
 
-11. **DYNAMIC RENDERING**: In the render() method, use \$settings = \$this->get_settings_for_display() and dynamically inject control values into the HTML
+13. **DYNAMIC RENDERING**: In the render() method, use \$settings = \$this->get_settings_for_display() and dynamically inject control values into the HTML
 
-**OUTPUT:** Generate the complete PHP widget class. Start with <?php and include the full implementation.`;
+14. **ABSPATH CHECK**: Start with:
+    \`\`\`php
+    if ( ! defined( 'ABSPATH' ) ) {
+        exit; // Exit if accessed directly
+    }
+    \`\`\`
+
+**OUTPUT FORMAT:** Generate ONLY the complete PHP widget class. Start with:
+\`\`\`php
+<?php
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+class ${widgetName.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('_')}_Widget extends \\Elementor\\Widget_Base {
+    // ... implementation
+}
+\`\`\`
+
+Do NOT include any text before <?php or after the closing }. ONLY output the PHP code.`;
 
     const result = streamText({
       model: anthropic('claude-sonnet-4-5-20250929'),

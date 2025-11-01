@@ -764,7 +764,7 @@ export function HtmlSectionEditor({
             onClick: () => setShowSaveDialog(true),
           },
           {
-            label: isConverting ? "⏳ Converting..." : "⚡ Generate Widget",
+            label: isConverting ? "🤖 Generating with AI..." : "🤖 Generate Widget (AI)",
             onClick: handleQuickWidget,
             disabled: isConverting || !editorHtml.trim(),
           },

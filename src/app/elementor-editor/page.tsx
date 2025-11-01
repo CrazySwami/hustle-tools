@@ -18,7 +18,6 @@ import { HtmlSectionEditor } from '@/components/elementor/HtmlSectionEditor';
 import { VisualSectionEditor } from '@/components/elementor/VisualSectionEditor';
 import { ProjectLibrary } from '@/components/elementor/ProjectLibrary';
 import { PageSplitter } from '@/components/elementor/PageSplitter';
-import { ImageEditor } from '@/components/elementor/ImageEditor';
 import { UsageTrackingTab } from '@/components/elementor/UsageTrackingTab';
 import { useElementorState } from '@/lib/hooks/useElementorState';
 import { Section } from '@/lib/section-schema';
@@ -1049,7 +1048,6 @@ export default function ElementorEditorPage() {
                 <option value="playground">WordPress Playground</option>
                 <option value="site-content">Site Content</option>
                 <option value="style-guide">Style Guide</option>
-                <option value="images">Images</option>
                 <option value="usage">Usage</option>
               </select>
             ) : (
@@ -1098,13 +1096,6 @@ export default function ElementorEditorPage() {
                   style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   <PaletteIcon size={16} /> Style Guide
-                </div>
-                <div
-                  className={`tab ${activeTab === 'images' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('images')}
-                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-                >
-                  <ImageIcon size={16} /> Images
                 </div>
                 <div
                   className={`tab ${activeTab === 'usage' ? 'active' : ''}`}
@@ -1241,15 +1232,6 @@ export default function ElementorEditorPage() {
 
             <div className={`tab-panel ${activeTab === 'style-guide' ? 'active' : ''}`} id="styleGuidePanel" style={{ display: activeTab === 'style-guide' ? 'flex' : 'none' }}>
               <StyleGuideUnified
-                chatVisible={chatVisible}
-                setChatVisible={setChatVisible}
-                tabBarVisible={tabBarVisible}
-                setTabBarVisible={setTabBarVisible}
-              />
-            </div>
-
-            <div className={`tab-panel ${activeTab === 'images' ? 'active' : ''}`} id="imagesPanel" style={{ display: activeTab === 'images' ? 'flex' : 'none' }}>
-              <ImageEditor
                 chatVisible={chatVisible}
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}

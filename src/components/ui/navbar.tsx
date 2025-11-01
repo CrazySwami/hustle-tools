@@ -2,36 +2,108 @@
 
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
-import { ModeToggle } from "./mode-toggle"
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu"
+import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
-import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search } from "lucide-react"
+import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search, X, Sun, Moon } from "lucide-react"
+
+type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 export function Navbar() {
+  const { theme, setTheme } = useTheme();
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [corner, setCorner] = useState<Corner>('top-left');
+  const [position, setPosition] = useState({ x: 0, y: 0 });
 
-  // Mobile detection
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
+
+  // Mobile detection and auto-position based on screen size
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    const checkMobile = () => {
+      const wasMobile = isMobile;
+      const nowMobile = window.innerWidth < 768;
+      setIsMobile(nowMobile);
+
+      // When switching between mobile/desktop, reset to default position
+      // unless user has manually dragged it (saved in localStorage)
+      const userHasDragged = localStorage.getItem('nav-user-dragged') === 'true';
+
+      if (!userHasDragged && wasMobile !== nowMobile) {
+        if (nowMobile) {
+          // Switching to mobile: move to bottom-right
+          setCorner('bottom-right');
+          localStorage.setItem('nav-corner', 'bottom-right');
+        } else {
+          // Switching to desktop: move to top-left
+          setCorner('top-left');
+          localStorage.setItem('nav-corner', 'top-left');
+        }
+      }
+    };
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, [isMobile]);
+
+  // Initialize position from localStorage on mount
+  useEffect(() => {
+    const savedCorner = localStorage.getItem('nav-corner') as Corner | null;
+    const userHasDragged = localStorage.getItem('nav-user-dragged') === 'true';
+
+    if (savedCorner && userHasDragged) {
+      setCorner(savedCorner);
+    } else {
+      // Set default based on current screen size
+      const defaultCorner = isMobile ? 'bottom-right' : 'top-left';
+      setCorner(defaultCorner);
+      localStorage.setItem('nav-corner', defaultCorner);
+    }
   }, []);
+
+  // Calculate position based on corner
+  useEffect(() => {
+    const updatePosition = () => {
+      const margin = 16; // 16px margin from edges
+      const buttonWidth = isMobile ? 56 : 180; // Mobile: 56px circle, Desktop: 180px pill
+      const buttonHeight = 56; // Both use 56px height
+      // On mobile, add extra margin from bottom to align with typical action buttons (80-100px from bottom)
+      const bottomMargin = isMobile ? 80 : margin;
+
+      switch (corner) {
+        case 'top-left':
+          setPosition({ x: margin, y: margin });
+          break;
+        case 'top-right':
+          setPosition({ x: window.innerWidth - buttonWidth - margin, y: margin });
+          break;
+        case 'bottom-left':
+          setPosition({ x: margin, y: window.innerHeight - buttonHeight - bottomMargin });
+          break;
+        case 'bottom-right':
+          setPosition({ x: window.innerWidth - buttonWidth - margin, y: window.innerHeight - buttonHeight - bottomMargin });
+          break;
+      }
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
+  }, [corner, isMobile]);
 
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
         setMenuOpen(false);
       }
     };
@@ -44,6 +116,68 @@ export function Navbar() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [menuOpen]);
+
+  // Dragging handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return; // Don't drag when clicking the button itself
+
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    dragOffsetRef.current = {
+      x: e.clientX - position.x,
+      y: e.clientY - position.y
+    };
+    e.preventDefault();
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging) return;
+
+    const newX = e.clientX - dragOffsetRef.current.x;
+    const newY = e.clientY - dragOffsetRef.current.y;
+
+    setPosition({ x: newX, y: newY });
+  };
+
+  const handleMouseUp = (e: MouseEvent) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+
+    // Snap to nearest corner
+    const buttonWidth = isMobile ? 56 : 180;
+    const buttonHeight = 56;
+    const centerX = position.x + buttonWidth / 2;
+    const centerY = position.y + buttonHeight / 2;
+    const windowCenterX = window.innerWidth / 2;
+    const windowCenterY = window.innerHeight / 2;
+
+    let newCorner: Corner;
+    if (centerX < windowCenterX && centerY < windowCenterY) {
+      newCorner = 'top-left';
+    } else if (centerX >= windowCenterX && centerY < windowCenterY) {
+      newCorner = 'top-right';
+    } else if (centerX < windowCenterX && centerY >= windowCenterY) {
+      newCorner = 'bottom-left';
+    } else {
+      newCorner = 'bottom-right';
+    }
+
+    setCorner(newCorner);
+    localStorage.setItem('nav-corner', newCorner);
+    // Mark that user has manually positioned the button
+    localStorage.setItem('nav-user-dragged', 'true');
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, position]);
 
   const tools = {
     scraping: [
@@ -116,223 +250,285 @@ export function Navbar() {
     { href: "/blog-planner", label: "Blog Planner" },
     { href: "/firecrawl", label: "Firecrawl" },
     { href: "/keyword-research", label: "Keyword Research" },
-    { href: "/image-alterations", label: "Image Alterations" },
+    { href: "/image-editor", label: "Image Editor" },
     { href: "/page-extractor", label: "Page Extractor" },
     { href: "/tkx-calendar", label: "TKX Events" },
+    { href: "/api-monitor", label: "API Monitor" },
   ];
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
-      <div className="flex h-16 items-center justify-between px-4 md:px-6">
-        {/* Logo */}
-        <Link href="/" className="text-lg font-bold tracking-tighter text-foreground hover:text-foreground/80 transition-colors">
-          Hustle Tools
-        </Link>
+    <>
+      {/* Floating Draggable Button */}
+      <div
+        ref={buttonRef}
+        onMouseDown={handleMouseDown}
+        style={{
+          position: 'fixed',
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          zIndex: 9999,
+          cursor: isDragging ? 'grabbing' : 'grab',
+          transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          userSelect: 'none',
+        }}
+      >
+        <button
+          onClick={() => setMenuOpen(!menuOpen)}
+          className={cn(
+            "flex items-center justify-center bg-background/95 backdrop-blur-md border-2 hover:bg-accent hover:text-accent-foreground transition-colors",
+            "border-border dark:border-foreground/20 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_4px_12px_rgba(0,0,0,0.5)] shadow-lg",
+            isMobile ? "w-14 h-14" : "gap-2 px-4 py-3"
+          )}
+          style={{
+            borderRadius: '9999px',
+            fontSize: isMobile ? '16px' : '14px',
+            fontWeight: 600,
+            letterSpacing: '-0.025em',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+          }}
+        >
+          <span>{isMobile ? 'HT' : 'Hustle Together'}</span>
+        </button>
+      </div>
 
-        {/* Desktop Navigation with Dropdowns */}
-        {!isMobile && (
-          <>
-            <NavigationMenu>
-              <NavigationMenuList>
-                <NavigationMenuItem>
-                  <NavigationMenuLink asChild>
-                    <Link href="/chat" className={navigationMenuTriggerStyle()}>
-                      Chat
-                    </Link>
-                  </NavigationMenuLink>
-                </NavigationMenuItem>
-
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger>Scraping</NavigationMenuTrigger>
-                  <NavigationMenuContent>
-                    <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-1">
-                      {tools.scraping.map((tool) => (
-                        <ListItem
-                          key={tool.title}
-                          title={tool.title}
-                          href={tool.href}
-                          icon={tool.icon}
-                        >
-                          {tool.description}
-                        </ListItem>
-                      ))}
-                    </ul>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger>Design</NavigationMenuTrigger>
-                  <NavigationMenuContent>
-                    <ul className="grid w-[400px] gap-3 p-4">
-                      {tools.design.map((tool) => (
-                        <ListItem
-                          key={tool.title}
-                          title={tool.title}
-                          href={tool.href}
-                          icon={tool.icon}
-                        >
-                          {tool.description}
-                        </ListItem>
-                      ))}
-                    </ul>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger>Media</NavigationMenuTrigger>
-                  <NavigationMenuContent>
-                    <ul className="grid w-[400px] gap-3 p-4">
-                      {tools.media.map((tool) => (
-                        <ListItem
-                          key={tool.title}
-                          title={tool.title}
-                          href={tool.href}
-                          icon={tool.icon}
-                        >
-                          {tool.description}
-                        </ListItem>
-                      ))}
-                    </ul>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-              </NavigationMenuList>
-            </NavigationMenu>
-
-            <div className="flex items-center gap-4">
-              <ModeToggle />
+      {/* Desktop: Dropdown Menu */}
+      {!isMobile && menuOpen && (
+        <div
+          ref={menuRef}
+          className="fixed z-[9998] bg-card/95 backdrop-blur-md border border-border rounded-lg shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
+          style={{
+            left: corner.includes('right') ? 'auto' : `${position.x}px`,
+            right: corner.includes('right') ? `${window.innerWidth - position.x - 180}px` : 'auto',
+            top: corner.includes('bottom') ? 'auto' : `${position.y + 60}px`,
+            bottom: corner.includes('bottom') ? `${window.innerHeight - position.y + 4}px` : 'auto',
+            minWidth: '280px',
+            maxWidth: '320px',
+            maxHeight: '80vh',
+            overflow: 'auto',
+          }}
+        >
+          {/* Header with Mode Toggle */}
+          <div className="flex items-center justify-between p-4 border-b border-border">
+            <span className="text-sm font-semibold">Navigation</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="relative p-1.5 hover:bg-accent rounded-md transition-colors"
+                title="Toggle theme"
+              >
+                <div className="relative w-4 h-4">
+                  <Sun className="absolute inset-0 h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                  <Moon className="absolute inset-0 h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                </div>
+              </button>
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="p-1.5 hover:bg-accent rounded-md transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-          </>
-        )}
+          </div>
 
-        {/* Mobile: Hamburger Menu Button + Mode Toggle */}
-        {isMobile && (
-          <div ref={menuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <ModeToggle />
-
-            {/* Hamburger Button */}
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10"
-              style={{
-                transition: 'all 0.2s ease'
-              }}
-              aria-label="Toggle menu"
+          {/* Categories */}
+          <div className="p-2">
+            {/* Chat */}
+            <Link
+              href="/chat"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent transition-colors text-sm"
             >
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 15 15"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-[1.2rem] w-[1.2rem]"
-              >
-                <path
-                  d="M1.5 3C1.22386 3 1 3.22386 1 3.5C1 3.77614 1.22386 4 1.5 4H13.5C13.7761 4 14 3.77614 14 3.5C14 3.22386 13.7761 3 13.5 3H1.5ZM1 7.5C1 7.22386 1.22386 7 1.5 7H13.5C13.7761 7 14 7.22386 14 7.5C14 7.77614 13.7761 8 13.5 8H1.5C1.22386 8 1 7.77614 1 7.5ZM1 11.5C1 11.2239 1.22386 11 1.5 11H13.5C13.7761 11 14 11.2239 14 11.5C14 11.7761 13.7761 12 13.5 12H1.5C1.22386 12 1 11.7761 1 11.5Z"
-                  fill="currentColor"
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
+              <FileText className="h-4 w-4" />
+              <span>Chat</span>
+            </Link>
 
-            {/* Dropdown Menu */}
-            {menuOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '50px',
-                  right: '0',
-                  background: 'var(--card)',
-                  borderRadius: '8px',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                  minWidth: '200px',
-                  overflow: 'hidden',
-                  animation: 'slideDown 0.2s ease-out',
-                  zIndex: 100,
-                  border: '1px solid var(--border)'
-                }}
+            {/* Scraping */}
+            <div className="mt-4">
+              <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Scraping
+              </div>
+              {tools.scraping.map((tool) => (
+                <Link
+                  key={tool.href}
+                  href={tool.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent transition-colors"
+                >
+                  <tool.icon className="h-4 w-4" />
+                  <div>
+                    <div className="text-sm font-medium">{tool.title}</div>
+                    <div className="text-xs text-muted-foreground">{tool.description}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* Design */}
+            <div className="mt-4">
+              <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Design
+              </div>
+              {tools.design.map((tool) => (
+                <Link
+                  key={tool.href}
+                  href={tool.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent transition-colors"
+                >
+                  <tool.icon className="h-4 w-4" />
+                  <div>
+                    <div className="text-sm font-medium">{tool.title}</div>
+                    <div className="text-xs text-muted-foreground">{tool.description}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* Media */}
+            <div className="mt-4">
+              <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Media
+              </div>
+              {tools.media.map((tool) => (
+                <Link
+                  key={tool.href}
+                  href={tool.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent transition-colors"
+                >
+                  <tool.icon className="h-4 w-4" />
+                  <div>
+                    <div className="text-sm font-medium">{tool.title}</div>
+                    <div className="text-xs text-muted-foreground">{tool.description}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile: Slide-in Panel */}
+      {isMobile && (
+        <>
+          {/* Backdrop */}
+          {menuOpen && (
+            <div
+              className="fixed inset-0 bg-black/50 z-[9997] animate-in fade-in duration-200"
+              onClick={() => setMenuOpen(false)}
+            />
+          )}
+
+          {/* Slide-in Menu */}
+          <div
+            ref={menuRef}
+            className={cn(
+              "fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-background border-r border-border z-[9998] overflow-y-auto transition-transform duration-300 ease-out",
+              menuOpen ? "translate-x-0" : "-translate-x-full"
+            )}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10">
+              <span className="text-lg font-bold">Hustle Together</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="relative p-2 hover:bg-accent rounded-md transition-colors"
+                  title="Toggle theme"
+                >
+                  <div className="relative w-5 h-5">
+                    <Sun className="absolute inset-0 h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                    <Moon className="absolute inset-0 h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                  </div>
+                </button>
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="p-2 hover:bg-accent rounded-md transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Menu Items */}
+            <div className="p-4">
+              {/* Chat */}
+              <Link
+                href="/chat"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-accent transition-colors"
               >
-                {navLinks.map((link, index) => (
+                <FileText className="h-5 w-5" />
+                <span className="font-medium">Chat</span>
+              </Link>
+
+              {/* Scraping */}
+              <div className="mt-6">
+                <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Scraping
+                </div>
+                {tools.scraping.map((tool) => (
                   <Link
-                    key={link.href}
-                    href={link.href}
+                    key={tool.href}
+                    href={tool.href}
                     onClick={() => setMenuOpen(false)}
-                    style={{
-                      display: 'block',
-                      padding: '14px 20px',
-                      fontSize: '15px',
-                      fontWeight: 500,
-                      color: 'var(--foreground)',
-                      textDecoration: 'none',
-                      borderBottom: index < navLinks.length - 1 ? '1px solid var(--border)' : 'none',
-                      transition: 'background 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--muted)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                    }}
+                    className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-accent transition-colors"
                   >
-                    {link.label}
+                    <tool.icon className="h-5 w-5" />
+                    <div>
+                      <div className="font-medium">{tool.title}</div>
+                      <div className="text-sm text-muted-foreground">{tool.description}</div>
+                    </div>
                   </Link>
                 ))}
               </div>
-            )}
 
-            <style jsx global>{`
-              @keyframes slideDown {
-                from {
-                  transform: translateY(-10px);
-                  opacity: 0;
-                }
-                to {
-                  transform: translateY(0);
-                  opacity: 1;
-                }
-              }
-            `}</style>
+              {/* Design */}
+              <div className="mt-6">
+                <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Design
+                </div>
+                {tools.design.map((tool) => (
+                  <Link
+                    key={tool.href}
+                    href={tool.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-accent transition-colors"
+                  >
+                    <tool.icon className="h-5 w-5" />
+                    <div>
+                      <div className="font-medium">{tool.title}</div>
+                      <div className="text-sm text-muted-foreground">{tool.description}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              {/* Media */}
+              <div className="mt-6">
+                <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Media
+                </div>
+                {tools.media.map((tool) => (
+                  <Link
+                    key={tool.href}
+                    href={tool.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-accent transition-colors"
+                  >
+                    <tool.icon className="h-5 w-5" />
+                    <div>
+                      <div className="font-medium">{tool.title}</div>
+                      <div className="text-sm text-muted-foreground">{tool.description}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        </>
+      )}
+    </>
   )
 }
-
-const ListItem = ({
-  className,
-  title,
-  children,
-  href,
-  icon: Icon,
-  ...props
-}: {
-  className?: string;
-  title: string;
-  children: React.ReactNode;
-  href: string;
-  icon?: any;
-}) => {
-  return (
-    <li>
-      <NavigationMenuLink asChild>
-        <Link
-          href={href}
-          className={cn(
-            "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-            className
-          )}
-          {...props}
-        >
-          <div className="flex items-center gap-2">
-            {Icon && <Icon className="h-4 w-4" />}
-            <div className="text-sm font-medium leading-none">{title}</div>
-          </div>
-          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-            {children}
-          </p>
-        </Link>
-      </NavigationMenuLink>
-    </li>
-  );
-};

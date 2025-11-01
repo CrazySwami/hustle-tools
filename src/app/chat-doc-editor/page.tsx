@@ -176,7 +176,7 @@ const ChatBotDemo = () => {
   return (
     <div
       className={cn(
-        'h-screen w-full pt-16 grid',
+        'h-screen w-full grid',
         !isEditorFullscreen && 'grid-cols-[1fr_550px]'
       )}
     >

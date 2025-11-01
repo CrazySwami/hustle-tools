@@ -126,6 +126,24 @@ When sections are imported to WordPress (via template library or page preview), 
 - Tools: `getEditorContent` (read code), `editCodeWithDiff` (make changes)
 - See full documentation: `/docs/diff-based-code-editing.md`
 
+**AI Widget Converter (NEW ⭐):**
+- **"⚡ Generate Widget"** button uses Claude Sonnet 4.5 for AI-based widget generation
+- **Hybrid approach**: Programmatic CSS scoping + AI PHP generation
+- **Process**:
+  1. Scope CSS with `{{WRAPPER}}` prefix (programmatic)
+  2. Parse HTML to identify elements needing controls (programmatic)
+  3. Use Sonnet 4.5 to generate complete PHP widget class (AI streaming)
+  4. Create comprehensive Elementor controls for ALL elements
+  5. Create NEW widget project (non-destructive)
+- **Features**:
+  - Real-time streaming: Watch PHP being generated live
+  - CSS scoping prevents global style conflicts
+  - Preserves original HTML project
+  - 10-45 seconds generation time
+  - Cost: ~$0.05-0.15 per widget
+- **API**: `/api/convert-html-to-widget-ai` - streams PHP using Vercel AI SDK
+- **Why AI**: Template-based approaches miss complex control logic; AI generates production-ready widgets with proper control organization, dynamic rendering, and semantic naming
+
 ### 2. AI Chat Interface (`/chat`)
 Vercel AI SDK-powered chat with streaming responses and tool calling.
 

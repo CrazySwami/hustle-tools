@@ -24,14 +24,20 @@
  */
 
 import { create } from 'zustand';
+import type { Editor } from '@tiptap/core';
 
 interface DocumentState {
   // Content
   content: string;
 
+  // Editor instance (for streaming animations)
+  editor: Editor | null;
+  setEditor: (editor: Editor | null) => void;
+
   // Content getters/setters
   getContent: () => string;
   updateContent: (content: string) => void;
+  updateContentWithAnimation: (content: string, oldContent: string) => Promise<void>;
 
   // History management
   history: string[];
@@ -47,9 +53,20 @@ export const useDocumentContent = create<DocumentState>((set, get) => ({
   // Initial content
   content: '',
 
+  // Editor instance
+  editor: null,
+
   // History state
   history: [],
   historyIndex: -1,
+
+  /**
+   * Set editor instance for streaming animations
+   * @param editor - Tiptap editor instance
+   */
+  setEditor: (editor) => {
+    set({ editor });
+  },
 
   /**
    * Get current document content
@@ -60,11 +77,91 @@ export const useDocumentContent = create<DocumentState>((set, get) => ({
   },
 
   /**
-   * Update document content
+   * Update document content (instant, no animation)
    * @param content - New document content
    */
   updateContent: (content) => {
     set({ content });
+  },
+
+  /**
+   * Update document content with streaming animation
+   * @param content - New document content
+   * @param oldContent - Old document content (for diff calculation)
+   */
+  updateContentWithAnimation: async (content, oldContent) => {
+    const { editor } = get();
+    if (!editor) {
+      // Fallback to instant update if no editor
+      set({ content });
+      return;
+    }
+
+    // Import streaming utilities dynamically
+    const { updateStreamingState } = await import('@/components/editor/StreamingExtension');
+
+    // Find the position where content differs
+    let diffStart = 0;
+    const minLength = Math.min(oldContent.length, content.length);
+
+    while (diffStart < minLength && oldContent[diffStart] === content[diffStart]) {
+      diffStart++;
+    }
+
+    const changedText = content.slice(diffStart);
+
+    if (changedText.length === 0) {
+      set({ content });
+      return;
+    }
+
+    // Start streaming animation
+    updateStreamingState(editor.view, {
+      isStreaming: true,
+      from: diffStart,
+      to: content.length,
+      streamedText: changedText,
+      cursorPos: 0,
+    });
+
+    // Animate character by character
+    const charsPerFrame = 3; // Speed of animation
+    let currentPos = 0;
+
+    const animateNextChunk = () => {
+      currentPos = Math.min(currentPos + charsPerFrame, changedText.length);
+
+      // Build partial content: old content up to diffStart + streamed portion
+      const partialContent = oldContent.slice(0, diffStart) + changedText.slice(0, currentPos);
+
+      // Update editor with partial content (reveals text progressively)
+      editor.commands.setContent(partialContent);
+
+      // Update cursor position for purple highlight
+      updateStreamingState(editor.view, {
+        cursorPos: currentPos,
+      });
+
+      if (currentPos < changedText.length) {
+        requestAnimationFrame(animateNextChunk);
+      } else {
+        // Animation complete - set final content and clean up
+        setTimeout(() => {
+          editor.commands.setContent(content);
+          set({ content });
+          updateStreamingState(editor.view, {
+            isStreaming: false,
+            from: 0,
+            to: 0,
+            streamedText: '',
+            cursorPos: 0,
+          });
+        }, 150);
+      }
+    };
+
+    // Start animation (content will be revealed progressively)
+    requestAnimationFrame(animateNextChunk);
   },
 
   /**

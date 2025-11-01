@@ -37,6 +37,8 @@ export async function middleware(request: NextRequest) {
     '/blog-planner',
     '/tkx-calendar',
     '/keyword-research',
+    '/voice-chat',
+    '/test-cartesia',
   ]
   const path = request.nextUrl.pathname
 

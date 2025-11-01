@@ -14,3 +14,29 @@
   background-color: rgba(255, 230, 0, 0.4);
   border-bottom: 2px solid rgba(255, 230, 0, 0.8);
 }
+
+/* Streaming text animation styles */
+.streaming-text {
+  background-color: #ede9fe !important;
+  color: #4c1d95 !important;
+  padding: 0 2px;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 16px;
+  background-color: #8b5cf6;
+  margin-left: 2px;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

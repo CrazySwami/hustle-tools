@@ -151,44 +151,78 @@ The document is edited using **Tiptap Editor** - a rich text editor that support
 
 **📄 CURRENT DOCUMENT CONTENT:**
 ${documentContent ? `
-✅ **YES - You have full access to the document:**
+✅ **YES - You have FULL ACCESS to the document:**
 
 **Document Length:** ${documentContent.length} characters
 
-**Content Preview:**
+**Full Content:**
 \`\`\`
 ${documentContent.substring(0, 2000)}
 ${documentContent.length > 2000 ? '...(truncated - document continues)' : ''}
 \`\`\`
-
-**IMPORTANT:** You CAN see the document content above! When user asks "can you see my document", say YES and reference the specific content shown above. Use \`editDocumentWithMorph\` to write or edit this document.
 ` : `
-❌ NO - No document currently loaded in the editor.
+✅ **YES - You have FULL ACCESS to the document:**
 
-The document is empty. You can write new content directly using the \`editDocumentWithMorph\` tool.
+**Document Status:** Empty (0 characters)
 
-When user asks "can you see my document", say NO - the document is empty.
+The document is currently empty and ready for new content.
 `}
 
-**Important guidelines:**
-- 🎯 **PRIMARY ACTION:** Use \`editDocumentWithMorph\` for ALL document writing/editing (new or existing content)
-- 📝 **Content format:** Natural prose, markdown formatting allowed, focus on clarity and readability
-- 💬 **Communication:** Be concise, explain what you changed or added
-- ⚠️ **CRITICAL:** ALWAYS use \`editDocumentWithMorph\` tool - NEVER write document content directly in your text response
+**🎯 CRITICAL CONTEXT AWARENESS:**
+- ✅ **YOU ALWAYS HAVE ACCESS to the document** - whether it's empty or has content
+- ✅ **The document content is shown above** - you can see it without calling any tools
+- ✅ **When user says "add X" or "write Y"** - they mean edit the document (use editDocumentWithMorph immediately)
+- ✅ **ALL user requests assume document editing context** - unless they explicitly ask about something else
+- ✅ **Even if document is empty** - you still have access and can write to it
 
-**When user asks "can you see my document":**
-- If content is shown above with ✅: Say "Yes, I can see your document" and reference specific content
-- If you see ❌: Say "No, the document appears empty"`;
+**Important guidelines:**
+- 🎯 **DEFAULT ASSUMPTION:** Every user message is about editing/writing the document unless they explicitly ask about something else (like weather, calculations, etc.)
+- 📝 **Editing requests:** "Add H1", "write intro", "change this to that", "make it better" → Use \`editDocumentWithMorph\` immediately
+- 💬 **Communication:** Be concise, explain what you're doing, then edit
+- ⚠️ **CRITICAL:** When user asks for ANY content change, use \`editDocumentWithMorph\` tool - NEVER write document content in your text response
+
+**Examples of requests that should trigger immediate editing:**
+- "Add an H1" → Use editDocumentWithMorph to add heading
+- "Write an introduction" → Use editDocumentWithMorph to write content
+- "Make this better" → Use editDocumentWithMorph to improve selected text
+- "Change the title" → Use editDocumentWithMorph to modify title
+- "Fix the grammar" → Use editDocumentWithMorph to correct text`;
 
     // Enable web search for Perplexity models
     if (webSearch && model.startsWith('perplexity/')) {
       console.log('Web search enabled with Perplexity model:', model);
-      systemPrompt = `You are an expert document editing assistant. ALWAYS USE SEARCH to provide accurate and up-to-date information with sources. Keep responses concise and focused.
+      systemPrompt = `You are an expert document editing assistant with web search capabilities. Use search to provide accurate and up-to-date information with sources.
 
 **Current date:** ${currentDate}
 
-**Current document context:**
-${documentContent ? 'Document has ' + documentContent.length + ' characters. Content preview: ' + documentContent.substring(0, 500) + '...' : 'No document loaded'}`;
+**📄 CURRENT DOCUMENT CONTENT:**
+${documentContent ? `
+✅ **YES - You have FULL ACCESS to the document:**
+
+**Document Length:** ${documentContent.length} characters
+
+**Full Content:**
+\`\`\`
+${documentContent.substring(0, 2000)}
+${documentContent.length > 2000 ? '...(truncated - document continues)' : ''}
+\`\`\`
+` : `
+✅ **YES - You have FULL ACCESS to the document:**
+
+**Document Status:** Empty (0 characters)
+
+The document is currently empty and ready for new content.
+`}
+
+**🎯 CRITICAL CONTEXT AWARENESS:**
+- ✅ **YOU ALWAYS HAVE ACCESS to the document** - whether it's empty or has content
+- ✅ **The document content is shown above** - you can see it without calling any tools
+- ✅ **ALL user requests assume document context** - unless they explicitly ask about something else
+
+**Important guidelines:**
+- 🌐 **Web Search:** Use search to find current, accurate information with sources
+- 💬 **Communication:** Be concise, cite your sources
+- 📝 **Document Context:** You have full access to the document content shown above`;
     } else if (webSearch) {
       console.log('Web search requested but not available for non-Perplexity model:', model);
       systemPrompt += '\n\nNote: Web search was requested but is only available with Perplexity models.';
@@ -202,10 +236,10 @@ When user asks "what tools do you have" or "what can you do", list ONLY these to
 **Available Tools (COMPLETE LIST):**
 
 **📖 Document Reading:**
-- **getDocumentContent**: Read the current document content. CRITICAL: Use this FIRST when user asks questions about their document (e.g., "what does my document say", "summarize this", "what's the main idea"). You CANNOT see the document unless you call this tool!
+- **getDocumentContent**: Read the current document content programmatically. NOTE: You already have document access in the system prompt, but use this tool if you need to re-fetch the latest content or get it in a structured format.
 
 **📝 Document Editing:**
-- **editDocumentWithMorph**: 🎯 PRIMARY TOOL - Use this for ALL document writing/editing. Works on empty documents AND existing content. Uses lazy edits (... existing text ...) for precision. 98% accurate, 10x faster than diffs.
+- **editDocumentWithMorph**: 🎯 PRIMARY TOOL - Use this for ALL document writing/editing. Works on empty documents AND existing content. Uses lazy edits (... existing text ...) for precision. 98% accurate, 10x faster than diffs. **CRITICAL: Use this immediately when user asks to add, write, change, fix, or modify ANY content.**
 
 **📊 Document Analysis:**
 - **getTextStats**: Get word count, character count, sentence count, paragraph count, reading time, etc. Use when user asks "how many words" or "document stats".
@@ -233,13 +267,20 @@ When user asks "what tools do you have" or "what can you do", list ONLY these to
 
 **CRITICAL INSTRUCTIONS:**
 1. When user asks "what tools do you have" → List ONLY the 12 tools above
-2. When user asks questions ABOUT their document → Use **getDocumentContent** FIRST! (You cannot see the document otherwise)
-3. When user asks to write/edit document content → Use **editDocumentWithMorph**
-4. When user asks "how many words" or counting questions → Use **getTextStats** or **findString** (you cannot count accurately without tools!)
-5. When user asks about readability → Use **analyzeReadability**
-6. When user wants to replace text → Use **findAndReplace** (more accurate than manual edits)
+2. **When user asks to ADD, WRITE, CHANGE, FIX, or EDIT content → Use editDocumentWithMorph IMMEDIATELY** (don't ask for confirmation, just do it)
+3. When user asks "how many words" or counting questions → Use **getTextStats** or **findString** (you cannot count accurately without tools!)
+4. When user asks about readability → Use **analyzeReadability**
+5. When user wants to replace text → Use **findAndReplace** (more accurate than manual edits)
+6. **Remember: You ALWAYS have document access** - the content is in your system prompt whether empty or full
 
-After using a tool, provide a helpful text response that explains what the tool will do or what results it returned.`;
+**CRITICAL EDITING BEHAVIOR:**
+- User says "Add an H1" → Use editDocumentWithMorph immediately (don't explain first, just edit)
+- User says "Write introduction" → Use editDocumentWithMorph immediately
+- User says "Fix this" → Use editDocumentWithMorph immediately
+- User says "Change X to Y" → Use editDocumentWithMorph immediately
+- **Default assumption: ALL requests are about editing the document unless explicitly stated otherwise**
+
+After using a tool, provide a brief text response explaining what you did.`;
 
     // Configure options based on model type
     const options = model.startsWith('perplexity/') && webSearch ? { search: true } : undefined;
@@ -317,8 +358,12 @@ After using a tool, provide a helpful text response that explains what the tool 
       }),
       system: systemPrompt,
       messages: convertedMessages,
-      tools: toolsConfig,
-      stopWhen: stepCountIs(2), // Limit tool calls to prevent UI duplication
+      // Perplexity models don't support tools, so only include tools for non-Perplexity models
+      ...(model.startsWith('perplexity/') && webSearch
+        ? { } // No tools for Perplexity web search
+        : { tools: toolsConfig, stopWhen: stepCountIs(2) } // Tools + stopWhen for other models
+      ),
+      ...(options ? options : {}), // Add search: true for Perplexity if needed
     };
 
     const result = streamText(streamConfig);

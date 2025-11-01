@@ -32,6 +32,7 @@ export type ToolHeaderProps = {
   type: ToolUIPart['type'];
   state: ToolUIPart['state'];
   className?: string;
+  preview?: string; // Optional preview text to show when collapsed
 };
 
 const getStatusBadge = (status: ToolUIPart['state']) => {
@@ -61,6 +62,7 @@ export const ToolHeader = ({
   className,
   type,
   state,
+  preview,
   ...props
 }: ToolHeaderProps) => (
   <CollapsibleTrigger
@@ -70,12 +72,17 @@ export const ToolHeader = ({
     )}
     {...props}
   >
-    <div className="flex items-center gap-2">
-      <WrenchIcon className="size-4 text-muted-foreground" />
-      <span className="font-medium text-sm">{type}</span>
+    <div className="flex items-center gap-2 min-w-0 flex-1">
+      <WrenchIcon className="size-4 text-muted-foreground shrink-0" />
+      <span className="font-medium text-sm shrink-0">{type}</span>
       {getStatusBadge(state)}
+      {preview && (
+        <span className="text-xs text-muted-foreground truncate ml-2">
+          {preview.length > 50 ? `${preview.substring(0, 50)}...` : preview}
+        </span>
+      )}
     </div>
-    <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+    <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 shrink-0" />
   </CollapsibleTrigger>
 );
 
@@ -95,16 +102,38 @@ export type ToolInputProps = ComponentProps<'div'> & {
   input: ToolUIPart['input'];
 };
 
-export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn('space-y-2 overflow-hidden p-4', className)} {...props}>
-    <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-      Parameters
-    </h4>
-    <div className="rounded-md bg-muted/50">
-      <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
+  // Truncate long strings in input for display
+  const truncateStrings = (obj: any, maxLength: number = 100): any => {
+    if (typeof obj === 'string') {
+      return obj.length > maxLength ? `${obj.substring(0, maxLength)}...` : obj;
+    }
+    if (Array.isArray(obj)) {
+      return obj.map(item => truncateStrings(item, maxLength));
+    }
+    if (obj && typeof obj === 'object') {
+      const result: any = {};
+      for (const key in obj) {
+        result[key] = truncateStrings(obj[key], maxLength);
+      }
+      return result;
+    }
+    return obj;
+  };
+
+  const truncatedInput = truncateStrings(input);
+
+  return (
+    <div className={cn('space-y-2 overflow-hidden p-4', className)} {...props}>
+      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        Parameters
+      </h4>
+      <div className="rounded-md bg-muted/50">
+        <CodeBlock code={JSON.stringify(truncatedInput, null, 2)} language="json" />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export type ToolOutputProps = ComponentProps<'div'> & {
   output: ReactNode;

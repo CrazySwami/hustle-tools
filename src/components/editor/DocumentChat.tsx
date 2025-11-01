@@ -40,6 +40,8 @@ interface DocumentChatProps {
   onReload?: () => void;
   isEditorVisible: boolean;
   onToggleEditor: () => void;
+  webSearchEnabled?: boolean;
+  onWebSearchChange?: (enabled: boolean) => void;
 }
 
 const modelGroups = [
@@ -92,9 +94,17 @@ export function DocumentChat({
   onReload,
   isEditorVisible,
   onToggleEditor,
+  webSearchEnabled = false,
+  onWebSearchChange,
 }: DocumentChatProps) {
   const [input, setInput] = useState('');
-  const [webSearch, setWebSearch] = useState(false);
+  // Use controlled webSearch if provided, otherwise use local state
+  const webSearch = webSearchEnabled;
+  const setWebSearch = (value: boolean) => {
+    if (onWebSearchChange) {
+      onWebSearchChange(value);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

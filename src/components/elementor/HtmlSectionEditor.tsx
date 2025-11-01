@@ -236,7 +236,7 @@ export function HtmlSectionEditor({
     }
   };
 
-  // Quick Widget generation using programmatic converter
+  // AI Widget: Generate using Claude Sonnet 4.5 with streaming
   const handleQuickWidget = async () => {
     if (!editorHtml.trim()) {
       alert('⚠️ No HTML content to convert. Please add HTML code first.');
@@ -249,68 +249,150 @@ export function HtmlSectionEditor({
     }
 
     const confirmed = confirm(
-      '⚡ Generate Elementor Widget?\n\n' +
+      '🤖 Generate Elementor Widget with AI?\n\n' +
       'This will:\n' +
-      '• Extract only relevant CSS (filters out unused styles)\n' +
+      '• Use Claude Sonnet 4.5 to generate a complete widget\n' +
+      '• Create comprehensive controls for ALL elements\n' +
       '• Scope CSS with {{WRAPPER}} to prevent conflicts\n' +
-      '• Generate comprehensive Elementor controls\n' +
-      '• Validate PHP syntax before saving\n' +
-      '• Use AI for widget naming only (~200ms)\n' +
-      '• Create a NEW widget project\n' +
-      '• Keep the original HTML project intact\n' +
+      '• Create a NEW PHP widget project\n' +
+      '• Keep your original HTML project intact\n' +
+      '\n⏱️ Takes 10-45 seconds (streaming response)\n' +
+      '💰 Cost: ~$0.05-0.15 per widget\n' +
+      '\n✅ Your current project will NOT be modified.\n' +
       '\nContinue?'
     );
 
     if (!confirmed) return;
 
     setIsConverting(true);
-    setConversionProgress('Generating widget with programmatic converter...');
+    setConversionProgress('🤖 Generating widget with AI (streaming)...');
 
     try {
-      // Convert to widget using programmatic converter
-      const { widgetPhp, widgetCss, widgetJs } = await convertToWidgetProgrammatic(
-        editorHtml,
-        editorCss,
-        editorJs,
-        {
-          useAIForMetadata: true, // Use AI for widget name/title/description
-        }
-      );
+      // Scope CSS with {{WRAPPER}} before sending to AI
+      const scopedCss = scopeCSSWithWrapper(editorCss);
 
-      // Extract widget class name for project naming
-      const classMatch = widgetPhp.match(/class\s+(\w+)\s+extends/);
-      const widgetClassName = classMatch ? classMatch[1] : 'Widget';
-      setConvertedWidgetName(widgetClassName);
+      // Generate widget metadata (name, title) for the AI
+      const widgetName = fileGroups.activeGroup?.name.toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'custom_section';
+      const widgetTitle = fileGroups.activeGroup?.name || 'Custom Section';
 
-      // Create NEW PHP widget project (preserve original HTML project)
+      // Call AI widget converter API with streaming
+      const response = await fetch('/api/convert-html-to-widget-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          html: editorHtml,
+          css: scopedCss, // Send scoped CSS
+          js: editorJs,
+          widgetName,
+          widgetTitle,
+          widgetDescription: `Generated widget from ${widgetName}`
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `API error: ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error('No response body');
+      }
+
+      // Create NEW PHP widget project first
       const newProjectName = `${fileGroups.activeGroup?.name || 'Section'} (Widget)`;
       const newGroup = fileGroups.createNewGroup(newProjectName, 'php', 'empty');
 
-      // Set the PHP widget code with SCOPED CSS and JS
-      fileGroups.updateGroupFile(newGroup.id, 'php', widgetPhp);
-      fileGroups.updateGroupFile(newGroup.id, 'html', editorHtml); // Preserve original HTML for reference
-      fileGroups.updateGroupFile(newGroup.id, 'css', widgetCss); // SCOPED CSS with {{WRAPPER}}
-      fileGroups.updateGroupFile(newGroup.id, 'js', widgetJs); // Widget JS
+      // Save original HTML and scoped CSS
+      fileGroups.updateGroupFile(newGroup.id, 'html', editorHtml);
+      fileGroups.updateGroupFile(newGroup.id, 'css', scopedCss);
+      fileGroups.updateGroupFile(newGroup.id, 'js', editorJs || '');
 
       // Switch to new PHP widget project
       fileGroups.selectGroup(newGroup.id);
 
-      // Switch to PHP tab to show the generated widget
+      // Switch to PHP tab to show streaming generation
       handleCodeTabChange('php');
 
-      // Show completion modal
+      // Stream the PHP widget code
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let streamedPhp = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+
+        // Parse data stream format (Vercel AI SDK format)
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('0:')) {
+            // Text chunk
+            const jsonStr = line.substring(2);
+            try {
+              const parsed = JSON.parse(jsonStr);
+              if (parsed && typeof parsed === 'string') {
+                streamedPhp += parsed;
+                // Update PHP editor in real-time
+                fileGroups.updateGroupFile(newGroup.id, 'php', streamedPhp);
+                setConversionProgress(`🤖 Generating... ${streamedPhp.length} characters`);
+              }
+            } catch (e) {
+              // Ignore parse errors for partial chunks
+            }
+          }
+        }
+      }
+
+      setConvertedWidgetName(widgetName);
       setShowCompletionModal(true);
 
-      alert(`✅ Created new widget project: "${newProjectName}"!\n\nOriginal HTML project preserved.\n\n⚠️ CSS has been scoped with {{WRAPPER}} to prevent style conflicts.`);
+      alert(`✅ Created new widget project: "${newProjectName}"!\n\nOriginal HTML project preserved.\n\n⚠️ CSS has been scoped with {{WRAPPER}} to prevent style conflicts.\n\n🤖 Generated ${streamedPhp.length} characters of PHP code using AI.`);
 
     } catch (error: any) {
-      alert(`❌ Quick Widget generation failed: ${error.message}`);
-      console.error('Quick Widget error:', error);
+      alert(`❌ AI Widget generation failed: ${error.message}`);
+      console.error('AI Widget error:', error);
     } finally {
       setIsConverting(false);
       setConversionProgress('');
     }
   };
+
+  // Helper function to scope CSS with {{WRAPPER}}
+  function scopeCSSWithWrapper(css: string): string {
+    if (!css || !css.trim()) return css;
+
+    return css.replace(
+      /(^|\})\s*([^{@]+)\s*\{/gm,
+      (match, before, selector) => {
+        // Skip @media, @keyframes, @font-face, etc.
+        if (selector.trim().startsWith('@')) {
+          return match;
+        }
+
+        // Skip pseudo-elements and pseudo-classes when standalone
+        if (/^:/.test(selector.trim())) {
+          return match;
+        }
+
+        // Add {{WRAPPER}} to each selector in comma-separated list
+        const scoped = selector
+          .split(',')
+          .map((s: string) => {
+            const trimmed = s.trim();
+            // Skip if already has {{WRAPPER}}
+            if (trimmed.includes('{{WRAPPER}}')) {
+              return trimmed;
+            }
+            return `{{WRAPPER}} ${trimmed}`;
+          })
+          .join(', ');
+
+        return `${before} ${scoped} {`;
+      }
+    );
+  }
 
   // Convert PHP widget back to HTML/CSS/JS
   const handleConvertBackToHtml = () => {

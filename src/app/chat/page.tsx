@@ -303,7 +303,7 @@ const ChatBotDemo = () => {
   };
 
   return (
-    <div className="flex h-screen w-full pt-16 px-4 pb-4 gap-4">
+    <div className="flex h-screen w-full px-4 py-4 gap-4">
       <div className="flex flex-col h-full flex-1">
         <Conversation className="h-full">
           <ConversationContent>

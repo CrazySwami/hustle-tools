@@ -42,21 +42,8 @@ Edited text:`;
       maxTokens: 500,
     });
 
-    // Collect the full response
-    let editedText = '';
-    for await (const chunk of result.textStream) {
-      editedText += chunk;
-    }
-
-    // Clean up any markdown artifacts or extra formatting
-    editedText = editedText.trim();
-
-    // Remove markdown quotes if present
-    if (editedText.startsWith('"') && editedText.endsWith('"')) {
-      editedText = editedText.slice(1, -1);
-    }
-
-    return Response.json({ editedText });
+    // Return streaming response for typewriter effect in UI
+    return result.toTextStreamResponse();
 
   } catch (error: any) {
     console.error('Inline edit error:', error);

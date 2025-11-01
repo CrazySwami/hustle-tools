@@ -2,6 +2,29 @@
 
 This guide provides a clear, repeatable process for adding new tools to the chat application. Following these steps will allow you to seamlessly extend the AI's capabilities.
 
+## 🎨 **v0 for UI Components - Our Standard**
+
+**⚠️ IMPORTANT: All new tool widgets and UI components MUST be designed using [v0.dev](https://v0.dev)**
+
+[v0](https://v0.dev) is Vercel's AI-powered UI generator that creates production-ready React components. We use it as our **primary design tool** for all tool widgets because:
+
+- ✅ **Instant Production Code** - Get shadcn/ui + Tailwind components in seconds
+- ✅ **Consistent Design System** - Automatically matches our existing components
+- ✅ **No Design Skills Needed** - Describe what you want, v0 builds it
+- ✅ **TypeScript by Default** - Proper types included
+- ✅ **Responsive & Accessible** - Built-in best practices
+
+**How to use v0 when creating tools:**
+1. Define your tool in `src/lib/tools.ts` (see guides below)
+2. **Go to [v0.dev](https://v0.dev)** and describe the widget UI
+3. Copy the generated component code
+4. Paste into `src/components/tool-ui/TOOLNAME-widget.tsx`
+5. Adjust props to match your tool's output data
+
+**See detailed v0 workflow in [Step 2: Create a Custom UI Widget](#step-2-create-a-custom-ui-widget-optional-frontend)**
+
+---
+
 ## Table of Contents
 
 1. [**Standard Tool UI Design** ⭐ START HERE](#standard-tool-ui-design)
@@ -1876,9 +1899,56 @@ Once you save this file, the AI will automatically have access to this new tool.
 
 By default, the tool's result will be displayed as raw JSON. To provide a better user experience, you can create a custom React component to render the result.
 
+### Using v0 for Widget Design (Recommended)
+
+**⭐ IMPORTANT: Use v0 for ALL new tool widgets and UI components.**
+
+[v0](https://v0.dev) is Vercel's AI-powered UI generator that creates polished React components using shadcn/ui and Tailwind CSS. This is the **preferred method** for creating tool widgets in this project.
+
+**Why use v0:**
+- ✅ Generates production-ready components in seconds
+- ✅ Uses shadcn/ui components (already in this project)
+- ✅ Follows Tailwind CSS conventions (our styling system)
+- ✅ Creates responsive, accessible components
+- ✅ Includes proper TypeScript types
+- ✅ Matches our design system automatically
+
+**How to use v0:**
+
+1. **Go to [v0.dev](https://v0.dev)** and sign in with your Vercel account
+2. **Describe your widget** with specific requirements:
+   ```
+   Example prompt:
+   "Create a stock price widget component that displays:
+   - Stock symbol in header with trending up icon
+   - Large price display
+   - Timestamp in small text
+   - Green card design with rounded borders
+   - Uses shadcn/ui Card component
+   - TypeScript interface for StockData with symbol, price, timestamp"
+   ```
+3. **Review and iterate** - v0 will generate the component, you can refine with follow-up prompts
+4. **Copy the code** - Click "Copy Code" when satisfied with the design
+5. **Save to project** - Create file in `src/components/tool-ui/TOOLNAME-widget.tsx`
+6. **Install any missing dependencies** if v0 used new shadcn components
+
+**v0 Integration Process:**
+
 1.  **Create a new widget file** in `src/components/tool-ui/`. For our example, let's call it `stock-widget.tsx`.
 
-2.  **Build the component**. It will receive the `result` from the tool's `execute` function as a `data` prop.
+2.  **Paste the v0-generated component** and adjust the props to match your tool's output data type.
+
+3.  **Verify imports** - Ensure all shadcn/ui components are installed:
+    ```bash
+    # If v0 used a component you don't have:
+    npx shadcn-ui@latest add card
+    npx shadcn-ui@latest add button
+    # etc.
+    ```
+
+### Manual Component Creation (Alternative)
+
+If you prefer to build the component manually without v0:
 
 ### Example: Creating a `StockWidget`
 
@@ -3789,13 +3859,17 @@ Use these checklists to ensure you've completed all steps when adding tools or c
 - [ ] Test tool execution with console.log
 
 **Widget Component (Optional `src/components/tool-ui/TOOLNAME-widget.tsx`):**
+- [ ] **Use v0.dev to design the widget** (RECOMMENDED - see Step 2 in main guide)
+- [ ] Describe widget requirements in v0 prompt (include shadcn/ui components)
+- [ ] Copy generated component code from v0
 - [ ] Create new file named after your tool
-- [ ] Import necessary UI components (Card, icons, etc.)
+- [ ] Paste v0 code and adjust props to match tool output
+- [ ] Verify all shadcn/ui imports are installed (`npx shadcn-ui@latest add <component>`)
 - [ ] Define TypeScript interface for `data` prop matching tool output
-- [ ] Build responsive UI with proper styling
 - [ ] Add loading states if needed
 - [ ] Add error states if needed
 - [ ] Test with sample data
+- [ ] (Alternative) Build manually without v0 if you prefer custom implementation
 
 **Tool Renderer (`src/components/tool-ui/tool-result-renderer.tsx`):**
 - [ ] Import your widget component
@@ -3843,6 +3917,9 @@ Use these checklists to ensure you've completed all steps when adding tools or c
 - [ ] Return proper error Response with 500 status
 
 **Widget Component (`src/components/tool-ui/TOOLNAME-widget.tsx`):**
+- [ ] **Use v0.dev to design the widget UI** (RECOMMENDED - see Step 2 in main guide)
+- [ ] Describe widget with streaming requirements in v0 (loading states, progress indicators)
+- [ ] Copy v0 code as starting point for widget layout
 - [ ] Mark as `'use client'`
 - [ ] Add state for `isGenerating`, `currentStep`, `generatedContent`
 - [ ] Create `handleGenerate` async function

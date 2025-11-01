@@ -32,14 +32,14 @@ export const MessageContent = ({
 }: MessageContentProps) => (
   <div
     className={cn(
-      'flex flex-col gap-2 rounded-lg text-sm text-foreground px-4 py-3 overflow-hidden',
+      'flex flex-col gap-2 rounded-lg text-sm text-foreground px-4 py-3 overflow-hidden break-words',
       'group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground',
       'group-[.is-assistant]:bg-secondary group-[.is-assistant]:text-foreground',
       className,
     )}
     {...props}
   >
-    <div className="is-user:dark">{children}</div>
+    <div className="is-user:dark break-words overflow-wrap-anywhere">{children}</div>
   </div>
 );
 

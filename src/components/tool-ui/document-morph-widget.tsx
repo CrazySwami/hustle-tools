@@ -29,7 +29,7 @@ function LoadingDots() {
 }
 
 export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
-  const { content, updateContent } = useDocumentContent();
+  const { content, updateContent, updateContentWithAnimation } = useDocumentContent();
   const { recordUsage } = useUsageTracking();
 
   const [state, setState] = useState<WidgetState>('idle');
@@ -72,8 +72,8 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
         throw new Error(result.error || `Morph API failed: ${response.statusText}`);
       }
 
-      // Update document with merged content
-      updateContent(result.mergedCode);
+      // Update document with merged content with streaming animation
+      await updateContentWithAnimation(result.mergedCode, originalDoc);
 
       // Record usage for tracking
       recordUsage('morph/v3-fast', {

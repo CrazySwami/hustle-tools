@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
-import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search, X, Sun, Moon } from "lucide-react"
+import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search, X, Sun, Moon, Activity } from "lucide-react"
 
 type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -225,6 +225,12 @@ export function Navbar() {
         description: "AI-powered document editor with analysis tools",
         icon: FileText,
       },
+      {
+        title: "API Monitor",
+        href: "/api-monitor",
+        description: "Track API usage and performance metrics",
+        icon: Activity,
+      },
     ],
     media: [
       {
@@ -299,8 +305,7 @@ export function Navbar() {
           ref={menuRef}
           className="fixed z-[9998] bg-card/95 backdrop-blur-md border border-border rounded-lg shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
           style={{
-            left: corner.includes('right') ? 'auto' : `${position.x}px`,
-            right: corner.includes('right') ? `${window.innerWidth - position.x - 180}px` : 'auto',
+            left: `${position.x}px`,
             top: corner.includes('bottom') ? 'auto' : `${position.y + 60}px`,
             bottom: corner.includes('bottom') ? `${window.innerHeight - position.y + 4}px` : 'auto',
             minWidth: '280px',
@@ -425,12 +430,12 @@ export function Navbar() {
           <div
             ref={menuRef}
             className={cn(
-              "fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-background border-r border-border z-[9998] overflow-y-auto transition-transform duration-300 ease-out",
+              "fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-white dark:bg-background border-r border-border z-[9998] overflow-y-auto transition-transform duration-300 ease-out",
               menuOpen ? "translate-x-0" : "-translate-x-full"
             )}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10">
+            <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-white dark:bg-background z-10">
               <span className="text-lg font-bold">Hustle Together</span>
               <div className="flex items-center gap-2">
                 <button

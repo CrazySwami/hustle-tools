@@ -25,6 +25,7 @@ import { GenerateImageWidget } from './generate-image-widget';
 import { EditImageWidget } from './edit-image-widget';
 import { RemoveBackgroundWidget } from './remove-background-widget';
 import { ReverseImageSearchWidget } from './reverse-image-search-widget';
+import { GenerateProjectWidget } from './GenerateProjectWidget';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckSquare, Clock } from 'lucide-react';
@@ -333,6 +334,9 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
 
     case 'reverseImageSearch':
       return <ReverseImageSearchWidget data={result} />;
+
+    case 'generateProject':
+      return <GenerateProjectWidget toolResult={result} />;
 
     default:
       // Fallback for unknown tool types, now stylized like AI Elements

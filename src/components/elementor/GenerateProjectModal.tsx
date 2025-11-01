@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useUsageTracking } from '@/hooks/useUsageTracking';
+import { MODEL_PRICING } from '@/hooks/useUsageTracking';
 
 interface GenerateProjectModalProps {
   isOpen: boolean;
@@ -17,6 +19,9 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState('');
   const [currentPhase, setCurrentPhase] = useState<'html' | 'css' | 'js' | null>(null);
+  const [usageMetadata, setUsageMetadata] = useState<any>(null);
+
+  const { recordUsage } = useUsageTracking();
 
   if (!isOpen) return null;
 
@@ -42,6 +47,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
     setGenerating(false);
     setProgress('');
     setCurrentPhase(null);
+    setUsageMetadata(null);
   };
 
   const handleClose = () => {
@@ -120,16 +126,43 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
           }
         }
 
+        // Extract usage metadata if present
+        let codeOnly = fullCode;
+        let usageData = null;
+
+        if (fullCode.includes('__USAGE__:')) {
+          const parts = fullCode.split('__USAGE__:');
+          codeOnly = parts[0];
+          try {
+            usageData = JSON.parse(parts[1]);
+            console.log('📊 Usage metadata received:', usageData);
+
+            // Track usage
+            if (usageData.usage) {
+              recordUsage(usageData.model, {
+                inputTokens: usageData.usage.promptTokens || 0,
+                outputTokens: usageData.usage.completionTokens || 0,
+                cacheCreationTokens: usageData.usage.cacheCreationInputTokens || 0,
+                cacheReadTokens: usageData.usage.cacheReadInputTokens || 0,
+              });
+
+              setUsageMetadata(usageData);
+            }
+          } catch (e) {
+            console.error('Failed to parse usage metadata:', e);
+          }
+        }
+
         setProgress('✅ Generation complete! Parsing code...');
 
         // Parse the generated code
-        const parsedCode = parseStreamedCode(fullCode);
+        const parsedCode = parseStreamedCode(codeOnly);
 
         // If parsing failed, try to split by common patterns
         if (!parsedCode.html && !parsedCode.css) {
           // Fallback: assume first part is HTML, middle is CSS, last is JS
-          const parts = fullCode.split(/(?=<style>|<script>)/);
-          parsedCode.html = fullCode; // Use full code as HTML for now
+          const parts = codeOnly.split(/(?=<style>|<script>)/);
+          parsedCode.html = codeOnly; // Use full code as HTML for now
         }
 
         setProgress('✅ Code parsed successfully!');
@@ -138,7 +171,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
         setTimeout(() => {
           onGenerate(parsedCode);
           handleClose();
-        }, 1000);
+        }, 2000); // Give time to see usage stats
 
       }
     } catch (error: any) {
@@ -335,6 +368,65 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
                   margin: '20px 0',
                   opacity: 0.6,
                 }} />
+              )}
+
+              {/* Token Usage Display */}
+              {usageMetadata && usageMetadata.usage && (
+                <div style={{
+                  marginTop: '24px',
+                  padding: '16px',
+                  background: 'var(--muted)',
+                  borderRadius: '8px',
+                  textAlign: 'left',
+                }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '12px', color: 'var(--muted-foreground)' }}>
+                    📊 Token Usage
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px' }}>
+                    <div>
+                      <span style={{ color: 'var(--muted-foreground)' }}>Input:</span>
+                      <span style={{ fontWeight: 500, marginLeft: '8px' }}>
+                        {(usageMetadata.usage.promptTokens || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted-foreground)' }}>Output:</span>
+                      <span style={{ fontWeight: 500, marginLeft: '8px' }}>
+                        {(usageMetadata.usage.completionTokens || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    {(usageMetadata.usage.cacheCreationInputTokens || 0) > 0 && (
+                      <div>
+                        <span style={{ color: 'var(--muted-foreground)' }}>Cache Write:</span>
+                        <span style={{ fontWeight: 500, marginLeft: '8px' }}>
+                          {usageMetadata.usage.cacheCreationInputTokens.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {(usageMetadata.usage.cacheReadInputTokens || 0) > 0 && (
+                      <div>
+                        <span style={{ color: 'var(--muted-foreground)' }}>Cache Read:</span>
+                        <span style={{ fontWeight: 500, marginLeft: '8px', color: 'var(--primary)' }}>
+                          {usageMetadata.usage.cacheReadInputTokens.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    <div style={{ gridColumn: '1 / -1', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
+                      <span style={{ color: 'var(--muted-foreground)' }}>Total:</span>
+                      <span style={{ fontWeight: 600, marginLeft: '8px' }}>
+                        {(
+                          (usageMetadata.usage.promptTokens || 0) +
+                          (usageMetadata.usage.completionTokens || 0) +
+                          (usageMetadata.usage.cacheCreationInputTokens || 0) +
+                          (usageMetadata.usage.cacheReadInputTokens || 0)
+                        ).toLocaleString()}
+                      </span>
+                      <span style={{ color: 'var(--muted-foreground)', marginLeft: '8px', fontSize: '11px' }}>
+                        tokens
+                      </span>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}

@@ -63,8 +63,38 @@ Start with HTML, then CSS, then JS. Be comprehensive and production-ready.`;
       temperature: 0.7,
     });
 
+    // Create a custom stream that includes usage metadata at the end
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Stream the text content
+          for await (const chunk of result.textStream) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+
+          // Get final usage after streaming completes
+          const usage = await result.usage;
+          const finishReason = await result.finishReason;
+
+          // Send usage metadata as a special marker at the end
+          const usageMetadata = {
+            __USAGE__: true,
+            usage,
+            finishReason,
+            model,
+          };
+          controller.enqueue(encoder.encode('\n\n__USAGE__:' + JSON.stringify(usageMetadata)));
+
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
+      },
+    });
+
     // Return streaming response
-    return new Response(result.textStream, {
+    return new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',

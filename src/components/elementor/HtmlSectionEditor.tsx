@@ -298,10 +298,49 @@ export function HtmlSectionEditor({
       // Switch to PHP tab to show the generated widget
       handleCodeTabChange('php');
 
-      // Show completion modal
-      setShowCompletionModal(true);
+      // Auto-deploy to WordPress Playground
+      setConversionProgress('🚀 Deploying to WordPress Playground...');
 
-      alert(`✅ Created new widget project: "${newProjectName}"!\n\nOriginal HTML project preserved.\n\n⚠️ CSS has been scoped with {{WRAPPER}} to prevent style conflicts.`);
+      try {
+        // Call the global deployElementorWidget function from playground.js
+        if (typeof window !== 'undefined' && (window as any).deployElementorWidget) {
+          const deployResult = await (window as any).deployElementorWidget(
+            widgetPhp,
+            widgetCss,
+            widgetJs || '',
+            widgetClassName
+          );
+
+          if (deployResult.success) {
+            alert(`✅ Widget Generated & Deployed Successfully!\n\n` +
+              `Widget: "${newProjectName}"\n` +
+              `Class: ${widgetClassName}\n\n` +
+              `✅ Deployed to WordPress Playground\n` +
+              `✅ Original HTML project preserved\n` +
+              `✅ CSS scoped with {{WRAPPER}}\n\n` +
+              `Next steps:\n` +
+              `1. Go to WordPress Playground tab\n` +
+              `2. Edit any page with Elementor\n` +
+              `3. Find your widget in the "Hustle Tools" category\n` +
+              `4. Drag it onto the page!`
+            );
+          } else {
+            throw new Error(deployResult.message || 'Deployment failed');
+          }
+        } else {
+          // WordPress Playground not ready - just show completion modal
+          setShowCompletionModal(true);
+          alert(`✅ Created new widget project: "${newProjectName}"!\n\nOriginal HTML project preserved.\n\n⚠️ CSS has been scoped with {{WRAPPER}} to prevent style conflicts.\n\n⚠️ WordPress Playground not ready. Click "Deploy to Playground" button to deploy manually.`);
+        }
+      } catch (deployError: any) {
+        console.error('Deployment error:', deployError);
+        // Show completion modal even if deployment fails
+        setShowCompletionModal(true);
+        alert(`✅ Widget generated successfully!\n\n` +
+          `⚠️ Auto-deployment failed: ${deployError.message}\n\n` +
+          `You can deploy manually using the "🚀 Deploy to WordPress" button.`
+        );
+      }
 
     } catch (error: any) {
       alert(`❌ Quick Widget generation failed: ${error.message}`);

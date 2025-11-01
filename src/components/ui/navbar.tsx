@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
-import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search, X, Sun, Moon, Activity } from "lucide-react"
+import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search, X, Sun, Moon, Activity, MessageSquare, Mic } from "lucide-react"
 
 type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -180,7 +180,35 @@ export function Navbar() {
   }, [isDragging, position]);
 
   const tools = {
-    scraping: [
+    chat: [
+      {
+        title: "Voice Chat",
+        href: "/voice-chat",
+        description: "Real-time voice conversation with AI",
+        icon: Mic,
+      },
+      {
+        title: "AI Doc Editor",
+        href: "/chat-doc",
+        description: "AI-powered document editor with analysis",
+        icon: FileText,
+      },
+    ],
+    design: [
+      {
+        title: "Elementor Builder",
+        href: "/elementor-editor",
+        description: "WordPress section builder with live preview",
+        icon: Boxes,
+      },
+      {
+        title: "Image Editor",
+        href: "/image-editor",
+        description: "AI-powered image generation and editing",
+        icon: ImageIcon,
+      },
+    ],
+    research: [
       {
         title: "Firecrawl",
         href: "/firecrawl",
@@ -199,6 +227,14 @@ export function Navbar() {
         description: "Google search results and SERP analysis",
         icon: Search,
       },
+    ],
+    tools: [
+      {
+        title: "API Monitor",
+        href: "/api-monitor",
+        description: "Track API usage and performance metrics",
+        icon: Activity,
+      },
       {
         title: "TKX Events",
         href: "/tkx-calendar",
@@ -206,55 +242,12 @@ export function Navbar() {
         icon: Ticket,
       },
     ],
-    design: [
-      {
-        title: "Elementor Builder",
-        href: "/elementor-editor",
-        description: "WordPress section builder with live preview",
-        icon: Boxes,
-      },
-      {
-        title: "Blog Planner",
-        href: "/blog-planner",
-        description: "Plan and write SEO-optimized blog content",
-        icon: FileEdit,
-      },
-      {
-        title: "AI Doc",
-        href: "/chat-doc",
-        description: "AI-powered document editor with analysis tools",
-        icon: FileText,
-      },
-      {
-        title: "API Monitor",
-        href: "/api-monitor",
-        description: "Track API usage and performance metrics",
-        icon: Activity,
-      },
-    ],
-    media: [
-      {
-        title: "Image Editor",
-        href: "/image-editor",
-        description: "AI-powered image generation and editing",
-        icon: ImageIcon,
-      },
-      {
-        title: "Document Editor",
-        href: "/editor",
-        description: "Rich text editor with TipTap",
-        icon: FileText,
-      },
-    ],
   };
 
   const navLinks = [
-    { href: "/chat", label: "Chat" },
     { href: "/voice-chat", label: "Voice Chat" },
-    { href: "/editor", label: "Editor" },
     { href: "/chat-doc", label: "AI Doc" },
     { href: "/elementor-editor", label: "Elementor" },
-    { href: "/blog-planner", label: "Blog Planner" },
     { href: "/firecrawl", label: "Firecrawl" },
     { href: "/keyword-research", label: "Keyword Research" },
     { href: "/image-editor", label: "Image Editor" },
@@ -339,22 +332,12 @@ export function Navbar() {
 
           {/* Categories */}
           <div className="p-2">
-            {/* Chat */}
-            <Link
-              href="/chat"
-              onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent transition-colors text-sm"
-            >
-              <FileText className="h-4 w-4" />
-              <span>Chat</span>
-            </Link>
-
-            {/* Scraping */}
-            <div className="mt-4">
+            {/* AI Chat & Content */}
+            <div>
               <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Scraping
+                AI Chat & Content
               </div>
-              {tools.scraping.map((tool) => (
+              {tools.chat.map((tool) => (
                 <Link
                   key={tool.href}
                   href={tool.href}
@@ -370,10 +353,10 @@ export function Navbar() {
               ))}
             </div>
 
-            {/* Design */}
+            {/* Design & Development */}
             <div className="mt-4">
               <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Design
+                Design & Development
               </div>
               {tools.design.map((tool) => (
                 <Link
@@ -391,12 +374,33 @@ export function Navbar() {
               ))}
             </div>
 
-            {/* Media */}
+            {/* Research & Data */}
             <div className="mt-4">
               <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Media
+                Research & Data
               </div>
-              {tools.media.map((tool) => (
+              {tools.research.map((tool) => (
+                <Link
+                  key={tool.href}
+                  href={tool.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent transition-colors"
+                >
+                  <tool.icon className="h-4 w-4" />
+                  <div>
+                    <div className="text-sm font-medium">{tool.title}</div>
+                    <div className="text-xs text-muted-foreground">{tool.description}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* Utilities */}
+            <div className="mt-4">
+              <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Utilities
+              </div>
+              {tools.tools.map((tool) => (
                 <Link
                   key={tool.href}
                   href={tool.href}
@@ -459,22 +463,12 @@ export function Navbar() {
 
             {/* Menu Items */}
             <div className="p-4">
-              {/* Chat */}
-              <Link
-                href="/chat"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-accent transition-colors"
-              >
-                <FileText className="h-5 w-5" />
-                <span className="font-medium">Chat</span>
-              </Link>
-
-              {/* Scraping */}
-              <div className="mt-6">
+              {/* AI Chat & Content */}
+              <div>
                 <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Scraping
+                  AI Chat & Content
                 </div>
-                {tools.scraping.map((tool) => (
+                {tools.chat.map((tool) => (
                   <Link
                     key={tool.href}
                     href={tool.href}
@@ -490,10 +484,10 @@ export function Navbar() {
                 ))}
               </div>
 
-              {/* Design */}
+              {/* Design & Development */}
               <div className="mt-6">
                 <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Design
+                  Design & Development
                 </div>
                 {tools.design.map((tool) => (
                   <Link
@@ -511,12 +505,33 @@ export function Navbar() {
                 ))}
               </div>
 
-              {/* Media */}
+              {/* Research & Data */}
               <div className="mt-6">
                 <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Media
+                  Research & Data
                 </div>
-                {tools.media.map((tool) => (
+                {tools.research.map((tool) => (
+                  <Link
+                    key={tool.href}
+                    href={tool.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-accent transition-colors"
+                  >
+                    <tool.icon className="h-5 w-5" />
+                    <div>
+                      <div className="font-medium">{tool.title}</div>
+                      <div className="text-sm text-muted-foreground">{tool.description}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              {/* Utilities */}
+              <div className="mt-6">
+                <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Utilities
+                </div>
+                {tools.tools.map((tool) => (
                   <Link
                     key={tool.href}
                     href={tool.href}

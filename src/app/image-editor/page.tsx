@@ -27,7 +27,7 @@ export default function ImageEditorPage() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-background">
+    <div className="flex flex-col md:flex-row h-screen bg-background md:pt-20 md:pl-4">
       {/* Mobile Header with Menu Toggle */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
         <h1 className="text-lg font-semibold">Image Editor</h1>

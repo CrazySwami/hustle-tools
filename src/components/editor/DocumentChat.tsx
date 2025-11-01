@@ -133,7 +133,7 @@ export function DocumentChat({
       overflow: 'hidden'
     }}>
       <Conversation className="flex-1" style={{ overflow: 'hidden' }}>
-        <ConversationContent style={{ flex: 1, overflow: 'auto' }}>
+        <ConversationContent className="scrollbar-hide" style={{ flex: 1, overflow: 'auto' }}>
           {messages.map((message, index) => (
             <div key={message.id}>
               {/* Show sources for assistant messages - OUTSIDE Message component */}

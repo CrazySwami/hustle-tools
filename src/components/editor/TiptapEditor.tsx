@@ -87,6 +87,7 @@ const MenuButton = ({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      style={{ pointerEvents: 'auto' }}
       className={cn(
         "p-2 rounded-md transition-colors",
         isActive
@@ -763,7 +764,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     <>
       <div className="border rounded-lg bg-background shadow-sm h-full flex flex-col w-full max-w-full overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center gap-1 p-2 bg-muted/20 border-b overflow-x-auto min-w-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="flex items-center gap-1 p-2 bg-muted/20 border-b overflow-x-auto min-w-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 10 }}>
           {/* Text formatting */}
           <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
             <MenuButton 
@@ -1054,7 +1055,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         <div className="flex-1 relative overflow-hidden">
           {/* Editor Content */}
           <div className={cn(
-            "p-4 h-full overflow-y-auto transition-all duration-300 ease-in-out",
+            "p-4 h-full overflow-y-auto scrollbar-hide transition-all duration-300 ease-in-out",
             isCommentsPanelOpen ? "pr-[21rem]" : "pr-4"
           )}>
             <EditorContent editor={editor} className="w-full" />

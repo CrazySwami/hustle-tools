@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { experimental_generateImage as generateImage } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+
   try {
     const {
       prompt,
@@ -50,12 +53,35 @@ export async function POST(req: NextRequest) {
     // Convert base64 to data URL
     const imageUrl = `data:image/png;base64,${result.image.base64}`;
 
+    // Log successful image generation
+    apiMonitor.log({
+      endpoint: '/api/generate-image-openai',
+      method: 'POST',
+      provider: 'openai',
+      model: model,
+      responseStatus: 200,
+      responseTime: Date.now() - startTime,
+      success: true,
+      // Image APIs don't return token counts - cost calculated by pricing table
+    });
+
     return NextResponse.json({
       success: true,
       imageUrl,
       model,
     });
   } catch (error: any) {
+    apiMonitor.log({
+      endpoint: '/api/generate-image-openai',
+      method: 'POST',
+      provider: 'openai',
+      model: 'unknown',
+      responseStatus: 500,
+      responseTime: Date.now() - startTime,
+      success: false,
+      error: error.message || 'Failed to generate image',
+    });
+
     console.error('OpenAI image generation error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to generate image' },

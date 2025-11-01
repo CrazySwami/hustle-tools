@@ -1,6 +1,7 @@
 import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
 import { tools } from '@/lib/tools';
 import { Comment } from '@/components/editor/CommentExtension';
+import { apiMonitor } from '@/lib/api-monitor';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -61,6 +62,8 @@ const REASONING_MODELS = {
 };
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+
   try {
     console.log('--- Received POST /api/chat request ---');
     console.log('Checking environment variable AI_GATEWAY_API_KEY:', process.env.AI_GATEWAY_API_KEY ? 'Set' : 'Not Set');
@@ -311,6 +314,25 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
         stopWhen: stepCountIs(2), // Limit tool calls to prevent UI duplication
         ...(toolChoice && { toolChoice }),
       }),
+      onFinish: async ({ usage }) => {
+        const responseTime = Date.now() - startTime;
+        const [provider, modelName] = selectedModel.includes('/')
+          ? selectedModel.split('/')
+          : ['unknown', selectedModel];
+
+        apiMonitor.log({
+          endpoint: '/api/chat',
+          method: 'POST',
+          provider,
+          model: modelName || selectedModel,
+          responseStatus: 200,
+          responseTime,
+          success: true,
+          promptTokens: usage?.promptTokens || 0,
+          completionTokens: usage?.completionTokens || 0,
+          totalTokens: usage?.totalTokens || 0,
+        });
+      },
     });
 
     console.log('--- Sending stream response ---');
@@ -355,6 +377,19 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
       );
     }
   } catch (error: unknown) {
+    const responseTime = Date.now() - startTime;
+
+    apiMonitor.log({
+      endpoint: '/api/chat',
+      method: 'POST',
+      provider: 'unknown',
+      model: 'unknown',
+      responseStatus: 500,
+      responseTime,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+
     console.error('*** Unhandled error in /api/chat ***', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(

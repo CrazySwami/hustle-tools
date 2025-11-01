@@ -401,8 +401,10 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement
-      // Check if click is outside any dropdown
-      if (!target.closest('.dropdown-container')) {
+      // Check if click is on a dropdown or dropdown button
+      const isDropdownClick = target.closest('[data-dropdown]') || target.closest('[data-dropdown-menu]')
+
+      if (!isDropdownClick) {
         setShowColorSelector(false)
         setShowHighlightSelector(false)
         setShowFontSelector(false)
@@ -812,10 +814,10 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               <SuperscriptIcon className="h-4 w-4" />
             </MenuButton>
             
-            <div className="relative dropdown-container">
+            <div className="relative" data-dropdown="color">
               <MenuButton
                 onClick={(e) => {
-                  e.stopPropagation()
+                  e?.stopPropagation()
                   setShowColorSelector(!showColorSelector)
                 }}
                 isActive={editor.isActive('textStyle')}
@@ -824,16 +826,16 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <Palette className="h-4 w-4" />
               </MenuButton>
               {showColorSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1">
+                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="color">
                   <ColorSelector editor={editor} />
                 </div>
               )}
             </div>
 
-            <div className="relative dropdown-container">
+            <div className="relative" data-dropdown="highlight">
               <MenuButton
                 onClick={(e) => {
-                  e.stopPropagation()
+                  e?.stopPropagation()
                   setShowHighlightSelector(!showHighlightSelector)
                 }}
                 isActive={editor.isActive('highlight')}
@@ -842,16 +844,16 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <Highlighter className="h-4 w-4" />
               </MenuButton>
               {showHighlightSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1">
+                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="highlight">
                   <HighlightColorSelector editor={editor} />
                 </div>
               )}
             </div>
 
-            <div className="relative dropdown-container">
+            <div className="relative" data-dropdown="font">
               <MenuButton
                 onClick={(e) => {
-                  e.stopPropagation()
+                  e?.stopPropagation()
                   setShowFontSelector(!showFontSelector)
                 }}
                 title="Font Family"
@@ -859,16 +861,16 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <Type className="h-4 w-4" />
               </MenuButton>
               {showFontSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1">
+                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="font">
                   <FontSelector editor={editor} />
                 </div>
               )}
             </div>
 
-            <div className="relative dropdown-container">
+            <div className="relative" data-dropdown="fontsize">
               <MenuButton
                 onClick={(e) => {
-                  e.stopPropagation()
+                  e?.stopPropagation()
                   setShowFontSizeSelector(!showFontSizeSelector)
                 }}
                 title="Font Size"
@@ -876,16 +878,16 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <TextSelect className="h-4 w-4" />
               </MenuButton>
               {showFontSizeSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1">
+                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="fontsize">
                   <FontSizeSelector editor={editor} />
                 </div>
               )}
             </div>
 
-            <div className="relative dropdown-container">
+            <div className="relative" data-dropdown="lineheight">
               <MenuButton
                 onClick={(e) => {
-                  e.stopPropagation()
+                  e?.stopPropagation()
                   setShowLineHeightSelector(!showLineHeightSelector)
                 }}
                 title="Line Height"
@@ -893,7 +895,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <AlignJustify className="h-4 w-4" />
               </MenuButton>
               {showLineHeightSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1">
+                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="lineheight">
                   <LineHeightSelector editor={editor} />
                 </div>
               )}
@@ -902,7 +904,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
           {/* Headings and blocks */}
           <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
-            <div className="relative dropdown-container">
+            <div className="relative" data-dropdown="heading">
               <MenuButton
                 onClick={(e) => {
                   e?.stopPropagation()
@@ -916,7 +918,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 </div>
               </MenuButton>
               {showHeadingSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1">
+                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="heading">
                   <HeadingSelector editor={editor} />
                 </div>
               )}

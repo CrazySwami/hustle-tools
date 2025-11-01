@@ -1,10 +1,13 @@
 // Image analysis API using Claude Haiku 4.5 vision
 import { gateway } from '@ai-sdk/gateway';
 import { generateText } from 'ai';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+
   try {
     const { imageUrl } = await req.json();
 
@@ -70,12 +73,37 @@ Be extremely detailed and specific. This description will be used to generate ex
 
     console.log('✅ Image analysis complete');
 
+    // Log successful image analysis
+    apiMonitor.log({
+      endpoint: '/api/analyze-image',
+      method: 'POST',
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5-20251001',
+      responseStatus: 200,
+      responseTime: Date.now() - startTime,
+      success: true,
+      promptTokens: result.usage?.promptTokens || 0,
+      completionTokens: result.usage?.completionTokens || 0,
+      totalTokens: (result.usage?.promptTokens || 0) + (result.usage?.completionTokens || 0),
+    });
+
     return Response.json({
       description: result.text,
       timestamp: new Date().toISOString(),
     });
 
   } catch (error: any) {
+    apiMonitor.log({
+      endpoint: '/api/analyze-image',
+      method: 'POST',
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5-20251001',
+      responseStatus: 500,
+      responseTime: Date.now() - startTime,
+      success: false,
+      error: error.message || 'Image analysis failed',
+    });
+
     console.error('❌ Image analysis error:', error);
     return Response.json(
       {

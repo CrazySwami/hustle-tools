@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+
   try {
     const { prompt, referenceImageUrl, editType = 'general' } = await req.json();
 
@@ -67,6 +70,18 @@ export async function POST(req: NextRequest) {
     const imageFile = imageFiles[0];
     const imageUrl = `data:${imageFile.mediaType};base64,${imageFile.base64}`;
 
+    // Log successful image editing
+    apiMonitor.log({
+      endpoint: '/api/edit-image-gemini',
+      method: 'POST',
+      provider: 'google',
+      model: 'gemini-2.5-flash-image-preview',
+      responseStatus: 200,
+      responseTime: Date.now() - startTime,
+      success: true,
+      // Image APIs don't return token counts - cost calculated by pricing table
+    });
+
     return NextResponse.json({
       success: true,
       imageUrl,
@@ -74,6 +89,17 @@ export async function POST(req: NextRequest) {
       text: result.text, // May include description from model
     });
   } catch (error: any) {
+    apiMonitor.log({
+      endpoint: '/api/edit-image-gemini',
+      method: 'POST',
+      provider: 'google',
+      model: 'unknown',
+      responseStatus: 500,
+      responseTime: Date.now() - startTime,
+      success: false,
+      error: error.message || 'Failed to edit image with Gemini Flash',
+    });
+
     console.error('Gemini image editing error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to edit image with Gemini Flash' },

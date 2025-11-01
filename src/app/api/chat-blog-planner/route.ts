@@ -2,11 +2,14 @@ import { streamText } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
 import { NextRequest } from 'next/server';
 import { planStepsTool, updateStepProgressTool, planBlogTopicsTool, writeBlogPostTool } from '@/lib/tools';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export const runtime = 'edge';
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+
   try {
     const { messages, model = 'anthropic/claude-sonnet-4-5-20250929' } = await req.json();
 
@@ -110,10 +113,42 @@ This workflow was explicitly requested by the user. They want visual approval be
           tokens: usage.totalTokens,
         });
       },
+      onFinish: async ({ usage }) => {
+        const responseTime = Date.now() - startTime;
+        const [provider, modelName] = model.includes('/')
+          ? model.split('/')
+          : ['unknown', model];
+
+        apiMonitor.log({
+          endpoint: '/api/chat-blog-planner',
+          method: 'POST',
+          provider,
+          model: modelName || model,
+          responseStatus: 200,
+          responseTime,
+          success: true,
+          promptTokens: usage?.promptTokens || 0,
+          completionTokens: usage?.completionTokens || 0,
+          totalTokens: usage?.totalTokens || 0,
+        });
+      },
     });
 
     return result.toDataStreamResponse();
   } catch (error) {
+    const responseTime = Date.now() - startTime;
+
+    apiMonitor.log({
+      endpoint: '/api/chat-blog-planner',
+      method: 'POST',
+      provider: 'unknown',
+      model: 'unknown',
+      responseStatus: 500,
+      responseTime,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+
     console.error('Error in /api/chat-blog-planner:', error);
     return new Response(
       JSON.stringify({

@@ -1,9 +1,12 @@
 import { streamText } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+
   try {
     const {
       prompt,
@@ -131,10 +134,42 @@ Example of CORRECT output:
       ],
       temperature: 0.7,
       maxTokens: 8000,
+      onFinish: async ({ usage }) => {
+        const responseTime = Date.now() - startTime;
+        const [provider, modelName] = model.includes('/')
+          ? model.split('/')
+          : ['unknown', model];
+
+        apiMonitor.log({
+          endpoint: '/api/generate-html',
+          method: 'POST',
+          provider,
+          model: modelName || model,
+          responseStatus: 200,
+          responseTime,
+          success: true,
+          promptTokens: usage?.promptTokens || 0,
+          completionTokens: usage?.completionTokens || 0,
+          totalTokens: usage?.totalTokens || 0,
+        });
+      },
     });
 
     return result.toTextStreamResponse();
   } catch (error: any) {
+    const responseTime = Date.now() - startTime;
+
+    apiMonitor.log({
+      endpoint: '/api/generate-html',
+      method: 'POST',
+      provider: 'unknown',
+      model: 'unknown',
+      responseStatus: 500,
+      responseTime,
+      success: false,
+      error: error.message || 'Generation failed',
+    });
+
     console.error('HTML generation error:', error);
     return Response.json(
       {

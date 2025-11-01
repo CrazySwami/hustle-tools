@@ -37,10 +37,13 @@
 import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
 import { tools } from '@/lib/tools';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+
   try {
     const referer = req.headers.get('referer') || 'unknown';
     console.log('📄 CHAT-DOC ENDPOINT CALLED from:', referer);
@@ -364,6 +367,25 @@ After using a tool, provide a brief text response explaining what you did.`;
         : { tools: toolsConfig, stopWhen: stepCountIs(2) } // Tools + stopWhen for other models
       ),
       ...(options ? options : {}), // Add search: true for Perplexity if needed
+      onFinish: async ({ usage }) => {
+        const responseTime = Date.now() - startTime;
+        const [provider, modelName] = model.includes('/')
+          ? model.split('/')
+          : ['unknown', model];
+
+        apiMonitor.log({
+          endpoint: '/api/chat-doc',
+          method: 'POST',
+          provider,
+          model: modelName || model,
+          responseStatus: 200,
+          responseTime,
+          success: true,
+          promptTokens: usage?.promptTokens || 0,
+          completionTokens: usage?.completionTokens || 0,
+          totalTokens: usage?.totalTokens || 0,
+        });
+      },
     };
 
     const result = streamText(streamConfig);
@@ -393,6 +415,19 @@ After using a tool, provide a brief text response explaining what you did.`;
     });
 
   } catch (error: any) {
+    const responseTime = Date.now() - startTime;
+
+    apiMonitor.log({
+      endpoint: '/api/chat-doc',
+      method: 'POST',
+      provider: 'unknown',
+      model: 'unknown',
+      responseStatus: 500,
+      responseTime,
+      success: false,
+      error: error.message || 'Chat request failed',
+    });
+
     console.error('❌ Document chat error:', error);
     return Response.json(
       {

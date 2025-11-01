@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+
   try {
     const {
       prompt,
@@ -52,6 +55,18 @@ export async function POST(req: NextRequest) {
     const imageFile = imageFiles[0];
     const imageUrl = `data:${imageFile.mediaType};base64,${imageFile.base64}`;
 
+    // Log successful image generation
+    apiMonitor.log({
+      endpoint: '/api/generate-image-gemini',
+      method: 'POST',
+      provider: 'google',
+      model: model,
+      responseStatus: 200,
+      responseTime: Date.now() - startTime,
+      success: true,
+      // Image APIs don't return token counts - cost calculated by pricing table
+    });
+
     return NextResponse.json({
       success: true,
       imageUrl,
@@ -61,6 +76,17 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
+    apiMonitor.log({
+      endpoint: '/api/generate-image-gemini',
+      method: 'POST',
+      provider: 'google',
+      model: 'unknown',
+      responseStatus: 500,
+      responseTime: Date.now() - startTime,
+      success: false,
+      error: error.message || 'Failed to generate image with Gemini Flash',
+    });
+
     console.error('Gemini Flash image generation error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to generate image with Gemini Flash' },

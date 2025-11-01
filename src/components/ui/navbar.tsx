@@ -148,10 +148,25 @@ export function Navbar() {
   const handleMouseMove = (e: MouseEvent) => {
     if (!isDragging) return;
 
-    const newX = e.clientX - dragOffsetRef.current.x;
-    const newY = e.clientY - dragOffsetRef.current.y;
+    // Calculate which corner the mouse is closest to
+    const windowCenterX = window.innerWidth / 2;
+    const windowCenterY = window.innerHeight / 2;
 
-    setPosition({ x: newX, y: newY });
+    let targetCorner: Corner;
+    if (e.clientX < windowCenterX && e.clientY < windowCenterY) {
+      targetCorner = 'top-left';
+    } else if (e.clientX >= windowCenterX && e.clientY < windowCenterY) {
+      targetCorner = 'top-right';
+    } else if (e.clientX < windowCenterX && e.clientY >= windowCenterY) {
+      targetCorner = 'bottom-left';
+    } else {
+      targetCorner = 'bottom-right';
+    }
+
+    // Only update if corner changed
+    if (targetCorner !== corner) {
+      setCorner(targetCorner);
+    }
   };
 
   const handleMouseUp = (e: MouseEvent) => {
@@ -169,31 +184,11 @@ export function Navbar() {
       return;
     }
 
-    // Was a drag - snap to corner
+    // Was a drag - corner already updated in handleMouseMove
     setIsDragging(false);
 
-    // Snap to nearest corner
-    const buttonWidth = isMobile ? 56 : 180;
-    const buttonHeight = 56;
-    const centerX = position.x + buttonWidth / 2;
-    const centerY = position.y + buttonHeight / 2;
-    const windowCenterX = window.innerWidth / 2;
-    const windowCenterY = window.innerHeight / 2;
-
-    let newCorner: Corner;
-    if (centerX < windowCenterX && centerY < windowCenterY) {
-      newCorner = 'top-left';
-    } else if (centerX >= windowCenterX && centerY < windowCenterY) {
-      newCorner = 'top-right';
-    } else if (centerX < windowCenterX && centerY >= windowCenterY) {
-      newCorner = 'bottom-left';
-    } else {
-      newCorner = 'bottom-right';
-    }
-
-    setCorner(newCorner);
-    localStorage.setItem('nav-corner', newCorner);
-    // Mark that user has manually positioned the button
+    // Save to localStorage
+    localStorage.setItem('nav-corner', corner);
     localStorage.setItem('nav-user-dragged', 'true');
   };
 
@@ -303,8 +298,12 @@ export function Navbar() {
         <button
           onMouseDown={handleMouseDown}
           className={cn(
-            "group relative flex items-center justify-center bg-background/95 backdrop-blur-md border-2 overflow-hidden",
-            "border-border dark:border-foreground/20 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_4px_12px_rgba(0,0,0,0.5)] shadow-lg",
+            "group relative flex items-center justify-center backdrop-blur-md border-2 overflow-hidden",
+            // Light mode: black bg, white text | Dark mode: white bg, black text
+            "bg-black dark:bg-white",
+            "text-white dark:text-black",
+            "border-black/20 dark:border-white/20",
+            "shadow-lg dark:shadow-[0_0_0_1px_rgba(0,0,0,0.1),0_4px_12px_rgba(0,0,0,0.2)]",
             isMobile ? "w-14 h-14" : "gap-2 px-4 py-3"
           )}
           style={{
@@ -318,11 +317,11 @@ export function Navbar() {
         >
           {/* Water-fill hover animation background */}
           <div
-            className="absolute inset-0 bg-foreground dark:bg-white transition-all duration-500 ease-out translate-y-full group-hover:translate-y-0 rounded-full"
+            className="absolute inset-0 bg-white dark:bg-black transition-all duration-500 ease-out translate-y-full group-hover:translate-y-0 rounded-full"
           />
 
           {/* Text with color inversion on hover */}
-          <span className="relative z-10 transition-colors duration-500 group-hover:text-background dark:group-hover:text-black">
+          <span className="relative z-10 transition-colors duration-500 group-hover:text-black dark:group-hover:text-white">
             {isMobile ? 'HT' : 'Hustle Tools'}
           </span>
         </button>

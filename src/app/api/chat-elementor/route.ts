@@ -196,7 +196,8 @@ ${Object.keys(currentJson).length > 0 ? 'Current page has: ' + JSON.stringify(cu
 
     // Add tool calling instructions
     systemPrompt += `\n\n**Available Tools:**
-- **editCodeWithMorph**: 🎯 PRIMARY TOOL - Use this for ALL code writing/editing. Works on empty files AND existing code. Uses lazy edits (// ... existing code ...) for precision. 98% accurate, 10x faster than diffs.
+- **generateProject**: 🚀 NEW PROJECT GENERATOR - Use this ONLY when user explicitly requests a NEW PROJECT (e.g., "create a new project", "generate a new widget", "start a new section"). Asks user to choose HTML Section or Elementor Widget, generates complete code (HTML/CSS/JS), auto-generates project name.
+- **editCodeWithMorph**: 🎯 PRIMARY TOOL - Use this for editing EXISTING code. Works on empty files AND existing code. Uses lazy edits (// ... existing code ...) for precision. 98% accurate, 10x faster than diffs.
 ${hasPhpCode ? '- **validateWidget**: ✅ Validate PHP widget code against Elementor best practices. Returns detailed report with scores and specific issues. Use BEFORE deployment or when user asks to "check" or "validate" the widget.\n' : ''}
 - **getWeather**: Get current weather information
 - **calculate**: Perform mathematical calculations
@@ -204,8 +205,9 @@ ${hasPhpCode ? '- **validateWidget**: ✅ Validate PHP widget code against Eleme
 - **manageTask**: Create and manage tasks
 
 **CRITICAL INSTRUCTIONS:**
-When a user asks to write or edit code (e.g., "create a hero section", "change the button color", "add a navbar"), you MUST use the editCodeWithMorph tool. This tool works on BOTH empty files AND existing code.
-${hasPhpCode ? '\nWhen a user asks to "validate", "check", or "verify" the widget code, use the validateWidget tool to get a detailed quality report.\n' : ''}
+- For NEW projects: Use **generateProject** tool when user says "create new project", "generate widget", "start new section"
+- For editing EXISTING code: Use **editCodeWithMorph** tool (e.g., "change button color", "add navbar", "fix CSS")
+${hasPhpCode ? '- For validation: Use **validateWidget** tool when user says "validate", "check", or "verify" the widget code\n' : ''}
 After using a tool, provide a helpful text response that explains what the tool will do or what results it returned.`;
 
     // Configure options based on model type
@@ -270,6 +272,7 @@ After using a tool, provide a helpful text response that explains what the tool 
       // REMOVED: testPing - diagnostic tool no longer needed
       // REMOVED: switchTab - tab navigation handled by UI, not tools
       editCodeWithMorph: tools.editCodeWithMorph,  // ⭐ THE ONLY CODE TOOL - Works on empty AND existing files
+      generateProject: tools.generateProject,      // ⭐ PROJECT GENERATION - Creates new HTML/Elementor projects
       ...(hasPhpCode ? { validateWidget: validateWidgetWithContext } : {}), // ⭐ PHP VALIDATION TOOL - Only available for PHP widgets
     };
 

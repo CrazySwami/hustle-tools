@@ -661,6 +661,40 @@ export const validateWidgetTool = tool({
   },
 });
 
+// Generate New Project (HTML Section or Elementor Widget)
+export const generateProjectTool = tool({
+  description: 'Generate a complete new project from scratch. Use this ONLY when user explicitly requests a NEW PROJECT (e.g., "create a new project", "generate a new widget", "start a new section"). Shows modal to choose between HTML Section or Elementor Widget, then streams complete code (HTML, CSS, JS) based on user description. Auto-generates project name. DO NOT use for editing existing code - use editCodeWithMorph instead.',
+  inputSchema: z.object({
+    description: z.string().describe('Description of what the project should be/do (e.g., "hero section with call-to-action", "pricing table widget", "contact form")'),
+    projectType: z.enum(['html', 'elementor']).describe('Type of project: "html" for HTML section or "elementor" for Elementor widget'),
+    suggestedName: z.string().optional().describe('Optional: Suggested name for the project (will be auto-generated if not provided)'),
+  }),
+  execute: async ({ description, projectType, suggestedName }) => {
+    // Generate project name from description if not provided
+    const generateProjectName = (desc: string): string => {
+      // Convert description to snake_case project name
+      return desc
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .trim()
+        .split(/\s+/)
+        .slice(0, 3) // Take first 3 words
+        .join('_');
+    };
+
+    const projectName = suggestedName || generateProjectName(description);
+
+    return {
+      status: 'generation_started',
+      projectType,
+      projectName,
+      description,
+      timestamp: new Date().toISOString(),
+      message: `Starting generation of ${projectType === 'html' ? 'HTML section' : 'Elementor widget'}: "${projectName}"`,
+    };
+  },
+});
+
 export const tools = {
   googleSearch: googleSearchTool,
   getWeather: weatherTool,
@@ -698,4 +732,5 @@ export const tools = {
   removeBackground: removeBackgroundTool,    // ⭐ Background removal
   reverseImageSearch: reverseImageSearchTool, // ⭐ Reverse image search
   validateWidget: validateWidgetTool,        // ⭐ Validate Elementor widget PHP code
+  generateProject: generateProjectTool,      // ⭐ Generate new HTML/Elementor project from scratch
 };

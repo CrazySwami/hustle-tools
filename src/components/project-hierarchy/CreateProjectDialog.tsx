@@ -27,16 +27,25 @@ export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    e.stopPropagation();
+
+    console.log('Creating project:', { name, description, template });
+
+    if (!name.trim()) {
+      console.log('Project name is empty, not creating');
+      return;
+    }
 
     const templateInfo = PROJECT_TEMPLATES[template];
 
-    createProject({
+    const newProject = createProject({
       name: name.trim(),
       description: description.trim() || undefined,
       template,
       icon: templateInfo.icon,
     });
+
+    console.log('Project created:', newProject);
 
     // Reset and close
     setName('');
@@ -58,12 +67,12 @@ export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps)
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-50 animate-in fade-in duration-200"
+        className="fixed inset-0 bg-black/50 z-[9999] animate-in fade-in duration-200"
         onClick={handleClose}
       />
 
       {/* Dialog */}
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md">
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[10000] w-full max-w-md">
         <div className="bg-card border border-border rounded-lg shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-border">

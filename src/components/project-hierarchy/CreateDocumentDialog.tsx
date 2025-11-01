@@ -67,12 +67,12 @@ export function CreateDocumentDialog({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-[100]"
+        className="fixed inset-0 bg-black/50 z-[9999]"
         onClick={onClose}
       />
 
       {/* Dialog */}
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-background border border-border rounded-lg shadow-lg z-[101]">
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-background border border-border rounded-lg shadow-lg z-[10000]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">

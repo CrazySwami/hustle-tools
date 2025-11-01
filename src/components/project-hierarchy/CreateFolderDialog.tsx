@@ -61,12 +61,12 @@ export function CreateFolderDialog({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-50 animate-in fade-in duration-200"
+        className="fixed inset-0 bg-black/50 z-[9999] animate-in fade-in duration-200"
         onClick={handleClose}
       />
 
       {/* Dialog */}
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm">
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[10000] w-full max-w-sm">
         <div className="bg-card border border-border rounded-lg shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-border">

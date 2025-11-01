@@ -4,21 +4,32 @@ import { useState } from 'react';
 import { useUsageTracking } from '@/hooks/useUsageTracking';
 import { MODEL_PRICING } from '@/hooks/useUsageTracking';
 
+// Model configurations (same as ChatInterface)
+const MODEL_CONFIGS = {
+  'anthropic/claude-haiku-4.5-20251022': { name: 'Claude Haiku 4.5', inputLimit: 200000, outputLimit: 8192 },
+  'anthropic/claude-sonnet-4-5-20250514': { name: 'Claude Sonnet 4.5', inputLimit: 200000, outputLimit: 8192 },
+  'anthropic/claude-opus-4-20250514': { name: 'Claude Opus 4', inputLimit: 200000, outputLimit: 8192 },
+  'openai/gpt-5': { name: 'GPT-5', inputLimit: 272000, outputLimit: 128000 },
+  'openai/gpt-5-mini': { name: 'GPT-5 Mini', inputLimit: 272000, outputLimit: 128000 },
+  'google/gemini-2.5-pro': { name: 'Gemini 2.5 Pro', inputLimit: 1000000, outputLimit: 8192 },
+};
+
 interface GenerateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGenerate: (code: { html: string; css: string; js: string }) => void;
-  selectedModel?: string;
+  onGenerate: (code: { html: string; css: string; js: string; php?: string }) => void;
+  defaultModel?: string;
 }
 
-export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedModel }: GenerateProjectModalProps) {
+export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel }: GenerateProjectModalProps) {
   const [step, setStep] = useState<'type' | 'description' | 'generating'>('type');
   const [projectType, setProjectType] = useState<'html' | 'elementor'>('html');
   const [description, setDescription] = useState('');
   const [projectName, setProjectName] = useState('');
+  const [selectedModel, setSelectedModel] = useState(defaultModel || 'anthropic/claude-sonnet-4-5-20250514');
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState('');
-  const [currentPhase, setCurrentPhase] = useState<'html' | 'css' | 'js' | null>(null);
+  const [currentPhase, setCurrentPhase] = useState<'html' | 'css' | 'js' | 'php' | null>(null);
   const [usageMetadata, setUsageMetadata] = useState<any>(null);
 
   const { recordUsage } = useUsageTracking();
@@ -44,6 +55,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
     setProjectType('html');
     setDescription('');
     setProjectName('');
+    setSelectedModel(defaultModel || 'anthropic/claude-sonnet-4-5-20250514');
     setGenerating(false);
     setProgress('');
     setCurrentPhase(null);
@@ -93,7 +105,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
           description,
           projectType,
           projectName: generatedName,
-          model: selectedModel || 'anthropic/claude-sonnet-4-5-20250929',
+          model: selectedModel,
         }),
       });
 
@@ -106,8 +118,14 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
       let fullCode = '';
 
       if (reader) {
-        setCurrentPhase('html');
-        setProgress('Generating HTML...');
+        // Set initial phase based on project type
+        if (projectType === 'elementor') {
+          setCurrentPhase('php');
+          setProgress('Generating PHP Widget...');
+        } else {
+          setCurrentPhase('html');
+          setProgress('Generating HTML...');
+        }
 
         while (true) {
           const { done, value } = await reader.read();
@@ -117,13 +135,16 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
           fullCode += chunk;
 
           // Update progress based on content length
-          if (fullCode.length > 500 && currentPhase === 'html') {
-            setCurrentPhase('css');
-            setProgress('Generating CSS...');
-          } else if (fullCode.length > 1500 && currentPhase === 'css') {
-            setCurrentPhase('js');
-            setProgress('Generating JavaScript...');
+          if (projectType === 'html') {
+            if (fullCode.length > 500 && currentPhase === 'html') {
+              setCurrentPhase('css');
+              setProgress('Generating CSS...');
+            } else if (fullCode.length > 1500 && currentPhase === 'css') {
+              setCurrentPhase('js');
+              setProgress('Generating JavaScript...');
+            }
           }
+          // For Elementor, keep showing PHP generation
         }
 
         // Extract usage metadata if present
@@ -155,14 +176,28 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
 
         setProgress('✅ Generation complete! Parsing code...');
 
-        // Parse the generated code
-        const parsedCode = parseStreamedCode(codeOnly);
+        // Parse the generated code based on project type
+        let parsedCode: { html: string; css: string; js: string; php?: string };
 
-        // If parsing failed, try to split by common patterns
-        if (!parsedCode.html && !parsedCode.css) {
-          // Fallback: assume first part is HTML, middle is CSS, last is JS
-          const parts = codeOnly.split(/(?=<style>|<script>)/);
-          parsedCode.html = codeOnly; // Use full code as HTML for now
+        if (projectType === 'elementor') {
+          // For Elementor, extract PHP code
+          const phpMatch = codeOnly.match(/```php\n([\s\S]*?)```/);
+          parsedCode = {
+            html: '',
+            css: '',
+            js: '',
+            php: phpMatch ? phpMatch[1].trim() : codeOnly.trim(), // Fallback to full code if no markdown
+          };
+        } else {
+          // For HTML, extract HTML/CSS/JS
+          parsedCode = parseStreamedCode(codeOnly);
+
+          // If parsing failed, try to split by common patterns
+          if (!parsedCode.html && !parsedCode.css) {
+            // Fallback: assume first part is HTML, middle is CSS, last is JS
+            const parts = codeOnly.split(/(?=<style>|<script>)/);
+            parsedCode.html = codeOnly; // Use full code as HTML for now
+          }
         }
 
         setProgress('✅ Code parsed successfully!');
@@ -284,7 +319,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
                     </h3>
                   </div>
                   <p style={{ margin: '0 0 0 28px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
-                    Widget-ready code with proper {'{WRAPPER}'} scoping for Elementor
+                    Complete PHP widget class ready for Elementor (no conversion needed)
                   </p>
                 </div>
               </label>
@@ -344,6 +379,36 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
                   </p>
                 )}
               </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+                  AI Model
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    background: 'var(--background)',
+                    color: 'var(--foreground)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {Object.entries(MODEL_CONFIGS).map(([key, config]) => (
+                    <option key={key} value={key}>
+                      {config.name}
+                    </option>
+                  ))}
+                </select>
+                <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                  Recommended: <strong>Claude Sonnet 4.5</strong> for best quality
+                </p>
+              </div>
             </div>
           )}
 
@@ -354,6 +419,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, selectedMode
                 {currentPhase === 'html' && '📝'}
                 {currentPhase === 'css' && '🎨'}
                 {currentPhase === 'js' && '⚡'}
+                {currentPhase === 'php' && '🐘'}
                 {!currentPhase && '🚀'}
               </div>
               <p style={{ fontSize: '16px', fontWeight: 500, marginBottom: '8px' }}>

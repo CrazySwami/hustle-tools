@@ -133,14 +133,15 @@ export function Navbar() {
 
   // Dragging handlers
   const handleMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return; // Don't drag when clicking the button itself
-
-    setIsDragging(true);
+    // Store start position to detect if this was a click vs drag
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     dragOffsetRef.current = {
       x: e.clientX - position.x,
       y: e.clientY - position.y
     };
+
+    // We'll start dragging mode immediately but check distance moved in handleMouseUp
+    setIsDragging(true);
     e.preventDefault();
   };
 
@@ -155,6 +156,20 @@ export function Navbar() {
 
   const handleMouseUp = (e: MouseEvent) => {
     if (!isDragging) return;
+
+    // Check if mouse moved significantly (drag) or stayed put (click)
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance < 5) {
+      // Was a click, not a drag - toggle menu
+      setIsDragging(false);
+      setMenuOpen(!menuOpen);
+      return;
+    }
+
+    // Was a drag - snap to corner
     setIsDragging(false);
 
     // Snap to nearest corner
@@ -275,7 +290,6 @@ export function Navbar() {
       {/* Floating Draggable Button */}
       <div
         ref={buttonRef}
-        onMouseDown={handleMouseDown}
         style={{
           position: 'fixed',
           left: `${position.x}px`,
@@ -287,9 +301,9 @@ export function Navbar() {
         }}
       >
         <button
-          onClick={() => setMenuOpen(!menuOpen)}
+          onMouseDown={handleMouseDown}
           className={cn(
-            "flex items-center justify-center bg-background/95 backdrop-blur-md border-2 hover:bg-accent hover:text-accent-foreground transition-colors",
+            "group relative flex items-center justify-center bg-background/95 backdrop-blur-md border-2 overflow-hidden",
             "border-border dark:border-foreground/20 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_4px_12px_rgba(0,0,0,0.5)] shadow-lg",
             isMobile ? "w-14 h-14" : "gap-2 px-4 py-3"
           )}
@@ -298,11 +312,19 @@ export function Navbar() {
             fontSize: isMobile ? '16px' : '14px',
             fontWeight: 600,
             letterSpacing: '-0.025em',
-            cursor: 'pointer',
+            cursor: isDragging ? 'grabbing' : 'grab',
             pointerEvents: 'auto',
           }}
         >
-          <span>{isMobile ? 'HT' : 'Hustle Together'}</span>
+          {/* Water-fill hover animation background */}
+          <div
+            className="absolute inset-0 bg-foreground dark:bg-background transition-all duration-500 ease-out translate-y-full group-hover:translate-y-0 rounded-full"
+          />
+
+          {/* Text with color inversion on hover */}
+          <span className="relative z-10 transition-colors duration-500 group-hover:text-background group-hover:dark:text-foreground">
+            {isMobile ? 'HT' : 'Hustle Tools'}
+          </span>
         </button>
       </div>
 
@@ -454,7 +476,7 @@ export function Navbar() {
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-white dark:bg-background z-10">
-              <span className="text-lg font-bold">Hustle Together</span>
+              <span className="text-lg font-bold">Hustle Tools</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}

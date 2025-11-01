@@ -21,6 +21,7 @@ interface WidgetValidationModalProps {
   validationResult: ValidationResult | null;
   isValidating: boolean;
   widgetName: string;
+  onFixIssues?: () => void;
 }
 
 export function WidgetValidationModal({
@@ -28,7 +29,8 @@ export function WidgetValidationModal({
   onClose,
   validationResult,
   isValidating,
-  widgetName
+  widgetName,
+  onFixIssues
 }: WidgetValidationModalProps) {
   if (!isOpen) return null;
 

@@ -22,13 +22,13 @@ export function BottomNav({ pageActions, mobileOnly = true }: BottomNavProps) {
       }}
     >
       <div className="flex items-end justify-between max-w-screen-xl mx-auto">
-        {/* Left: Hustle Together nav button (injected by Navbar component) */}
+        {/* Left: Hustle Tools nav button (injected by Navbar component) */}
         <div id="bottom-nav-left" className="pointer-events-auto" />
 
-        {/* Right: Page-specific actions (optional) */}
-        {pageActions && (
-          <div className="pointer-events-auto">{pageActions}</div>
-        )}
+        {/* Right: Page-specific actions (can be injected via portal OR passed as prop) */}
+        <div id="bottom-nav-right" className="pointer-events-auto">
+          {pageActions}
+        </div>
       </div>
     </div>
   );

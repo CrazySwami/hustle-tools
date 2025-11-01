@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { MenuIcon } from '@/components/ui/icons';
 
 export interface OptionItem {
@@ -26,7 +27,16 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
   };
   const finalPosition = position || defaultPosition;
   const [isOpen, setIsOpen] = useState(false);
+  const [bottomNavRight, setBottomNavRight] = useState<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Find the bottom-nav-right container for mobile portal rendering
+  useEffect(() => {
+    if (isMobile) {
+      const container = document.getElementById('bottom-nav-right');
+      setBottomNavRight(container);
+    }
+  }, [isMobile]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -52,52 +62,29 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
     }
   };
 
-  return (
-    <div ref={menuRef}>
-      {/* Floating Options Button */}
+  // Mobile button component (for portal)
+  const mobileButton = (
+    <div ref={menuRef} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
+        className="w-14 h-14 rounded-full flex items-center justify-center border transition-all"
         style={{
-          position: 'absolute',
-          ...finalPosition,
-          width: '56px',
-          height: '56px',
-          borderRadius: '50%',
           background: isOpen ? 'var(--foreground)' : 'var(--muted)',
           color: isOpen ? 'var(--background)' : 'var(--foreground)',
-          border: '1px solid var(--border)',
+          borderColor: 'var(--border)',
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '0',
-          zIndex: 100, // Above tab content
-          transition: 'all 0.2s ease'
         }}
         aria-label="Options menu"
       >
         <MenuIcon size={24} />
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Menu - for mobile */}
       {isOpen && (
         <div
+          className="absolute bottom-full right-0 mb-2 bg-card rounded-xl shadow-xl border border-border min-w-[240px] max-w-[90vw] overflow-hidden"
           style={{
-            position: 'absolute',
-            bottom: finalPosition.bottom ? `calc(${finalPosition.bottom} + 65px)` : undefined,
-            top: finalPosition.top ? `calc(${finalPosition.top} + 65px)` : undefined,
-            left: finalPosition.left,
-            right: finalPosition.right,
-            background: 'var(--card)',
-            borderRadius: '12px',
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-            minWidth: isMobile ? '240px' : '260px',
-            maxWidth: isMobile ? '90vw' : '320px',
-            zIndex: 101, // Above button (100)
             animation: 'slideUp 0.2s ease-out',
-            overflow: 'hidden',
-            border: '1px solid var(--border)'
           }}
         >
           {options.map((option, index) => (
@@ -105,43 +92,19 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
               <button
                 onClick={() => handleOptionClick(option)}
                 disabled={option.disabled}
+                className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left transition-colors hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
-                  width: '100%',
-                  padding: '16px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: option.disabled ? 'not-allowed' : 'pointer',
                   fontSize: '15px',
                   fontWeight: 500,
-                  color: option.disabled ? 'var(--muted-foreground)' : 'var(--foreground)',
-                  textAlign: 'left',
-                  transition: 'background 0.15s ease',
-                  opacity: option.disabled ? 0.5 : 1
-                }}
-                onMouseEnter={(e) => {
-                  if (!option.disabled) {
-                    e.currentTarget.style.background = 'var(--muted)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
                 }}
               >
                 <span>{option.label}</span>
                 {option.type === 'toggle' && option.active && (
-                  <span style={{ color: 'var(--primary)' }}>✓</span>
+                  <span className="text-primary">✓</span>
                 )}
               </button>
               {option.divider && index < options.length - 1 && (
-                <div style={{
-                  height: '1px',
-                  background: 'var(--border)',
-                  margin: '0'
-                }} />
+                <div className="h-px bg-border" />
               )}
             </div>
           ))}
@@ -162,4 +125,86 @@ export function OptionsButton({ options, position, isMobile = false }: OptionsBu
       `}</style>
     </div>
   );
+
+  // Desktop button component (absolute positioning)
+  const desktopButton = (
+    <div ref={menuRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          position: 'absolute',
+          ...finalPosition,
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          background: isOpen ? 'var(--foreground)' : 'var(--muted)',
+          color: isOpen ? 'var(--background)' : 'var(--foreground)',
+          border: '1px solid var(--border)',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0',
+          zIndex: 100,
+          transition: 'all 0.2s ease'
+        }}
+        aria-label="Options menu"
+      >
+        <MenuIcon size={24} />
+      </button>
+
+      {/* Dropdown Menu - for desktop */}
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: finalPosition.bottom ? `calc(${finalPosition.bottom} + 65px)` : undefined,
+            top: finalPosition.top ? `calc(${finalPosition.top} + 65px)` : undefined,
+            left: finalPosition.left,
+            right: finalPosition.right,
+            background: 'var(--card)',
+            borderRadius: '12px',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            minWidth: '260px',
+            maxWidth: '320px',
+            zIndex: 101,
+            animation: 'slideUp 0.2s ease-out',
+            overflow: 'hidden',
+            border: '1px solid var(--border)'
+          }}
+        >
+          {options.map((option, index) => (
+            <div key={index}>
+              <button
+                onClick={() => handleOptionClick(option)}
+                disabled={option.disabled}
+                className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left transition-colors hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                  fontSize: '15px',
+                  fontWeight: 500,
+                }}
+              >
+                <span>{option.label}</span>
+                {option.type === 'toggle' && option.active && (
+                  <span className="text-primary">✓</span>
+                )}
+              </button>
+              {option.divider && index < options.length - 1 && (
+                <div className="h-px bg-border" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // On mobile: render into bottom-nav-right portal
+  // On desktop: render with absolute positioning
+  if (isMobile && bottomNavRight) {
+    return createPortal(mobileButton, bottomNavRight);
+  }
+
+  return desktopButton;
 }

@@ -40,12 +40,14 @@ interface HtmlSectionEditorProps {
   setChatVisible?: (visible: boolean) => void;
   tabBarVisible?: boolean;
   setTabBarVisible?: (visible: boolean) => void;
+  isTabVisible?: boolean; // For controlling OptionsButton portal rendering
   onEditElementInChat?: (elementData: {
     html: string;
     selector: string;
     classList: string[];
     context: string;
   }) => void;
+  onSendChatMessage?: (message: string) => void;
 }
 
 export function HtmlSectionEditor({
@@ -63,7 +65,9 @@ export function HtmlSectionEditor({
   setChatVisible,
   tabBarVisible,
   setTabBarVisible,
+  isTabVisible = true,
   onEditElementInChat,
+  onSendChatMessage,
 }: HtmlSectionEditorProps) {
   // File Groups Management
   const fileGroups = useFileGroups();
@@ -819,6 +823,7 @@ export function HtmlSectionEditor({
       {/* OptionsButton - Universal floating button */}
       <OptionsButton
         isMobile={isMobile}
+        isVisible={isTabVisible}
         options={[
           {
             label: "💾 Save to Library",
@@ -2550,6 +2555,33 @@ export function HtmlSectionEditor({
         validationResult={validationResult}
         isValidating={isValidating}
         widgetName={convertedWidgetName}
+        onFixIssues={() => {
+          if (!validationResult || !onSendChatMessage) return;
+
+          // Build detailed message from failed checks
+          const failedChecks = validationResult.checks.filter(c => !c.passed);
+          const message = `🔧 Fix Widget Validation Issues
+
+**Widget:** ${convertedWidgetName}
+**Overall Score:** ${validationResult.overallScore}%
+
+**Failed Checks:**
+${failedChecks.map((check, i) => `
+${i + 1}. **${check.requirement}** [${check.severity.toUpperCase()}]
+   ${check.details}
+`).join('\n')}
+
+**Instructions:**
+Please fix all the failed validation checks in the current PHP widget file. Use the editCodeWithMorph tool to make targeted fixes.`;
+
+          // Send to chat
+          onSendChatMessage(message);
+
+          // Show chat if hidden
+          if (!chatVisible && setChatVisible) {
+            setChatVisible(true);
+          }
+        }}
       />
     </div>
   );

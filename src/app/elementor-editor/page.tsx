@@ -1121,6 +1121,10 @@ export default function ElementorEditorPage() {
                 streamedJs={streamedCode.js}
                 activeCodeTab={activeCodeTab}
                 onCodeTabChange={setActiveCodeTab}
+                onSendChatMessage={(message) => {
+                  // Send message to chat from validation modal
+                  sendMessage({ content: message, role: 'user' });
+                }}
                 onSectionChange={(section) => {
                   console.log('📝 Section updated:', {
                     name: section.name,

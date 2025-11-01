@@ -55,7 +55,7 @@ import {
   ChevronRight,
   ChevronDown,
   Wrench,
-  LineHeight as LineHeightIcon
+  AlignJustify
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
@@ -890,7 +890,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 }}
                 title="Line Height"
               >
-                <LineHeightIcon className="h-4 w-4" />
+                <AlignJustify className="h-4 w-4" />
               </MenuButton>
               {showLineHeightSelector && (
                 <div className="absolute z-[9999] top-full left-0 mt-1">

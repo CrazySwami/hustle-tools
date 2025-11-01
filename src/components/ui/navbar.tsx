@@ -244,6 +244,7 @@ export function Navbar() {
 
   const navLinks = [
     { href: "/chat", label: "Chat" },
+    { href: "/voice-chat", label: "Voice Chat" },
     { href: "/editor", label: "Editor" },
     { href: "/chat-doc", label: "AI Doc" },
     { href: "/elementor-editor", label: "Elementor" },

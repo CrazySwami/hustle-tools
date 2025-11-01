@@ -1,10 +1,13 @@
 // AI Gateway chat endpoint for Elementor JSON Editor
 import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
 import { tools } from '@/lib/tools';
+import { apiMonitor } from '@/lib/api-monitor';
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  const startTime = Date.now(); // Track request start time for monitoring
+
   try {
     // Log the referer to see which page is calling this endpoint
     const referer = req.headers.get('referer') || 'unknown';
@@ -245,6 +248,30 @@ After using a tool, provide a helpful text response that explains what the tool 
       messages: convertedMessages,
       tools: toolsConfig,
       stopWhen: stepCountIs(2), // Limit tool calls to prevent UI duplication (was 5)
+      onFinish: async ({ usage, finishReason }) => {
+        // Log to API Monitor when stream completes
+        const responseTime = Date.now() - startTime;
+
+        // Extract provider from model string (e.g., "anthropic/claude-haiku-4-5-20251001" -> "anthropic")
+        const [provider, modelName] = model.includes('/')
+          ? model.split('/')
+          : ['unknown', model];
+
+        apiMonitor.log({
+          endpoint: '/api/chat-elementor',
+          method: 'POST',
+          provider,
+          model: modelName || model,
+          responseStatus: 200,
+          responseTime,
+          success: true,
+          promptTokens: usage?.promptTokens || 0,
+          completionTokens: usage?.completionTokens || 0,
+          totalTokens: usage?.totalTokens || 0,
+        });
+
+        console.log('📊 Usage data from AI:', usage);
+      },
     };
 
     console.log('📤 Final stream config:', {
@@ -256,13 +283,6 @@ After using a tool, provide a helpful text response that explains what the tool 
     const result = streamText(streamConfig);
 
     console.log('✅ Returning stream response with sources and tools');
-
-    // Log usage after completion (for debugging)
-    result.usage.then(usage => {
-      console.log('📊 Usage data from AI:', usage);
-    }).catch(err => {
-      console.error('❌ Error getting usage:', err);
-    });
 
     // Return with sources, tool results, and usage metadata
     // CORRECT: Use messageMetadata callback to send usage data to client
@@ -290,6 +310,20 @@ After using a tool, provide a helpful text response that explains what the tool 
     });
 
   } catch (error: any) {
+    const responseTime = Date.now() - startTime;
+
+    // Log error to API Monitor
+    apiMonitor.log({
+      endpoint: '/api/chat-elementor',
+      method: 'POST',
+      provider: 'unknown',
+      model: 'unknown',
+      responseStatus: 500,
+      responseTime,
+      success: false,
+      error: error.message || 'Chat request failed',
+    });
+
     console.error('❌ Elementor chat error:', error);
     return Response.json(
       {

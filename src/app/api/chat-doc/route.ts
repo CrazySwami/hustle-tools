@@ -34,10 +34,11 @@
  * ============================================================================
  */
 
-import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
+import { streamText, UIMessage, convertToModelMessages } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
 import { tools } from '@/lib/tools';
 import { apiMonitor } from '@/lib/api-monitor';
+import { validatePromptTokens, smartTruncateFile, getTokenUsageRecommendation } from '@/lib/token-validator';
 
 export const maxDuration = 60;
 
@@ -408,18 +409,134 @@ After using a tool, provide a brief text response explaining what you did.`;
       systemPromptLength: systemPrompt.length,
     });
 
+    // ============================================================================
+    // 🔍 TOKEN VALIDATION: Check if prompt fits within model's context window
+    // ============================================================================
+    const messagesText = JSON.stringify(convertedMessages);
+    let validation = validatePromptTokens(systemPrompt, messagesText, model);
+
+    console.log('📊 Token validation (before management):', {
+      model,
+      tokenCount: validation.tokenCount.toLocaleString(),
+      limit: validation.limit.toLocaleString(),
+      percentUsed: validation.percentUsed.toFixed(1) + '%',
+      isValid: validation.isValid,
+      warning: validation.warning,
+      error: validation.error,
+    });
+
+    // ============================================================================
+    // 🔄 CONVERSATION WINDOW MANAGEMENT: Auto-manage if needed
+    // If context exceeds thresholds, automatically apply sliding window or summarization
+    // ============================================================================
+    let managedMessages = convertedMessages;
+    let windowStrategy: 'full' | 'sliding-window' | 'summarized' | 'exceeded' = 'full';
+
+    if (validation.percentUsed >= 70 || !validation.isValid) {
+      const { manageConversationWindow } = await import('@/lib/token-validator');
+
+      // Convert to conversation message format
+      const conversationMessages = convertedMessages.map((msg: any) => ({
+        role: msg.role,
+        content: Array.isArray(msg.content)
+          ? msg.content.map((c: any) => c.text || '').join('\n')
+          : msg.content,
+      }));
+
+      const windowResult = manageConversationWindow(
+        conversationMessages,
+        systemPrompt,
+        model
+      );
+
+      console.log('🔄 Conversation window management:', {
+        strategy: windowResult.strategy,
+        originalMessages: windowResult.originalMessageCount,
+        keptMessages: windowResult.keptMessageCount,
+        summarizedCount: windowResult.summarizedCount,
+        newTokenCount: windowResult.totalTokens.toLocaleString(),
+      });
+
+      // Convert managed messages back to API format
+      if (windowResult.strategy !== 'full') {
+        managedMessages = windowResult.messages.map((msg: any) => ({
+          role: msg.role,
+          content: [{ type: 'text', text: msg.content }],
+        }));
+
+        windowStrategy = windowResult.strategy;
+
+        // Re-validate with managed messages
+        const managedMessagesText = JSON.stringify(managedMessages);
+        validation = validatePromptTokens(systemPrompt, managedMessagesText, model);
+
+        console.log('📊 Token validation (after management):', {
+          model,
+          tokenCount: validation.tokenCount.toLocaleString(),
+          limit: validation.limit.toLocaleString(),
+          percentUsed: validation.percentUsed.toFixed(1) + '%',
+          isValid: validation.isValid,
+        });
+      }
+    }
+
+    // If STILL exceeds after management, return error
+    if (!validation.isValid) {
+      console.error('❌ Prompt exceeds token limit even after management:', validation.error);
+      return Response.json(
+        {
+          error: 'Conversation too large',
+          details: 'Even after applying conversation management strategies, the context exceeds model limits. Please start a new conversation.',
+          tokenCount: validation.tokenCount,
+          limit: validation.limit,
+          exceeded: validation.exceeded,
+          strategy: windowStrategy,
+        },
+        { status: 400 }
+      );
+    }
+
+    // If prompt uses >90% of context, log warning
+    if (validation.warning) {
+      console.warn('⚠️ High token usage:', validation.warning);
+    }
+
     const streamConfig: any = {
       model: gateway(model, {
         apiKey: process.env.AI_GATEWAY_API_KEY!,
       }),
       system: systemPrompt,
-      messages: convertedMessages,
+      messages: managedMessages, // Use managed messages (may be truncated/summarized)
       // Perplexity models don't support tools, so only include tools for non-Perplexity models
       ...(model.startsWith('perplexity/') && webSearch
         ? { } // No tools for Perplexity web search
-        : { tools: toolsConfig, stopWhen: stepCountIs(2) } // Tools + stopWhen for other models
+        : { tools: toolsConfig, maxSteps: 10 } // Tools + maxSteps for other models
       ),
       ...(options ? options : {}), // Add search: true for Perplexity if needed
+      onStepStart: ({ stepType, toolCalls }) => {
+        // Log when a tool call step starts
+        if (stepType === 'tool-call' && toolCalls) {
+          console.log('🔧 TOOL CALL STEP START (chat-doc):', toolCalls.map(tc => ({
+            name: tc.toolName,
+            args: tc.args,
+          })));
+        }
+      },
+      onStepFinish: ({ stepType, toolCalls, toolResults, finishReason }) => {
+        // Log when a tool call step finishes
+        if (stepType === 'tool-call') {
+          console.log('✅ TOOL CALL STEP FINISH (chat-doc):', {
+            toolCalls: toolCalls?.map(tc => tc.toolName),
+            resultCount: toolResults?.length,
+            results: toolResults?.map(tr => ({
+              toolName: tr.toolName,
+              hasResult: !!tr.result,
+              resultPreview: JSON.stringify(tr.result).substring(0, 200),
+            })),
+            finishReason,
+          });
+        }
+      },
       onFinish: async ({ usage }) => {
         const responseTime = Date.now() - startTime;
         const [provider, modelName] = model.includes('/')
@@ -455,6 +572,9 @@ After using a tool, provide a brief text response explaining what you did.`;
           console.log('✅ Sending usage metadata');
           const usage = part.totalUsage || {};
 
+          // Calculate token usage recommendation
+          const recommendation = getTokenUsageRecommendation(validation.percentUsed);
+
           return {
             promptTokens: usage.inputTokens || 0,
             completionTokens: usage.outputTokens || 0,
@@ -462,6 +582,17 @@ After using a tool, provide a brief text response explaining what you did.`;
             cacheCreationTokens: 0,
             cacheReadTokens: usage.cachedInputTokens || 0,
             model,
+            // Add context window info for frontend
+            contextWindow: {
+              tokenCount: validation.tokenCount,
+              limit: validation.limit,
+              percentUsed: validation.percentUsed,
+              level: recommendation.level,
+              message: recommendation.message,
+              action: recommendation.action,
+              model,
+              strategy: windowStrategy, // 'full', 'sliding-window', 'summarized', or 'exceeded'
+            },
           };
         }
       },

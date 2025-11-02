@@ -137,10 +137,20 @@
     -ms-overflow-style: none !important;  /* IE and Edge */
     scrollbar-width: none !important;  /* Firefox */
   }
-  
+
   /* Additional specificity for overflow containers */
   .overflow-y-auto.scrollbar-hide::-webkit-scrollbar {
     display: none !important;
     width: 0 !important;
   }
+}
+
+/* Tiptap Editor Placeholder Styles */
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--muted-foreground);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  opacity: 0.5;
 }

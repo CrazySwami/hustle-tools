@@ -2308,30 +2308,31 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   bottom: '16px',
                   right: '16px',
                   padding: '8px 16px',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
+                  background: 'var(--foreground)',
+                  color: 'var(--background)',
                   borderRadius: '8px',
                   fontSize: '13px',
                   fontWeight: 500,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
                   zIndex: 1000,
                   pointerEvents: 'none',
+                  border: '1px solid var(--border)',
                 }}>
                   <div style={{
                     width: '8px',
                     height: '8px',
                     borderRadius: '50%',
-                    background: 'white',
+                    background: '#10b981',
                     animation: 'pulse 1.5s ease-in-out infinite',
                   }} />
                   Generating {generatingPhase?.toUpperCase()}... ({generatingTokens.toLocaleString()} tokens)
                   <style>{`
                     @keyframes pulse {
                       0%, 100% { opacity: 1; transform: scale(1); }
-                      50% { opacity: 0.5; transform: scale(0.8); }
+                      50% { opacity: 0.6; transform: scale(0.9); }
                     }
                   `}</style>
                 </div>

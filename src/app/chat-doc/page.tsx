@@ -279,9 +279,13 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
     : 0;
 
   return (
-    <div className={`flex h-screen w-full max-w-full overflow-x-hidden ${isMobile ? 'px-2 py-2' : 'px-4 py-4'} gap-0`}>
-      {/* Desktop: Two-panel layout (Chat | Editor) with shadcn Sidebar */}
-      {!isMobile && (
+    <SidebarProvider
+      defaultOpen={true}
+      className="h-screen w-full"
+    >
+      <div className={`flex h-full w-full max-w-full overflow-x-hidden ${isMobile ? 'px-2 py-2' : 'px-4 py-4'} gap-0`}>
+        {/* Desktop: Two-panel layout (Chat | Editor) with shadcn Sidebar */}
+        {!isMobile && (
         <>
           {/* Left Panel: Chat */}
           <div
@@ -334,36 +338,31 @@ Use the tools available to edit the document, analyze text, and help with writin
             />
           )}
 
-          {/* Right Panel: Tiptap Editor with shadcn Sidebar - SidebarProvider only wraps this panel */}
+          {/* Right Panel: Tiptap Editor with shadcn Sidebar */}
           {isEditorVisible && (
             <div
-              className="h-full overflow-hidden"
+              className="h-full overflow-hidden flex"
               style={{ width: `${100 - chatPanelWidth}%` }}
             >
-              <SidebarProvider
-                defaultOpen={true}
-                className="h-full min-h-0"
-              >
-                {/* shadcn Sidebar - auto-handles collapsible state */}
-                <AppSidebar
-                  onDocumentSelect={setSelectedDocumentId}
-                  selectedDocumentId={selectedDocumentId}
-                />
+              {/* shadcn Sidebar - auto-handles collapsible state */}
+              <AppSidebar
+                onDocumentSelect={setSelectedDocumentId}
+                selectedDocumentId={selectedDocumentId}
+              />
 
-                {/* Editor - automatically adjusts when sidebar opens/closes */}
-                <div className="flex-1 h-full overflow-hidden p-2">
-                  <TiptapEditor
-                    initialContent={documentContent}
-                    onContentChange={(html) => {
-                      console.log('📝 [EDITOR] Content changed, updating store (skipEditorUpdate=true)');
-                      documentContentStore.updateContent(html, true); // true = skip editor update
-                    }}
-                    onCommentsChange={setComments}
-                    onAIEdit={handleAIEdit}
-                    selectedModel={selectedModel}
-                  />
-                </div>
-              </SidebarProvider>
+              {/* Editor - automatically adjusts when sidebar opens/closes */}
+              <div className="flex-1 h-full overflow-hidden p-2">
+                <TiptapEditor
+                  initialContent={documentContent}
+                  onContentChange={(html) => {
+                    console.log('📝 [EDITOR] Content changed, updating store (skipEditorUpdate=true)');
+                    documentContentStore.updateContent(html, true); // true = skip editor update
+                  }}
+                  onCommentsChange={setComments}
+                  onAIEdit={handleAIEdit}
+                  selectedModel={selectedModel}
+                />
+              </div>
             </div>
           )}
         </>
@@ -389,15 +388,13 @@ Use the tools available to edit the document, analyze text, and help with writin
                 transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
               }}
             >
-              <SidebarProvider>
-                <AppSidebar
-                  onDocumentSelect={(id) => {
-                    setSelectedDocumentId(id);
-                    setIsSidebarVisible(false); // Auto-close on mobile after selecting
-                  }}
-                  selectedDocumentId={selectedDocumentId}
-                />
-              </SidebarProvider>
+              <AppSidebar
+                onDocumentSelect={(id) => {
+                  setSelectedDocumentId(id);
+                  setIsSidebarVisible(false); // Auto-close on mobile after selecting
+                }}
+                selectedDocumentId={selectedDocumentId}
+              />
             </div>
 
             <TiptapEditor
@@ -515,8 +512,9 @@ Use the tools available to edit the document, analyze text, and help with writin
       )}
 
       {/* Bottom Navigation - Mobile Only */}
-      <BottomNav />
-    </div>
+      {isMobile && <BottomNav />}
+      </div>
+    </SidebarProvider>
   );
 };
 

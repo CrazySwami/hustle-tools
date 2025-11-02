@@ -47,6 +47,7 @@ import {
   ToolOutput,
 } from '@/components/ai-elements/tool';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
+import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
 
 // Define interfaces for model and model groups
 interface Model {
@@ -174,12 +175,39 @@ const ChatBotDemo = () => {
   };
 
   return (
-    <div
-      className={cn(
-        'h-screen w-full grid',
-        !isEditorFullscreen && 'grid-cols-[1fr_550px]'
-      )}
-    >
+    <SidebarProvider>
+      {/* Sidebar for document info/comments */}
+      <Sidebar
+        side="left"
+        className="border-r bg-transparent backdrop-blur-md !bg-transparent [&_[data-slot='sheet-content']]:!bg-transparent [&_[data-slot='sheet-content']]:backdrop-blur-md [&_[data-slot='sheet-overlay']]:!z-[9000] [&_[data-slot='sheet-content']]:!z-[9001]"
+      >
+        <SidebarHeader className="border-b p-4 bg-transparent backdrop-blur-sm">
+          <h2 className="font-semibold">Document Info</h2>
+        </SidebarHeader>
+        <SidebarContent className="p-4 bg-transparent">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium mb-2">Comments</h3>
+              <p className="text-sm text-muted-foreground">
+                {comments.length} comment{comments.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium mb-2">Document Stats</h3>
+              <p className="text-xs text-muted-foreground">
+                {documentContent.split(/\s+/).filter(Boolean).length} words
+              </p>
+            </div>
+          </div>
+        </SidebarContent>
+      </Sidebar>
+
+      <div
+        className={cn(
+          'h-screen w-full grid',
+          !isEditorFullscreen && 'grid-cols-[1fr_550px]'
+        )}
+      >
       <div className="flex flex-col h-full p-4 overflow-auto">
 
         <TiptapEditor
@@ -435,6 +463,7 @@ const ChatBotDemo = () => {
       </div>
       )}
     </div>
+    </SidebarProvider>
   );
 };
 

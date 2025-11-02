@@ -5,6 +5,7 @@ import { Message, MessageContent } from '@/components/ai-elements/message';
 import {
   PromptInput,
   PromptInputTextarea,
+  PromptInputTokenCounterSection,
   PromptInputToolbar,
   PromptInputTools,
   PromptInputButton,
@@ -29,6 +30,8 @@ import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
 import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, PanelRightOpen, FileText, FileIcon, EyeIcon, File } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { ConversationTokenIndicator, ConversationTokenData } from '@/components/ui/ConversationTokenIndicator';
+import { MODEL_CONTEXT_LIMITS } from '@/lib/token-validator';
 
 interface DocumentChatProps {
   messages: any[];
@@ -83,7 +86,7 @@ function DocumentContextBadge({
   const projectName = currentProject?.name || 'My Documents';
 
   return (
-    <div className="flex justify-center items-center gap-3 mb-4">
+    <div className="flex justify-center items-center gap-3 mb-4" style={{ background: 'transparent' }}>
       <div
         className={`group relative inline-flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium tracking-tight shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] overflow-hidden rounded-full cursor-default
           ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
@@ -199,6 +202,9 @@ export function DocumentChat({
   const [input, setInput] = useState('');
   const [showSystemPrompt, setShowSystemPrompt] = useState(false);
   const [includeContext, setIncludeContext] = useState(true);
+  const [conversationTokenData, setConversationTokenData] = useState<ConversationTokenData | null>(null);
+  const [sendDisabled, setSendDisabled] = useState(false);
+
   // Use controlled webSearch if provided, otherwise use local state
   const webSearch = webSearchEnabled;
   const setWebSearch = (value: boolean) => {
@@ -211,9 +217,36 @@ export function DocumentChat({
   const totalChars = systemPrompt.length + documentContent.length;
   const estimatedTokens = Math.ceil(totalChars / 4);
 
+  // Get context limit for selected model
+  const contextLimit = MODEL_CONTEXT_LIMITS[selectedModel] || 128000;
+
+  // Extract conversation token data from message metadata
+  useEffect(() => {
+    // Find the last message with metadata containing contextWindow
+    const lastMessageWithMetadata = messages
+      .slice()
+      .reverse()
+      .find((msg: any) => msg.metadata?.contextWindow);
+
+    if (lastMessageWithMetadata?.metadata?.contextWindow) {
+      const cw = lastMessageWithMetadata.metadata.contextWindow;
+      setConversationTokenData({
+        totalTokens: cw.tokenCount || 0,
+        limit: cw.limit || contextLimit,
+        percentUsed: cw.percentUsed || 0,
+        level: cw.level || 'safe',
+        message: cw.message || 'Token usage is healthy',
+        action: cw.action || 'Continue normally',
+        model: cw.model || selectedModel,
+        messageCount: messages.length,
+        strategy: cw.strategy,
+      });
+    }
+  }, [messages, selectedModel, contextLimit]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim() && !isLoading) {
+    if (input.trim() && !isLoading && !sendDisabled) {
       onSendMessage(input, {
         webSearchEnabled: webSearch,
         includeContext,
@@ -237,8 +270,15 @@ export function DocumentChat({
       flexDirection: 'column',
       height: '100%',
       overflow: 'hidden',
-      padding: '0 10px 0 10px'
+      padding: '0 24px 24px 24px',
+      position: 'relative',
     }}>
+      {/* Conversation Token Indicator - Fixed top-right */}
+      <ConversationTokenIndicator
+        data={conversationTokenData}
+        position="top-right"
+      />
+
       <Conversation className="flex-1 scrollbar-hide" style={{ overflow: 'hidden' }}>
         <ConversationContent className="scrollbar-hide" style={{ flex: 1, overflow: 'auto' }}>
           {messages.map((message, index) => (
@@ -420,11 +460,28 @@ export function DocumentChat({
         />
       )}
 
-      <PromptInput onSubmit={handleSubmit} style={{ flexShrink: 0, margin: '8px 0 10px 0' }}>
+      <PromptInput
+        onSubmit={handleSubmit}
+        style={{ flexShrink: 0, margin: '8px 0 10px 0' }}
+        promptValue={input}
+        systemPrompt={systemPrompt}
+        contextLimit={contextLimit}
+        conversationTokens={conversationTokenData?.totalTokens || 0}
+        onSendDisabled={setSendDisabled}
+        showTokenCounter={true}
+      >
         <PromptInputTextarea
           onChange={(e) => setInput(e.target.value)}
           value={input}
           placeholder="Ask me to write or edit your document..."
+        />
+        <PromptInputTokenCounterSection
+          promptValue={input}
+          systemPrompt={systemPrompt}
+          contextLimit={contextLimit}
+          conversationTokens={conversationTokenData?.totalTokens || 0}
+          onSendDisabled={setSendDisabled}
+          showDetails={false}
         />
         <PromptInputToolbar>
           <PromptInputTools>
@@ -480,7 +537,7 @@ export function DocumentChat({
               </PromptInputModelSelectContent>
             </PromptInputModelSelect>
           </PromptInputTools>
-          <PromptInputSubmit disabled={isLoading || !input.trim()} status={status}>
+          <PromptInputSubmit disabled={isLoading || !input.trim() || sendDisabled} status={status}>
             <SendIcon size={16} />
           </PromptInputSubmit>
         </PromptInputToolbar>

@@ -2,6 +2,8 @@ import { Extension } from '@tiptap/core'
 
 export interface LineHeightOptions {
   types: string[]
+  heights: string[]
+  defaultHeight: string
 }
 
 declare module '@tiptap/core' {
@@ -24,7 +26,9 @@ export const LineHeight = Extension.create<LineHeightOptions>({
 
   addOptions() {
     return {
-      types: ['textStyle'],
+      types: ['heading', 'paragraph'],
+      heights: ['1', '1.15', '1.25', '1.5', '1.75', '2', '2.5', '3'],
+      defaultHeight: '1.5',
     }
   },
 
@@ -34,10 +38,11 @@ export const LineHeight = Extension.create<LineHeightOptions>({
         types: this.options.types,
         attributes: {
           lineHeight: {
-            default: null,
-            parseHTML: element => element.style.lineHeight?.replace(/['"]+/g, ''),
-            renderHTML: attributes => {
-              if (!attributes.lineHeight) {
+            default: this.options.defaultHeight,
+            parseHTML: (element) =>
+              element.style.lineHeight?.replace(/['"]+/g, '') || this.options.defaultHeight,
+            renderHTML: (attributes) => {
+              if (attributes.lineHeight === this.options.defaultHeight) {
                 return {}
               }
 
@@ -53,16 +58,16 @@ export const LineHeight = Extension.create<LineHeightOptions>({
 
   addCommands() {
     return {
-      setLineHeight: (lineHeight: string) => ({ chain }) => {
-        return chain()
-          .setMark('textStyle', { lineHeight })
-          .run()
+      setLineHeight: (lineHeight: string) => ({ commands }) => {
+        // Allow any line height value, not just predefined ones
+        return this.options.types.every((type) =>
+          commands.updateAttributes(type, { lineHeight })
+        )
       },
-      unsetLineHeight: () => ({ chain }) => {
-        return chain()
-          .setMark('textStyle', { lineHeight: null })
-          .removeEmptyTextStyle()
-          .run()
+      unsetLineHeight: () => ({ commands }) => {
+        return this.options.types.every((type) =>
+          commands.resetAttributes(type, 'lineHeight')
+        )
       },
     }
   },

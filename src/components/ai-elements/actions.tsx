@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 export type ActionsProps = ComponentProps<'div'>;
 
 export const Actions = ({ className, children, ...props }: ActionsProps) => (
-  <div className={cn('flex items-center gap-1', className)} {...props}>
+  <div className={cn('flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity', className)} {...props}>
     {children}
   </div>
 );

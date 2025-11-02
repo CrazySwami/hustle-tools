@@ -10,6 +10,8 @@ import { CitationDisplay } from '@/components/elementor/CitationDisplay';
 import { GlobeIcon, FileIcon, PaletteIcon, ImageIcon, BrainIcon } from '@/components/ui/icons';
 import { useEffect, useRef, useState } from 'react';
 import { FileCode } from 'lucide-react';
+import { ConversationTokenIndicator, ConversationTokenData } from '@/components/ui/ConversationTokenIndicator';
+import { MODEL_CONTEXT_LIMITS } from '@/lib/token-validator';
 
 // Model configurations with token limits
 const MODEL_CONFIGS = {
@@ -186,9 +188,11 @@ export function ChatInterface({
   const [detailedMode, setDetailedMode] = useState(false);
   const [showContextPreview, setShowContextPreview] = useState(false);
   const [contextPreview, setContextPreview] = useState<any>(null);
+  const [conversationTokenData, setConversationTokenData] = useState<ConversationTokenData | null>(null);
 
   // Get current model config
   const modelConfig = MODEL_CONFIGS[selectedModel as keyof typeof MODEL_CONFIGS] || MODEL_CONFIGS['anthropic/claude-haiku-4.5-20251022'];
+  const contextLimit = MODEL_CONTEXT_LIMITS[selectedModel] || 128000;
 
   // Calculate context tokens (system prompt + currentSection files + conversation history)
   useEffect(() => {
@@ -212,6 +216,30 @@ export function ChatInterface({
     setContextTokens(total);
     console.log(`📊 Context tokens: System(~5K) + Files(${sectionTokens.toLocaleString()}) + History(${historyTokens}) = ${total.toLocaleString()}`);
   }, [currentSection, messages]);
+
+  // Extract conversation token data from message metadata
+  useEffect(() => {
+    // Find the last message with metadata containing contextWindow
+    const lastMessageWithMetadata = messages
+      .slice()
+      .reverse()
+      .find((msg: any) => msg.metadata?.contextWindow);
+
+    if (lastMessageWithMetadata?.metadata?.contextWindow) {
+      const cw = lastMessageWithMetadata.metadata.contextWindow;
+      setConversationTokenData({
+        totalTokens: cw.tokenCount || 0,
+        limit: cw.limit || contextLimit,
+        percentUsed: cw.percentUsed || 0,
+        level: cw.level || 'safe',
+        message: cw.message || 'Token usage is healthy',
+        action: cw.action || 'Continue normally',
+        model: cw.model || selectedModel,
+        messageCount: messages.length,
+        strategy: cw.strategy,
+      });
+    }
+  }, [messages, selectedModel, contextLimit]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -362,7 +390,13 @@ export function ChatInterface({
       </div>
 
       {/* Chat Messages */}
-      <div className="chat-messages" id="chatMessages">
+      <div className="chat-messages" id="chatMessages" style={{ position: 'relative' }}>
+        {/* Conversation Token Indicator - Fixed top-right */}
+        <ConversationTokenIndicator
+          data={conversationTokenData}
+          position="top-right"
+        />
+
         {messages.length === 0 && (
           <div className="welcome-message" style={{
             textAlign: 'center',

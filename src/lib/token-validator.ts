@@ -1,0 +1,394 @@
+import { Tiktoken, encodingForModel } from 'js-tiktoken';
+
+/**
+ * Model context window limits (in tokens)
+ * Source: docs/models.md
+ */
+export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
+  // Anthropic Claude models
+  'anthropic/claude-4-sonnet': 200000,
+  'anthropic/claude-sonnet-4-5-20250929': 200000,
+  'anthropic/claude-3.7-sonnet': 200000,
+  'anthropic/claude-3.5-sonnet': 200000,
+  'anthropic/claude-3.5-haiku': 200000,
+  'anthropic/claude-4-opus': 200000,
+  'anthropic/claude-4.1-opus': 200000,
+  'anthropic/claude-3-opus': 200000,
+  'anthropic/claude-3-haiku': 200000,
+  'anthropic/claude-haiku-4-5-20251001': 200000,
+
+  // OpenAI GPT-5 models
+  'openai/gpt-5': 400000,
+  'openai/gpt-5-mini': 400000,
+  'openai/gpt-5-nano': 400000,
+  'openai/gpt-5-pro': 400000,
+
+  // OpenAI GPT-4.1 models
+  'openai/gpt-4.1': 1000000,
+  'openai/gpt-4.1-mini': 1000000,
+  'openai/gpt-4.1-nano': 1000000,
+
+  // OpenAI GPT-4 models
+  'openai/gpt-4o': 128000,
+  'openai/gpt-4o-mini': 128000,
+  'openai/gpt-4-turbo': 128000,
+  'openai/gpt-3.5-turbo': 16000,
+
+  // OpenAI o-series (reasoning models)
+  'openai/o3': 200000,
+  'openai/o3-mini': 200000,
+  'openai/o4-mini': 200000,
+  'openai/o1': 200000,
+
+  // Google Gemini models
+  'google/gemini-2.5-flash': 1000000,
+  'google/gemini-2.5-pro': 1000000,
+  'google/gemini-2.0-flash': 1000000,
+  'google/gemini-2.0-flash-lite': 1000000,
+
+  // xAI Grok models
+  'xai/grok-4': 256000,
+  'xai/grok-3-beta': 131000,
+  'xai/grok-3-mini-beta': 131000,
+  'xai/grok-3-fast-beta': 131000,
+  'xai/grok-2': 131000,
+  'xai/grok-2-vision': 33000,
+
+  // Perplexity models
+  'perplexity/sonar': 127000,
+  'perplexity/sonar-pro': 200000,
+  'perplexity/sonar-reasoning': 127000,
+  'perplexity/sonar-reasoning-pro': 127000,
+
+  // Meta Llama models
+  'meta/llama-3.3-70b': 128000,
+  'meta/llama-3.1-70b': 128000,
+  'meta/llama-3.1-8b': 128000,
+  'meta/llama-4-scout': 128000,
+  'meta/llama-4-maverick-17b': 1000000,
+
+  // DeepSeek models
+  'deepseek/deepseek-r1': 160000,
+  'deepseek/deepseek-v3': 164000,
+
+  // Alibaba Qwen models
+  'alibaba/qwen-3-coder': 131000,
+  'alibaba/qwen-3-32b': 128000,
+
+  // Default fallback
+  'default': 128000,
+};
+
+/**
+ * Estimate token count for a string using tiktoken
+ * Uses cl100k_base encoding (GPT-4/Claude compatible)
+ */
+export function estimateTokenCount(text: string): number {
+  try {
+    // Use cl100k_base encoding (used by GPT-4, Claude, and most modern models)
+    const encoding = encodingForModel('gpt-4');
+    const tokens = encoding.encode(text);
+    encoding.free(); // Free up memory
+    return tokens.length;
+  } catch (error) {
+    // Fallback: rough estimate (1 token ≈ 4 characters for English text)
+    console.warn('Token counting failed, using fallback estimation:', error);
+    return Math.ceil(text.length / 4);
+  }
+}
+
+/**
+ * Get context window limit for a model
+ */
+export function getModelContextLimit(model: string): number {
+  return MODEL_CONTEXT_LIMITS[model] || MODEL_CONTEXT_LIMITS['default'];
+}
+
+/**
+ * Validate if a prompt fits within model's context window
+ */
+export interface TokenValidationResult {
+  isValid: boolean;
+  tokenCount: number;
+  limit: number;
+  percentUsed: number;
+  exceeded: number;
+  warning?: string;
+  error?: string;
+}
+
+export function validatePromptTokens(
+  systemPrompt: string,
+  userMessages: string,
+  model: string,
+  reserveForOutput: number = 4000 // Reserve tokens for model output
+): TokenValidationResult {
+  const systemTokens = estimateTokenCount(systemPrompt);
+  const messageTokens = estimateTokenCount(userMessages);
+  const totalInputTokens = systemTokens + messageTokens;
+
+  const contextLimit = getModelContextLimit(model);
+  const effectiveLimit = contextLimit - reserveForOutput;
+
+  const percentUsed = (totalInputTokens / effectiveLimit) * 100;
+  const exceeded = Math.max(0, totalInputTokens - effectiveLimit);
+
+  let warning: string | undefined;
+  let error: string | undefined;
+
+  if (totalInputTokens > effectiveLimit) {
+    error = `Prompt exceeds model context limit by ${exceeded.toLocaleString()} tokens. Please reduce input size.`;
+  } else if (percentUsed > 90) {
+    warning = `Prompt uses ${percentUsed.toFixed(1)}% of context window. Consider reducing input size.`;
+  } else if (percentUsed > 75) {
+    warning = `Prompt uses ${percentUsed.toFixed(1)}% of context window.`;
+  }
+
+  return {
+    isValid: totalInputTokens <= effectiveLimit,
+    tokenCount: totalInputTokens,
+    limit: effectiveLimit,
+    percentUsed,
+    exceeded,
+    warning,
+    error,
+  };
+}
+
+/**
+ * Truncate text to fit within token limit
+ */
+export function truncateToTokenLimit(
+  text: string,
+  maxTokens: number,
+  suffix: string = '\n\n[... truncated ...]'
+): string {
+  const currentTokens = estimateTokenCount(text);
+
+  if (currentTokens <= maxTokens) {
+    return text;
+  }
+
+  // Binary search to find the right length
+  const suffixTokens = estimateTokenCount(suffix);
+  const targetTokens = maxTokens - suffixTokens;
+
+  let left = 0;
+  let right = text.length;
+  let bestLength = 0;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    const truncated = text.substring(0, mid);
+    const tokens = estimateTokenCount(truncated);
+
+    if (tokens <= targetTokens) {
+      bestLength = mid;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return text.substring(0, bestLength) + suffix;
+}
+
+/**
+ * Smart truncation for file content in system prompts
+ * Preserves beginning and end, truncates middle
+ */
+export function smartTruncateFile(
+  content: string,
+  fileName: string,
+  maxTokens: number
+): string {
+  const currentTokens = estimateTokenCount(content);
+
+  if (currentTokens <= maxTokens) {
+    return content;
+  }
+
+  // Keep first 30% and last 30%, truncate middle 40%
+  const lines = content.split('\n');
+  const keepStart = Math.floor(lines.length * 0.3);
+  const keepEnd = Math.floor(lines.length * 0.3);
+
+  const startLines = lines.slice(0, keepStart).join('\n');
+  const endLines = lines.slice(-keepEnd).join('\n');
+
+  const truncationMessage = `\n\n[... ${fileName} truncated: ${currentTokens.toLocaleString()} tokens exceeded limit of ${maxTokens.toLocaleString()} ...]\n\n`;
+
+  const truncated = startLines + truncationMessage + endLines;
+
+  // If still too large, use simple truncation
+  if (estimateTokenCount(truncated) > maxTokens) {
+    return truncateToTokenLimit(content, maxTokens);
+  }
+
+  return truncated;
+}
+
+/**
+ * Conversation context window management strategies
+ * Based on 2025 best practices: sliding window + summarization
+ */
+
+export interface ConversationMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp?: number;
+}
+
+export interface ConversationWindowResult {
+  messages: ConversationMessage[];
+  totalTokens: number;
+  originalMessageCount: number;
+  keptMessageCount: number;
+  summarizedCount: number;
+  strategy: 'full' | 'sliding-window' | 'summarized';
+}
+
+/**
+ * Manage conversation context using sliding window approach
+ * Keeps recent messages, summarizes older ones
+ *
+ * Best practice thresholds (2025):
+ * - 0-70%: Keep all messages (full history)
+ * - 70-85%: Use sliding window (keep recent N messages)
+ * - 85-90%: Summarize older messages
+ * - >90%: Hard limit - refuse or require user action
+ */
+export function manageConversationWindow(
+  messages: ConversationMessage[],
+  systemPrompt: string,
+  model: string,
+  options: {
+    /** Reserve tokens for model output (default: 4000) */
+    reserveForOutput?: number;
+    /** Keep at least this many recent messages (default: 10) */
+    keepRecentMessages?: number;
+    /** Soft warning threshold percentage (default: 70) */
+    softThreshold?: number;
+    /** Hard limit threshold percentage (default: 85) */
+    hardThreshold?: number;
+  } = {}
+): ConversationWindowResult {
+  const {
+    reserveForOutput = 4000,
+    keepRecentMessages = 10,
+    softThreshold = 70,
+    hardThreshold = 85,
+  } = options;
+
+  const contextLimit = getModelContextLimit(model);
+  const effectiveLimit = contextLimit - reserveForOutput;
+  const systemTokens = estimateTokenCount(systemPrompt);
+
+  // Calculate total tokens with all messages
+  const messagesText = JSON.stringify(messages);
+  const allMessagesTokens = estimateTokenCount(messagesText);
+  const totalTokens = systemTokens + allMessagesTokens;
+  const percentUsed = (totalTokens / effectiveLimit) * 100;
+
+  // Strategy 1: Full history (< 70% usage)
+  if (percentUsed < softThreshold) {
+    return {
+      messages,
+      totalTokens,
+      originalMessageCount: messages.length,
+      keptMessageCount: messages.length,
+      summarizedCount: 0,
+      strategy: 'full',
+    };
+  }
+
+  // Strategy 2: Sliding window (70-85% usage)
+  if (percentUsed < hardThreshold) {
+    // Keep most recent messages that fit
+    const recentMessages = messages.slice(-keepRecentMessages);
+    const recentTokens = estimateTokenCount(JSON.stringify(recentMessages));
+    const newTotal = systemTokens + recentTokens;
+
+    return {
+      messages: recentMessages,
+      totalTokens: newTotal,
+      originalMessageCount: messages.length,
+      keptMessageCount: recentMessages.length,
+      summarizedCount: messages.length - recentMessages.length,
+      strategy: 'sliding-window',
+    };
+  }
+
+  // Strategy 3: Summarization (85-90% usage)
+  // Keep very recent messages + create summary of older ones
+  const veryRecentCount = Math.max(5, Math.floor(keepRecentMessages / 2));
+  const veryRecentMessages = messages.slice(-veryRecentCount);
+  const olderMessages = messages.slice(0, -veryRecentCount);
+
+  // Create simple summary of older messages
+  const summary: ConversationMessage = {
+    role: 'system',
+    content: `[Earlier conversation summary: ${olderMessages.length} messages exchanged. User requested various tasks and assistant responded with tool calls and explanations. Recent context continues below.]`,
+    timestamp: Date.now(),
+  };
+
+  const summarizedMessages = [summary, ...veryRecentMessages];
+  const summarizedTokens = estimateTokenCount(JSON.stringify(summarizedMessages));
+  const newTotal = systemTokens + summarizedTokens;
+
+  return {
+    messages: summarizedMessages,
+    totalTokens: newTotal,
+    originalMessageCount: messages.length,
+    keptMessageCount: veryRecentMessages.length,
+    summarizedCount: olderMessages.length,
+    strategy: 'summarized',
+  };
+}
+
+/**
+ * Get recommended action based on token usage percentage
+ */
+export function getTokenUsageRecommendation(percentUsed: number): {
+  level: 'safe' | 'warning' | 'critical' | 'exceeded';
+  message: string;
+  action: string;
+} {
+  if (percentUsed < 50) {
+    return {
+      level: 'safe',
+      message: 'Token usage is healthy',
+      action: 'Continue normally',
+    };
+  }
+
+  if (percentUsed < 70) {
+    return {
+      level: 'safe',
+      message: 'Token usage is moderate',
+      action: 'Monitor usage',
+    };
+  }
+
+  if (percentUsed < 85) {
+    return {
+      level: 'warning',
+      message: 'Approaching context limit',
+      action: 'Consider starting a new conversation or summarizing',
+    };
+  }
+
+  if (percentUsed < 95) {
+    return {
+      level: 'critical',
+      message: 'Very close to context limit',
+      action: 'Start a new conversation or messages will be auto-summarized',
+    };
+  }
+
+  return {
+    level: 'exceeded',
+    message: 'Context limit exceeded',
+    action: 'Must start a new conversation',
+  };
+}

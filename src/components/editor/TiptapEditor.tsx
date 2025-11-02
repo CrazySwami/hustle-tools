@@ -79,6 +79,8 @@ import { LineHeight } from './LineHeightExtension'
 import TurndownService from 'turndown'
 import '@/styles/comments.css'
 import { Extension } from '@tiptap/core'
+import { Plugin } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
 // FontSize extension - extends TextStyle to support fontSize attribute
 declare module '@tiptap/core' {
@@ -135,6 +137,39 @@ const FontSize = Extension.create({
           .run()
       },
     }
+  },
+})
+
+// Custom placeholder extension to avoid version conflicts
+const CustomPlaceholder = Extension.create({
+  name: 'placeholder',
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          decorations: ({ doc }) => {
+            const decorations: any[] = []
+            const isEmpty = doc.textContent.length === 0
+
+            if (isEmpty) {
+              doc.descendants((node, pos) => {
+                if (node.type.name === 'paragraph' && pos === 0) {
+                  const decoration = Decoration.node(pos, pos + node.nodeSize, {
+                    class: 'is-editor-empty',
+                    'data-placeholder': 'Start typing here...',
+                  })
+                  decorations.push(decoration)
+                  return false
+                }
+              })
+            }
+
+            return DecorationSet.create(doc, decorations)
+          },
+        },
+      }),
+    ]
   },
 })
 
@@ -733,12 +768,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
           }
         },
       }),
+      CustomPlaceholder,
       StreamingExtension,
     ],
-    content: initialContent || (savedContent ? JSON.parse(savedContent) : '<p>Hello, start typing here...</p>'),
+    content: initialContent || (savedContent ? JSON.parse(savedContent) : '<p></p>'),
     editorProps: {
       attributes: {
-        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none w-full max-w-none min-h-[calc(100vh-16rem)]',
+        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none w-full max-w-none min-h-[calc(100vh-16rem)] [&_h1]:text-2xl [&_h1]:sm:text-3xl [&_h1]:lg:text-4xl',
       },
     },
     onUpdate: ({ editor }) => {
@@ -832,8 +868,8 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       console.log('  currentHTML length:', currentHTML.length);
 
       // Reset interaction flag when switching documents
-      const welcomeMessage = '<h1>Welcome to your new document</h1><p>Start typing here...</p>'
-      if (initialContent === welcomeMessage) {
+      const emptyContent = '<p></p>'
+      if (initialContent === emptyContent || !initialContent) {
         hasUserInteracted.current = false
       } else {
         hasUserInteracted.current = true

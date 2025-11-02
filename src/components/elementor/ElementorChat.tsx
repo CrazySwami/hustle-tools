@@ -103,7 +103,7 @@ function ProjectContextBadge({
   const projectTitle = currentSection?.name || 'Untitled Project';
 
   return (
-    <div className="flex justify-center items-center gap-3 mb-4">
+    <div className="flex justify-center items-center gap-3">
       <div
         className={`group relative inline-flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium tracking-tight shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] overflow-hidden rounded-full cursor-default
           ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
@@ -289,10 +289,10 @@ export function ElementorChat({
       flexDirection: 'column',
       height: '100%',
       overflow: 'hidden',
-      padding: '0 24px 0 24px'
+      position: 'relative'
     }}>
-      <Conversation className="flex-1 scrollbar-hide">
-        <ConversationContent className="scrollbar-hide" style={{ flex: 1, overflow: 'auto' }}>
+      <Conversation className="flex-1 scrollbar-hide" style={{ paddingBottom: '140px' }}>
+        <ConversationContent className="scrollbar-hide" style={{ flex: 1, overflow: 'auto', maxWidth: '100%' }}>
           {messages.map((message, index) => (
             <div key={message.id}>
               {/* Show sources for assistant messages - OUTSIDE Message component */}
@@ -323,8 +323,8 @@ export function ElementorChat({
                   </SourcesContent>
                 </Sources>
               )}
-              <Message from={message.role} key={message.id} className="py-2">
-                <div className={cn('flex flex-col gap-1', message.role === 'user' ? 'items-end' : 'items-start')}>
+              <Message from={message.role} key={message.id}>
+                <div className={cn('flex flex-col gap-1 max-w-2xl', message.role === 'user' ? 'items-end' : 'items-start')}>
                   <MessageContent>
                     {message.parts ? (
                       message.parts.filter(part => part != null).map((part: any, i: number) => {
@@ -377,19 +377,14 @@ export function ElementorChat({
                             // The Morph widget will show when result arrives, no need to show raw params
                             console.log('🔨 Morph tool call in progress (waiting for result, hiding params UI)');
                             return (
-                              <div key={i} style={{
-                                padding: '12px 16px',
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                borderRadius: '8px',
-                                marginBottom: '8px',
-                                color: 'white',
-                                fontSize: '14px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                              }}>
-                                <div className="animate-spin">🌀</div>
-                                <span>Morph Fast Apply: Processing {(part.input ?? part.args)?.file?.toUpperCase()} changes...</span>
+                              <div key={i} className="my-3 rounded-lg border border-blue-500/20 bg-white p-4">
+                                <div className="flex items-center gap-2">
+                                  <svg className="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  <span className="text-sm font-medium text-foreground">Morph Fast Apply: Processing {(part.input ?? part.args)?.file?.toUpperCase()} changes...</span>
+                                </div>
                               </div>
                             );
                           }
@@ -488,15 +483,23 @@ export function ElementorChat({
         <ConversationScrollButton />
       </Conversation>
 
-      {/* Project Context Badge */}
-      {currentSection && (
-        <ProjectContextBadge
-          currentSection={currentSection}
-          includeContext={includeContext}
-        />
-      )}
+      {/* Project Context Badge & Prompt - Floating at bottom */}
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: 'var(--background)',
+        padding: '0 24px 24px 24px'
+      }}>
+        {currentSection && (
+          <ProjectContextBadge
+            currentSection={currentSection}
+            includeContext={includeContext}
+          />
+        )}
 
-      <PromptInput onSubmit={handleSubmit} style={{ flexShrink: 0, margin: '8px 0 24px 0' }}>
+        <PromptInput onSubmit={handleSubmit} style={{ flexShrink: 0, marginTop: '8px' }}>
         <PromptInputTextarea
           onChange={(e) => setInput(e.target.value)}
           value={input}
@@ -553,6 +556,7 @@ export function ElementorChat({
           </PromptInputSubmit>
         </PromptInputToolbar>
       </PromptInput>
+      </div>
 
       {/* System Prompt Viewer Dialog */}
       <Dialog open={showPromptDialog} onOpenChange={setShowPromptDialog}>

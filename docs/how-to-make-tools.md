@@ -3108,37 +3108,717 @@ Always add this deduplication check when rendering `message.parts` in custom cha
 
 ## Creating a Chat Interface (Complete Guide)
 
-When creating a new feature that needs chat functionality (like the Blog Planner), follow this exact pattern based on the working elementor-editor implementation.
+When creating a new feature that needs chat functionality, you have two reusable chat components to choose from: **DocumentChat** (for document editing) and **ElementorChat** (for code/project editing).
+
+Both components are fully systematized and ready for reuse - just import and configure them for your use case.
 
 ### Quick Summary (TL;DR)
 
-## 🎉 NEW: UniversalChat Component (Recommended)
+**Two Reusable Chat Components:**
 
-**The EASIEST way to create chat interfaces - use the centralized component!**
+1. **DocumentChat** (`src/components/editor/DocumentChat.tsx`) - For document/content editing features
+   - Best for: Text editing, blog posts, articles, markdown documents
+   - Includes: Word count, document context badge, readability tools
+   - Used by: `/chat-doc` page
+
+2. **ElementorChat** (`src/components/elementor/ElementorChat.tsx`) - For code/project editing features
+   - Best for: HTML/CSS/JS/PHP editing, visual builders, code generation
+   - Includes: File type badges, code context, system prompt viewer with stats
+   - Used by: `/elementor-editor` page
+
+**Both components share:**
+- Same AI Elements UI library (`@/components/ai-elements/`)
+- Same ToolResultRenderer for widgets (`@/components/tool-ui/tool-result-renderer.tsx`)
+- Same model selection (Claude, OpenAI, Google, Perplexity)
+- Web search toggle, context toggle, system prompt viewer
+- Regenerate and copy actions
+
+---
+
+### Systematic Chat Architecture (Reusable Components)
+
+We have **two main chat components** that are fully implemented and ready to reuse:
+
+#### **Comparison Table**
+
+| Feature | DocumentChat | ElementorChat |
+|---------|-------------|---------------|
+| **File** | [DocumentChat.tsx](../src/components/editor/DocumentChat.tsx) | [ElementorChat.tsx](../src/components/elementor/ElementorChat.tsx) |
+| **Use Case** | Document/text editing | Code/project editing |
+| **API Endpoint** | `/api/chat-doc` | `/api/chat-elementor` |
+| **Context Badge** | Document title + word count | Project name + file tags (HTML/CSS/JS/PHP) |
+| **Context Toggle** | Include/exclude document content | Include/exclude code files |
+| **System Prompt Viewer** | Modal with stats | Dialog with file size breakdown |
+| **Tool Renderer** | ToolResultRenderer | ToolResultRenderer (same) |
+| **Special Props** | `currentDocument`, `currentProject`, `wordCount` | `currentSection`, `onSwitchCodeTab`, `onUpdateSection` |
+| **Example Tools** | `editDocumentWithMorph`, `getTextStats`, `findString` | `editCodeWithMorph`, `updateSectionHtml/Css/Js` |
+| **Lines of Code** | 573 lines | 621 lines |
+
+#### **How to Use DocumentChat**
 
 ```typescript
-import { UniversalChat } from '@/components/chat/UniversalChat';
+import { DocumentChat } from '@/components/editor/DocumentChat';
+import { useChat } from '@ai-sdk/react';
 
-<UniversalChat
+// In your page component
+const { messages, sendMessage, isLoading, reload, status } = useChat({
+  api: '/api/chat-doc',
+});
+
+<DocumentChat
   messages={messages}
   isLoading={isLoading}
   status={status}
-  onSendMessage={handleSendMessage}
+  onSendMessage={sendMessage}
   selectedModel={selectedModel}
   onModelChange={setSelectedModel}
   onReload={reload}
-  toolNames={['yourTool1', 'yourTool2']}  // 🎯 Just register your tools!
-  placeholder="Ask me anything..."
+  isEditorVisible={isEditorVisible}
+  onToggleEditor={handleToggleEditor}
+  webSearchEnabled={webSearchEnabled}
+  onWebSearchChange={setWebSearchEnabled}
+  currentDocument={{ title: 'My Document', id: 'doc-1' }}
+  currentProject={{ name: 'My Project', id: 'proj-1' }}
+  wordCount={1250}
+  systemPrompt={systemPromptString}
+  documentContent={documentContentString}
 />
 ```
 
-**Each feature now needs just 2 files:**
-1. **API Route** - New endpoint that registers your tools
-2. **Page Component** - Uses `useChat` hook + `UniversalChat`
+#### **How to Use ElementorChat**
 
-**Savings**: ~300 lines of code per feature eliminated! 🎉
+```typescript
+import { ElementorChat } from '@/components/elementor/ElementorChat';
+import { useChat } from '@ai-sdk/react';
 
-**📖 Full Documentation**: [Universal Chat Usage Guide](./universal-chat-usage.md)
+// In your page component
+const { messages, sendMessage, isLoading, reload, status } = useChat({
+  api: '/api/chat-elementor',
+});
+
+<ElementorChat
+  messages={messages}
+  isLoading={isLoading}
+  status={status}
+  onSendMessage={sendMessage}
+  selectedModel={selectedModel}
+  onModelChange={setSelectedModel}
+  onReload={reload}
+  currentSection={{
+    name: 'Hero Section',
+    html: '<div>...</div>',
+    css: '.hero { ... }',
+    js: 'console.log("hello")',
+    php: '<?php echo "hello"; ?>'
+  }}
+  onSwitchCodeTab={(tab) => setActiveTab(tab)}
+  onSwitchTab={(tab) => setActiveTab(tab)}
+  onUpdateSection={(updates) => updateSectionCode(updates)}
+/>
+```
+
+#### **Shared AI Elements Library**
+
+Both chat components use the same UI primitives from `@/components/ai-elements/`:
+
+```typescript
+// Imports used by both DocumentChat and ElementorChat
+import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation';
+import { Message, MessageContent } from '@/components/ai-elements/message';
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputToolbar,
+  PromptInputTools,
+  PromptInputButton,
+  PromptInputModelSelect,
+  PromptInputModelSelectTrigger,
+  PromptInputModelSelectValue,
+  PromptInputModelSelectContent,
+  PromptInputModelSelectItem,
+  PromptInputSubmit,
+} from '@/components/ai-elements/prompt-input';
+import { Response } from '@/components/ai-elements/response';
+import { Actions, Action } from '@/components/ai-elements/actions';
+import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from '@/components/ai-elements/tool';
+import { Loader } from '@/components/ai-elements/loader';
+import { Source, Sources, SourcesContent, SourcesTrigger } from '@/components/ai-elements/source';
+```
+
+**Key AI Elements Components:**
+
+- **Conversation** - Chat container with scroll
+- **Message** - Individual message bubble (user/assistant)
+- **PromptInput** - Input area with toolbar
+- **Response** - Markdown-rendered text responses
+- **Tool** - Tool call/result widget wrapper
+- **Actions** - Copy/Regenerate buttons
+- **Sources** - Web search source citations
+
+#### **Shared Tool Result Rendering**
+
+Both components use the same `ToolResultRenderer` component:
+
+```typescript
+import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer.tsx';
+
+// In message rendering loop
+<ToolResultRenderer
+  key={i}
+  toolResult={{
+    toolCallId: part.toolCallId ?? '',
+    toolName,
+    args: part.input ?? part.args ?? {},
+    result: result.type === 'json' ? result.value : result,
+  }}
+  onStreamUpdate={onStreamUpdate}  // ElementorChat only
+  onSwitchCodeTab={onSwitchCodeTab}  // ElementorChat only
+  model={selectedModel}
+  designSystemSummary={designSystemSummary}  // ElementorChat only
+/>
+```
+
+**ToolResultRenderer** uses a switch statement to dispatch to specific widget components:
+
+```typescript
+// From tool-result-renderer.tsx
+switch (toolName) {
+  case 'editDocumentWithMorph':
+    return <DocumentMorphWidget data={result} />;
+
+  case 'editCodeWithMorph':
+    return <EditCodeMorphWidget data={result} onSwitchCodeTab={onSwitchCodeTab} />;
+
+  case 'getTextStats':
+    return <TextStatsWidget data={result} />;
+
+  case 'updateSectionHtml':
+  case 'updateSectionCss':
+  case 'updateSectionJs':
+    return <UpdateSectionToolResult toolName={toolName} result={result} />;
+
+  // ... more tools
+
+  default:
+    // Fallback rendering using AI Elements
+    return (
+      <Tool defaultOpen>
+        <ToolHeader type={toolName} state='output-available' />
+        <ToolContent>
+          <ToolInput input={toolResult.args} />
+          <ToolOutput output={<pre>{JSON.stringify(result, null, 2)}</pre>} />
+        </ToolContent>
+      </Tool>
+    );
+}
+```
+
+---
+
+### Creating a New Feature with Chat
+
+#### Option 1: Reuse Existing Chat Component (Recommended)
+
+**Use this approach when your feature fits one of these categories:**
+
+1. **Document editing** → Use DocumentChat
+2. **Code editing** → Use ElementorChat
+
+**Steps:**
+
+1. **Create your API route** (`src/app/api/your-feature/route.ts`):
+```typescript
+import { streamText } from 'ai';
+import { gateway } from '@ai-sdk/gateway';
+import { yourTool1, yourTool2 } from '@/lib/tools';
+
+export const runtime = 'edge';
+export const maxDuration = 60;
+
+export async function POST(req: Request) {
+  const { messages, model = 'anthropic/claude-sonnet-4-5-20250929' } = await req.json();
+
+  const result = streamText({
+    model: gateway(model, { apiKey: process.env.AI_GATEWAY_API_KEY! }),
+    messages,
+    tools: {
+      yourTool1,
+      yourTool2,
+    },
+  });
+
+  return result.toDataStreamResponse();
+}
+```
+
+2. **Create your page** (`src/app/your-feature/page.tsx`):
+```typescript
+'use client';
+
+import { DocumentChat } from '@/components/editor/DocumentChat';  // or ElementorChat
+import { useChat } from '@ai-sdk/react';
+import { useState } from 'react';
+
+export default function YourFeaturePage() {
+  const [selectedModel, setSelectedModel] = useState('anthropic/claude-haiku-4-5-20251001');
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+
+  const { messages, sendMessage, isLoading, reload, status } = useChat({
+    api: '/api/your-feature',
+    body: {
+      model: selectedModel,
+      webSearchEnabled,
+    },
+  });
+
+  return (
+    <div className="flex h-screen">
+      <DocumentChat
+        messages={messages}
+        isLoading={isLoading}
+        status={status}
+        onSendMessage={sendMessage}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+        onReload={reload}
+        webSearchEnabled={webSearchEnabled}
+        onWebSearchChange={setWebSearchEnabled}
+        // Add your feature-specific props here
+      />
+    </div>
+  );
+}
+```
+
+3. **Add your tools to the ToolResultRenderer** (`src/components/tool-ui/tool-result-renderer.tsx`):
+```typescript
+switch (toolName) {
+  case 'yourTool1':
+    return <YourTool1Widget data={result} />;
+
+  case 'yourTool2':
+    return <YourTool2Widget data={result} />;
+
+  // ... existing cases
+}
+```
+
+That's it! You now have a fully functional chat interface with ~20 lines of code.
+
+#### Option 2: Create Custom Chat Component (Advanced)
+
+**Use this approach when:**
+- Your feature needs unique message rendering logic
+- You need custom context badges or UI elements
+- You want full control over the chat behavior
+
+**Steps:**
+
+1. **Copy one of the existing chat components** as a starting point:
+   - Copy `DocumentChat.tsx` → `YourFeatureChat.tsx`
+   - Or copy `ElementorChat.tsx` → `YourFeatureChat.tsx`
+
+2. **Customize the tool rendering** (around line 280-450):
+```typescript
+switch (part.type) {
+  case 'tool-yourTool1':
+  case 'tool-yourTool2':
+    const toolName = part.type.replace('tool-', '');
+    if (part.output || part.result) {
+      return (
+        <ToolResultRenderer
+          key={i}
+          toolResult={{
+            toolCallId: part.toolCallId ?? '',
+            toolName,
+            args: part.input ?? part.args ?? {},
+            result: result.type === 'json' ? result.value : result,
+          }}
+          // Add your feature-specific props
+        />
+      );
+    }
+    return null;
+
+  // Keep default cases for generic tool rendering
+  case 'tool-call':
+  case 'tool-result':
+    // ... existing logic
+}
+```
+
+3. **Customize the context badge** (optional):
+```typescript
+function YourContextBadge({ yourContext }: { yourContext: any }) {
+  return (
+    <div className="flex justify-center items-center gap-3 mb-4">
+      <div className="group relative inline-flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full">
+        <div className="h-2 w-2 rounded-full bg-green-500" />
+        <span>{yourContext.name}</span>
+        {/* Add your custom badges */}
+      </div>
+    </div>
+  );
+}
+```
+
+4. **Update the placeholder text** (around line 506):
+```typescript
+<PromptInputTextarea
+  placeholder="Ask me about your feature..."
+  // ...
+/>
+```
+
+---
+
+### Chat Implementation Patterns
+
+#### Context Badge Pattern
+
+Both chat components show an animated context badge at the bottom of the chat:
+
+**DocumentChat Badge:**
+- Shows document title
+- Shows word count
+- Green dot when context enabled, red when disabled
+- Animated slide-up on mount
+
+**ElementorChat Badge:**
+- Shows project name
+- Shows file tags (HTML, CSS, JS, PHP)
+- Color-coded tags per file type
+- Same animation pattern
+
+**Implementation:**
+```typescript
+function ProjectContextBadge({ currentSection, includeContext }: Props) {
+  const [animationStage, setAnimationStage] = useState(0);
+
+  useEffect(() => {
+    const stages = [
+      { delay: 0, stage: 1 },
+      { delay: 300, stage: 2 },
+      { delay: 600, stage: 3 },
+      { delay: 900, stage: 4 },
+      { delay: 1500, stage: 5 },
+    ];
+
+    stages.forEach(({ delay, stage }) => {
+      setTimeout(() => setAnimationStage(stage), delay);
+    });
+  }, []);
+
+  return (
+    <div className={`
+      ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
+      ${animationStage >= 2 ? "opacity-100 translate-y-0" : ""}
+    `}>
+      <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+      {/* Your badge content */}
+    </div>
+  );
+}
+```
+
+#### System Prompt Viewer Pattern
+
+Both components have a "View Prompt" button that shows:
+- Current model
+- Context status (enabled/disabled)
+- Web search status
+- Token/character estimates
+- The full system prompt
+- The full context (document content or code files)
+
+**DocumentChat implementation:**
+- Modal overlay with click-outside-to-close
+- Shows document content separately
+- Displays word count
+
+**ElementorChat implementation:**
+- shadcn Dialog component
+- Shows file size breakdown (HTML/CSS/JS/PHP)
+- Fetches prompt from `/api/get-system-prompt` endpoint
+
+#### Model Selection Pattern
+
+Both components use the same model groups structure:
+
+```typescript
+const modelGroups = [
+  {
+    provider: 'Claude',
+    models: [
+      { name: 'Claude Haiku 4.5', value: 'anthropic/claude-haiku-4-5-20251001' },
+      { name: 'Claude Sonnet 4.5', value: 'anthropic/claude-sonnet-4-5-20250929' },
+      // ...
+    ]
+  },
+  {
+    provider: 'OpenAI',
+    models: [
+      { name: 'GPT-5', value: 'openai/gpt-5' },
+      // ...
+    ]
+  },
+  // ... Google, Perplexity
+];
+```
+
+Used in the PromptInput toolbar:
+```typescript
+<PromptInputModelSelect onValueChange={onModelChange} value={selectedModel}>
+  <PromptInputModelSelectTrigger>
+    <PromptInputModelSelectValue />
+  </PromptInputModelSelectTrigger>
+  <PromptInputModelSelectContent>
+    {modelGroups.map((group) => (
+      <div key={group.provider}>
+        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+          {group.provider}
+        </div>
+        {group.models.map((model) => (
+          <PromptInputModelSelectItem key={model.value} value={model.value}>
+            {model.name}
+          </PromptInputModelSelectItem>
+        ))}
+      </div>
+    ))}
+  </PromptInputModelSelectContent>
+</PromptInputModelSelect>
+```
+
+#### Message Rendering Pattern
+
+Both components follow the same message rendering structure:
+
+```typescript
+<Conversation>
+  <ConversationContent>
+    {messages.map((message) => (
+      <div key={message.id}>
+        {/* Sources (web search results) - OUTSIDE Message */}
+        {message.role === 'assistant' && message.parts && (
+          <Sources>
+            {message.parts.some((part) => part.type === 'source-url') && (
+              <SourcesTrigger count={...} />
+            )}
+            <SourcesContent>
+              {/* Render source links */}
+            </SourcesContent>
+          </Sources>
+        )}
+
+        {/* Main message */}
+        <Message from={message.role}>
+          <MessageContent>
+            {message.parts?.map((part, i) => {
+              switch (part.type) {
+                case 'text':
+                  return <Response>{part.text}</Response>;
+
+                case 'tool-TOOLNAME':
+                  return <ToolResultRenderer toolResult={...} />;
+
+                case 'tool-call':
+                case 'tool-result':
+                  // Fallback generic rendering
+                  return <Tool>...</Tool>;
+
+                case 'source-url':
+                  return null;  // Already rendered above
+
+                default:
+                  return null;
+              }
+            })}
+          </MessageContent>
+
+          {/* Actions (Copy, Regenerate) */}
+          {message.role === 'assistant' && (
+            <Actions>
+              <Action tooltip="Regenerate" onClick={onReload}>
+                <RotateCcwIcon />
+              </Action>
+              <Action tooltip="Copy" onClick={copyToClipboard}>
+                <CopyIcon />
+              </Action>
+            </Actions>
+          )}
+        </Message>
+      </div>
+    ))}
+
+    {status === 'streaming' && <Loader />}
+  </ConversationContent>
+  <ConversationScrollButton />
+</Conversation>
+```
+
+**Key Points:**
+- Sources must be rendered OUTSIDE the Message component
+- Each message part type needs a switch case
+- Tool parts use typed naming: `tool-TOOLNAME`
+- Generic `tool-call` and `tool-result` are fallbacks
+- Always show Loader when streaming
+
+---
+
+### Chat System Quick Reference
+
+#### Files to Know
+
+| File | Purpose | When to Edit |
+|------|---------|--------------|
+| [DocumentChat.tsx](../src/components/editor/DocumentChat.tsx) | Reusable document editing chat | Import for document features |
+| [ElementorChat.tsx](../src/components/elementor/ElementorChat.tsx) | Reusable code editing chat | Import for code features |
+| [tool-result-renderer.tsx](../src/components/tool-ui/tool-result-renderer.tsx) | Central widget dispatcher | Add new tool → widget mappings |
+| [@/components/ai-elements/](../src/components/ai-elements/) | Shared UI components | Never edit (library) |
+| [/api/chat-doc/route.ts](../src/app/api/chat-doc/route.ts) | Document chat API | Reference for new APIs |
+| [/api/chat-elementor/route.ts](../src/app/api/chat-elementor/route.ts) | Code chat API | Reference for new APIs |
+
+#### Component Hierarchy
+
+```
+Page Component (your-feature/page.tsx)
+  └─ DocumentChat or ElementorChat
+      ├─ Conversation (ai-elements)
+      │   ├─ ConversationContent
+      │   │   ├─ Sources (web search results)
+      │   │   └─ Message (ai-elements)
+      │   │       ├─ MessageContent
+      │   │       │   ├─ Response (text/markdown)
+      │   │       │   └─ ToolResultRenderer (tool widgets)
+      │   │       │       └─ YourToolWidget
+      │   │       └─ Actions (Copy, Regenerate)
+      │   ├─ Loader (streaming indicator)
+      │   └─ ConversationScrollButton
+      ├─ Context Badge (custom per feature)
+      └─ PromptInput (ai-elements)
+          ├─ PromptInputTextarea
+          └─ PromptInputToolbar
+              ├─ PromptInputTools
+              │   ├─ Web Search Toggle
+              │   ├─ Context Toggle
+              │   ├─ View Prompt Button
+              │   └─ Model Select
+              └─ PromptInputSubmit
+```
+
+#### Data Flow
+
+```
+User types → PromptInput → onSendMessage → useChat hook → API route
+                                                               ↓
+                                                         streamText()
+                                                               ↓
+                                                          AI response
+                                                               ↓
+                                                         Tool calls
+                                                               ↓
+Message parts ← AI SDK creates typed parts ← Tool execution
+      ↓
+switch (part.type)
+      ↓
+case 'tool-TOOLNAME' → ToolResultRenderer → YourToolWidget
+```
+
+#### Props Interface Pattern
+
+**DocumentChat Props:**
+```typescript
+interface DocumentChatProps {
+  // Required from useChat
+  messages: any[];
+  isLoading: boolean;
+  status?: string;
+  onSendMessage: (text: string, settings?: { webSearchEnabled: boolean; includeContext?: boolean }) => void;
+
+  // Model selection
+  selectedModel: string;
+  onModelChange: (model: string) => void;
+
+  // Actions
+  onReload?: () => void;
+
+  // UI controls
+  isEditorVisible: boolean;
+  onToggleEditor: () => void;
+  webSearchEnabled?: boolean;
+  onWebSearchChange?: (enabled: boolean) => void;
+
+  // Context
+  currentDocument?: { title: string; id: string } | null;
+  currentProject?: { name: string; id: string } | null;
+  wordCount?: number;
+  systemPrompt?: string;
+  documentContent?: string;
+}
+```
+
+**ElementorChat Props:**
+```typescript
+interface ElementorChatProps {
+  // Required from useChat
+  messages: any[];
+  isLoading: boolean;
+  status?: string;
+  onSendMessage: (text: string, imageData?: any, settings?: any) => void;
+
+  // Model selection
+  selectedModel: string;
+  onModelChange: (model: string) => void;
+
+  // Actions
+  onReload?: () => void;
+
+  // Code editor integration
+  onStreamUpdate?: (type: 'html' | 'css' | 'js', content: string) => void;
+  onSwitchToSectionEditor?: () => void;
+  onSwitchCodeTab?: (tab: 'html' | 'css' | 'js') => void;
+  onSwitchTab?: (tab: string) => void;
+  onUpdateSection?: (updates: { html?: string; css?: string; js?: string }) => void;
+
+  // Context
+  currentSection?: {
+    name: string;
+    html?: string;
+    css?: string;
+    js?: string;
+    php?: string;
+  };
+}
+```
+
+#### Common Gotchas
+
+1. **Tool naming mismatch** - Tool name in `tools.ts` must match case in switch statement
+2. **Typed tool parts** - AI SDK 5 creates `tool-TOOLNAME` parts, not `tool-call`
+3. **Sources outside Message** - Web search sources must render outside Message component
+4. **Context badge position** - Should be at bottom, before PromptInput
+5. **System prompt viewer** - DocumentChat uses modal, ElementorChat uses Dialog
+6. **Model provider prefix** - Model values must include provider: `anthropic/claude-...`
+7. **Tool result extraction** - Use `result.type === 'json' ? result.value : result`
+8. **Streaming indicator** - Always show Loader when `status === 'streaming'`
+
+#### Common Patterns Checklist
+
+When creating a new chat feature:
+
+- [ ] Created API route with `streamText` and tools registered
+- [ ] Used `useChat` hook with correct API endpoint
+- [ ] Imported DocumentChat or ElementorChat component
+- [ ] Passed all required props (messages, isLoading, status, etc.)
+- [ ] Added model selection state and handlers
+- [ ] Added web search toggle state (optional)
+- [ ] Added context badge with feature-specific data
+- [ ] Added tools to ToolResultRenderer switch statement
+- [ ] Created custom widget components for your tools
+- [ ] Tested tool calling and widget rendering
+- [ ] Tested web search integration (if enabled)
+- [ ] Tested system prompt viewer
+- [ ] Tested copy and regenerate actions
 
 ---
 

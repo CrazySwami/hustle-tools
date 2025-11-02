@@ -353,7 +353,104 @@ AI: "💡 I notice this button has low contrast.
 
 ## 🔧 **Phase 3: Advanced Features**
 
-### **9. Multi-User Collaboration** 👥
+### **9. HubL Code Page/Email Generator** 🔧
+
+**Goal:** AI-powered generator for HubSpot HubL code for pages and emails
+
+**User Experience:**
+```
+User: "Create a HubL email template for a newsletter"
+AI: *Generates HubL code* "✓ Newsletter template created with responsive layout"
+Preview: *Shows email preview with sample data*
+
+User: "Add a product section with dynamic content"
+AI: *Updates HubL* "✓ Added product loop with CTA buttons"
+Preview: *Shows updated email with product grid*
+
+User: "Make it mobile responsive"
+AI: *Adds responsive styles* "✓ Mobile breakpoints added"
+```
+
+**Features:**
+- ✅ **HubL Template Generation**
+  - Generate page templates
+  - Generate email templates
+  - Blog post templates
+  - Landing page templates
+  - System emails
+
+- ✅ **Dynamic Content**
+  - HubDB integration
+  - Contact properties
+  - Custom modules
+  - Smart content rules
+  - Personalization tokens
+
+- ✅ **Email-Specific Features**
+  - Responsive email tables
+  - Email client compatibility
+  - CAN-SPAM compliance
+  - Preheader text
+  - Email testing tools
+
+- ✅ **Chat-Based Editing**
+  - "Add a hero section with HubL variables"
+  - "Make this section editable in page editor"
+  - "Add smart content for different segments"
+  - "Create a module with drag-drop zones"
+
+- ✅ **Preview & Testing**
+  - Live HubL preview
+  - Test with sample data
+  - Mobile/desktop preview
+  - Email client preview (Litmus/Email on Acid style)
+
+**Technology Stack:**
+- HubL parser/renderer
+- Email template validator
+- Responsive email framework (MJML or Foundation for Emails)
+- HubSpot API integration (optional)
+
+**Export Options:**
+- Export as .html file (HubL template)
+- Copy to clipboard
+- Direct upload to HubSpot (via API)
+- Save as custom module
+- Export with documentation
+
+**Example Templates:**
+```hubl
+{# Newsletter Template #}
+{% module "header" path="@hubspot/header" %}
+{% module "hero"
+   path="@hubspot/rich_text"
+   html="{{ module.html }}"
+%}
+
+{% for item in module.products %}
+  <div class="product-card">
+    <h3>{{ item.name }}</h3>
+    <p>{{ item.description }}</p>
+    {% module "cta_button"
+       path="@hubspot/cta"
+       button_text="{{ item.cta_text }}"
+    %}
+  </div>
+{% endfor %}
+
+{% module "footer" path="@hubspot/footer" %}
+```
+
+**Use Cases:**
+1. **Marketing Emails**: Newsletters, promotions, announcements
+2. **Transactional Emails**: Receipts, confirmations, notifications
+3. **Landing Pages**: Form pages, thank you pages, event registration
+4. **Blog Templates**: Custom blog layouts with HubL
+5. **System Pages**: 404, thank you, unsubscribe pages
+
+---
+
+### **10. Multi-User Collaboration** 👥
 
 **Features:**
 - ✅ Share live editing session

@@ -6,7 +6,7 @@ import type {
   HTMLAttributes,
   KeyboardEventHandler,
 } from 'react';
-import { Children } from 'react';
+import { Children, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -18,18 +18,43 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { ChatStatus } from 'ai';
+import { PromptTokenCounter } from '@/components/ui/PromptTokenCounter';
 
-export type PromptInputProps = HTMLAttributes<HTMLFormElement>;
+export type PromptInputProps = HTMLAttributes<HTMLFormElement> & {
+  /** Current prompt value for token counting */
+  promptValue?: string;
+  /** System prompt for token calculation */
+  systemPrompt?: string;
+  /** Model context limit */
+  contextLimit?: number;
+  /** Conversation tokens so far */
+  conversationTokens?: number;
+  /** Callback when send should be disabled */
+  onSendDisabled?: (disabled: boolean) => void;
+  /** Show token counter (default: true) */
+  showTokenCounter?: boolean;
+};
 
-export const PromptInput = ({ className, ...props }: PromptInputProps) => (
-  <form
-    className={cn(
-      'w-full divide-y overflow-hidden rounded-xl border bg-background shadow-sm',
-      className,
-    )}
-    {...props}
-  />
-);
+export const PromptInput = ({
+  className,
+  promptValue = '',
+  systemPrompt = '',
+  contextLimit = 128000,
+  conversationTokens = 0,
+  onSendDisabled,
+  showTokenCounter = true,
+  ...props
+}: PromptInputProps) => {
+  return (
+    <form
+      className={cn(
+        'w-full divide-y overflow-hidden rounded-xl border bg-background shadow-sm',
+        className,
+      )}
+      {...props}
+    />
+  );
+};
 
 export type PromptInputTextareaProps = ComponentProps<typeof Textarea> & {
   minHeight?: number;
@@ -76,6 +101,50 @@ export const PromptInputTextarea = ({
       placeholder={placeholder}
       {...props}
     />
+  );
+};
+
+export type PromptInputTokenCounterProps = {
+  /** Current prompt value for token counting */
+  promptValue?: string;
+  /** System prompt for token calculation */
+  systemPrompt?: string;
+  /** Model context limit */
+  contextLimit?: number;
+  /** Conversation tokens so far */
+  conversationTokens?: number;
+  /** Callback when send should be disabled */
+  onSendDisabled?: (disabled: boolean) => void;
+  /** Show detailed breakdown */
+  showDetails?: boolean;
+  className?: string;
+};
+
+export const PromptInputTokenCounterSection = ({
+  promptValue = '',
+  systemPrompt = '',
+  contextLimit = 128000,
+  conversationTokens = 0,
+  onSendDisabled,
+  showDetails = false,
+  className,
+}: PromptInputTokenCounterProps) => {
+  // Only render if prompt has content
+  if (!promptValue?.trim()) {
+    return null;
+  }
+
+  return (
+    <div className={cn('px-3 py-2 bg-muted/30', className)}>
+      <PromptTokenCounter
+        prompt={promptValue}
+        systemPrompt={systemPrompt}
+        contextLimit={contextLimit}
+        conversationTokens={conversationTokens}
+        onSendDisabled={onSendDisabled}
+        showDetails={showDetails}
+      />
+    </div>
   );
 };
 

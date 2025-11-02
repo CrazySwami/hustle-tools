@@ -1,7 +1,8 @@
-import { streamText, UIMessage, convertToModelMessages, stepCountIs } from 'ai';
+import { streamText, UIMessage, convertToModelMessages } from 'ai';
 import { tools } from '@/lib/tools';
 import { Comment } from '@/components/editor/CommentExtension';
 import { apiMonitor } from '@/lib/api-monitor';
+import { validatePromptTokens, getTokenUsageRecommendation } from '@/lib/token-validator';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -368,15 +369,85 @@ The editor is empty. You can write new code directly using the \`editCodeWithMor
     // For Claude models, we'll just use the system prompt as-is
     // Cache control will be added via experimental_providerMetadata if needed in the future
 
+    // Validate token count before sending to model
+    const messagesText = JSON.stringify(convertedMessages);
+    let validation = validatePromptTokens(systemPrompt, messagesText, selectedModel);
+
+    console.log('📊 Token validation (before management):', {
+      model: selectedModel,
+      tokenCount: validation.tokenCount.toLocaleString(),
+      limit: validation.limit.toLocaleString(),
+      percentUsed: validation.percentUsed.toFixed(1) + '%',
+      isValid: validation.isValid,
+    });
+
+    // Auto-manage conversation window if needed
+    let managedMessages = convertedMessages;
+    let windowStrategy: 'full' | 'sliding-window' | 'summarized' | 'exceeded' = 'full';
+
+    if (validation.percentUsed >= 70 || !validation.isValid) {
+      const { manageConversationWindow } = await import('@/lib/token-validator');
+
+      const conversationMessages = convertedMessages.map((msg: any) => ({
+        role: msg.role,
+        content: Array.isArray(msg.content)
+          ? msg.content.map((c: any) => c.text || '').join('\n')
+          : msg.content,
+      }));
+
+      const windowResult = manageConversationWindow(
+        conversationMessages,
+        systemPrompt,
+        selectedModel
+      );
+
+      console.log('🔄 Conversation window management:', {
+        strategy: windowResult.strategy,
+        originalMessages: windowResult.originalMessageCount,
+        keptMessages: windowResult.keptMessageCount,
+        summarizedCount: windowResult.summarizedCount,
+      });
+
+      if (windowResult.strategy !== 'full') {
+        managedMessages = windowResult.messages.map((msg: any) => ({
+          role: msg.role,
+          content: [{ type: 'text', text: msg.content }],
+        }));
+
+        windowStrategy = windowResult.strategy;
+
+        const managedMessagesText = JSON.stringify(managedMessages);
+        validation = validatePromptTokens(systemPrompt, managedMessagesText, selectedModel);
+
+        console.log('📊 Token validation (after management):', {
+          tokenCount: validation.tokenCount.toLocaleString(),
+          percentUsed: validation.percentUsed.toFixed(1) + '%',
+          isValid: validation.isValid,
+        });
+      }
+    }
+
+    if (!validation.isValid) {
+      console.error('❌ Prompt exceeds token limit even after management');
+      return Response.json({
+        error: 'Conversation too large',
+        details: 'Even after applying conversation management, the context exceeds model limits. Please start a new conversation.',
+        tokenCount: validation.tokenCount,
+        limit: validation.limit,
+        exceeded: validation.exceeded,
+        strategy: windowStrategy,
+      }, { status: 400 });
+    }
+
     const result = streamText({
       model: selectedModel,
-      messages: convertedMessages,
+      messages: managedMessages, // Use managed messages
       system: systemPrompt,
       providerOptions,
       // Only include tools if enabled
       ...(enableTools && {
         tools: toolsWithDocumentContent,
-        stopWhen: stepCountIs(2), // Limit tool calls to prevent UI duplication
+        maxSteps: 10, // Allow up to 10 tool calls for complex workflows
         ...(toolChoice && { toolChoice }),
       }),
       onFinish: async ({ usage, experimental_providerMetadata }) => {
@@ -433,6 +504,9 @@ The editor is empty. You can write new code directly using the \`editCodeWithMor
             // Extract usage data from part
             const usage = part.totalUsage || {};
 
+            // Calculate token usage recommendation
+            const recommendation = getTokenUsageRecommendation(validation.percentUsed);
+
             return {
               promptTokens: usage.inputTokens || 0,
               completionTokens: usage.outputTokens || 0,
@@ -440,6 +514,17 @@ The editor is empty. You can write new code directly using the \`editCodeWithMor
               cacheCreationTokens: 0, // Not available in totalUsage
               cacheReadTokens: usage.cachedInputTokens || 0,
               model,
+              // Add context window info for frontend
+              contextWindow: {
+                tokenCount: validation.tokenCount,
+                limit: validation.limit,
+                percentUsed: validation.percentUsed,
+                level: recommendation.level,
+                message: recommendation.message,
+                action: recommendation.action,
+                model: selectedModel,
+                strategy: windowStrategy, // 'full', 'sliding-window', 'summarized', or 'exceeded'
+              },
             };
           }
         },

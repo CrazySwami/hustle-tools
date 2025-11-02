@@ -22,9 +22,9 @@ type WidgetState = 'idle' | 'loading' | 'previewing' | 'success' | 'error';
 function LoadingDots() {
   return (
     <div className="flex gap-1">
-      <span className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-      <span className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-      <span className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-bounce"></span>
+      <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+      <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+      <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce"></span>
     </div>
   );
 }

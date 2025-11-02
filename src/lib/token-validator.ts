@@ -90,7 +90,7 @@ export function estimateTokenCount(text: string): number {
     // Use cl100k_base encoding (used by GPT-4, Claude, and most modern models)
     const encoding = encodingForModel('gpt-4');
     const tokens = encoding.encode(text);
-    encoding.free(); // Free up memory
+    // Note: encoding.free() doesn't exist in js-tiktoken, memory is auto-managed
     return tokens.length;
   } catch (error) {
     // Fallback: rough estimate (1 token ≈ 4 characters for English text)

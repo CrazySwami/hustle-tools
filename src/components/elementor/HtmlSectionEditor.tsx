@@ -2631,50 +2631,52 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           // Check if this is an Elementor widget (has PHP) or HTML section
           const isElementorWidget = code.php && code.php.length > 0;
 
-          if (isElementorWidget) {
-            // Elementor widget - update PHP/CSS/JS tabs (CSS and JS for widget.css and widget.js)
-            updateSection({
-              html: '',
-              css: code.css || '',
-              js: code.js || '',
-              php: code.php,
-              name: code.projectName, // Set widget name for validation
-            });
+          // Generate a user-friendly name from projectName
+          const displayName = code.projectName
+            ?.split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ') || 'Untitled Project';
 
-            setAllContent({
-              html: '',
-              css: code.css || '',
-              js: code.js || '',
-              php: code.php,
-            });
+          if (isElementorWidget) {
+            // Create NEW Elementor widget project
+            console.log('📦 Creating new Elementor widget project:', displayName);
+            const newGroup = fileGroups.createNewGroup(displayName, 'php', 'empty');
+
+            // Populate PHP, CSS, JS files
+            fileGroups.updateGroupFile(newGroup.id, 'php', code.php || '');
+            fileGroups.updateGroupFile(newGroup.id, 'css', code.css || '');
+            fileGroups.updateGroupFile(newGroup.id, 'js', code.js || '');
+
+            // Switch to the new project
+            fileGroups.selectGroup(newGroup.id);
 
             // Switch to PHP tab to show generated widget
             onCodeTabChange?.('php');
 
             // Show success message
-            console.log('✅ Elementor widget generated successfully! PHP, CSS, and JS files populated.');
-            console.log('📝 Widget name set to:', code.projectName);
+            console.log('✅ Elementor widget project created successfully!');
+            console.log('📝 Project:', displayName);
+            console.log('📂 Files: widget.php, widget.css, widget.js');
           } else {
-            // HTML section - update HTML/CSS/JS tabs
-            updateSection({
-              html: code.html,
-              css: code.css,
-              js: code.js,
-              name: code.projectName, // Set section name
-            });
+            // Create NEW HTML section project
+            console.log('📦 Creating new HTML section project:', displayName);
+            const newGroup = fileGroups.createNewGroup(displayName, 'html', 'empty');
 
-            setAllContent({
-              html: code.html,
-              css: code.css,
-              js: code.js,
-            });
+            // Populate HTML, CSS, JS files
+            fileGroups.updateGroupFile(newGroup.id, 'html', code.html || '');
+            fileGroups.updateGroupFile(newGroup.id, 'css', code.css || '');
+            fileGroups.updateGroupFile(newGroup.id, 'js', code.js || '');
+
+            // Switch to the new project
+            fileGroups.selectGroup(newGroup.id);
 
             // Switch to HTML tab to show generated code
             onCodeTabChange?.('html');
 
             // Show success message
-            console.log('✅ HTML section generated successfully!');
-            console.log('📝 Section name set to:', code.projectName);
+            console.log('✅ HTML section project created successfully!');
+            console.log('📝 Project:', displayName);
+            console.log('📂 Files: index.html, styles.css, script.js');
           }
         }}
       />

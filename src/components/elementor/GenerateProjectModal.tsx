@@ -18,6 +18,8 @@ interface GenerateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGenerate: (code: { html: string; css: string; js: string; php?: string; projectName?: string }) => void;
+  onProjectCreate?: (projectName: string, projectType: 'html' | 'php') => string; // Returns new project ID
+  onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php', content: string) => void;
   defaultModel?: string;
 }
 
@@ -134,35 +136,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
           const chunk = decoder.decode(value);
           fullCode += chunk;
 
-          // Stream code to editor in real-time
-          if (projectType === 'elementor') {
-            // For Elementor, stream PHP/CSS/JS as they come
-            const phpMatch = fullCode.match(/```php\n([\s\S]*?)```/);
-            const cssMatch = fullCode.match(/```css\n([\s\S]*?)```/);
-            const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)```/);
-
-            onGenerate({
-              html: '',
-              css: cssMatch ? cssMatch[1].trim() : '',
-              js: jsMatch ? jsMatch[1].trim() : '',
-              php: phpMatch ? phpMatch[1].trim() : fullCode.trim(), // Fallback to raw if no markdown
-              projectName: generatedName,
-            });
-          } else {
-            // For HTML, stream HTML/CSS/JS as they come
-            const htmlMatch = fullCode.match(/```html\n([\s\S]*?)```/);
-            const cssMatch = fullCode.match(/```css\n([\s\S]*?)```/);
-            const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)```/);
-
-            onGenerate({
-              html: htmlMatch ? htmlMatch[1].trim() : '',
-              css: cssMatch ? cssMatch[1].trim() : '',
-              js: jsMatch ? jsMatch[1].trim() : '',
-              projectName: generatedName,
-            });
-          }
-
-          // Update progress based on content length
+          // Update progress based on content length (visual feedback only)
           if (projectType === 'html') {
             if (fullCode.length > 500 && currentPhase === 'html') {
               setCurrentPhase('css');
@@ -200,6 +174,32 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
           } catch (e) {
             console.error('Failed to parse usage metadata:', e);
           }
+        }
+
+        // Parse final code and call onGenerate ONCE with complete code
+        if (projectType === 'elementor') {
+          const phpMatch = codeOnly.match(/```php\n([\s\S]*?)```/);
+          const cssMatch = codeOnly.match(/```css\n([\s\S]*?)```/);
+          const jsMatch = codeOnly.match(/```(?:javascript|js)\n([\s\S]*?)```/);
+
+          onGenerate({
+            html: '',
+            css: cssMatch ? cssMatch[1].trim() : '',
+            js: jsMatch ? jsMatch[1].trim() : '',
+            php: phpMatch ? phpMatch[1].trim() : codeOnly.trim(),
+            projectName: generatedName,
+          });
+        } else {
+          const htmlMatch = codeOnly.match(/```html\n([\s\S]*?)```/);
+          const cssMatch = codeOnly.match(/```css\n([\s\S]*?)```/);
+          const jsMatch = codeOnly.match(/```(?:javascript|js)\n([\s\S]*?)```/);
+
+          onGenerate({
+            html: htmlMatch ? htmlMatch[1].trim() : '',
+            css: cssMatch ? cssMatch[1].trim() : '',
+            js: jsMatch ? jsMatch[1].trim() : '',
+            projectName: generatedName,
+          });
         }
 
         setProgress('✅ Generation complete!');

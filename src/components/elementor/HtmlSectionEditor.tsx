@@ -2638,6 +2638,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
               css: code.css || '',
               js: code.js || '',
               php: code.php,
+              name: code.projectName, // Set widget name for validation
             });
 
             setAllContent({
@@ -2652,12 +2653,14 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
 
             // Show success message
             console.log('✅ Elementor widget generated successfully! PHP, CSS, and JS files populated.');
+            console.log('📝 Widget name set to:', code.projectName);
           } else {
             // HTML section - update HTML/CSS/JS tabs
             updateSection({
               html: code.html,
               css: code.css,
               js: code.js,
+              name: code.projectName, // Set section name
             });
 
             setAllContent({
@@ -2671,6 +2674,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
 
             // Show success message
             console.log('✅ HTML section generated successfully!');
+            console.log('📝 Section name set to:', code.projectName);
           }
         }}
       />

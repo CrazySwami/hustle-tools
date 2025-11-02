@@ -17,7 +17,7 @@ const MODEL_CONFIGS = {
 interface GenerateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGenerate: (code: { html: string; css: string; js: string; php?: string }) => void;
+  onGenerate: (code: { html: string; css: string; js: string; php?: string; projectName?: string }) => void;
   defaultModel?: string;
 }
 
@@ -146,6 +146,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
               css: cssMatch ? cssMatch[1].trim() : '',
               js: jsMatch ? jsMatch[1].trim() : '',
               php: phpMatch ? phpMatch[1].trim() : fullCode.trim(), // Fallback to raw if no markdown
+              projectName: generatedName,
             });
           } else {
             // For HTML, stream HTML/CSS/JS as they come
@@ -157,6 +158,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
               html: htmlMatch ? htmlMatch[1].trim() : '',
               css: cssMatch ? cssMatch[1].trim() : '',
               js: jsMatch ? jsMatch[1].trim() : '',
+              projectName: generatedName,
             });
           }
 
@@ -202,11 +204,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
 
         setProgress('✅ Generation complete!');
         setGenerating(false);
-
-        // Wait a moment to show usage stats, then close
-        setTimeout(() => {
-          handleClose();
-        }, 2000); // Give time to see usage stats
+        // Don't auto-close - let user view stats and close manually
 
       }
     } catch (error: any) {
@@ -539,6 +537,35 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
               }}
             >
               {step === 'type' ? 'Next →' : '🚀 Generate'}
+            </button>
+          </div>
+        )}
+
+        {/* Footer for completed generation */}
+        {step === 'generating' && !generating && (
+          <div
+            style={{
+              padding: '24px',
+              borderTop: '1px solid var(--border)',
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '12px',
+            }}
+          >
+            <button
+              onClick={handleClose}
+              style={{
+                padding: '12px 32px',
+                background: 'var(--primary)',
+                color: 'var(--primary-foreground)',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              ✓ Done
             </button>
           </div>
         )}

@@ -2626,27 +2626,52 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
       <GenerateProjectModal
         isOpen={showGenerateModal}
         onClose={() => setShowGenerateModal(false)}
-        selectedModel={undefined}
+        defaultModel={undefined}
         onGenerate={(code) => {
-          // Update the section with generated code
-          updateSection({
-            html: code.html,
-            css: code.css,
-            js: code.js,
-          });
+          // Check if this is an Elementor widget (has PHP) or HTML section
+          const isElementorWidget = code.php && code.php.length > 0;
 
-          // Update global editor content
-          setAllContent({
-            html: code.html,
-            css: code.css,
-            js: code.js,
-          });
+          if (isElementorWidget) {
+            // Elementor widget - update PHP tab
+            updateSection({
+              html: '',
+              css: '',
+              js: '',
+              php: code.php,
+            });
 
-          // Switch to HTML tab to show generated code
-          setActiveEditorTab('html');
+            setAllContent({
+              html: '',
+              css: '',
+              js: '',
+              php: code.php,
+            });
 
-          // Show success message
-          alert('✅ Project generated successfully! Code has been loaded into the editor.');
+            // Switch to PHP tab to show generated widget
+            setActiveEditorTab('php');
+
+            // Show success message
+            console.log('✅ Elementor widget generated successfully!');
+          } else {
+            // HTML section - update HTML/CSS/JS tabs
+            updateSection({
+              html: code.html,
+              css: code.css,
+              js: code.js,
+            });
+
+            setAllContent({
+              html: code.html,
+              css: code.css,
+              js: code.js,
+            });
+
+            // Switch to HTML tab to show generated code
+            setActiveEditorTab('html');
+
+            // Show success message
+            console.log('✅ HTML section generated successfully!');
+          }
         }}
       />
     </div>

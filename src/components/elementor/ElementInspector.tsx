@@ -46,10 +46,18 @@ export function ElementInspector({ previewRef, onEditElement }: ElementInspector
     const parent = element.parentElement;
     const context = parent ? parent.outerHTML : html;
 
-    // Get computed styles
+    // Get computed styles (with cross-origin safety)
     const iframe = previewRef.current;
-    const iframeDoc = iframe?.contentDocument || iframe?.contentWindow?.document;
-    const computedStyles = iframeDoc ? iframeDoc.defaultView?.getComputedStyle(element) : null;
+    let iframeDoc = null;
+    let computedStyles = null;
+
+    try {
+      iframeDoc = iframe?.contentDocument || iframe?.contentWindow?.document;
+      computedStyles = iframeDoc ? iframeDoc.defaultView?.getComputedStyle(element) : null;
+    } catch (e) {
+      // Silently ignore cross-origin errors (e.g., WordPress Playground iframe)
+      console.debug('Cannot access iframe document (cross-origin):', e);
+    }
 
     // Extract relevant CSS properties
     const relevantStyles: Record<string, string> = {};
@@ -126,7 +134,16 @@ export function ElementInspector({ previewRef, onEditElement }: ElementInspector
     if (!isActive || !previewRef.current) return;
 
     const iframe = previewRef.current;
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    let iframeDoc = null;
+
+    try {
+      iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    } catch (e) {
+      // Cross-origin iframe (e.g., WordPress Playground) - cannot access
+      console.debug('Cannot access iframe for element inspector (cross-origin)');
+      return;
+    }
+
     if (!iframeDoc) return;
 
     // Create overlay in iframe
@@ -151,10 +168,14 @@ export function ElementInspector({ previewRef, onEditElement }: ElementInspector
     iframeDoc.addEventListener('click', handleClick);
 
     return () => {
-      iframeDoc.removeEventListener('mousemove', handleMouseMove);
-      iframeDoc.removeEventListener('click', handleClick);
-      if (overlay) {
-        overlay.style.display = 'none';
+      try {
+        iframeDoc!.removeEventListener('mousemove', handleMouseMove);
+        iframeDoc!.removeEventListener('click', handleClick);
+        if (overlay) {
+          overlay.style.display = 'none';
+        }
+      } catch (e) {
+        // Ignore cleanup errors for cross-origin iframes
       }
     };
   }, [isActive, previewRef, handleMouseMove, handleClick]);

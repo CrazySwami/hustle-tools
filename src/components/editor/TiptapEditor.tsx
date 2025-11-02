@@ -17,7 +17,8 @@ import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import HardBreak from '@tiptap/extension-hard-break'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Bold,
   Italic,
@@ -399,6 +400,9 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   const [showFontSizeSelector, setShowFontSizeSelector] = useState(false)
   const [showLineHeightSelector, setShowLineHeightSelector] = useState(false)
   const [comments, setComments] = useState<Comment[]>(initialComments ? JSON.parse(initialComments) : [])
+  const [dropdownPosition, setDropdownPosition] = useState<{top: number, left: number} | null>(null)
+  const colorButtonRef = useRef<HTMLButtonElement>(null)
+
 
   // Close all dropdowns when clicking outside
   useEffect(() => {
@@ -764,9 +768,9 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
   return (
     <>
-      <div className="border rounded-lg bg-background shadow-sm h-full flex flex-col w-full overflow-hidden">
+      <div className="border rounded-lg bg-background shadow-sm h-full flex flex-col w-full overflow-x-hidden overflow-y-hidden" style={{ position: 'relative', isolation: 'isolate' }}>
         {/* Toolbar */}
-        <div className="flex items-center gap-1 p-2 pl-3 bg-muted/20 border-b overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}>
+        <div className="flex items-center gap-1 p-2 pl-3 bg-muted/20 border-b overflow-x-auto overflow-y-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}>
           {/* Sidebar Toggle + Comments + Tools (ClickUp-style) */}
           <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
             {onToggleSidebar && (
@@ -860,6 +864,11 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               <MenuButton
                 onClick={(e) => {
                   e?.stopPropagation()
+                  const btn = e?.currentTarget
+                  if (btn) {
+                    const rect = btn.getBoundingClientRect()
+                    setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                  }
                   setShowColorSelector(!showColorSelector)
                 }}
                 isActive={editor.isActive('textStyle')}
@@ -867,11 +876,6 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               >
                 <Palette className="h-4 w-4" />
               </MenuButton>
-              {showColorSelector && (
-                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="color">
-                  <ColorSelector editor={editor} />
-                </div>
-              )}
             </div>
 
             <div className="relative" data-dropdown="highlight">
@@ -1067,7 +1071,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         </div>
         
         {/* Main content area with editor and comments panel */}
-        <div className="flex-1 relative overflow-hidden">
+        <div className="flex-1 relative overflow-hidden" style={{ zIndex: 1 }}>
           {/* Editor Content */}
           <div className={cn(
             "p-4 h-full overflow-y-auto scrollbar-hide transition-all duration-300 ease-in-out",
@@ -1142,6 +1146,21 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         )}
       </div>
       
+      {/* Portaled Dropdowns - Render outside overflow context */}
+      {isMounted && showColorSelector && dropdownPosition && createPortal(
+        <div
+          className="fixed z-[99999]"
+          data-dropdown-menu="color"
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`
+          }}
+        >
+          <ColorSelector editor={editor} />
+        </div>,
+        document.body
+      )}
+
       {/* Add Comment Form - Moved outside the main container to fix rendering issues */}
       {showAddCommentForm && (
         <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">

@@ -45,10 +45,16 @@ export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
 
 ```
 0-70% usage:   Full History         (keep all messages)
-70-85% usage:  Sliding Window       (keep recent 10 messages)
-85-90% usage:  AI Summarization     (Gemini 2.5 Flash)
+70-80% usage:  Sliding Window       (reduce to ~60% usage)
+80-90% usage:  AI Summarization     (Gemini 2.5 Flash, reduce to ~50%)
 >90% usage:    Hard Limit Exceeded  (error, must start new chat)
 ```
+
+**Key Changes (v2 - More Aggressive):**
+- Reduced sliding window threshold: 85% → 80%
+- Target-based reduction: Instead of keeping N messages, reduces to target %
+- Sliding window targets 60% usage (safer buffer for tokenization variance)
+- Summarization targets 50% usage (aggressive reduction)
 
 ### Example: Gemini 2.5 Flash
 
@@ -58,10 +64,15 @@ Reserve for output: 4,000 tokens
 Effective limit: 696,000 tokens
 
 Thresholds:
-- 70%: 487,200 tokens → Trigger sliding window
-- 85%: 591,600 tokens → Trigger AI summarization
+- 70%: 487,200 tokens → Trigger sliding window (reduce to ~60% = 417,600)
+- 80%: 556,800 tokens → Trigger AI summarization (reduce to ~50% = 348,000)
 - 90%: 626,400 tokens → Hard limit warning
 ```
+
+**Why More Aggressive?**
+- tiktoken estimation can be 10-15% lower than actual tokenization
+- At 85% estimated usage, actual might be 95-100% → rejection
+- By targeting 60% after management, actual is ~70% → safe buffer
 
 ## AI Summarization Details
 
@@ -256,16 +267,27 @@ if (validation.percentUsed >= 70 || !validation.isValid) {
   gemini-2.5-flash-lite: 700K,   // True: 1M
   gemini-2.5-pro: 180K,          // True: 1M (avoid price tier)
 
-  // Thresholds
+  // Thresholds (v2 - More Aggressive)
   softThreshold: 70%,            // Start management
-  hardThreshold: 85%,            // Use AI summarization
+  hardThreshold: 80%,            // Use AI summarization (was 85%)
   hardLimit: 90%,                // Reject new messages
 
-  // Strategies
+  // Strategies (v2 - Target-Based Reduction)
   0-70%:   Full history
-  70-85%:  Sliding window (keep 10 recent)
-  85-90%:  AI summarization (Gemini 2.5 Flash)
+  70-80%:  Sliding window (reduce to ~60% usage)
+  80-90%:  AI summarization (Gemini 2.5 Flash, reduce to ~50%)
   >90%:    Error (must start new chat)
+
+  // Reduction Behavior
+  Sliding Window:
+    - Iteratively removes oldest messages
+    - Stops when usage ≤60%
+    - Minimum 1 message kept
+
+  Summarization:
+    - Keeps only 3 most recent messages (was 5)
+    - Summarizes all older messages
+    - Target: 50% usage after summary
 
   // Costs
   summarizationCost: $0.03/summary,

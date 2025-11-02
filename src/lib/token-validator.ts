@@ -40,11 +40,13 @@ export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
   'openai/o4-mini': 200000,
   'openai/o1': 200000,
 
-  // Google Gemini models
-  'google/gemini-2.5-flash': 1000000,
-  'google/gemini-2.5-pro': 1000000,
-  'google/gemini-2.0-flash': 1000000,
-  'google/gemini-2.0-flash-lite': 1000000,
+  // Google Gemini models - Conservative limits (70% of true limit for safety)
+  // True limits: 1M for Flash models, but tiktoken estimation may be off by 10-20%
+  'google/gemini-2.5-flash': 700000,        // True: 1M, using 70% for safety buffer
+  'google/gemini-2.5-flash-lite': 700000,   // True: 1M, using 70% for safety buffer
+  'google/gemini-2.5-pro': 180000,          // True: 1M, but 90% of 200K to avoid price tier jump
+  'google/gemini-2.0-flash': 700000,        // True: 1M, using 70% for safety buffer
+  'google/gemini-2.0-flash-lite': 700000,   // True: 1M, using 70% for safety buffer
 
   // xAI Grok models
   'xai/grok-4': 256000,
@@ -329,6 +331,160 @@ export function manageConversationWindow(
   const summary: ConversationMessage = {
     role: 'system',
     content: `[Earlier conversation summary: ${olderMessages.length} messages exchanged. User requested various tasks and assistant responded with tool calls and explanations. Recent context continues below.]`,
+    timestamp: Date.now(),
+  };
+
+  const summarizedMessages = [summary, ...veryRecentMessages];
+  const summarizedTokens = estimateTokenCount(JSON.stringify(summarizedMessages));
+  const newTotal = systemTokens + summarizedTokens;
+
+  return {
+    messages: summarizedMessages,
+    totalTokens: newTotal,
+    originalMessageCount: messages.length,
+    keptMessageCount: veryRecentMessages.length,
+    summarizedCount: olderMessages.length,
+    strategy: 'summarized',
+  };
+}
+
+/**
+ * AI-Powered Conversation Summarization
+ * Uses Gemini 2.5 Flash to create intelligent summaries
+ *
+ * Cost: ~$0.008 per summary (100K input + 1K output)
+ * - Input: $0.30 / 1M tokens
+ * - Output: $2.50 / 1M tokens
+ */
+export async function summarizeConversationWithAI(
+  messages: ConversationMessage[]
+): Promise<string> {
+  try {
+    const response = await fetch('/api/summarize-conversation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Summarization API error: ${response.status}`);
+    }
+
+    // Read streaming response
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let summary = '';
+
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      // Parse Vercel AI SDK stream format
+      const lines = chunk.split('\n').filter(line => line.trim());
+      for (const line of lines) {
+        if (line.startsWith('0:')) {
+          // Text chunk
+          const text = line.slice(3, -1); // Remove '0:"' and '"'
+          summary += text;
+        }
+      }
+    }
+
+    return summary || '[AI summarization failed - using fallback]';
+  } catch (error) {
+    console.error('❌ AI summarization failed:', error);
+    // Fallback to simple summary
+    return `[Earlier conversation summary: ${messages.length} messages exchanged. AI summarization unavailable.]`;
+  }
+}
+
+/**
+ * Async version of manageConversationWindow with AI-powered summarization
+ * Use this version when you want intelligent summaries (recommended)
+ */
+export async function manageConversationWindowWithAI(
+  messages: ConversationMessage[],
+  systemPrompt: string,
+  model: string,
+  options: {
+    reserveForOutput?: number;
+    keepRecentMessages?: number;
+    softThreshold?: number;
+    hardThreshold?: number;
+    /** Use AI summarization when true (default: true) */
+    useAI?: boolean;
+  } = {}
+): Promise<ConversationWindowResult> {
+  const {
+    reserveForOutput = 4000,
+    keepRecentMessages = 10,
+    softThreshold = 70,
+    hardThreshold = 85,
+    useAI = true,
+  } = options;
+
+  const contextLimit = getModelContextLimit(model);
+  const effectiveLimit = contextLimit - reserveForOutput;
+  const systemTokens = estimateTokenCount(systemPrompt);
+
+  // Calculate total tokens with all messages
+  const messagesText = JSON.stringify(messages);
+  const allMessagesTokens = estimateTokenCount(messagesText);
+  const totalTokens = systemTokens + allMessagesTokens;
+  const percentUsed = (totalTokens / effectiveLimit) * 100;
+
+  // Strategy 1: Full history (< 70% usage)
+  if (percentUsed < softThreshold) {
+    return {
+      messages,
+      totalTokens,
+      originalMessageCount: messages.length,
+      keptMessageCount: messages.length,
+      summarizedCount: 0,
+      strategy: 'full',
+    };
+  }
+
+  // Strategy 2: Sliding window (70-85% usage)
+  if (percentUsed < hardThreshold) {
+    const recentMessages = messages.slice(-keepRecentMessages);
+    const recentTokens = estimateTokenCount(JSON.stringify(recentMessages));
+    const newTotal = systemTokens + recentTokens;
+
+    return {
+      messages: recentMessages,
+      totalTokens: newTotal,
+      originalMessageCount: messages.length,
+      keptMessageCount: recentMessages.length,
+      summarizedCount: messages.length - recentMessages.length,
+      strategy: 'sliding-window',
+    };
+  }
+
+  // Strategy 3: AI-Powered Summarization (85-90% usage)
+  const veryRecentCount = Math.max(5, Math.floor(keepRecentMessages / 2));
+  const veryRecentMessages = messages.slice(-veryRecentCount);
+  const olderMessages = messages.slice(0, -veryRecentCount);
+
+  let summaryContent: string;
+
+  if (useAI && process.env.AI_GATEWAY_API_KEY) {
+    // Use AI for intelligent summarization
+    console.log('🤖 Using AI to summarize', olderMessages.length, 'messages');
+    summaryContent = await summarizeConversationWithAI(olderMessages);
+  } else {
+    // Fallback to simple summary
+    summaryContent = `[Earlier conversation summary: ${olderMessages.length} messages exchanged. User requested various tasks and assistant responded with tool calls and explanations. Recent context continues below.]`;
+  }
+
+  const summary: ConversationMessage = {
+    role: 'system',
+    content: summaryContent,
     timestamp: Date.now(),
   };
 

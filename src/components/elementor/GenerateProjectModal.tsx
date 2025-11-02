@@ -6,8 +6,8 @@ import { MODEL_PRICING } from '@/hooks/useUsageTracking';
 
 // Model configurations (same as ChatInterface)
 const MODEL_CONFIGS = {
-  'anthropic/claude-haiku-4.5-20251022': { name: 'Claude Haiku 4.5', inputLimit: 200000, outputLimit: 8192 },
-  'anthropic/claude-sonnet-4-5-20250514': { name: 'Claude Sonnet 4.5', inputLimit: 200000, outputLimit: 8192 },
+  'anthropic/claude-haiku-4-5-20251001': { name: 'Claude Haiku 4.5', inputLimit: 200000, outputLimit: 8192 },
+  'anthropic/claude-sonnet-4-5-20250929': { name: 'Claude Sonnet 4.5', inputLimit: 200000, outputLimit: 8192 },
   'anthropic/claude-opus-4-20250514': { name: 'Claude Opus 4', inputLimit: 200000, outputLimit: 8192 },
   'openai/gpt-5': { name: 'GPT-5', inputLimit: 272000, outputLimit: 128000 },
   'openai/gpt-5-mini': { name: 'GPT-5 Mini', inputLimit: 272000, outputLimit: 128000 },
@@ -26,7 +26,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
   const [projectType, setProjectType] = useState<'html' | 'elementor'>('html');
   const [description, setDescription] = useState('');
   const [projectName, setProjectName] = useState('');
-  const [selectedModel, setSelectedModel] = useState(defaultModel || 'anthropic/claude-sonnet-4-5-20250514');
+  const [selectedModel, setSelectedModel] = useState(defaultModel || 'anthropic/claude-sonnet-4-5-20250929');
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState('');
   const [currentPhase, setCurrentPhase] = useState<'html' | 'css' | 'js' | 'php' | null>(null);
@@ -55,7 +55,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
     setProjectType('html');
     setDescription('');
     setProjectName('');
-    setSelectedModel(defaultModel || 'anthropic/claude-sonnet-4-5-20250514');
+    setSelectedModel(defaultModel || 'anthropic/claude-sonnet-4-5-20250929');
     setGenerating(false);
     setProgress('');
     setCurrentPhase(null);

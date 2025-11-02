@@ -7,7 +7,8 @@ import TiptapEditor from '@/components/editor/TiptapEditor';
 import { Comment } from '@/components/editor/CommentExtension';
 import { DocumentChat } from '@/components/editor/DocumentChat';
 import { BottomNav } from '@/components/ui/BottomNav';
-import { ProjectSidebar } from '@/components/project-hierarchy/ProjectSidebar';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { AppSidebar } from '@/components/app-sidebar';
 import { useDocuments } from '@/hooks/useProjectHierarchy';
 
 

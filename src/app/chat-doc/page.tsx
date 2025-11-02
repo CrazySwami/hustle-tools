@@ -258,14 +258,14 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
             />
           </div>
 
-          {/* Divider (between chat and editor) */}
+          {/* Divider (between chat and editor) - invisible but functional */}
           {isEditorVisible && (
             <div
               onMouseDown={handleMouseDown}
               style={{
                 width: '4px',
                 cursor: 'col-resize',
-                background: 'var(--border)',
+                background: 'transparent',
                 position: 'relative',
                 transition: isResizing ? 'none' : 'background 0.2s',
               }}
@@ -273,7 +273,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                 if (!isResizing) e.currentTarget.style.background = 'var(--primary)';
               }}
               onMouseLeave={(e) => {
-                if (!isResizing) e.currentTarget.style.background = 'var(--border)';
+                if (!isResizing) e.currentTarget.style.background = 'transparent';
               }}
             />
           )}

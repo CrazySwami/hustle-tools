@@ -134,6 +134,39 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
           const chunk = decoder.decode(value);
           fullCode += chunk;
 
+          // Stream code to editor in real-time
+          if (projectType === 'elementor') {
+            // For Elementor, stream PHP as it comes
+            const phpMatch = fullCode.match(/```php\n([\s\S]*?)```/);
+            if (phpMatch) {
+              onGenerate({
+                html: '',
+                css: '',
+                js: '',
+                php: phpMatch[1].trim(),
+              });
+            } else {
+              // Fallback: stream raw content
+              onGenerate({
+                html: '',
+                css: '',
+                js: '',
+                php: fullCode.trim(),
+              });
+            }
+          } else {
+            // For HTML, stream HTML/CSS/JS as they come
+            const htmlMatch = fullCode.match(/```html\n([\s\S]*?)```/);
+            const cssMatch = fullCode.match(/```css\n([\s\S]*?)```/);
+            const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)```/);
+
+            onGenerate({
+              html: htmlMatch ? htmlMatch[1].trim() : '',
+              css: cssMatch ? cssMatch[1].trim() : '',
+              js: jsMatch ? jsMatch[1].trim() : '',
+            });
+          }
+
           // Update progress based on content length
           if (projectType === 'html') {
             if (fullCode.length > 500 && currentPhase === 'html') {
@@ -174,37 +207,11 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
           }
         }
 
-        setProgress('✅ Generation complete! Parsing code...');
+        setProgress('✅ Generation complete!');
+        setGenerating(false);
 
-        // Parse the generated code based on project type
-        let parsedCode: { html: string; css: string; js: string; php?: string };
-
-        if (projectType === 'elementor') {
-          // For Elementor, extract PHP code
-          const phpMatch = codeOnly.match(/```php\n([\s\S]*?)```/);
-          parsedCode = {
-            html: '',
-            css: '',
-            js: '',
-            php: phpMatch ? phpMatch[1].trim() : codeOnly.trim(), // Fallback to full code if no markdown
-          };
-        } else {
-          // For HTML, extract HTML/CSS/JS
-          parsedCode = parseStreamedCode(codeOnly);
-
-          // If parsing failed, try to split by common patterns
-          if (!parsedCode.html && !parsedCode.css) {
-            // Fallback: assume first part is HTML, middle is CSS, last is JS
-            const parts = codeOnly.split(/(?=<style>|<script>)/);
-            parsedCode.html = codeOnly; // Use full code as HTML for now
-          }
-        }
-
-        setProgress('✅ Code parsed successfully!');
-
-        // Wait a moment before closing
+        // Wait a moment to show usage stats, then close
         setTimeout(() => {
-          onGenerate(parsedCode);
           handleClose();
         }, 2000); // Give time to see usage stats
 

@@ -2627,56 +2627,31 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
         isOpen={showGenerateModal}
         onClose={() => setShowGenerateModal(false)}
         defaultModel={undefined}
+        onProjectCreate={(name, type) => {
+          // Create new project and return its ID
+          const newGroup = fileGroups.createNewGroup(name, type, 'empty');
+          fileGroups.selectGroup(newGroup.id);
+          console.log('📦 Project created:', name, 'Type:', type, 'ID:', newGroup.id);
+          return newGroup.id;
+        }}
+        onProjectUpdate={(projectId, file, content) => {
+          // Update project file with streaming content
+          fileGroups.updateGroupFile(projectId, file, content);
+        }}
         onGenerate={(code) => {
-          // Check if this is an Elementor widget (has PHP) or HTML section
+          // Project is already created and populated via onProjectCreate/onProjectUpdate
+          // This callback is just for final actions like switching tabs
+
           const isElementorWidget = code.php && code.php.length > 0;
 
-          // Generate a user-friendly name from projectName
-          const displayName = code.projectName
-            ?.split('_')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ') || 'Untitled Project';
-
           if (isElementorWidget) {
-            // Create NEW Elementor widget project
-            console.log('📦 Creating new Elementor widget project:', displayName);
-            const newGroup = fileGroups.createNewGroup(displayName, 'php', 'empty');
-
-            // Populate PHP, CSS, JS files
-            fileGroups.updateGroupFile(newGroup.id, 'php', code.php || '');
-            fileGroups.updateGroupFile(newGroup.id, 'css', code.css || '');
-            fileGroups.updateGroupFile(newGroup.id, 'js', code.js || '');
-
-            // Switch to the new project
-            fileGroups.selectGroup(newGroup.id);
-
             // Switch to PHP tab to show generated widget
             onCodeTabChange?.('php');
-
-            // Show success message
-            console.log('✅ Elementor widget project created successfully!');
-            console.log('📝 Project:', displayName);
-            console.log('📂 Files: widget.php, widget.css, widget.js');
+            console.log('✅ Elementor widget generation complete!');
           } else {
-            // Create NEW HTML section project
-            console.log('📦 Creating new HTML section project:', displayName);
-            const newGroup = fileGroups.createNewGroup(displayName, 'html', 'empty');
-
-            // Populate HTML, CSS, JS files
-            fileGroups.updateGroupFile(newGroup.id, 'html', code.html || '');
-            fileGroups.updateGroupFile(newGroup.id, 'css', code.css || '');
-            fileGroups.updateGroupFile(newGroup.id, 'js', code.js || '');
-
-            // Switch to the new project
-            fileGroups.selectGroup(newGroup.id);
-
             // Switch to HTML tab to show generated code
             onCodeTabChange?.('html');
-
-            // Show success message
-            console.log('✅ HTML section project created successfully!');
-            console.log('📝 Project:', displayName);
-            console.log('📂 Files: index.html, styles.css, script.js');
+            console.log('✅ HTML section generation complete!');
           }
         }}
       />

@@ -23,7 +23,7 @@ interface GenerateProjectModalProps {
   defaultModel?: string;
 }
 
-export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel }: GenerateProjectModalProps) {
+export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCreate, onProjectUpdate, defaultModel }: GenerateProjectModalProps) {
   const [step, setStep] = useState<'type' | 'description' | 'generating'>('type');
   const [projectType, setProjectType] = useState<'html' | 'elementor'>('html');
   const [description, setDescription] = useState('');
@@ -33,8 +33,9 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
   const [progress, setProgress] = useState('');
   const [currentPhase, setCurrentPhase] = useState<'html' | 'css' | 'js' | 'php' | null>(null);
   const [usageMetadata, setUsageMetadata] = useState<any>(null);
+  const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
 
-  const { recordUsage } = useUsageTracking();
+  const { recordUsage} = useUsageTracking();
 
   if (!isOpen) return null;
 
@@ -62,6 +63,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
     setProgress('');
     setCurrentPhase(null);
     setUsageMetadata(null);
+    setCreatedProjectId(null);
   };
 
   const handleClose = () => {
@@ -120,6 +122,18 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
       let fullCode = '';
 
       if (reader) {
+        // Create project ONCE at the start
+        const displayName = generatedName
+          .split('_')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+
+        const projectId = onProjectCreate?.(displayName, projectType === 'elementor' ? 'php' : 'html');
+        if (projectId) {
+          setCreatedProjectId(projectId);
+          console.log('📦 Created project:', displayName, 'ID:', projectId);
+        }
+
         // Set initial phase based on project type
         if (projectType === 'elementor') {
           setCurrentPhase('php');
@@ -130,11 +144,32 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
         }
 
         while (true) {
-          const { done, value } = await reader.read();
+          const { done, value} = await reader.read();
           if (done) break;
 
           const chunk = decoder.decode(value);
           fullCode += chunk;
+
+          // Stream updates to project files in real-time
+          if (projectId && onProjectUpdate) {
+            if (projectType === 'elementor') {
+              const phpMatch = fullCode.match(/```php\n([\s\S]*?)```/);
+              const cssMatch = fullCode.match(/```css\n([\s\S]*?)```/);
+              const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)```/);
+
+              if (phpMatch) onProjectUpdate(projectId, 'php', phpMatch[1].trim());
+              if (cssMatch) onProjectUpdate(projectId, 'css', cssMatch[1].trim());
+              if (jsMatch) onProjectUpdate(projectId, 'js', jsMatch[1].trim());
+            } else {
+              const htmlMatch = fullCode.match(/```html\n([\s\S]*?)```/);
+              const cssMatch = fullCode.match(/```css\n([\s\S]*?)```/);
+              const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)```/);
+
+              if (htmlMatch) onProjectUpdate(projectId, 'html', htmlMatch[1].trim());
+              if (cssMatch) onProjectUpdate(projectId, 'css', cssMatch[1].trim());
+              if (jsMatch) onProjectUpdate(projectId, 'js', jsMatch[1].trim());
+            }
+          }
 
           // Update progress based on content length (visual feedback only)
           if (projectType === 'html') {

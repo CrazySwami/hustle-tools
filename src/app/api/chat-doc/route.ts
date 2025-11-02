@@ -52,14 +52,20 @@ export async function POST(req: Request) {
       messages = [],
       model = 'anthropic/claude-haiku-4-5-20251001',
       webSearch = false,
+      includeContext = true,
       documentContent = '',
       comments = [],
+      documentTitle = '',
+      projectName = '',
     }: {
       messages: UIMessage[];
       model: string;
       webSearch: boolean;
+      includeContext?: boolean;
       documentContent: string;
       comments: any[];
+      documentTitle?: string;
+      projectName?: string;
     } = await req.json();
 
     console.log('📨 Document Chat request:', {
@@ -67,6 +73,7 @@ export async function POST(req: Request) {
       messageCount: messages.length,
       documentLength: documentContent.length,
       webSearch,
+      includeContext,
       commentsCount: comments.length,
     });
 
@@ -100,6 +107,12 @@ export async function POST(req: Request) {
     let systemPrompt = `You are an expert document editing assistant. You help users write, edit, and improve prose, articles, blog posts, essays, and other written content.
 
 **Current date:** ${currentDate}
+
+${documentTitle ? `**📄 DOCUMENT CONTEXT:**
+- **Document:** ${documentTitle}
+${projectName ? `- **Project:** ${projectName}` : ''}
+- **Word Count:** ${documentContent.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(w => w.length > 0).length.toLocaleString()} words
+` : ''}
 
 **🎯 THE ONLY TOOL YOU NEED - editDocumentWithMorph:**
 
@@ -143,7 +156,9 @@ The document is edited using **Tiptap Editor** - a rich text editor that support
 - **Rich text features** - Comments, highlights, tables, etc.
 
 **CRITICAL FORMATTING RULES:**
-- ✅ ALWAYS use Markdown syntax when writing/editing content
+- ✅ **ALWAYS OUTPUT MARKDOWN** - Unless explicitly told otherwise, ALL content should use Markdown syntax
+- ✅ **In your text responses** - Use Markdown formatting so it renders beautifully (headings, bold, lists, etc.)
+- ✅ **In editDocumentWithMorph** - Use Markdown syntax for all document content
 - ✅ Use \`# Heading 1\`, \`## Heading 2\`, \`### Heading 3\` for headings
 - ✅ Use \`**bold**\` for bold, \`*italic*\` for italic
 - ✅ Use \`[text](url)\` for links
@@ -151,9 +166,13 @@ The document is edited using **Tiptap Editor** - a rich text editor that support
 - ✅ Use \`\`\`language\` for code blocks
 - ✅ Use \`> quote\` for blockquotes
 - ❌ NEVER use HTML tags like <h1>, <p>, <div> - use Markdown instead!
+- ❌ NEVER output plain text when Markdown would be more readable
+
+**DEFAULT OUTPUT MODE: MARKDOWN**
+When responding to users, format your responses in Markdown by default. Only use plain text if the user explicitly requests it.
 
 **📄 CURRENT DOCUMENT CONTENT:**
-${documentContent ? `
+${includeContext ? (documentContent ? `
 ✅ **YES - You have FULL ACCESS to the document:**
 
 **Document Length:** ${documentContent.length} characters
@@ -169,14 +188,36 @@ ${documentContent.length > 2000 ? '...(truncated - document continues)' : ''}
 **Document Status:** Empty (0 characters)
 
 The document is currently empty and ready for new content.
+`) : `
+❌ **CONTEXT DISABLED - You do NOT have access to the document content**
+
+The user has disabled context. You cannot see the current document content.
+
+**How to work without context:**
+- ✅ You can still write NEW content (the user will add it to their document if they like it)
+- ✅ You can answer general questions and provide advice
+- ✅ If the user wants you to edit their existing content, they need to enable context first
+- ❌ You CANNOT see what's currently in the document
+- ❌ You CANNOT make targeted edits without seeing the content
+- ❌ The getDocumentContent tool is also disabled
+
+**When user asks to edit existing content:**
+Tell them: "I can't see your document right now because context is disabled. Please enable the Context button in the toolbar if you want me to edit your existing content. Or, I can write new content for you from scratch!"
 `}
 
 **🎯 CRITICAL CONTEXT AWARENESS:**
-- ✅ **YOU ALWAYS HAVE ACCESS to the document** - whether it's empty or has content
+${includeContext ? `
+- ✅ **YOU HAVE ACCESS to the document** - whether it's empty or has content
 - ✅ **The document content is shown above** - you can see it without calling any tools
 - ✅ **When user says "add X" or "write Y"** - they mean edit the document (use editDocumentWithMorph immediately)
 - ✅ **ALL user requests assume document editing context** - unless they explicitly ask about something else
 - ✅ **Even if document is empty** - you still have access and can write to it
+` : `
+- ❌ **CONTEXT IS DISABLED** - You do NOT have access to the document
+- ❌ **You cannot see what's in the document** - Don't pretend you can
+- ✅ **You CAN write new content** - Just can't edit existing content
+- ✅ **User can enable context** - By clicking the Context button in the toolbar
+`}
 
 **Important guidelines:**
 - 🎯 **DEFAULT ASSUMPTION:** Every user message is about editing/writing the document unless they explicitly ask about something else (like weather, calculations, etc.)
@@ -199,7 +240,7 @@ The document is currently empty and ready for new content.
 **Current date:** ${currentDate}
 
 **📄 CURRENT DOCUMENT CONTENT:**
-${documentContent ? `
+${includeContext ? (documentContent ? `
 ✅ **YES - You have FULL ACCESS to the document:**
 
 **Document Length:** ${documentContent.length} characters
@@ -215,17 +256,27 @@ ${documentContent.length > 2000 ? '...(truncated - document continues)' : ''}
 **Document Status:** Empty (0 characters)
 
 The document is currently empty and ready for new content.
+`) : `
+❌ **CONTEXT DISABLED - You do NOT have access to the document content**
+
+The user has disabled context. You cannot see the current document content. Tell them to enable the Context button if they want you to edit existing content.
 `}
 
 **🎯 CRITICAL CONTEXT AWARENESS:**
-- ✅ **YOU ALWAYS HAVE ACCESS to the document** - whether it's empty or has content
+${includeContext ? `
+- ✅ **YOU HAVE ACCESS to the document** - whether it's empty or has content
 - ✅ **The document content is shown above** - you can see it without calling any tools
 - ✅ **ALL user requests assume document context** - unless they explicitly ask about something else
+` : `
+- ❌ **CONTEXT IS DISABLED** - You do NOT have access to the document
+- ❌ **You cannot see what's in the document** - Don't pretend you can
+- ✅ **User can enable context** - By clicking the Context button in the toolbar
+`}
 
 **Important guidelines:**
 - 🌐 **Web Search:** Use search to find current, accurate information with sources
 - 💬 **Communication:** Be concise, cite your sources
-- 📝 **Document Context:** You have full access to the document content shown above`;
+- 📝 **Document Context:** ${includeContext ? 'You have full access to the document content shown above' : 'Context is disabled - you cannot see the document'}`;
     } else if (webSearch) {
       console.log('Web search requested but not available for non-Perplexity model:', model);
       systemPrompt += '\n\nNote: Web search was requested but is only available with Perplexity models.';
@@ -302,32 +353,34 @@ After using a tool, provide a brief text response explaining what you did.`;
       generateCode: tools.generateCode,
       manageTask: tools.manageTask,
 
-      // Document reading tool - CRITICAL for AI to see document content
-      getDocumentContent: {
-        ...tools.getDocumentContent,
-        execute: async ({ requestType = 'full' }) => {
-          if (!documentContent) {
+      // Document reading tool - ONLY available when context is enabled
+      ...(includeContext ? {
+        getDocumentContent: {
+          ...tools.getDocumentContent,
+          execute: async ({ requestType = 'full' }) => {
+            if (!documentContent) {
+              return {
+                requestType,
+                content: 'No document content available',
+                wordCount: 0,
+                characterCount: 0,
+                message: 'Document is empty or not loaded'
+              };
+            }
+
+            const wordCount = documentContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+            const characterCount = documentContent.length;
+
             return {
               requestType,
-              content: 'No document content available',
-              wordCount: 0,
-              characterCount: 0,
-              message: 'Document is empty or not loaded'
+              content: documentContent,
+              wordCount,
+              characterCount,
+              message: 'Document content retrieved successfully'
             };
           }
-
-          const wordCount = documentContent.trim().split(/\s+/).filter(w => w.length > 0).length;
-          const characterCount = documentContent.length;
-
-          return {
-            requestType,
-            content: documentContent,
-            wordCount,
-            characterCount,
-            message: 'Document content retrieved successfully'
-          };
-        }
-      },
+        },
+      } : {}),
 
       // Document editing
       editDocumentWithMorph: tools.editDocumentWithMorph,  // ⭐ THE PRIMARY DOCUMENT EDITING TOOL

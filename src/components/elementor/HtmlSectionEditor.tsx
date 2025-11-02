@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Editor from "@monaco-editor/react";
+import Editor, { DiffEditor } from "@monaco-editor/react";
 import {
   Section,
   createSection,
@@ -25,6 +25,7 @@ import { HtmlSplitter } from "./HtmlSplitter";
 import { BatchWidgetConverter } from "./BatchWidgetConverter";
 import { WidgetValidationModal } from "./WidgetValidationModal";
 import { GenerateProjectModal } from "./GenerateProjectModal";
+import { ElementInspectorModal } from "./ElementInspectorModal";
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -90,7 +91,32 @@ export function HtmlSectionEditor({
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFileTree, setShowFileTree] = useState(true); // Show by default on desktop
+  const [inspectMode, setInspectMode] = useState(false); // Track inspect mode
+  const [inspectedElement, setInspectedElement] = useState<{
+    html: string;
+    selector: string;
+    classList: string[];
+    tagName: string;
+    attributes: Record<string, string>;
+    computedStyles: Record<string, string>;
+    context: string;
+  } | null>(null); // Track inspected element for modal
   const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [generateModalConversionMode, setGenerateModalConversionMode] = useState(false); // Track if converting existing code
+  const [isGenerating, setIsGenerating] = useState(false); // Track if generation is in progress
+  const [generatingPhase, setGeneratingPhase] = useState<'html' | 'css' | 'js' | 'php' | null>(null);
+  const [generatingTokens, setGeneratingTokens] = useState(0); // Track current file token count
+
+  // Diff preview state
+  const [showDiffPreview, setShowDiffPreview] = useState(false);
+  const [diffData, setDiffData] = useState<{
+    file: 'html' | 'css' | 'js' | 'php';
+    originalCode: string;
+    mergedCode: string;
+    usage?: any;
+    stats?: any;
+  } | null>(null);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const { globalCss, cssVariables } = useGlobalStylesheet();
@@ -106,14 +132,27 @@ export function HtmlSectionEditor({
       return;
     }
 
-    if (!window.deployElementorWidget) {
+    if (!window.deployAndPreviewWidget) {
       alert('WordPress Playground is not loaded. Please launch Playground first from the WordPress Playground tab.');
       return;
     }
 
     try {
-      const result = await window.deployElementorWidget(section.php, editorCss, editorJs);
-      alert(`✅ ${result.message}\n\nNext steps:\n1. Go to the WordPress Playground tab\n2. Navigate to an Elementor page\n3. Find your widget "${result.widgetClassName}" in the Hustle Tools category\n4. Drag it onto the page!`);
+      // Auto-switch to WordPress Playground tab FIRST
+      if (onSwitchToPlayground) {
+        onSwitchToPlayground();
+      }
+
+      // Small delay to let the tab switch complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Deploy widget and create preview page
+      const result = await window.deployAndPreviewWidget(section.php, editorCss, editorJs);
+
+      console.log('✅ Deploy and preview complete:', result);
+
+      // Show success message
+      alert(`✅ ${result.message}\n\nYour widget is now visible in the Elementor editor!`);
     } catch (error: any) {
       alert(`❌ Deployment failed: ${error.message}`);
     }
@@ -632,6 +671,32 @@ export function HtmlSectionEditor({
     });
   }, []);
 
+  // Listen for morph diff events from chat widgets
+  useEffect(() => {
+    const handleShowDiff = (event: CustomEvent) => {
+      const { file, originalCode, mergedCode, usage, stats } = event.detail;
+      console.log('📊 Received morph diff event:', { file, stats });
+
+      setDiffData({ file, originalCode, mergedCode, usage, stats });
+      setShowDiffPreview(true);
+
+      // Close live preview if open to show the diff editor
+      if (showPreview) {
+        setShowPreview(false);
+        console.log('🔄 Auto-closing live preview to show diff');
+      }
+
+      // Auto-switch to the correct tab
+      handleCodeTabChange(file);
+    };
+
+    window.addEventListener('show-morph-diff' as any, handleShowDiff);
+
+    return () => {
+      window.removeEventListener('show-morph-diff' as any, handleShowDiff);
+    };
+  }, [showPreview]);
+
   // Use external activeCodeTab if provided, otherwise use internal
   const activeCodeTab = externalActiveCodeTab ?? internalActiveCodeTab;
 
@@ -642,6 +707,30 @@ export function HtmlSectionEditor({
       setInternalActiveCodeTab(tab);
     }
     // Mobile uses horizontal pills, so no need to close file tree
+  };
+
+  // Handle accepting diff changes
+  const handleAcceptDiff = () => {
+    if (!diffData) return;
+
+    // Apply the merged code to the editor
+    updateContent(diffData.file, diffData.mergedCode);
+
+    // Update section
+    updateSection({ [diffData.file]: diffData.mergedCode });
+
+    // Close diff preview
+    setShowDiffPreview(false);
+    setDiffData(null);
+
+    console.log(`✅ Accepted diff changes for ${diffData.file}`);
+  };
+
+  // Handle declining diff changes
+  const handleDeclineDiff = () => {
+    setShowDiffPreview(false);
+    setDiffData(null);
+    console.log('❌ Declined diff changes');
   };
 
   // Update section and notify parent
@@ -713,14 +802,28 @@ export function HtmlSectionEditor({
       });
 
       // Update section for backward compatibility
-      setSection(prev => ({
-        ...prev,
+      const updatedSection = {
+        ...section,
         name: fileGroups.activeGroup!.name,
         html: fileGroups.activeGroup!.html,
         css: fileGroups.activeGroup!.css,
         js: fileGroups.activeGroup!.js,
         php: fileGroups.activeGroup!.php,
-      }));
+        id: fileGroups.activeGroup!.id,
+        updatedAt: Date.now(),
+      };
+      console.log('📁 HtmlSectionEditor: Loading project from file groups:', {
+        id: updatedSection.id,
+        name: updatedSection.name,
+        htmlLength: updatedSection.html?.length || 0,
+        cssLength: updatedSection.css?.length || 0,
+        jsLength: updatedSection.js?.length || 0,
+        phpLength: updatedSection.php?.length || 0,
+      });
+      setSection(updatedSection);
+
+      // Notify parent of section change (so chat context updates)
+      onSectionChange?.(updatedSection);
 
       // Switch to appropriate tab based on group type
       if (fileGroups.activeGroup.type === 'php' && fileGroups.activeGroup.php) {
@@ -767,6 +870,210 @@ export function HtmlSectionEditor({
       window.removeEventListener('select-project' as any, handleSelectProject);
     };
   }, [fileGroups]);
+
+  // Iframe Inspector Mode - react-grab style element selection
+  useEffect(() => {
+    if (!inspectMode || !showPreview || !previewIframeRef.current) {
+      return;
+    }
+
+    const iframe = previewIframeRef.current;
+    let cleanupFn: (() => void) | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const setupInspector = () => {
+      // Clean up previous inspector if exists
+      if (cleanupFn) {
+        cleanupFn();
+        cleanupFn = null;
+      }
+
+      let iframeDoc: Document | null = null;
+
+      // Try to access iframe document (same-origin only)
+      try {
+        iframeDoc = iframe.contentDocument || iframe.contentWindow?.document || null;
+      } catch (e) {
+        console.warn('⚠️ Cannot access iframe (cross-origin)');
+        return false;
+      }
+
+      if (!iframeDoc || !iframeDoc.body) {
+        console.warn('⚠️ No iframe document or body available yet');
+        return false;
+      }
+
+      console.log('✅ Inspector mode activated for iframe!');
+
+      // Create overlay for highlighting (react-grab style)
+      const overlay = iframeDoc.createElement('div');
+      overlay.style.cssText = `
+        position: absolute;
+        border: 2px solid #3b82f6;
+        background-color: rgba(59, 130, 246, 0.1);
+        pointer-events: none;
+        z-index: 999999;
+        display: none;
+        transition: all 0.1s ease;
+      `;
+      iframeDoc.body.appendChild(overlay);
+
+      // Change cursor to crosshair in inspect mode
+      iframeDoc.body.style.cursor = 'crosshair';
+
+      // Track current hovered element
+      let currentTarget: HTMLElement | null = null;
+
+      // Hover handler - highlight element (react-grab style)
+      const handleMouseMove = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!target || target === iframeDoc?.body) {
+          overlay.style.display = 'none';
+          return;
+        }
+
+        currentTarget = target;
+
+        // Position overlay over element
+        const rect = target.getBoundingClientRect();
+        const scrollX = iframeDoc?.defaultView?.scrollX || 0;
+        const scrollY = iframeDoc?.defaultView?.scrollY || 0;
+
+        overlay.style.display = 'block';
+        overlay.style.left = `${rect.left + scrollX}px`;
+        overlay.style.top = `${rect.top + scrollY}px`;
+        overlay.style.width = `${rect.width}px`;
+        overlay.style.height = `${rect.height}px`;
+      };
+
+      // Click handler - grab element and open modal
+      const handleClick = (e: MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const target = e.target as HTMLElement;
+        if (!target) return;
+
+        try {
+          // Extract element data (react-grab style)
+          const html = target.outerHTML;
+          const tagName = target.tagName.toLowerCase();
+          const classList = Array.from(target.classList);
+
+          // Generate selector
+          let selector = tagName;
+          if (target.id) {
+            selector = `#${target.id}`;
+          } else if (classList.length > 0) {
+            selector = `${tagName}.${classList.join('.')}`;
+          }
+
+          // Get all attributes
+          const attributes: Record<string, string> = {};
+          Array.from(target.attributes).forEach(attr => {
+            attributes[attr.name] = attr.value;
+          });
+
+          // Get computed styles (key ones)
+          const computedStyles: Record<string, string> = {};
+          if (iframeDoc?.defaultView) {
+            const styles = iframeDoc.defaultView.getComputedStyle(target);
+            const importantProps = [
+              'display', 'position', 'width', 'height', 'margin', 'padding',
+              'color', 'background-color', 'font-size', 'font-family', 'font-weight',
+              'border', 'border-radius', 'box-shadow', 'text-align', 'flex-direction',
+              'align-items', 'justify-content', 'grid-template-columns', 'gap'
+            ];
+            importantProps.forEach(prop => {
+              const value = styles.getPropertyValue(prop);
+              if (value) {
+                computedStyles[prop] = value;
+              }
+            });
+          }
+
+          // Get surrounding context
+          const parent = target.parentElement;
+          const siblings = parent ? Array.from(parent.children).filter(el => el !== target) : [];
+          const context = `
+Parent: ${parent?.tagName || 'none'}
+Siblings: ${siblings.map(el => el.tagName).join(', ') || 'none'}
+Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?.children.length || 0}
+          `.trim();
+
+          // Store element data and open modal
+          setInspectedElement({
+            html,
+            selector,
+            classList,
+            tagName,
+            attributes,
+            computedStyles,
+            context
+          });
+
+          // Visual feedback - flash green (react-grab style)
+          overlay.style.border = '2px solid #10b981';
+          overlay.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+          setTimeout(() => {
+            overlay.style.border = '2px solid #3b82f6';
+            overlay.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+          }, 300);
+
+          // Turn off inspect mode after selection
+          setInspectMode(false);
+
+          console.log('✅ Element grabbed!', { selector, tagName });
+        } catch (error) {
+          console.error('❌ Error grabbing element:', error);
+        }
+      };
+
+      // Attach listeners to iframe document
+      iframeDoc.addEventListener('mousemove', handleMouseMove);
+      iframeDoc.addEventListener('click', handleClick, true); // Capture phase
+
+      // Store cleanup function
+      cleanupFn = () => {
+        try {
+          // Reset cursor
+          if (iframeDoc?.body) {
+            iframeDoc.body.style.cursor = '';
+          }
+
+          // Remove overlay
+          if (overlay && overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
+          }
+
+          iframeDoc?.removeEventListener('mousemove', handleMouseMove);
+          iframeDoc?.removeEventListener('click', handleClick, true);
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      };
+
+      return true;
+    };
+
+    // Try to setup immediately (may not work if iframe hasn't loaded yet)
+    if (!setupInspector()) {
+      // If immediate setup failed, try again after a short delay
+      timeoutId = setTimeout(() => {
+        setupInspector();
+      }, 100);
+    }
+
+    // Cleanup
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (cleanupFn) {
+        cleanupFn();
+      }
+    };
+  }, [inspectMode, showPreview, onEditElementInChat]);
 
   // Generate preview HTML with all styles and scripts (uses global state for latest content)
   const generatePreviewHTML = (): string => {
@@ -829,7 +1136,10 @@ export function HtmlSectionEditor({
         options={[
           {
             label: "🚀 Generate New Project",
-            onClick: () => setShowGenerateModal(true),
+            onClick: () => {
+              setGenerateModalConversionMode(false);
+              setShowGenerateModal(true);
+            },
             divider: true,
           },
           {
@@ -837,14 +1147,12 @@ export function HtmlSectionEditor({
             onClick: () => setShowSaveDialog(true),
           },
           {
-            label: isConverting ? "🤖 Generating with AI..." : "🤖 Generate Widget (AI)",
-            onClick: handleQuickWidget,
-            disabled: isConverting || !editorHtml.trim(),
-          },
-          {
-            label: "⚡ Batch Convert Widgets",
-            onClick: () => setShowBatchConverter(true),
-            disabled: isConverting,
+            label: "⚡ Convert to Elementor Widget",
+            onClick: () => {
+              setGenerateModalConversionMode(true);
+              setShowGenerateModal(true);
+            },
+            disabled: !editorHtml.trim(),
             divider: true,
           },
           ...(section.php ? [{
@@ -892,18 +1200,6 @@ export function HtmlSectionEditor({
             label: "🔄 Convert Back to HTML",
             onClick: handleConvertBackToHtml,
             divider: true,
-          }] : []),
-          ...(section.php ? [{
-            label: "📥 Download widget.php",
-            onClick: handleDownloadWidgetPhp,
-          }] : []),
-          ...(editorCss.trim() ? [{
-            label: "📥 Download widget.css",
-            onClick: handleDownloadWidgetCss,
-          }] : []),
-          ...(editorJs.trim() ? [{
-            label: "📥 Download widget.js",
-            onClick: handleDownloadWidgetJs,
           }] : []),
           {
             label: "File Tree",
@@ -1820,12 +2116,95 @@ export function HtmlSectionEditor({
 
               {/* Editor Area */}
               <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                {/* Accept/Decline Diff Buttons */}
+                {showDiffPreview && diffData && (
+                  <div style={{
+                    padding: '12px 16px',
+                    background: '#2d2d2d',
+                    borderBottom: '1px solid #3e3e42',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}>
+                    <span style={{ fontSize: '13px', color: '#cccccc' }}>
+                      Review changes for {diffData.file.toUpperCase()}
+                    </span>
+                    {diffData.stats && (
+                      <span style={{ fontSize: '12px', color: '#858585' }}>
+                        ({diffData.stats.durationMs}ms)
+                      </span>
+                    )}
+                    <div style={{ flex: 1 }} />
+                    <button
+                      onClick={handleDeclineDiff}
+                      style={{
+                        padding: '6px 16px',
+                        background: 'transparent',
+                        border: '1px solid #3e3e42',
+                        borderRadius: '4px',
+                        color: '#cccccc',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        fontWeight: 500,
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#2a2d2e'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      Decline
+                    </button>
+                    <button
+                      onClick={handleAcceptDiff}
+                      style={{
+                        padding: '6px 16px',
+                        background: '#16a34a',
+                        border: 'none',
+                        borderRadius: '4px',
+                        color: '#ffffff',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        fontWeight: 500,
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#15803d'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#16a34a'; }}
+                    >
+                      Accept Changes
+                    </button>
+                  </div>
+                )}
+
                 {/* Debug: Log editor value */}
                 {console.log(
                   `📝 Editor rendering - ${activeCodeTab}:`,
                   section[activeCodeTab]?.substring(0, 100) || "(empty)",
                 )}
-                <Editor
+
+                {/* Show DiffEditor when previewing, otherwise show regular Editor */}
+                {showDiffPreview && diffData && diffData.file === activeCodeTab ? (
+                  <DiffEditor
+                    height="100%"
+                    language={
+                      activeCodeTab === "js"
+                        ? "javascript"
+                        : activeCodeTab === "php"
+                        ? "php"
+                        : activeCodeTab
+                    }
+                    theme={theme === "dark" ? "vs-dark" : "light"}
+                    original={diffData.originalCode}
+                    modified={diffData.mergedCode}
+                    options={{
+                      fontSize: isMobile ? 16 : 14,
+                      minimap: { enabled: false },
+                      lineNumbers: isMobile ? "off" : "on",
+                      scrollBeyondLastLine: false,
+                      wordWrap: "on",
+                      automaticLayout: true,
+                      renderSideBySide: !isMobile, // Inline diff on mobile
+                      readOnly: true,
+                    }}
+                  />
+                ) : (
+                  <Editor
                 height="100%"
                 language={
                   activeCodeTab === "js"
@@ -1920,6 +2299,43 @@ export function HtmlSectionEditor({
                   overviewRulerLanes: isMobile ? 0 : 3, // Hide overview ruler on mobile
                 }}
               />
+                )}
+
+              {/* Generating Indicator - Bottom Right Corner */}
+              {isGenerating && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '16px',
+                  right: '16px',
+                  padding: '8px 16px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  zIndex: 1000,
+                  pointerEvents: 'none',
+                }}>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: 'white',
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                  }} />
+                  Generating {generatingPhase?.toUpperCase()}... ({generatingTokens.toLocaleString()} tokens)
+                  <style>{`
+                    @keyframes pulse {
+                      0%, 100% { opacity: 1; transform: scale(1); }
+                      50% { opacity: 0.5; transform: scale(0.8); }
+                    }
+                  `}</style>
+                </div>
+              )}
               </div>
             </div>
           </div>
@@ -1949,21 +2365,44 @@ export function HtmlSectionEditor({
               }}
             >
               <span>Live Preview</span>
-              <button
-                onClick={() => setShowPreview(false)}
-                style={{
-                  padding: "4px 8px",
-                  background: "#000000",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "4px",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                  fontWeight: 500,
-                }}
-              >
-                ✕ Close
-              </button>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {onEditElementInChat && (
+                  <button
+                    onClick={() => {
+                      const newMode = !inspectMode;
+                      console.log('🔘 Inspect button clicked! New mode:', newMode);
+                      setInspectMode(newMode);
+                    }}
+                    style={{
+                      padding: "4px 12px",
+                      background: inspectMode ? "#3b82f6" : "#6b7280",
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: "4px",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {inspectMode ? "🔍 Inspecting..." : "🔍 Inspect"}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowPreview(false)}
+                  style={{
+                    padding: "4px 8px",
+                    background: "#000000",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    fontWeight: 500,
+                  }}
+                >
+                  ✕ Close
+                </button>
+              </div>
             </div>
 
             <iframe
@@ -1974,17 +2413,13 @@ export function HtmlSectionEditor({
                 border: "none",
                 width: "100%",
               }}
-              sandbox="allow-scripts"
+              sandbox="allow-scripts allow-same-origin"
               title="Section Preview"
+              onLoad={() => {
+                console.log('🔍 Preview iframe loaded, ready for inspection');
+              }}
             />
 
-            {/* Element Inspector - Only show when callback is provided */}
-            {onEditElementInChat && (
-              <ElementInspector
-                previewRef={previewIframeRef}
-                onEditElement={onEditElementInChat}
-              />
-            )}
           </div>
         )}
 
@@ -2234,15 +2669,19 @@ export function HtmlSectionEditor({
           >
             <h2
               style={{
-                margin: "0 0 16px 0",
-                fontSize: "18px",
+                margin: "0 0 8px 0",
+                fontSize: "20px",
                 fontWeight: 600,
               }}
             >
-              Save Section
+              💾 Save to Library
             </h2>
 
-            <div style={{ marginBottom: "16px" }}>
+            <p style={{ margin: "0 0 20px 0", fontSize: "14px", color: "var(--muted-foreground)" }}>
+              Save this project to your library for easy access later
+            </p>
+
+            <div style={{ marginBottom: "20px" }}>
               <label
                 style={{
                   display: "block",
@@ -2251,7 +2690,7 @@ export function HtmlSectionEditor({
                   fontWeight: 500,
                 }}
               >
-                Section Name
+                Project Name
               </label>
               <input
                 type="text"
@@ -2260,243 +2699,76 @@ export function HtmlSectionEditor({
                 placeholder="e.g., Pricing Table, Hero Section"
                 style={{
                   width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
+                  padding: "10px 14px",
+                  border: "1px solid var(--border)",
+                  borderRadius: "6px",
                   fontSize: "14px",
+                  background: "var(--background)",
+                  color: "var(--foreground)",
                 }}
               />
             </div>
 
             <div
               style={{
-                marginBottom: "20px",
-                padding: "12px",
-                background: "var(--muted)",
-                borderRadius: "6px",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "13px",
-                  color: "var(--muted-foreground)",
-                  margin: "0 0 8px 0",
-                  fontWeight: 500,
-                }}
-              >
-                {isMobile
-                  ? "Save to local library:"
-                  : "Choose where to save this section:"}
-              </p>
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
-              >
-                {/* Desktop-only save options */}
-                {!isMobile && (
-                  <>
-                    <button
-                      onClick={async () => {
-                        try {
-                          if (!section.name.trim()) {
-                            alert("Please enter a section name");
-                            return;
-                          }
-
-                          // Check if playground is running
-                          if (!(window as any).playgroundClient) {
-                            alert(
-                              "WordPress Playground is not running. Please launch it first from the WordPress Playground tab.",
-                            );
-                            return;
-                          }
-
-                          const saveToLibrary = (window as any)
-                            .saveHtmlSectionToLibrary;
-                          if (!saveToLibrary) {
-                            alert(
-                              "WordPress Playground functions not loaded yet. Please wait a moment and try again.",
-                            );
-                            return;
-                          }
-
-                          const result = await saveToLibrary({
-                            name: section.name,
-                            html: section.html,
-                            css: section.css,
-                            js: section.js,
-                            globalCss: globalCss,
-                          });
-
-                          if (result.success) {
-                            const debug = result.debug || {};
-                            const debugInfo = `\n\nDebug Info:\n- HTML: ${debug.html_length || 0} chars\n- CSS: ${debug.css_length || 0} chars\n- JS: ${debug.js_length || 0} chars\n- Combined: ${debug.combined_length || 0} chars\n- Has <style>: ${debug.has_style_tag ? "Yes" : "No"}\n- Has <script>: ${debug.has_script_tag ? "Yes" : "No"}`;
-                            alert(
-                              `✅ Section "${section.name}" saved to Elementor template library!\n\nTemplate ID: ${result.templateId}\n\nYou can now access it in WordPress > Templates > Saved Templates.${debugInfo}`,
-                            );
-                            setShowSaveDialog(false);
-                          }
-                        } catch (error: any) {
-                          alert(
-                            `❌ Failed to save to template library:\n\n${error.message}`,
-                          );
-                        }
-                      }}
-                      style={{
-                        padding: "10px 16px",
-                        background: "#000000",
-                        color: "#ffffff",
-                        border: "none",
-                        borderRadius: "6px",
-                        fontSize: "13px",
-                        cursor: "pointer",
-                        fontWeight: 500,
-                        textAlign: "left",
-                      }}
-                    >
-                      📚 Save to Elementor Template Library
-                    </button>
-
-                    <button
-                      onClick={async () => {
-                        try {
-                          if (!section.name.trim()) {
-                            alert("Please enter a section name");
-                            return;
-                          }
-
-                          // Check if playground is running
-                          if (!(window as any).playgroundClient) {
-                            alert(
-                              "WordPress Playground is not running. Please launch it first from the WordPress Playground tab.",
-                            );
-                            return;
-                          }
-
-                          const importToPage = (window as any)
-                            .importHtmlSectionToPage;
-                          if (!importToPage) {
-                            alert(
-                              "WordPress Playground functions not loaded yet. Please wait a moment and try again.",
-                            );
-                            return;
-                          }
-
-                          const result = await importToPage({
-                            name: section.name,
-                            html: section.html,
-                            css: section.css,
-                            js: section.js,
-                            globalCss: globalCss,
-                          });
-
-                          if (result.success) {
-                            alert(
-                              `✅ Section "${section.name}" imported to preview page!\n\nPage ID: ${result.pageId}\n\nThe page is now open in WordPress Playground.`,
-                            );
-                            setShowSaveDialog(false);
-                          }
-                        } catch (error: any) {
-                          alert(
-                            `❌ Failed to import to page:\n\n${error.message}`,
-                          );
-                        }
-                      }}
-                      style={{
-                        padding: "10px 16px",
-                        background: "#10b981",
-                        color: "#ffffff",
-                        border: "none",
-                        borderRadius: "6px",
-                        fontSize: "13px",
-                        cursor: "pointer",
-                        fontWeight: 500,
-                        textAlign: "left",
-                      }}
-                    >
-                      🌐 Import to WordPress Page Preview
-                    </button>
-                  </>
-                )}
-
-                {/* Local library save - always available */}
-                <button
-                  onClick={() => {
-                    try {
-                      if (!section.name.trim()) {
-                        alert("Please enter a section name");
-                        return;
-                      }
-
-                      // Load existing sections from localStorage
-                      const saved = localStorage.getItem("html-sections");
-                      const sections = saved ? JSON.parse(saved) : [];
-
-                      // Add current section
-                      sections.push({
-                        ...section,
-                        id: `section-${Date.now()}`,
-                        createdAt: Date.now(),
-                        updatedAt: Date.now(),
-                      });
-
-                      // Save to localStorage
-                      localStorage.setItem(
-                        "html-sections",
-                        JSON.stringify(sections),
-                      );
-
-                      // Dispatch storage event for other components
-                      window.dispatchEvent(new Event("storage"));
-
-                      alert(
-                        `✅ Section "${section.name}" saved to local library!\n\nYou can access it in the Section Library tab.`,
-                      );
-                      setShowSaveDialog(false);
-                    } catch (error: any) {
-                      alert(
-                        `❌ Failed to save to local library:\n\n${error.message}`,
-                      );
-                    }
-                  }}
-                  style={{
-                    padding: isMobile ? "14px 16px" : "10px 16px",
-                    background: "#10b981",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: isMobile ? "14px" : "13px",
-                    cursor: "pointer",
-                    fontWeight: 500,
-                    textAlign: "left",
-                    minHeight: isMobile ? "48px" : "auto",
-                  }}
-                >
-                  💾 Save to Local Section Library
-                </button>
-              </div>
-            </div>
-
-            <div
-              style={{
                 display: "flex",
                 gap: "12px",
-                justifyContent: "flex-end",
+                justifyContent: "space-between",
               }}
             >
               <button
                 onClick={() => setShowSaveDialog(false)}
                 style={{
-                  padding: "8px 16px",
-                  background: "var(--muted)",
-                  color: "var(--foreground)",
-                  border: "none",
-                  borderRadius: "4px",
+                  padding: "10px 20px",
+                  background: "transparent",
+                  color: "var(--muted-foreground)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "6px",
                   fontSize: "14px",
                   cursor: "pointer",
                   fontWeight: 500,
                 }}
               >
                 Cancel
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    if (!section.name.trim()) {
+                      alert("Please enter a project name");
+                      return;
+                    }
+
+                    // Save to file groups library (project library)
+                    const projectType = section.php ? 'php' : 'html';
+                    const newGroup = fileGroups.createNewGroup(section.name, projectType);
+
+                    // Update the group with current content
+                    fileGroups.updateGroupFile(newGroup.id, 'html', editorHtml);
+                    fileGroups.updateGroupFile(newGroup.id, 'css', editorCss);
+                    fileGroups.updateGroupFile(newGroup.id, 'js', editorJs);
+                    if (section.php) {
+                      fileGroups.updateGroupFile(newGroup.id, 'php', section.php);
+                    }
+
+                    alert(`✅ Project "${section.name}" saved to library!`);
+                    setShowSaveDialog(false);
+                  } catch (error: any) {
+                    alert(`❌ Failed to save project:\n\n${error.message}`);
+                  }
+                }}
+                style={{
+                  padding: "10px 24px",
+                  background: "#000000",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                💾 Save to Library
               </button>
             </div>
           </div>
@@ -2625,34 +2897,108 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
       {/* Generate Project Modal */}
       <GenerateProjectModal
         isOpen={showGenerateModal}
-        onClose={() => setShowGenerateModal(false)}
+        onClose={() => {
+          setShowGenerateModal(false);
+          setGenerateModalConversionMode(false);
+        }}
         defaultModel={undefined}
+        existingCode={generateModalConversionMode ? {
+          html: editorHtml,
+          css: editorCss,
+          js: editorJs,
+        } : undefined}
         onProjectCreate={(name, type) => {
           // Create new project and return its ID
           const newGroup = fileGroups.createNewGroup(name, type, 'empty');
           fileGroups.selectGroup(newGroup.id);
           console.log('📦 Project created:', name, 'Type:', type, 'ID:', newGroup.id);
+
+          // Start generating state
+          setIsGenerating(true);
+          setGeneratingPhase(type === 'php' ? 'php' : 'html');
+
+          // Auto-switch to the first tab
+          if (type === 'php') {
+            onCodeTabChange?.('php');
+          } else {
+            onCodeTabChange?.('html');
+          }
+
           return newGroup.id;
         }}
         onProjectUpdate={(projectId, file, content) => {
           // Update project file with streaming content
           fileGroups.updateGroupFile(projectId, file, content);
+
+          // Update current generating phase and auto-switch tabs
+          if (content && content.trim().length > 0) {
+            const tokens = Math.ceil(content.length / 4); // Estimate: 1 token ≈ 4 characters
+            console.log(`📝 Streaming ${file} (${content.length} chars, ~${tokens.toLocaleString()} tokens)`);
+
+            // Switch to the active file tab
+            if (file === 'html' || file === 'css' || file === 'js' || file === 'php') {
+              setGeneratingPhase(file);
+              setGeneratingTokens(tokens);
+              onCodeTabChange?.(file);
+            }
+
+            // Update editor content immediately for visibility
+            updateContent(file, content);
+          }
         }}
         onGenerate={(code) => {
           // Project is already created and populated via onProjectCreate/onProjectUpdate
-          // This callback is just for final actions like switching tabs
+          // This callback is just for final actions
 
           const isElementorWidget = code.php && code.php.length > 0;
+
+          console.log('✅ Generation complete!', { isElementorWidget });
+
+          // End generating state
+          setIsGenerating(false);
+          setGeneratingPhase(null);
 
           if (isElementorWidget) {
             // Switch to PHP tab to show generated widget
             onCodeTabChange?.('php');
-            console.log('✅ Elementor widget generation complete!');
           } else {
             // Switch to HTML tab to show generated code
             onCodeTabChange?.('html');
-            console.log('✅ HTML section generation complete!');
           }
+        }}
+      />
+
+      {/* Element Inspector Modal */}
+      <ElementInspectorModal
+        elementData={inspectedElement}
+        onClose={() => setInspectedElement(null)}
+        onSubmit={(prompt, elementData) => {
+          // Format element data as a message to send to chat
+          const message = `${prompt}
+
+Element Details:
+- Selector: ${elementData.selector}
+- Tag: ${elementData.tagName}
+- Classes: ${elementData.classList.join(', ') || 'none'}
+
+HTML:
+\`\`\`html
+${elementData.html}
+\`\`\`
+
+${Object.keys(elementData.attributes).length > 0 ? `Attributes:
+${Object.entries(elementData.attributes).map(([k, v]) => `- ${k}="${v}"`).join('\n')}
+` : ''}
+${Object.keys(elementData.computedStyles).length > 0 ? `Computed Styles:
+\`\`\`css
+${Object.entries(elementData.computedStyles).map(([k, v]) => `${k}: ${v};`).join('\n')}
+\`\`\`
+` : ''}
+Context:
+${elementData.context}`;
+
+          // Send to chat
+          onSendChatMessage?.(message);
         }}
       />
     </div>

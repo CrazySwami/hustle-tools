@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FileGroup } from '@/lib/file-group-manager';
 
 interface ProjectSidebarProps {
@@ -40,6 +40,7 @@ export function ProjectSidebar({
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
+  const [openMenuGroupId, setOpenMenuGroupId] = useState<string | null>(null);
 
   // Handle right-click on group
   const handleContextMenu = (e: React.MouseEvent, groupId: string) => {
@@ -97,6 +98,20 @@ export function ProjectSidebar({
       document.addEventListener('click', handleClickOutside, { once: true });
     }, 0);
   }
+
+  // Close dropdown menu when clicking outside
+  useEffect(() => {
+    if (openMenuGroupId) {
+      const handleClickOutside = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-menu-container]')) {
+          setOpenMenuGroupId(null);
+        }
+      };
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [openMenuGroupId]);
 
   // Detect mobile
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -221,7 +236,12 @@ export function ProjectSidebar({
               onClick={() => onSelectGroup(group.id)}
               onContextMenu={(e) => handleContextMenu(e, group.id)}
               onMouseEnter={() => setHoveredGroupId(group.id)}
-              onMouseLeave={() => setHoveredGroupId(null)}
+              onMouseLeave={() => {
+                // Don't hide hover state if menu is open
+                if (openMenuGroupId !== group.id) {
+                  setHoveredGroupId(null);
+                }
+              }}
               style={{
                 padding: '10px 12px',
                 background: activeGroupId === group.id ? '#2d2d2d' : (hoveredGroupId === group.id ? '#2a2d2e' : 'transparent'),
@@ -282,38 +302,133 @@ export function ProjectSidebar({
                 </span>
               )}
 
-              {/* Delete Button (shows on hover) */}
+              {/* Three-dot Menu (shows on hover) */}
               {hoveredGroupId === group.id && renamingGroupId !== group.id && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(group);
-                  }}
-                  title="Delete project"
-                  style={{
-                    padding: '4px 6px',
-                    background: 'transparent',
-                    border: '1px solid #3e3e3e',
-                    borderRadius: '4px',
-                    color: '#f48771',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#f48771';
-                    e.currentTarget.style.color = '#1e1e1e';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = '#f48771';
-                  }}
-                >
-                  🗑️
-                </button>
+                <div style={{ position: 'relative' }} data-menu-container>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMenuGroupId(openMenuGroupId === group.id ? null : group.id);
+                    }}
+                    title="More options"
+                    style={{
+                      padding: '4px 6px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: '4px',
+                      color: '#cccccc',
+                      fontSize: '14px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.15s',
+                      width: '24px',
+                      height: '24px',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#3e3e3e';
+                      e.currentTarget.style.color = '#ffffff';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (openMenuGroupId !== group.id) {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = '#cccccc';
+                      }
+                    }}
+                  >
+                    ⋯
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {openMenuGroupId === group.id && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: '0',
+                        top: '28px',
+                        background: '#2d2d2d',
+                        border: '1px solid #3e3e3e',
+                        borderRadius: '6px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                        zIndex: 1000,
+                        minWidth: '140px',
+                        overflow: 'hidden',
+                      }}
+                      onMouseEnter={() => {
+                        // Keep menu open when hovering over it
+                        setOpenMenuGroupId(group.id);
+                        setHoveredGroupId(group.id); // Keep parent hovered
+                      }}
+                      onMouseLeave={() => {
+                        // Close menu when mouse leaves
+                        setOpenMenuGroupId(null);
+                        setHoveredGroupId(null);
+                      }}
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startRename(group);
+                          setOpenMenuGroupId(null);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#cccccc',
+                          textAlign: 'left',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#2a2d2e';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <span>✏️</span>
+                        <span>Rename</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(group);
+                          setOpenMenuGroupId(null);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#f48771',
+                          textAlign: 'left',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#2a2d2e';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <span>🗑️</span>
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           ))

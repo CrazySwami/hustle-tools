@@ -21,11 +21,19 @@ interface GenerateProjectModalProps {
   onProjectCreate?: (projectName: string, projectType: 'html' | 'php') => string; // Returns new project ID
   onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php', content: string) => void;
   defaultModel?: string;
+  // Optional existing code for conversion mode
+  existingCode?: {
+    html?: string;
+    css?: string;
+    js?: string;
+  };
 }
 
-export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCreate, onProjectUpdate, defaultModel }: GenerateProjectModalProps) {
-  const [step, setStep] = useState<'type' | 'description' | 'generating'>('type');
-  const [projectType, setProjectType] = useState<'html' | 'elementor'>('html');
+export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCreate, onProjectUpdate, defaultModel, existingCode }: GenerateProjectModalProps) {
+  // If existingCode is provided, we're in conversion mode - skip type selection and go straight to elementor
+  const isConversionMode = !!existingCode;
+  const [step, setStep] = useState<'type' | 'description' | 'generating'>(isConversionMode ? 'description' : 'type');
+  const [projectType, setProjectType] = useState<'html' | 'elementor'>(isConversionMode ? 'elementor' : 'html');
   const [description, setDescription] = useState('');
   const [projectName, setProjectName] = useState('');
   const [selectedModel, setSelectedModel] = useState(defaultModel || 'anthropic/claude-sonnet-4-5-20250929');
@@ -42,20 +50,24 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
   const handleNext = () => {
     if (step === 'type') {
       setStep('description');
-    } else if (step === 'description' && description.trim()) {
-      startGeneration();
+    } else if (step === 'description') {
+      // In conversion mode, description is optional
+      // In new project mode, description is required
+      if (isConversionMode || description.trim()) {
+        startGeneration();
+      }
     }
   };
 
   const handleBack = () => {
-    if (step === 'description') {
+    if (step === 'description' && !isConversionMode) {
       setStep('type');
     }
   };
 
   const resetModal = () => {
-    setStep('type');
-    setProjectType('html');
+    setStep(isConversionMode ? 'description' : 'type');
+    setProjectType(isConversionMode ? 'elementor' : 'html');
     setDescription('');
     setProjectName('');
     setSelectedModel(defaultModel || 'anthropic/claude-sonnet-4-5-20250929');
@@ -110,6 +122,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
           projectType,
           projectName: generatedName,
           model: selectedModel,
+          existingCode: existingCode, // Pass existing code if provided
         }),
       });
 
@@ -143,6 +156,11 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
           setProgress('Generating HTML...');
         }
 
+        // Close modal after a short delay so user can see the streaming in the editor
+        setTimeout(() => {
+          onClose();
+        }, 500);
+
         while (true) {
           const { done, value} = await reader.read();
           if (done) break;
@@ -153,17 +171,19 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
           // Stream updates to project files in real-time
           if (projectId && onProjectUpdate) {
             if (projectType === 'elementor') {
-              const phpMatch = fullCode.match(/```php\n([\s\S]*?)```/);
-              const cssMatch = fullCode.match(/```css\n([\s\S]*?)```/);
-              const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)```/);
+              // Use lenient regex that works during streaming (doesn't require closing ```)
+              const phpMatch = fullCode.match(/```php\n([\s\S]*?)(?:```|$)/);
+              const cssMatch = fullCode.match(/```css\n([\s\S]*?)(?:```|$)/);
+              const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)(?:```|$)/);
 
               if (phpMatch) onProjectUpdate(projectId, 'php', phpMatch[1].trim());
               if (cssMatch) onProjectUpdate(projectId, 'css', cssMatch[1].trim());
               if (jsMatch) onProjectUpdate(projectId, 'js', jsMatch[1].trim());
             } else {
-              const htmlMatch = fullCode.match(/```html\n([\s\S]*?)```/);
-              const cssMatch = fullCode.match(/```css\n([\s\S]*?)```/);
-              const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)```/);
+              // Use lenient regex that works during streaming (doesn't require closing ```)
+              const htmlMatch = fullCode.match(/```html\n([\s\S]*?)(?:```|$)/);
+              const cssMatch = fullCode.match(/```css\n([\s\S]*?)(?:```|$)/);
+              const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)(?:```|$)/);
 
               if (htmlMatch) onProjectUpdate(projectId, 'html', htmlMatch[1].trim());
               if (cssMatch) onProjectUpdate(projectId, 'css', cssMatch[1].trim());
@@ -285,12 +305,12 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
           }}
         >
           <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>
-            🚀 Generate New Project
+            {isConversionMode ? '⚡ Convert to Elementor Widget' : '🚀 Generate New Project'}
           </h2>
           <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: 'var(--muted-foreground)' }}>
             {step === 'type' && 'Choose your project type'}
-            {step === 'description' && 'Describe what you want to create'}
-            {step === 'generating' && 'Generating your project...'}
+            {step === 'description' && (isConversionMode ? 'Converting your existing HTML/CSS/JS to an Elementor widget' : 'Describe what you want to create')}
+            {step === 'generating' && (isConversionMode ? 'Converting to widget...' : 'Generating your project...')}
           </p>
         </div>
 
@@ -362,14 +382,28 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
           {/* Step 2: Description Input */}
           {step === 'description' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {isConversionMode && (
+                <div style={{
+                  padding: '12px',
+                  background: 'var(--muted)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  lineHeight: '1.5',
+                }}>
+                  <strong>📋 Existing code detected:</strong> Your HTML ({existingCode?.html?.length || 0} chars), CSS ({existingCode?.css?.length || 0} chars), and JS ({existingCode?.js?.length || 0} chars) will be converted to an Elementor widget. You can add optional instructions below to customize the conversion.
+                </div>
+              )}
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
-                  Project Description *
+                  {isConversionMode ? 'Conversion Instructions (Optional)' : 'Project Description *'}
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="E.g., A modern hero section with gradient background, call-to-action button, and image"
+                  placeholder={isConversionMode
+                    ? "E.g., Make all text editable, add color controls, include hover effects"
+                    : "E.g., A modern hero section with gradient background, call-to-action button, and image"}
                   style={{
                     width: '100%',
                     minHeight: '120px',
@@ -543,7 +577,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
             }}
           >
             <button
-              onClick={step === 'description' ? handleBack : handleClose}
+              onClick={(step === 'description' && !isConversionMode) ? handleBack : handleClose}
               style={{
                 padding: '10px 20px',
                 background: 'var(--muted)',
@@ -555,15 +589,15 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
                 cursor: 'pointer',
               }}
             >
-              {step === 'description' ? '← Back' : 'Cancel'}
+              {(step === 'description' && !isConversionMode) ? '← Back' : 'Cancel'}
             </button>
             <button
               onClick={handleNext}
-              disabled={step === 'description' && !description.trim()}
+              disabled={step === 'description' && !isConversionMode && !description.trim()}
               style={{
                 padding: '10px 20px',
-                background: step === 'description' && !description.trim() ? 'var(--muted)' : 'var(--primary)',
-                color: step === 'description' && !description.trim() ? 'var(--muted-foreground)' : 'var(--primary-foreground)',
+                background: (step === 'description' && !isConversionMode && !description.trim()) ? 'var(--muted)' : 'var(--primary)',
+                color: (step === 'description' && !isConversionMode && !description.trim()) ? 'var(--muted-foreground)' : 'var(--primary-foreground)',
                 border: 'none',
                 borderRadius: '6px',
                 fontSize: '14px',

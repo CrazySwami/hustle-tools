@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { useDocumentContent } from '@/hooks/useDocumentContent';
 import TiptapEditor from '@/components/editor/TiptapEditor';
@@ -9,7 +9,8 @@ import { DocumentChat } from '@/components/editor/DocumentChat';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
-import { useDocuments } from '@/hooks/useProjectHierarchy';
+import { useDocuments, useProjects } from '@/hooks/useProjectHierarchy';
+import TurndownService from 'turndown';
 
 
 const ChatBotDemo = () => {
@@ -17,7 +18,6 @@ const ChatBotDemo = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const [isEditorVisible, setIsEditorVisible] = useState(true); // Open by default on desktop
-  const [documentContent, setDocumentContent] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | undefined>(undefined);
@@ -27,11 +27,13 @@ const ChatBotDemo = () => {
   const [chatPanelWidth, setChatPanelWidth] = useState(40); // 40% for chat
   const [isResizing, setIsResizing] = useState(false);
 
-  // Document content management - synced with TiptapEditor
+  // Document content management - SINGLE source of truth
   const documentContentStore = useDocumentContent();
+  const documentContent = documentContentStore.content; // Read directly from store
 
-  // Get documents hook to load selected document
-  const { documents, updateDocument } = useDocuments();
+  // Get documents and projects hooks
+  const { documents, updateDocument, createDocument } = useDocuments();
+  const { projects, createProject } = useProjects();
 
   const { messages, sendMessage, isLoading, reload, status } = useChat({
     api: '/api/chat-doc', // 🎯 Specialized endpoint for document editing
@@ -52,48 +54,70 @@ const ChatBotDemo = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Load selected document into editor
+  // Ensure there's always a document and auto-select one on mount
   useEffect(() => {
-    if (selectedDocumentId) {
-      const doc = documents.find(d => d.id === selectedDocumentId);
-      if (doc) {
-        setDocumentContent(doc.content);
-      }
+    // If no documents exist, create a default project and document
+    if (documents.length === 0) {
+      console.log('📝 [INIT] No documents found, creating default project and document');
+      const defaultProject = createProject('My Documents');
+      const defaultDoc = createDocument('Untitled', defaultProject.id);
+      setSelectedDocumentId(defaultDoc.id);
+      return;
     }
-  }, [selectedDocumentId, documents]);
 
-  // Sync document content from TiptapEditor to global store AND save to selected document
+    // If documents exist but none selected, auto-select the most recently updated
+    if (!selectedDocumentId && documents.length > 0) {
+      console.log('📝 [INIT] Auto-selecting most recently updated document');
+      const sortedDocs = [...documents].sort((a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+      setSelectedDocumentId(sortedDocs[0].id);
+    }
+  }, [documents, selectedDocumentId, createProject, createDocument]);
+
+  // Load selected document into editor when switching documents
   useEffect(() => {
-    // Always sync to global store
-    documentContentStore.updateContent(documentContent);
+    if (!selectedDocumentId) return;
 
-    // Auto-save to selected document if one is selected
-    if (selectedDocumentId && documentContent) {
-      const doc = documents.find(d => d.id === selectedDocumentId);
-      if (doc && doc.content !== documentContent) {
-        // Debounce auto-save (only save if content actually changed)
-        const timeoutId = setTimeout(() => {
-          updateDocument(selectedDocumentId, { content: documentContent });
-        }, 1000); // 1 second debounce
+    const doc = documents.find(d => d.id === selectedDocumentId);
+    if (!doc) return;
 
-        return () => clearTimeout(timeoutId);
-      }
-    }
+    console.log('📂 [LOAD] Loading document:', doc.title);
+    // Load the document content into the editor
+    documentContentStore.updateContent(doc.content, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDocumentId]); // Only trigger when selectedDocumentId changes
+
+  // Auto-save to selected document when content changes
+  useEffect(() => {
+    if (!selectedDocumentId || !documentContent) return;
+
+    const doc = documents.find(d => d.id === selectedDocumentId);
+    if (!doc) return;
+
+    // Only save if content actually changed
+    if (doc.content === documentContent) return;
+
+    console.log('💾 [AUTO-SAVE] Debouncing save...');
+    const timeoutId = setTimeout(() => {
+      console.log('💾 [AUTO-SAVE] Saving to document');
+      updateDocument(selectedDocumentId, { content: documentContent });
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
   }, [documentContent, selectedDocumentId, documents, updateDocument]);
 
-  // Sync document content from global store to local state
-  // (useful when Morph widget updates the document)
-  useEffect(() => {
-    const storeContent = documentContentStore.getContent();
-    if (storeContent && storeContent !== documentContent) {
-      setDocumentContent(storeContent);
-    }
-  }, [documentContentStore.content]);
-
   // Handle message sending from DocumentChat
-  const handleSendMessage = (text: string, settings?: { webSearchEnabled: boolean }) => {
-    // Get latest document content from store
-    const latestDocContent = documentContentStore.getContent();
+  const handleSendMessage = (text: string, settings?: { webSearchEnabled: boolean; includeContext?: boolean }) => {
+    // Get latest document content from store (HTML format)
+    const htmlContent = documentContentStore.getContent();
+
+    // Convert HTML to markdown for AI context
+    const turndownService = new TurndownService({
+      headingStyle: 'atx',
+      codeBlockStyle: 'fenced',
+    });
+    const latestDocContent = turndownService.turndown(htmlContent);
 
     // If web search is enabled but not using a Perplexity model, switch to Perplexity Sonar
     let modelToUse = selectedModel;
@@ -107,6 +131,9 @@ const ChatBotDemo = () => {
       model: modelToUse,
       documentLength: latestDocContent.length,
       webSearch: settings?.webSearchEnabled,
+      includeContext: settings?.includeContext !== false, // Default to true
+      documentTitle: currentDocument?.title,
+      projectName: currentProject?.name,
     });
 
     sendMessage(
@@ -115,8 +142,11 @@ const ChatBotDemo = () => {
         body: {
           model: modelToUse,
           webSearch: settings?.webSearchEnabled || false,
+          includeContext: settings?.includeContext !== false, // Default to true
           documentContent: latestDocContent, // 📦 Pass document to API
           comments,
+          documentTitle: currentDocument?.title || '',
+          projectName: currentProject?.name || '',
         },
       },
     );
@@ -234,6 +264,20 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
     handleSendMessage(message, { webSearchEnabled: enableWebSearch || false });
   };
 
+  // Get current document info for context badge
+  const currentDocument = selectedDocumentId
+    ? documents.find(d => d.id === selectedDocumentId)
+    : null;
+
+  const currentProject = currentDocument
+    ? projects.find(p => p.id === currentDocument.projectId)
+    : null;
+
+  // Calculate word count for current document
+  const wordCount = documentContent
+    ? documentContent.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(w => w.length > 0).length
+    : 0;
+
   return (
     <div className={`flex h-screen w-full max-w-full overflow-x-hidden ${isMobile ? 'px-2 py-2' : 'px-4 py-4'} gap-0`}>
       {/* Desktop: Two-panel layout (Chat | Editor) with shadcn Sidebar */}
@@ -256,6 +300,17 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
               onToggleEditor={handleToggleEditor}
               webSearchEnabled={webSearchEnabled}
               onWebSearchChange={setWebSearchEnabled}
+              currentDocument={currentDocument}
+              currentProject={currentProject}
+              wordCount={wordCount}
+              systemPrompt={`You are a helpful writing assistant. You help users write and edit documents.
+
+**Current document:** ${currentDocument?.title || 'Untitled'}
+${currentProject ? `**Project:** ${currentProject.name}` : ''}
+**Word count:** ${wordCount.toLocaleString()} words
+
+Use the tools available to edit the document, analyze text, and help with writing tasks.`}
+              documentContent={documentContent}
             />
           </div>
 
@@ -281,10 +336,13 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
 
           {/* Right Panel: Tiptap Editor with shadcn Sidebar - SidebarProvider only wraps this panel */}
           {isEditorVisible && (
-            <SidebarProvider defaultOpen={false}>
-              <div
-                className="h-full flex overflow-hidden"
-                style={{ width: `${100 - chatPanelWidth}%` }}
+            <div
+              className="h-full overflow-hidden"
+              style={{ width: `${100 - chatPanelWidth}%` }}
+            >
+              <SidebarProvider
+                defaultOpen={true}
+                className="h-full min-h-0"
               >
                 {/* shadcn Sidebar - auto-handles collapsible state */}
                 <AppSidebar
@@ -296,14 +354,17 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                 <div className="flex-1 h-full overflow-hidden p-2">
                   <TiptapEditor
                     initialContent={documentContent}
-                    onContentChange={setDocumentContent}
+                    onContentChange={(html) => {
+                      console.log('📝 [EDITOR] Content changed, updating store (skipEditorUpdate=true)');
+                      documentContentStore.updateContent(html, true); // true = skip editor update
+                    }}
                     onCommentsChange={setComments}
                     onAIEdit={handleAIEdit}
                     selectedModel={selectedModel}
                   />
                 </div>
-              </div>
-            </SidebarProvider>
+              </SidebarProvider>
+            </div>
           )}
         </>
       )}
@@ -328,19 +389,23 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                 transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
               }}
             >
-              <ProjectSidebar
-                onDocumentSelect={(id) => {
-                  setSelectedDocumentId(id);
-                  setIsSidebarVisible(false); // Auto-close on mobile after selecting
-                }}
-                selectedDocumentId={selectedDocumentId}
-                onToggleCollapse={() => setIsSidebarVisible(false)}
-              />
+              <SidebarProvider>
+                <AppSidebar
+                  onDocumentSelect={(id) => {
+                    setSelectedDocumentId(id);
+                    setIsSidebarVisible(false); // Auto-close on mobile after selecting
+                  }}
+                  selectedDocumentId={selectedDocumentId}
+                />
+              </SidebarProvider>
             </div>
 
             <TiptapEditor
               initialContent={documentContent}
-              onContentChange={setDocumentContent}
+              onContentChange={(html) => {
+                console.log('📝 [EDITOR] Content changed, updating store (skipEditorUpdate=true)');
+                documentContentStore.updateContent(html, true); // true = skip editor update
+              }}
               onCommentsChange={setComments}
               onAIEdit={handleAIEdit}
               selectedModel={selectedModel}
@@ -431,6 +496,17 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                   onReload={reload}
                   isEditorVisible={isEditorVisible}
                   onToggleEditor={handleToggleEditor}
+                  currentDocument={currentDocument}
+                  currentProject={currentProject}
+                  wordCount={wordCount}
+                  systemPrompt={`You are a helpful writing assistant. You help users write and edit documents.
+
+**Current document:** ${currentDocument?.title || 'Untitled'}
+${currentProject ? `**Project:** ${currentProject.name}` : ''}
+**Word count:** ${wordCount.toLocaleString()} words
+
+Use the tools available to edit the document, analyze text, and help with writing tasks.`}
+                  documentContent={documentContent}
                 />
               </div>
             )}

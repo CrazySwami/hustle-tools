@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, MessageSquare, Wrench, ArrowLeft, FileText, Search, BookOpen, List, Replace, BookMarked, Copy as CopyIcon, FolderOpen } from 'lucide-react'
+import { X, MessageSquare, Wrench, ArrowLeft, FileText, Search, BookOpen, List, Replace, BookMarked, Copy as CopyIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import CommentsPanel from './CommentsPanel'
 import { Comment } from './CommentExtension'
@@ -16,7 +16,6 @@ import { HeadingsWidget } from '@/components/tool-ui/headings-widget'
 import { FindReplaceWidget } from '@/components/tool-ui/find-replace-widget'
 import { TOCWidget } from '@/components/tool-ui/toc-widget'
 import { DuplicatesWidget } from '@/components/tool-ui/duplicates-widget'
-import { DocumentLibrary } from './DocumentLibrary'
 
 interface TabbedSidePanelProps {
   // Comments props
@@ -30,8 +29,8 @@ interface TabbedSidePanelProps {
   // Panel state
   isOpen: boolean
   onToggle: () => void
-  activeTab?: 'comments' | 'tools' | 'library'
-  onTabChange?: (tab: 'comments' | 'tools' | 'library') => void
+  activeTab?: 'comments' | 'tools'
+  onTabChange?: (tab: 'comments' | 'tools') => void
 
   // Library props
   onDocumentSelect?: (documentId: string, content: string) => void
@@ -52,7 +51,7 @@ export function TabbedSidePanel({
   onTabChange,
   onDocumentSelect,
 }: TabbedSidePanelProps) {
-  const [internalTab, setInternalTab] = useState<'comments' | 'tools' | 'library'>('comments')
+  const [internalTab, setInternalTab] = useState<'comments' | 'tools'>('comments')
   const [activeTool, setActiveTool] = useState<ActiveTool>(null)
 
   // Find string state
@@ -168,18 +167,6 @@ export function TabbedSidePanel({
             >
               <Wrench className="h-4 w-4" />
               <span>Tools</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('library')}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                activeTab === 'library'
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              )}
-            >
-              <FolderOpen className="h-4 w-4" />
-              <span>Library</span>
             </button>
           </div>
           <button
@@ -372,12 +359,6 @@ export function TabbedSidePanel({
               </div>
             )}
           </div>
-        )}
-        {activeTab === 'library' && (
-          <DocumentLibrary
-            onDocumentSelect={onDocumentSelect}
-            onClose={onToggle}
-          />
         )}
       </div>
     </div>

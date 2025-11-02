@@ -17,9 +17,12 @@ import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import HardBreak from '@tiptap/extension-hard-break'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import TiptapHeading from '@tiptap/extension-heading'
+import TiptapParagraph from '@tiptap/extension-paragraph'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import { marked } from 'marked'
 import {
   Bold,
   Italic,
@@ -41,6 +44,7 @@ import {
   Palette,
   Type,
   SeparatorHorizontal,
+  SeparatorVertical,
   CheckSquare,
   TextSelect,
   MessageSquare,
@@ -57,7 +61,10 @@ import {
   ChevronRight,
   ChevronDown,
   Wrench,
-  AlignJustify
+  AlignJustify,
+  Eraser,
+  FileText,
+  Code2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
@@ -69,23 +76,170 @@ import { StreamingExtension, updateStreamingState } from './StreamingExtension'
 import { TabbedSidePanel } from './TabbedSidePanel'
 import { useDocumentContent } from '@/hooks/useDocumentContent'
 import { LineHeight } from './LineHeightExtension'
+import TurndownService from 'turndown'
 import '@/styles/comments.css'
+import { Extension } from '@tiptap/core'
 
-const MenuButton = ({
-  onClick,
-  isActive = false,
-  disabled = false,
-  children,
-  title = ''
-}: {
+// FontSize extension - extends TextStyle to support fontSize attribute
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    fontSize: {
+      setFontSize: (fontSize: string) => ReturnType
+      unsetFontSize: () => ReturnType
+    }
+  }
+}
+
+const FontSize = Extension.create({
+  name: 'fontSize',
+
+  addOptions() {
+    return {
+      types: ['textStyle'],
+    }
+  },
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: element => element.style.fontSize || null,
+            renderHTML: attributes => {
+              if (!attributes.fontSize) {
+                return {}
+              }
+              return {
+                style: `font-size: ${attributes.fontSize}`,
+              }
+            },
+          },
+        },
+      },
+    ]
+  },
+
+  addCommands() {
+    return {
+      setFontSize: (fontSize: string) => ({ chain }) => {
+        return chain()
+          .setMark('textStyle', { fontSize })
+          .run()
+      },
+      unsetFontSize: () => ({ chain }) => {
+        return chain()
+          .setMark('textStyle', { fontSize: null })
+          .removeEmptyTextStyle()
+          .run()
+      },
+    }
+  },
+})
+
+// Custom Heading extension with margin support
+const Heading = TiptapHeading.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      marginTop: {
+        default: null,
+        parseHTML: element => element.style.marginTop || null,
+        renderHTML: attributes => {
+          return {}
+        },
+      },
+      marginBottom: {
+        default: null,
+        parseHTML: element => element.style.marginBottom || null,
+        renderHTML: attributes => {
+          return {}
+        },
+      },
+    }
+  },
+
+  renderHTML({ node, HTMLAttributes }) {
+    const styles = []
+    if (HTMLAttributes.marginTop) {
+      styles.push(`margin-top: ${HTMLAttributes.marginTop}`)
+    }
+    if (HTMLAttributes.marginBottom) {
+      styles.push(`margin-bottom: ${HTMLAttributes.marginBottom}`)
+    }
+
+    const hasStyle = styles.length > 0
+    return [
+      `h${node.attrs.level}`,
+      {
+        ...HTMLAttributes,
+        style: hasStyle ? styles.join('; ') : undefined,
+      },
+      0,
+    ]
+  },
+})
+
+// Custom Paragraph extension with margin support
+const Paragraph = TiptapParagraph.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      marginTop: {
+        default: null,
+        parseHTML: element => element.style.marginTop || null,
+        renderHTML: attributes => {
+          return {}
+        },
+      },
+      marginBottom: {
+        default: null,
+        parseHTML: element => element.style.marginBottom || null,
+        renderHTML: attributes => {
+          return {}
+        },
+      },
+    }
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const styles = []
+    if (HTMLAttributes.marginTop) {
+      styles.push(`margin-top: ${HTMLAttributes.marginTop}`)
+    }
+    if (HTMLAttributes.marginBottom) {
+      styles.push(`margin-bottom: ${HTMLAttributes.marginBottom}`)
+    }
+
+    const hasStyle = styles.length > 0
+    return [
+      'p',
+      {
+        ...HTMLAttributes,
+        style: hasStyle ? styles.join('; ') : undefined,
+      },
+      0,
+    ]
+  },
+})
+
+const MenuButton = React.forwardRef<HTMLButtonElement, {
   onClick: (e?: React.MouseEvent) => void,
   isActive?: boolean,
   disabled?: boolean,
   children: React.ReactNode,
   title?: string
-}) => {
+}>(({
+  onClick,
+  isActive = false,
+  disabled = false,
+  children,
+  title = ''
+}, ref) => {
   return (
     <button
+      ref={ref}
       onClick={onClick}
       disabled={disabled}
       title={title}
@@ -101,7 +255,9 @@ const MenuButton = ({
       {children}
     </button>
   )
-}
+})
+
+MenuButton.displayName = 'MenuButton'
 
 const ColorSelector = ({
   editor
@@ -122,7 +278,7 @@ const ColorSelector = ({
   ]
 
   return (
-    <div className="p-3 bg-background border rounded-md shadow-lg w-64">
+    <div className="p-3 bg-background border rounded-md shadow-lg w-80">
       <div className="mb-2 text-sm font-medium">Text Color</div>
       <div className="flex flex-wrap gap-2 mb-3">
         {colors.map((color) => (
@@ -186,7 +342,7 @@ const HighlightColorSelector = ({
   ]
 
   return (
-    <div className="p-3 bg-background border rounded-md shadow-lg w-64">
+    <div className="p-3 bg-background border rounded-md shadow-lg w-80">
       <div className="mb-2 text-sm font-medium">Highlight Color</div>
       <div className="flex flex-wrap gap-2 mb-3">
         {colors.map((color) => (
@@ -310,11 +466,12 @@ const FontSizeSelector = ({
   const sizes = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px', '64px']
 
   const applyFontSize = (size: string) => {
+    // First ensure textStyle mark exists, then set fontSize
     editor.chain().focus().setMark('textStyle', { fontSize: size }).run()
   }
 
   return (
-    <div className="p-3 bg-background border rounded-md shadow-lg w-56">
+    <div className="p-3 bg-background border rounded-md shadow-lg w-72">
       <div className="mb-2 text-sm font-medium">Font Size</div>
       <div className="grid grid-cols-2 gap-1 mb-3">
         {sizes.map((size) => (
@@ -339,7 +496,7 @@ const FontSizeSelector = ({
           />
           <button
             onClick={() => customSize && applyFontSize(customSize)}
-            className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm hover:opacity-90"
+            className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm hover:opacity-90 whitespace-nowrap"
           >
             Apply
           </button>
@@ -378,6 +535,63 @@ const LineHeightSelector = ({
   )
 }
 
+const SpacingSelector = ({
+  editor
+}: {
+  editor: any
+}) => {
+  const spacingPresets = [
+    { label: 'No space', top: '0', bottom: '0' },
+    { label: 'Compact', top: '0.25em', bottom: '0.25em' },
+    { label: 'Normal', top: '0.5em', bottom: '0.5em' },
+    { label: 'Relaxed', top: '0.75em', bottom: '0.75em' },
+    { label: 'Loose', top: '1em', bottom: '1em' },
+  ]
+
+  const applySpacing = (top: string, bottom: string) => {
+    // Get current selection or cursor position
+    const { from, to } = editor.state.selection
+
+    // Check if we're in a heading
+    let isHeading = false
+    for (let level = 1; level <= 6; level++) {
+      if (editor.isActive('heading', { level })) {
+        editor.commands.updateAttributes('heading', {
+          marginTop: top,
+          marginBottom: bottom
+        })
+        isHeading = true
+        break
+      }
+    }
+
+    // If not in a heading, apply to paragraph
+    if (!isHeading && editor.isActive('paragraph')) {
+      editor.commands.updateAttributes('paragraph', {
+        marginTop: top,
+        marginBottom: bottom
+      })
+    }
+  }
+
+  return (
+    <div className="p-3 bg-background border rounded-md shadow-lg w-56">
+      <div className="mb-2 text-sm font-medium">Paragraph Spacing</div>
+      <div className="space-y-1">
+        {spacingPresets.map((preset) => (
+          <button
+            key={preset.label}
+            onClick={() => applySpacing(preset.top, preset.bottom)}
+            className="w-full px-3 py-2 text-left hover:bg-muted rounded text-sm border"
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface TiptapEditorProps {
   initialContent?: string;
   onContentChange?: (content: string) => void;
@@ -400,10 +614,37 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   const [showHeadingSelector, setShowHeadingSelector] = useState(false)
   const [showFontSizeSelector, setShowFontSizeSelector] = useState(false)
   const [showLineHeightSelector, setShowLineHeightSelector] = useState(false)
+  const [showSpacingSelector, setShowSpacingSelector] = useState(false)
+  const [markdownMode, setMarkdownMode] = useState(true) // true = rich text editor, false = raw markdown textarea
+  const [markdownText, setMarkdownText] = useState('') // Stores raw markdown when in markdown view mode
   const [comments, setComments] = useState<Comment[]>(initialComments ? JSON.parse(initialComments) : [])
   const [dropdownPosition, setDropdownPosition] = useState<{top: number, left: number} | null>(null)
+  const isInternalUpdate = useRef(false) // Flag to prevent circular updates
+  const hasUserInteracted = useRef(false) // Track if user has clicked/edited the document
   const colorButtonRef = useRef<HTMLButtonElement>(null)
+  const highlightButtonRef = useRef<HTMLButtonElement>(null)
+  const fontButtonRef = useRef<HTMLButtonElement>(null)
+  const fontSizeButtonRef = useRef<HTMLButtonElement>(null)
+  const lineHeightButtonRef = useRef<HTMLButtonElement>(null)
+  const headingButtonRef = useRef<HTMLButtonElement>(null)
+  const spacingButtonRef = useRef<HTMLButtonElement>(null)
+  const [highlightDropdownPosition, setHighlightDropdownPosition] = useState<{top: number, left: number} | null>(null)
+  const [fontDropdownPosition, setFontDropdownPosition] = useState<{top: number, left: number} | null>(null)
+  const [fontSizeDropdownPosition, setFontSizeDropdownPosition] = useState<{top: number, left: number} | null>(null)
+  const [lineHeightDropdownPosition, setLineHeightDropdownPosition] = useState<{top: number, left: number} | null>(null)
+  const [spacingDropdownPosition, setSpacingDropdownPosition] = useState<{top: number, left: number} | null>(null)
+  const [headingDropdownPosition, setHeadingDropdownPosition] = useState<{top: number, left: number} | null>(null)
 
+  // Helper function to close all dropdowns
+  const closeAllDropdowns = () => {
+    setShowColorSelector(false)
+    setShowHighlightSelector(false)
+    setShowFontSelector(false)
+    setShowHeadingSelector(false)
+    setShowFontSizeSelector(false)
+    setShowLineHeightSelector(false)
+    setShowSpacingSelector(false)
+  }
 
   // Close all dropdowns when clicking outside
   useEffect(() => {
@@ -413,12 +654,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       const isDropdownClick = target.closest('[data-dropdown]') || target.closest('[data-dropdown-menu]')
 
       if (!isDropdownClick) {
-        setShowColorSelector(false)
-        setShowHighlightSelector(false)
-        setShowFontSelector(false)
-        setShowHeadingSelector(false)
-        setShowFontSizeSelector(false)
-        setShowLineHeightSelector(false)
+        closeAllDropdowns()
       }
     }
 
@@ -446,12 +682,9 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
   // Initialize the editor
   const editor = useEditor({
+    immediatelyRender: false, // Fix SSR hydration mismatch
     extensions: [
       StarterKit.configure({
-        // Enable markdown-style input rules
-        heading: {
-          levels: [1, 2, 3, 4, 5, 6],
-        },
         bulletList: {
           keepMarks: true,
           keepAttributes: false,
@@ -460,7 +693,18 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
           keepMarks: true,
           keepAttributes: false,
         },
+        // Disable these extensions in StarterKit since we're adding them separately below
+        strike: false,
+        horizontalRule: false,
+        hardBreak: false,
+        heading: false,
+        paragraph: false,
       }),
+      // Add custom Heading and Paragraph with margin support
+      Heading.configure({
+        levels: [1, 2, 3, 4, 5, 6],
+      }),
+      Paragraph,
       Link.configure({
         openOnClick: false,
       }),
@@ -472,6 +716,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       TextStyle,
       Color,
       FontFamily,
+      FontSize,
       LineHeight,
       Typography,
       HorizontalRule,
@@ -498,11 +743,20 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     },
     onUpdate: ({ editor }) => {
       const json = editor.getJSON();
-      const text = editor.getText();
-      if (onContentChange) {
-        onContentChange(text);
-      }
+
+      // Don't convert on every keystroke - just store JSON
+      // Conversion happens only when needed (e.g., when sending to AI)
       localStorage.setItem('tiptap-document', JSON.stringify(json));
+
+      // Send a simple update notification without heavy conversion
+      // The actual HTML will be converted to markdown only when sending to AI
+      if (onContentChange && !isInternalUpdate.current) {
+        console.log('⌨️ [EDITOR] onUpdate → onContentChange (isInternalUpdate:', isInternalUpdate.current, ')');
+        const html = editor.getHTML();
+        onContentChange(html);
+      } else if (isInternalUpdate.current) {
+        console.log('⏭️ [EDITOR] onUpdate SKIPPED (isInternalUpdate=true)');
+      }
     },
     onSelectionUpdate: ({ editor }) => {
       const { from, to } = editor.state.selection;
@@ -526,20 +780,75 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     }
   }, [editor, registerEditor])
 
-  // Update editor content when initialContent prop changes
+  // Handle click-to-clear welcome message on first interaction
   useEffect(() => {
-    if (editor && initialContent && initialContent !== editor.getText()) {
+    if (!editor) return
+
+    const handleFirstInteraction = () => {
+      // Only clear once, on first interaction
+      if (hasUserInteracted.current) return
+
+      const currentHTML = editor.getHTML()
+      const welcomeMessage = '<h1>Welcome to your new document</h1><p>Start typing here...</p>'
+
+      // Check if current content matches the welcome message
+      if (currentHTML === welcomeMessage) {
+        hasUserInteracted.current = true
+        isInternalUpdate.current = true
+
+        // Clear the content and focus
+        editor.commands.setContent('')
+        editor.commands.focus()
+
+        setTimeout(() => {
+          isInternalUpdate.current = false
+        }, 10)
+      } else {
+        // If content is different, mark as interacted
+        hasUserInteracted.current = true
+      }
+    }
+
+    // Listen for focus event
+    editor.on('focus', handleFirstInteraction)
+
+    return () => {
+      editor.off('focus', handleFirstInteraction)
+    }
+  }, [editor])
+
+  // Update editor content when initialContent prop changes (ONLY from external sources like Morph)
+  // DO NOT update on every keystroke - this would reset the cursor!
+  useEffect(() => {
+    if (!editor || !initialContent) return;
+
+    const currentHTML = editor.getHTML();
+
+    // Only update if content is ACTUALLY different (not just a re-render)
+    // This prevents cursor jumping during normal typing
+    if (initialContent !== currentHTML) {
+      console.log('🔄 [EDITOR] initialContent changed externally, updating editor');
+      console.log('  initialContent length:', initialContent.length);
+      console.log('  currentHTML length:', currentHTML.length);
+
+      // Reset interaction flag when switching documents
+      const welcomeMessage = '<h1>Welcome to your new document</h1><p>Start typing here...</p>'
+      if (initialContent === welcomeMessage) {
+        hasUserInteracted.current = false
+      } else {
+        hasUserInteracted.current = true
+      }
+
+      // Use isInternalUpdate flag to prevent triggering onUpdate
+      isInternalUpdate.current = true;
       editor.commands.setContent(initialContent);
+
+      // Reset flag after a short delay to allow the update to complete
+      setTimeout(() => {
+        isInternalUpdate.current = false;
+      }, 10);
     }
   }, [editor, initialContent]);
-
-  // Sync initial editor content to parent on mount
-  useEffect(() => {
-    if (editor && onContentChange) {
-      const text = editor.getText();
-      onContentChange(text);
-    }
-  }, [editor]); // Only run when editor is created
 
   // Add a new comment
   const handleAddComment = () => {
@@ -561,6 +870,28 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     setAiInstruction('');
     setShowAIMenu(false);
   }
+
+  // Handle markdown mode toggle
+  const handleMarkdownToggle = async () => {
+    if (!editor) return;
+
+    if (markdownMode) {
+      // Switch FROM rich text editor TO raw HTML textarea
+      // Store the raw HTML (preserves ALL formatting including highlights, colors, etc.)
+      const html = editor.getHTML();
+      setMarkdownText(html); // Store HTML, not markdown
+      setMarkdownMode(false);
+    } else {
+      // Switch FROM raw HTML textarea TO rich text editor
+      // Restore the HTML directly (no conversion needed)
+      isInternalUpdate.current = true;
+      editor.commands.setContent(markdownText);
+      setTimeout(() => {
+        isInternalUpdate.current = false;
+      }, 10);
+      setMarkdownMode(true);
+    }
+  };
 
   // Handle inline AI actions (replace text directly in editor)
   const handleInlineAction = async (action: string) => {
@@ -772,9 +1103,18 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       <div className="border rounded-lg bg-background shadow-sm h-full flex flex-col w-full overflow-x-hidden overflow-y-hidden" style={{ position: 'relative', isolation: 'isolate' }}>
         {/* Toolbar */}
         <div className="flex items-center gap-1 p-2 pl-3 bg-muted/20 border-b overflow-x-auto overflow-y-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}>
-          {/* Sidebar Toggle + Comments + Tools (ClickUp-style) */}
+          {/* Sidebar Toggle + Markdown Toggle + Comments + Tools (ClickUp-style) */}
           <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
-            <SidebarTrigger className="p-2" />
+            <SidebarTrigger className="p-2 bg-black hover:bg-black/80 text-white rounded" />
+
+            <MenuButton
+              onClick={handleMarkdownToggle}
+              isActive={!markdownMode}
+              title={markdownMode ? "Rich Text Mode (Click for raw HTML)" : "Raw HTML Mode (Click for rich text)"}
+            >
+              {markdownMode ? <FileText className="h-4 w-4" /> : <Code2 className="h-4 w-4" />}
+            </MenuButton>
+
             <MenuButton
               onClick={() => {
                 setIsCommentsPanelOpen(!isCommentsPanelOpen)
@@ -845,24 +1185,33 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               <SubscriptIcon className="h-4 w-4" />
             </MenuButton>
             
-            <MenuButton 
+            <MenuButton
               onClick={() => editor.chain().focus().toggleSuperscript().run()}
               isActive={editor.isActive('superscript')}
               title="Superscript"
             >
               <SuperscriptIcon className="h-4 w-4" />
             </MenuButton>
-            
+
+            <MenuButton
+              onClick={() => editor.chain().focus().unsetAllMarks().run()}
+              title="Clear Formatting"
+            >
+              <Eraser className="h-4 w-4" />
+            </MenuButton>
+
             <div className="relative" data-dropdown="color">
               <MenuButton
                 onClick={(e) => {
                   e?.stopPropagation()
+                  const wasOpen = showColorSelector
+                  closeAllDropdowns()
                   const btn = e?.currentTarget
                   if (btn) {
                     const rect = btn.getBoundingClientRect()
                     setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
                   }
-                  setShowColorSelector(!showColorSelector)
+                  setShowColorSelector(!wasOpen)
                 }}
                 isActive={editor.isActive('textStyle')}
                 title="Text Color"
@@ -873,71 +1222,113 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
             <div className="relative" data-dropdown="highlight">
               <MenuButton
+                ref={highlightButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  setShowHighlightSelector(!showHighlightSelector)
+                  const wasOpen = showHighlightSelector
+                  closeAllDropdowns()
+                  const btn = highlightButtonRef.current
+                  if (btn) {
+                    const rect = btn.getBoundingClientRect()
+                    setHighlightDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                  }
+                  setShowHighlightSelector(!wasOpen)
                 }}
                 isActive={editor.isActive('highlight')}
                 title="Highlight Color"
               >
                 <Highlighter className="h-4 w-4" />
               </MenuButton>
-              {showHighlightSelector && (
-                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="highlight">
-                  <HighlightColorSelector editor={editor} />
-                </div>
-              )}
             </div>
 
             <div className="relative" data-dropdown="font">
               <MenuButton
+                ref={fontButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  setShowFontSelector(!showFontSelector)
+                  const wasOpen = showFontSelector
+                  closeAllDropdowns()
+                  const btn = fontButtonRef.current
+                  if (btn) {
+                    const rect = btn.getBoundingClientRect()
+                    setFontDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                  }
+                  setShowFontSelector(!wasOpen)
                 }}
                 title="Font Family"
               >
                 <Type className="h-4 w-4" />
               </MenuButton>
-              {showFontSelector && (
-                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="font">
-                  <FontSelector editor={editor} />
-                </div>
-              )}
             </div>
 
             <div className="relative" data-dropdown="fontsize">
               <MenuButton
+                ref={fontSizeButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  setShowFontSizeSelector(!showFontSizeSelector)
+                  const wasOpen = showFontSizeSelector
+                  closeAllDropdowns()
+                  const btn = fontSizeButtonRef.current
+                  if (btn) {
+                    const rect = btn.getBoundingClientRect()
+                    setFontSizeDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                  }
+                  setShowFontSizeSelector(!wasOpen)
                 }}
                 title="Font Size"
               >
-                <TextSelect className="h-4 w-4" />
-              </MenuButton>
-              {showFontSizeSelector && (
-                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="fontsize">
-                  <FontSizeSelector editor={editor} />
+                <div className="flex items-center gap-1">
+                  {(() => {
+                    const fontSize = editor.getAttributes('textStyle').fontSize
+                    return fontSize ? (
+                      <span className="text-xs font-medium">{fontSize}</span>
+                    ) : (
+                      <TextSelect className="h-4 w-4" />
+                    )
+                  })()}
+                  <ChevronDown className="h-3 w-3" />
                 </div>
-              )}
+              </MenuButton>
             </div>
 
             <div className="relative" data-dropdown="lineheight">
               <MenuButton
+                ref={lineHeightButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  setShowLineHeightSelector(!showLineHeightSelector)
+                  const wasOpen = showLineHeightSelector
+                  closeAllDropdowns()
+                  const btn = lineHeightButtonRef.current
+                  if (btn) {
+                    const rect = btn.getBoundingClientRect()
+                    setLineHeightDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                  }
+                  setShowLineHeightSelector(!wasOpen)
                 }}
                 title="Line Height"
               >
                 <AlignJustify className="h-4 w-4" />
               </MenuButton>
-              {showLineHeightSelector && (
-                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="lineheight">
-                  <LineHeightSelector editor={editor} />
-                </div>
-              )}
+            </div>
+
+            <div className="relative" data-dropdown="spacing">
+              <MenuButton
+                ref={spacingButtonRef}
+                onClick={(e) => {
+                  e?.stopPropagation()
+                  const wasOpen = showSpacingSelector
+                  closeAllDropdowns()
+                  const btn = spacingButtonRef.current
+                  if (btn) {
+                    const rect = btn.getBoundingClientRect()
+                    setSpacingDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                  }
+                  setShowSpacingSelector(!wasOpen)
+                }}
+                title="Paragraph Spacing"
+              >
+                <SeparatorVertical className="h-4 w-4" />
+              </MenuButton>
             </div>
           </div>
 
@@ -945,22 +1336,40 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
           <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
             <div className="relative" data-dropdown="heading">
               <MenuButton
+                ref={headingButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  setShowHeadingSelector(!showHeadingSelector)
+                  const wasOpen = showHeadingSelector
+                  closeAllDropdowns()
+                  const btn = headingButtonRef.current
+                  if (btn) {
+                    const rect = btn.getBoundingClientRect()
+                    setHeadingDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                  }
+                  setShowHeadingSelector(!wasOpen)
                 }}
                 title="Text Style"
               >
                 <div className="flex items-center gap-1">
-                  <Heading1 className="h-4 w-4" />
+                  {/* Show current heading level or "P" for paragraph */}
+                  {editor.isActive('heading', { level: 1 }) ? (
+                    <Heading1 className="h-4 w-4" />
+                  ) : editor.isActive('heading', { level: 2 }) ? (
+                    <Heading2 className="h-4 w-4" />
+                  ) : editor.isActive('heading', { level: 3 }) ? (
+                    <Heading3 className="h-4 w-4" />
+                  ) : editor.isActive('heading', { level: 4 }) ? (
+                    <span className="text-xs font-semibold">H4</span>
+                  ) : editor.isActive('heading', { level: 5 }) ? (
+                    <span className="text-xs font-semibold">H5</span>
+                  ) : editor.isActive('heading', { level: 6 }) ? (
+                    <span className="text-xs font-semibold">H6</span>
+                  ) : (
+                    <span className="text-xs font-semibold">P</span>
+                  )}
                   <ChevronDown className="h-3 w-3" />
                 </div>
               </MenuButton>
-              {showHeadingSelector && (
-                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="heading">
-                  <HeadingSelector editor={editor} />
-                </div>
-              )}
             </div>
             
             <MenuButton 
@@ -1070,9 +1479,18 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
             "p-4 h-full overflow-y-auto scrollbar-hide transition-all duration-300 ease-in-out",
             isCommentsPanelOpen ? "pr-[21rem]" : "pr-4"
           )}>
-            <EditorContent editor={editor} className="w-full" />
+            {markdownMode ? (
+              <EditorContent editor={editor} className="w-full" />
+            ) : (
+              <textarea
+                value={markdownText}
+                onChange={(e) => setMarkdownText(e.target.value)}
+                className="w-full h-full p-4 font-mono text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                placeholder="<h1>Raw HTML view</h1><p>Edit the HTML directly...</p>"
+              />
+            )}
           </div>
-          
+
           {/* Tabbed Side Panel (Comments + Tools) */}
           <TabbedSidePanel
             comments={comments}
@@ -1150,6 +1568,90 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
           }}
         >
           <ColorSelector editor={editor} />
+        </div>,
+        document.body
+      )}
+
+      {isMounted && showHighlightSelector && highlightDropdownPosition && createPortal(
+        <div
+          className="fixed z-[99999]"
+          data-dropdown-menu="highlight"
+          style={{
+            top: `${highlightDropdownPosition.top}px`,
+            left: `${highlightDropdownPosition.left}px`
+          }}
+        >
+          <HighlightColorSelector editor={editor} />
+        </div>,
+        document.body
+      )}
+
+      {isMounted && showFontSelector && fontDropdownPosition && createPortal(
+        <div
+          className="fixed z-[99999]"
+          data-dropdown-menu="font"
+          style={{
+            top: `${fontDropdownPosition.top}px`,
+            left: `${fontDropdownPosition.left}px`
+          }}
+        >
+          <FontSelector editor={editor} />
+        </div>,
+        document.body
+      )}
+
+      {isMounted && showFontSizeSelector && fontSizeDropdownPosition && createPortal(
+        <div
+          className="fixed z-[99999]"
+          data-dropdown-menu="fontsize"
+          style={{
+            top: `${fontSizeDropdownPosition.top}px`,
+            left: `${fontSizeDropdownPosition.left}px`
+          }}
+        >
+          <FontSizeSelector editor={editor} />
+        </div>,
+        document.body
+      )}
+
+      {isMounted && showLineHeightSelector && lineHeightDropdownPosition && createPortal(
+        <div
+          className="fixed z-[99999]"
+          data-dropdown-menu="lineheight"
+          style={{
+            top: `${lineHeightDropdownPosition.top}px`,
+            left: `${lineHeightDropdownPosition.left}px`
+          }}
+        >
+          <LineHeightSelector editor={editor} />
+        </div>,
+        document.body
+      )}
+
+      {isMounted && showSpacingSelector && spacingDropdownPosition && createPortal(
+        <div
+          className="fixed z-[99999]"
+          data-dropdown-menu="spacing"
+          style={{
+            top: `${spacingDropdownPosition.top}px`,
+            left: `${spacingDropdownPosition.left}px`
+          }}
+        >
+          <SpacingSelector editor={editor} />
+        </div>,
+        document.body
+      )}
+
+      {isMounted && showHeadingSelector && headingDropdownPosition && createPortal(
+        <div
+          className="fixed z-[99999]"
+          data-dropdown-menu="heading"
+          style={{
+            top: `${headingDropdownPosition.top}px`,
+            left: `${headingDropdownPosition.left}px`
+          }}
+        >
+          <HeadingSelector editor={editor} />
         </div>,
         document.body
       )}

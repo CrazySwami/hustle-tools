@@ -20,7 +20,7 @@ import { ProjectLibrary } from '@/components/elementor/ProjectLibrary';
 import { PageSplitter } from '@/components/elementor/PageSplitter';
 import { UsageTrackingTab } from '@/components/elementor/UsageTrackingTab';
 import { useElementorState } from '@/lib/hooks/useElementorState';
-import { Section } from '@/lib/section-schema';
+import { Section, createSection } from '@/lib/section-schema';
 import { FileIcon, PaletteIcon, ArrowRightIcon, GlobeIcon, LayoutIcon, XIcon, CodeIcon, EyeIcon, ImageIcon, BarChart3Icon } from '@/components/ui/icons';
 import Script from 'next/script';
 import { GlobalStylesheetProvider } from '@/lib/global-stylesheet-context';
@@ -84,7 +84,7 @@ export default function ElementorEditorPage() {
   const [tabBarVisible, setTabBarVisible] = useState(true);
   const [streamedCode, setStreamedCode] = useState<{ html: string; css: string; js: string }>({ html: '', css: '', js: '' });
   const [activeCodeTab, setActiveCodeTab] = useState<'html' | 'css' | 'js'>('html');
-  const [currentSection, setCurrentSection] = useState<Section | null>(null);
+  const [currentSection, setCurrentSection] = useState<Section | null>(createSection());
   const [loadedSection, setLoadedSection] = useState<Section | null>(null);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -406,20 +406,25 @@ export default function ElementorEditorPage() {
         modelToUse = 'perplexity/sonar';
       }
 
-      // Use AI SDK's sendMessage with current editor content
+      // Use AI SDK's sendMessage with currentSection
+      // NOTE: We send currentSection directly, not editorContent, to ensure
+      // the AI always sees the full selected project from the library
+      console.log('📤 Sending message with currentSection:', {
+        name: currentSection?.name,
+        id: currentSection?.id,
+        htmlLength: currentSection?.html?.length || 0,
+        cssLength: currentSection?.css?.length || 0,
+        jsLength: currentSection?.js?.length || 0,
+        phpLength: currentSection?.php?.length || 0,
+      });
+
       sendMessage(
         { text: content },
         {
           body: {
             model: modelToUse,
             currentJson,
-            currentSection: settings?.includeContext !== false ? {
-              ...currentSection,
-              html: editorContent.html,
-              css: editorContent.css,
-              js: editorContent.js,
-              php: editorContent.php || '', // Include PHP
-            } : null, // Don't include context if toggle is off
+            currentSection: settings?.includeContext !== false ? currentSection : null,
             webSearch: settings?.webSearchEnabled ?? false,
             reasoningEffort: settings?.reasoningEffort ?? 'medium',
             detailedMode: settings?.detailedMode ?? false,
@@ -1127,13 +1132,16 @@ export default function ElementorEditorPage() {
                   sendMessage({ content: message, role: 'user' });
                 }}
                 onSectionChange={(section) => {
-                  console.log('📝 Section updated:', {
+                  console.log('📝 HtmlSectionEditor: Section changed:', {
+                    id: section.id,
                     name: section.name,
                     htmlLength: section.html?.length || 0,
                     cssLength: section.css?.length || 0,
-                    jsLength: section.js?.length || 0
+                    jsLength: section.js?.length || 0,
+                    phpLength: section.php?.length || 0
                   });
                   setCurrentSection(section);
+                  console.log('✅ Parent: currentSection state updated');
                 }}
                 onSwitchToVisualEditor={() => setActiveTab('visual')}
                 onSwitchToPlayground={() => setActiveTab('playground')}
@@ -1204,7 +1212,7 @@ export default function ElementorEditorPage() {
                 onOpenProject={(projectId) => {
                   console.log('📝 Opening project in editor:', projectId);
                   // Switch to Code Editor tab
-                  setActiveTab('html');
+                  setActiveTab('json');
                   // Trigger project selection via custom event
                   window.dispatchEvent(new CustomEvent('select-project', { detail: { projectId } }));
                 }}
@@ -1285,17 +1293,19 @@ export default function ElementorEditorPage() {
             <div
               style={{
                 position: 'fixed',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                height: chatDrawerOpen ? '95vh' : '48px', // Smaller handle
+                bottom: '10px',
+                left: '10px',
+                right: '10px',
+                height: chatDrawerOpen ? 'calc(95vh - 10px)' : '48px', // Smaller handle with margin
                 background: 'var(--background)',
-                borderTop: '1px solid var(--border)',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
                 zIndex: 3200, // Above options button (3000)
                 transition: 'height 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',
-                boxShadow: '0 -4px 12px rgba(0,0,0,0.1)'
+                boxShadow: '0 -4px 12px rgba(0,0,0,0.1)',
+                overflow: 'hidden'
               }}
             >
               {/* Drawer Handle */}
@@ -1309,6 +1319,7 @@ export default function ElementorEditorPage() {
                   gap: '12px',
                   background: 'var(--card)',
                   borderBottom: chatDrawerOpen ? '1px solid var(--border)' : 'none',
+                  borderRadius: chatDrawerOpen ? '12px 12px 0 0' : '12px',
                   cursor: 'pointer',
                   userSelect: 'none'
                 }}

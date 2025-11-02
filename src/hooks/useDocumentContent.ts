@@ -25,6 +25,7 @@
 
 import { create } from 'zustand';
 import type { Editor } from '@tiptap/core';
+import { marked } from 'marked';
 
 interface DocumentState {
   // Content
@@ -51,7 +52,7 @@ interface DocumentState {
 
 export const useDocumentContent = create<DocumentState>((set, get) => ({
   // Initial content
-  content: '',
+  content: `<h1>Welcome to Document Editor</h1><p>Start typing or use the AI chat to generate content. Try these features:</p><ul><li><strong>AI Chat</strong> - Ask the AI to write, edit, or research content</li><li><strong>Markdown Support</strong> - Toggle between rich text and raw markdown</li><li><strong>Comments</strong> - Add comments to any text selection</li><li><strong>Formatting</strong> - Use the toolbar or bubble menu for formatting</li></ul><p>Select any text to see AI editing options, or start a conversation in the chat panel on the left.</p>`,
 
   // Editor instance
   editor: null,
@@ -78,9 +79,19 @@ export const useDocumentContent = create<DocumentState>((set, get) => ({
 
   /**
    * Update document content (instant, no animation)
-   * @param content - New document content
+   * @param content - New document content (HTML format from editor)
+   * @param skipEditorUpdate - If true, only update state without touching editor (for user typing)
    */
-  updateContent: (content) => {
+  updateContent: async (content, skipEditorUpdate = false) => {
+    const { editor } = get();
+    console.log('💾 [STORE] updateContent called (skipEditorUpdate:', skipEditorUpdate, ')');
+    if (editor && !skipEditorUpdate) {
+      console.log('🔧 [STORE] Calling editor.commands.setContent (THIS RESETS CURSOR!)');
+      // Content is already HTML, just set it directly
+      editor.commands.setContent(content);
+    } else if (skipEditorUpdate) {
+      console.log('✅ [STORE] Skipping editor update (as intended)');
+    }
     set({ content });
   },
 
@@ -100,7 +111,7 @@ export const useDocumentContent = create<DocumentState>((set, get) => ({
     // Import streaming utilities dynamically
     const { updateStreamingState } = await import('@/components/editor/StreamingExtension');
 
-    // Find the position where content differs
+    // Find the FIRST position where content differs (start of change)
     let diffStart = 0;
     const minLength = Math.min(oldContent.length, content.length);
 
@@ -108,7 +119,22 @@ export const useDocumentContent = create<DocumentState>((set, get) => ({
       diffStart++;
     }
 
-    const changedText = content.slice(diffStart);
+    // Find the LAST position where content differs (end of change)
+    // Work backwards from the end to find where content matches again
+    let oldEnd = oldContent.length;
+    let newEnd = content.length;
+
+    while (oldEnd > diffStart && newEnd > diffStart &&
+           oldContent[oldEnd - 1] === content[newEnd - 1]) {
+      oldEnd--;
+      newEnd--;
+    }
+
+    // Extract the unchanged suffix (bottom part that stays the same)
+    const unchangedSuffix = content.slice(newEnd);
+
+    // Extract only the changed middle portion (what needs to animate)
+    const changedText = content.slice(diffStart, newEnd);
 
     if (changedText.length === 0) {
       set({ content });
@@ -119,7 +145,7 @@ export const useDocumentContent = create<DocumentState>((set, get) => ({
     updateStreamingState(editor.view, {
       isStreaming: true,
       from: diffStart,
-      to: content.length,
+      to: newEnd,
       streamedText: changedText,
       cursorPos: 0,
     });
@@ -128,14 +154,19 @@ export const useDocumentContent = create<DocumentState>((set, get) => ({
     const charsPerFrame = 3; // Speed of animation
     let currentPos = 0;
 
-    const animateNextChunk = () => {
+    const animateNextChunk = async () => {
       currentPos = Math.min(currentPos + charsPerFrame, changedText.length);
 
-      // Build partial content: old content up to diffStart + streamed portion
-      const partialContent = oldContent.slice(0, diffStart) + changedText.slice(0, currentPos);
+      // Build partial content: [unchanged top] + [streaming middle] + [unchanged bottom]
+      const partialContent = oldContent.slice(0, diffStart) +
+                             changedText.slice(0, currentPos) +
+                             unchangedSuffix;
+
+      // Convert markdown to HTML before setting content
+      const htmlContent = await marked.parse(partialContent);
 
       // Update editor with partial content (reveals text progressively)
-      editor.commands.setContent(partialContent);
+      editor.commands.setContent(htmlContent);
 
       // Update cursor position for purple highlight
       updateStreamingState(editor.view, {
@@ -146,9 +177,11 @@ export const useDocumentContent = create<DocumentState>((set, get) => ({
         requestAnimationFrame(animateNextChunk);
       } else {
         // Animation complete - set final content and clean up
-        setTimeout(() => {
-          editor.commands.setContent(content);
-          set({ content });
+        setTimeout(async () => {
+          const finalHtml = await marked.parse(content);
+          editor.commands.setContent(finalHtml);
+          // Store HTML, not markdown
+          set({ content: finalHtml });
           updateStreamingState(editor.view, {
             isStreaming: false,
             from: 0,

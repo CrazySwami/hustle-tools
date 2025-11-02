@@ -2265,6 +2265,141 @@ add_action( 'elementor/frontend/after_register_scripts', '${widgetSlug}_enqueue_
     }
 };
 
+/**
+ * Deploy widget and create a test page with it already placed
+ */
+window.deployAndPreviewWidget = async function(widgetPhp, widgetCss = '', widgetJs = '') {
+    if (!playgroundClient) {
+        throw new Error('Playground not running. Launch it first.');
+    }
+
+    try {
+        // First deploy the widget
+        const deployResult = await window.deployElementorWidget(widgetPhp, widgetCss, widgetJs);
+
+        console.log('📄 Creating test page with widget...');
+        updatePlaygroundStatus('📄 Creating test page...');
+
+        // Extract widget slug from deploy result
+        const widgetSlug = deployResult.widgetSlug;
+        const widgetClassName = deployResult.widgetClassName;
+
+        // Create a new page with the widget already placed
+        const createPageCode = `<?php
+            require_once '/wordpress/wp-load.php';
+
+            // Create a new page
+            $page_title = 'Widget Preview: ${widgetClassName}';
+            $page_slug = 'widget-preview-${widgetSlug}';
+
+            // Check if page already exists
+            $existing_page = get_page_by_path($page_slug, OBJECT, 'page');
+
+            if ($existing_page) {
+                $page_id = $existing_page->ID;
+                echo "INFO: Using existing page ID: $page_id\\n";
+            } else {
+                // Create new page
+                $page_id = wp_insert_post(array(
+                    'post_title' => $page_title,
+                    'post_name' => $page_slug,
+                    'post_status' => 'publish',
+                    'post_type' => 'page',
+                    'post_content' => '', // Elementor uses meta, not content
+                ));
+
+                if (is_wp_error($page_id)) {
+                    echo 'ERROR: Failed to create page: ' . $page_id->get_error_message();
+                    exit;
+                }
+
+                echo "SUCCESS: Created page ID: $page_id\\n";
+            }
+
+            // Enable Elementor for this page
+            update_post_meta($page_id, '_elementor_edit_mode', 'builder');
+
+            // Set page template to Elementor Canvas (no header/footer/sidebar)
+            update_post_meta($page_id, '_wp_page_template', 'elementor_canvas');
+
+            // Create Elementor data with the widget
+            $elementor_data = array(
+                array(
+                    'id' => 'section-' . uniqid(),
+                    'elType' => 'section',
+                    'settings' => array(
+                        'content_width' => 'full',
+                        'padding' => array('unit' => 'px', 'top' => '0', 'right' => '0', 'bottom' => '0', 'left' => '0'),
+                        'margin' => array('unit' => 'px', 'top' => '0', 'right' => '0', 'bottom' => '0', 'left' => '0'),
+                    ),
+                    'elements' => array(
+                        array(
+                            'id' => 'column-' . uniqid(),
+                            'elType' => 'column',
+                            'settings' => array(
+                                '_column_size' => 100,
+                                'padding' => array('unit' => 'px', 'top' => '0', 'right' => '0', 'bottom' => '0', 'left' => '0'),
+                                'margin' => array('unit' => 'px', 'top' => '0', 'right' => '0', 'bottom' => '0', 'left' => '0'),
+                            ),
+                            'elements' => array(
+                                array(
+                                    'id' => 'widget-' . uniqid(),
+                                    'elType' => 'widget',
+                                    'widgetType' => '${widgetSlug}',
+                                    'settings' => array(),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            );
+
+            // Save Elementor data
+            update_post_meta($page_id, '_elementor_data', wp_slash(wp_json_encode($elementor_data)));
+            update_post_meta($page_id, '_elementor_page_settings', array());
+            update_post_meta($page_id, '_elementor_version', ELEMENTOR_VERSION);
+
+            echo "PAGE_ID: " . $page_id;
+        ?>`;
+
+        const createResult = await playgroundClient.run({ code: createPageCode });
+        console.log('📄 Page creation result:', createResult.text);
+
+        // Extract page ID from result
+        const idMatch = createResult.text.match(/PAGE_ID:\s*(\d+)/);
+        const pageId = idMatch ? idMatch[1].trim() : null;
+
+        if (!pageId) {
+            throw new Error('Failed to create test page');
+        }
+
+        console.log('🎯 Test page ID:', pageId);
+
+        // Build the Elementor editor URL
+        const editorUrl = `/wp-admin/post.php?post=${pageId}&action=elementor`;
+        console.log('🎨 Opening Elementor editor:', editorUrl);
+
+        // Navigate the playground iframe to the editor
+        await playgroundClient.goTo(editorUrl);
+
+        updatePlaygroundStatus('✅ Widget deployed and preview page created!', 'success');
+
+        return {
+            success: true,
+            widgetSlug,
+            widgetClassName,
+            pageId,
+            editorUrl,
+            message: `Widget deployed and preview page opened in Elementor editor!`
+        };
+
+    } catch (error) {
+        console.error('❌ Deploy and preview error:', error);
+        updatePlaygroundStatus('❌ Error: ' + error.message, 'error');
+        throw error;
+    }
+};
+
 // Auto-start playground on page load (if enabled)
 if (autoStartPlayground) {
     window.addEventListener('DOMContentLoaded', function() {

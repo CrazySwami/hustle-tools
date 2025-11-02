@@ -116,14 +116,43 @@ export async function POST(req: Request) {
       );
     }
 
+    // Normalize messages - ensure they have the correct structure
+    const normalizedMessages = messages.map((msg: any) => {
+      // If message has both content and parts, or only content, normalize to parts structure
+      if (msg.content && !msg.parts) {
+        return {
+          ...msg,
+          parts: [{ type: 'text', text: msg.content }]
+        };
+      }
+      // If message has parts but they're not properly formatted
+      if (msg.parts && Array.isArray(msg.parts)) {
+        return {
+          ...msg,
+          parts: msg.parts.map((part: any) => {
+            // Ensure each part has proper type and text/content
+            if (typeof part === 'string') {
+              return { type: 'text', text: part };
+            }
+            if (part.type === 'text' && !part.text && part.content) {
+              return { type: 'text', text: part.content };
+            }
+            return part;
+          })
+        };
+      }
+      return msg;
+    });
+
     // Convert messages with error handling
     let convertedMessages;
     try {
-      convertedMessages = convertToModelMessages(messages);
+      convertedMessages = convertToModelMessages(normalizedMessages);
       console.log('Converted messages:', JSON.stringify(convertedMessages, null, 2));
     } catch (error: any) {
       console.error('Error converting messages:', error);
       console.error('Original messages:', JSON.stringify(messages, null, 2));
+      console.error('Normalized messages:', JSON.stringify(normalizedMessages, null, 2));
       return new Response(
         JSON.stringify({ error: 'Message conversion failed', details: error.message }), 
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -175,13 +204,46 @@ After using a tool, provide a brief text response that contextualizes the tool r
 
 You are now assisting with the Elementor Section Builder.
 
+**📁 CURRENT FILES IN EDITOR:**
+${currentSection && (currentSection.html || currentSection.css || currentSection.js || currentSection.php) ? `
+✅ **YES - You have full access to all code files below:**
+
+**Section Name:** ${currentSection.name || 'Untitled'}
+
+**📄 HTML FILE (${currentSection.html?.length || 0} characters):**
+\`\`\`html
+${currentSection.html?.substring(0, 5000) || '(empty file)'}
+${currentSection.html?.length > 5000 ? '\n...(file continues - total ' + currentSection.html.length + ' chars)' : ''}
+\`\`\`
+
+**🎨 CSS FILE (${currentSection.css?.length || 0} characters):**
+\`\`\`css
+${currentSection.css?.substring(0, 5000) || '(empty file)'}
+${currentSection.css?.length > 5000 ? '\n...(file continues - total ' + currentSection.css.length + ' chars)' : ''}
+\`\`\`
+
+**⚡ JS FILE (${currentSection.js?.length || 0} characters):**
+\`\`\`javascript
+${currentSection.js?.substring(0, 3000) || '(empty file)'}
+${currentSection.js?.length > 3000 ? '\n...(file continues - total ' + currentSection.js.length + ' chars)' : ''}
+\`\`\`
+
+**🔧 PHP FILE (${currentSection.php?.length || 0} characters):**
+\`\`\`php
+${currentSection.php?.substring(0, 5000) || '(empty file)'}
+${currentSection.php?.length > 5000 ? '\n...(file continues - total ' + currentSection.php.length + ' chars)' : ''}
+\`\`\`
+
 **Available Tools:**
 - **editCodeWithMorph**: 🎯 THE ONLY CODE TOOL - Use this for ALL code writing/editing (works on both empty and existing files).
 
 **CRITICAL INSTRUCTIONS:**
 When user asks to write/edit/modify ANY code, you MUST use editCodeWithMorph tool.
+` : `
+❌ NO - No section currently loaded in the editor.
 
-Current section: ${currentSection?.name || 'No section loaded'}`;
+The editor is empty. You can write new code directly using the \`editCodeWithMorph\` tool.
+`}`;
     }
 
     // Configure options based on model type
@@ -303,6 +365,9 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
       };
     }
 
+    // For Claude models, we'll just use the system prompt as-is
+    // Cache control will be added via experimental_providerMetadata if needed in the future
+
     const result = streamText({
       model: selectedModel,
       messages: convertedMessages,
@@ -314,11 +379,23 @@ Current section: ${currentSection?.name || 'No section loaded'}`;
         stopWhen: stepCountIs(2), // Limit tool calls to prevent UI duplication
         ...(toolChoice && { toolChoice }),
       }),
-      onFinish: async ({ usage }) => {
+      onFinish: async ({ usage, experimental_providerMetadata }) => {
         const responseTime = Date.now() - startTime;
         const [provider, modelName] = selectedModel.includes('/')
           ? selectedModel.split('/')
           : ['unknown', selectedModel];
+
+        // Log Claude cache metrics if available
+        const cacheMetrics = (experimental_providerMetadata as any)?.anthropic;
+        if (cacheMetrics) {
+          console.log('💰 Claude Cache Metrics:', {
+            cacheCreationInputTokens: cacheMetrics.cacheCreationInputTokens || 0,
+            cacheReadInputTokens: cacheMetrics.cacheReadInputTokens || 0,
+            savings: cacheMetrics.cacheReadInputTokens
+              ? `${((cacheMetrics.cacheReadInputTokens / (usage?.promptTokens || 1)) * 90).toFixed(0)}% saved`
+              : 'No cache hit'
+          });
+        }
 
         apiMonitor.log({
           endpoint: '/api/chat',

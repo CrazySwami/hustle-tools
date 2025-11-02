@@ -38,6 +38,15 @@ export async function POST(req: Request) {
       messageCount: messages.length,
       hasJson: Object.keys(currentJson).length > 0,
       webSearch,
+      includeContext,
+      currentSection: currentSection ? {
+        id: currentSection.id,
+        name: currentSection.name,
+        htmlLength: currentSection.html?.length || 0,
+        cssLength: currentSection.css?.length || 0,
+        jsLength: currentSection.js?.length || 0,
+        phpLength: currentSection.php?.length || 0,
+      } : null,
       lastMessage: messages[messages.length - 1],
     });
 
@@ -165,6 +174,12 @@ When user asks "can you see my code", say NO - the editor is empty.
 - 📝 **Code format rules:** Section-level code only (NO DOCTYPE, html, head, body tags), CSS without <style> tags, JS without <script> tags
 - 💬 **Communication:** Be concise, explain what you changed
 - ⚠️ **CRITICAL:** ALWAYS use \`editCodeWithMorph\` tool - NEVER write code directly in your text response
+- 🔍 **REVIEW FIRST:** Before making any edits, ALWAYS review the existing code to understand:
+  - Current styling methodology and patterns
+  - Color schemes and design system
+  - Code structure and organization
+  - Existing formatting conventions
+  - Then apply edits that match the existing style
 
 **When user asks "can you see my code":**
 - If files are shown above with ✅: Say "Yes, I can see your [HTML/CSS/JS/PHP] code" and reference specific content
@@ -178,6 +193,121 @@ ${currentSection ? `
 
 When using editCodeWithMorph or validateWidget tools, you are working with the "${currentSection.name || 'Untitled'}" project.
 ${hasPhpCode ? '\n⚠️ This is a PHP widget project. You can use the validateWidget tool to check code quality before deployment.' : ''}
+` : ''}
+
+${hasPhpCode ? `
+**🔧 ELEMENTOR WIDGET DEVELOPMENT RULES (PHP Projects):**
+
+When working with PHP Elementor widgets, you MUST follow these critical rules:
+
+1. **{{WRAPPER}} CSS Scoping:**
+   - ALL CSS selectors MUST start with \`{{WRAPPER}}\` to scope styles to this widget instance only
+   - Example: \`.button { }\` is WRONG → \`{{WRAPPER}} .button { }\` is CORRECT
+   - This prevents style conflicts with other widgets and site styles
+   - {{WRAPPER}} is automatically replaced with a unique selector by Elementor
+
+2. **Widget Structure:**
+   - Must extend \`\\Elementor\\Widget_Base\`
+   - Required methods: \`get_name()\`, \`get_title()\`, \`get_icon()\`, \`get_categories()\`
+   - \`register_controls()\`: Define all widget settings and controls
+   - \`render()\`: Output the HTML markup (use \`$settings = $this->get_settings_for_display();\`)
+   - \`render_plain_content()\`: Usually empty for custom widgets
+
+3. **Elementor Controls:**
+   - Use \`$this->add_control()\` to add settings
+   - Control types: text, textarea, wysiwyg, number, color, select, slider, dimensions, etc.
+   - Group controls with \`$this->start_controls_section()\` and \`$this->end_controls_section()\`
+   - Tabs: TAB_CONTENT (content/layout), TAB_STYLE (styling), TAB_ADVANCED (advanced settings)
+
+4. **Dynamic Content:**
+   - Access settings in render() with: \`$settings = $this->get_settings_for_display();\`
+   - Use \`$this->add_render_attribute()\` to add HTML attributes dynamically
+   - Use \`$this->add_inline_editing_attributes()\` for live inline editing
+   - Escape output properly: \`esc_html()\`, \`esc_attr()\`, \`esc_url()\`
+
+5. **Best Practices:**
+   - Widget class name format: \`Elementor_WidgetName_Widget\`
+   - Widget slug format: \`widget-name\` (lowercase, hyphens)
+   - Category: Usually \`'hustle-tools'\` for custom widgets
+   - Icon: Elementor icons like \`'eicon-posts-ticker'\`
+   - Always validate and sanitize user inputs
+
+6. **Common Mistakes to AVOID:**
+   - ❌ CSS without {{WRAPPER}} prefix
+   - ❌ Direct echo of user input without escaping
+   - ❌ Missing required widget methods
+   - ❌ Wrong control types or missing labels
+   - ❌ Not using \`get_settings_for_display()\` in render()
+
+**Example PHP Widget Structure:**
+\`\`\`php
+<?php
+namespace ElementorCustomWidgets;
+
+class Elementor_MyWidget_Widget extends \\Elementor\\Widget_Base {
+
+    public function get_name() {
+        return 'my-widget';
+    }
+
+    public function get_title() {
+        return __('My Widget', 'elementor-custom-widgets');
+    }
+
+    public function get_icon() {
+        return 'eicon-code';
+    }
+
+    public function get_categories() {
+        return ['hustle-tools'];
+    }
+
+    protected function register_controls() {
+        $this->start_controls_section(
+            'content_section',
+            [
+                'label' => __('Content', 'elementor-custom-widgets'),
+                'tab' => \\Elementor\\Controls_Manager::TAB_CONTENT,
+            ]
+        );
+
+        $this->add_control(
+            'title',
+            [
+                'label' => __('Title', 'elementor-custom-widgets'),
+                'type' => \\Elementor\\Controls_Manager::TEXT,
+                'default' => __('Default title', 'elementor-custom-widgets'),
+            ]
+        );
+
+        $this->end_controls_section();
+    }
+
+    protected function render() {
+        $settings = $this->get_settings_for_display();
+        ?>
+        <div class="my-widget">
+            <h2><?php echo esc_html($settings['title']); ?></h2>
+        </div>
+        <?php
+    }
+}
+\`\`\`
+
+**Example CSS with {{WRAPPER}}:**
+\`\`\`css
+{{WRAPPER}} .my-widget {
+    padding: 20px;
+    background: #f5f5f5;
+}
+
+{{WRAPPER}} .my-widget h2 {
+    color: #333;
+    font-size: 24px;
+}
+\`\`\`
+
+**ALWAYS review the existing PHP/CSS code to understand the widget's structure before making edits!**
 ` : ''}`;
 
     // Enable web search for Perplexity models (same as main chat)
@@ -310,6 +440,10 @@ After using a tool, provide a helpful text response that explains what the tool 
     if (isEditRequest) {
       console.log('✏️ Edit request detected - model will use editCodeWithMorph tool');
     }
+
+    // Log the system prompt for debugging
+    console.log('📋 System Prompt (first 1000 chars):', systemPrompt.substring(0, 1000) + '...');
+    console.log('📋 System Prompt includes currentSection files:', systemPrompt.includes('📄 HTML FILE'));
 
     const streamConfig: any = {
       model: model, // Just pass the model string (gateway is handled automatically)

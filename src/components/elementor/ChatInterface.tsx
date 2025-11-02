@@ -9,6 +9,7 @@ import { SettingsModal } from '@/components/elementor/SettingsModal';
 import { CitationDisplay } from '@/components/elementor/CitationDisplay';
 import { GlobeIcon, FileIcon, PaletteIcon, ImageIcon, BrainIcon } from '@/components/ui/icons';
 import { useEffect, useRef, useState } from 'react';
+import { FileCode } from 'lucide-react';
 
 // Model configurations with token limits
 const MODEL_CONFIGS = {
@@ -50,6 +51,103 @@ function estimateImageTokens(imageUrl: string, callback: (tokens: number) => voi
   img.src = imageUrl;
 }
 
+// Helper function to get extension color
+const getExtensionColor = (extension: string): string => {
+  const colors: Record<string, string> = {
+    HTML: "text-orange-400",
+    CSS: "text-blue-400",
+    JS: "text-amber-400",
+    PHP: "text-purple-400",
+    DOC: "text-cyan-400",
+  };
+  return colors[extension] || "text-gray-400";
+};
+
+// Project Context Badge Component
+function ProjectContextBadge({ currentSection }: { currentSection: any }) {
+  const [animationStage, setAnimationStage] = useState(0);
+
+  useEffect(() => {
+    const stages = [
+      { delay: 0, stage: 1 },
+      { delay: 300, stage: 2 },
+      { delay: 600, stage: 3 },
+      { delay: 900, stage: 4 },
+      { delay: 1500, stage: 5 },
+    ];
+
+    stages.forEach(({ delay, stage }) => {
+      setTimeout(() => setAnimationStage(stage), delay);
+    });
+  }, []);
+
+  // Get project tags based on what files exist
+  const tags: string[] = [];
+  if (currentSection?.html) tags.push('HTML');
+  if (currentSection?.css) tags.push('CSS');
+  if (currentSection?.js) tags.push('JS');
+  if (currentSection?.php) tags.push('PHP');
+
+  const projectTitle = currentSection?.name || 'Untitled Project';
+
+  return (
+    <div className="flex justify-center items-center gap-3 mb-4">
+      <div
+        className={`group relative inline-flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium tracking-tight shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] overflow-hidden rounded-full cursor-default
+          ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
+          ${animationStage === 1 ? "opacity-100 translate-y-4" : ""}
+          ${animationStage >= 2 ? "opacity-100 translate-y-0" : ""}
+        `}
+      >
+        {/* Green dot with flash animation */}
+        <div
+          className={`h-2 w-2 rounded-full bg-green-500 transition-all duration-300
+            ${animationStage >= 5 ? "animate-pulse" : "opacity-0"}
+            ${animationStage >= 3 ? "opacity-100" : ""}
+          `}
+        />
+
+        {/* Content that appears after slide up */}
+        {animationStage >= 3 && (
+          <>
+            <span className="text-xs opacity-70 animate-in fade-in slide-in-from-left-2 duration-300">
+              Currently Project
+            </span>
+            <span className="text-xs opacity-50 animate-in fade-in duration-300" style={{ animationDelay: "100ms" }}>
+              •
+            </span>
+            <FileCode
+              className="h-4 w-4 text-orange-400 transition-transform duration-500 group-hover:rotate-12 animate-in fade-in slide-in-from-left-2 duration-300"
+              style={{ animationDelay: "200ms" }}
+            />
+            <span
+              className="animate-in fade-in slide-in-from-left-2 duration-300"
+              style={{ animationDelay: "300ms" }}
+            >
+              {projectTitle}
+            </span>
+
+            {/* File type tags */}
+            <div className="flex items-center gap-1.5 ml-1">
+              {tags.map((tag, i) => (
+                <span
+                  key={tag}
+                  className={`text-xs font-semibold px-1.5 py-0.5 rounded ${getExtensionColor(tag)} animate-in fade-in slide-in-from-right-2 duration-300`}
+                  style={{ animationDelay: `${400 + i * 100}ms` }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      </div>
+    </div>
+  );
+}
+
 interface ChatInterfaceProps {
   messages: any[];
   isLoading: boolean;
@@ -58,7 +156,8 @@ interface ChatInterfaceProps {
   onModelChange: (model: string) => void;
   onApprovePatch?: (approvalId: string, patches: any[]) => void;
   onDeclinePatch?: (approvalId: string) => void;
-  currentJson?: any;
+  currentJson?: any; // Legacy - for backward compatibility
+  currentSection?: any; // HTML/CSS/JS/PHP files
 }
 
 export function ChatInterface({
@@ -70,6 +169,7 @@ export function ChatInterface({
   onApprovePatch,
   onDeclinePatch,
   currentJson = {},
+  currentSection = null,
 }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
@@ -90,24 +190,28 @@ export function ChatInterface({
   // Get current model config
   const modelConfig = MODEL_CONFIGS[selectedModel as keyof typeof MODEL_CONFIGS] || MODEL_CONFIGS['anthropic/claude-haiku-4.5-20251022'];
 
-  // Calculate context tokens (system prompt + JSON + conversation history)
+  // Calculate context tokens (system prompt + currentSection files + conversation history)
   useEffect(() => {
     // Estimate system prompt tokens (~5000 for the full system prompt with instructions)
     const systemPromptTokens = 5000;
 
-    // Estimate JSON tokens
-    const jsonString = JSON.stringify(currentJson);
-    const jsonTokens = estimateTokens(jsonString);
+    // Estimate currentSection tokens (HTML/CSS/JS/PHP files)
+    const sectionTokens = currentSection ?
+      estimateTokens(currentSection.html || '') +
+      estimateTokens(currentSection.css || '') +
+      estimateTokens(currentSection.js || '') +
+      estimateTokens(currentSection.php || '')
+      : 0;
 
     // Estimate conversation history tokens
     const historyTokens = messages.slice(-4).reduce((total, msg) => {
       return total + estimateTokens(msg.content || '');
     }, 0);
 
-    const total = systemPromptTokens + jsonTokens + historyTokens;
+    const total = systemPromptTokens + sectionTokens + historyTokens;
     setContextTokens(total);
-    console.log(`📊 Context tokens: System(~5K) + JSON(${jsonTokens.toLocaleString()}) + History(${historyTokens}) = ${total.toLocaleString()}`);
-  }, [currentJson, messages]);
+    console.log(`📊 Context tokens: System(~5K) + Files(${sectionTokens.toLocaleString()}) + History(${historyTokens}) = ${total.toLocaleString()}`);
+  }, [currentSection, messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -513,6 +617,11 @@ export function ChatInterface({
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Project Context Badge */}
+      {currentSection && (
+        <ProjectContextBadge currentSection={currentSection} />
+      )}
 
       {/* Chat Input */}
       <div className="chat-input-container">

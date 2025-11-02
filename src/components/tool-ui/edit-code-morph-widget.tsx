@@ -75,16 +75,17 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
         throw new Error(result.error || `Morph API failed: ${response.statusText}`);
       }
 
-      // Update editor with merged code
-      updateContent(data.file, result.mergedCode);
-
-      // Record usage for tracking
-      recordUsage('morph/v3-fast', {
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        cacheCreationTokens: 0,
-        cacheReadTokens: 0,
+      // Dispatch event to show diff in main editor
+      const diffEvent = new CustomEvent('show-morph-diff', {
+        detail: {
+          file: data.file,
+          originalCode,
+          mergedCode: result.mergedCode,
+          usage: result.usage,
+          stats: result.stats,
+        },
       });
+      window.dispatchEvent(diffEvent);
 
       setStats(result.stats);
       setState('success');
@@ -108,16 +109,16 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
     }
   };
 
-  const getStateBg = () => {
+  const getBorderColor = () => {
     switch (state) {
       case 'loading':
-        return 'bg-blue-500/5 border-blue-500/20';
+        return 'border-blue-500/20';
       case 'success':
-        return 'bg-green-500/5 border-green-500/20';
+        return 'border-green-500/20';
       case 'error':
-        return 'bg-red-500/5 border-red-500/20';
+        return 'border-red-500/20';
       default:
-        return 'bg-blue-500/5 border-blue-500/20';
+        return 'border-blue-500/20';
     }
   };
 
@@ -141,8 +142,14 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
     return colors[data.file] || 'text-gray-600';
   };
 
+  const getTruncatedInstruction = (instruction: string, maxWords: number = 5) => {
+    const words = instruction.split(' ');
+    if (words.length <= maxWords) return instruction;
+    return words.slice(0, maxWords).join(' ') + '...';
+  };
+
   return (
-    <div className={`my-3 rounded-lg border ${getStateBg()} transition-all duration-200`}>
+    <div className={`my-3 rounded-lg border ${getBorderColor()} transition-all duration-200`}>
       {/* Collapsed 1-line view */}
       {!isExpanded && (
         <button
@@ -158,7 +165,7 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
             </span>
           </div>
           <span className="text-xs text-muted-foreground flex-1 text-left truncate">
-            {data.instruction}
+            {getTruncatedInstruction(data.instruction)}
           </span>
           <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
         </button>
@@ -191,7 +198,7 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
           </div>
 
           {/* Instruction */}
-          <div className="text-sm bg-muted/30 rounded px-3 py-2">
+          <div className="text-sm px-3 py-2">
             <span className="text-muted-foreground text-xs">Instruction:</span>
             <p className="mt-0.5">{data.instruction}</p>
           </div>
@@ -217,21 +224,21 @@ export function EditCodeMorphWidget({ data }: EditCodeMorphWidgetProps) {
                 className="flex-1 bg-blue-600 hover:bg-blue-700 h-9"
               >
                 <Zap className="h-3.5 w-3.5 mr-1.5" />
-                Apply Changes
+                Preview & Apply
               </Button>
             )}
 
             {state === 'loading' && (
               <Button disabled className="flex-1 h-9">
                 <LoadingDots />
-                <span className="ml-2">Applying...</span>
+                <span className="ml-2">Loading...</span>
               </Button>
             )}
 
             {state === 'success' && (
               <Button disabled className="flex-1 bg-green-600 h-9">
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                Applied
+                Preview Ready
               </Button>
             )}
 

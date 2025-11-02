@@ -26,8 +26,8 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/source';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
-import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, FileCodeIcon, EyeIcon } from 'lucide-react';
-import { useState } from 'react';
+import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, FileCodeIcon, EyeIcon, FileCode } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import {
@@ -55,6 +55,109 @@ interface ElementorChatProps {
   onSwitchTab?: (tab: string) => void;
   onUpdateSection?: (updates: { html?: string; css?: string; js?: string }) => void;
   currentSection?: any;
+}
+
+// Helper function to get extension color
+const getExtensionColor = (extension: string): string => {
+  const colors: Record<string, string> = {
+    HTML: "text-orange-400",
+    CSS: "text-blue-400",
+    JS: "text-amber-400",
+    PHP: "text-purple-400",
+  };
+  return colors[extension] || "text-gray-400";
+};
+
+// Project Context Badge Component
+function ProjectContextBadge({
+  currentSection,
+  includeContext = true
+}: {
+  currentSection: any;
+  includeContext?: boolean;
+}) {
+  const [animationStage, setAnimationStage] = useState(0);
+
+  useEffect(() => {
+    const stages = [
+      { delay: 0, stage: 1 },
+      { delay: 300, stage: 2 },
+      { delay: 600, stage: 3 },
+      { delay: 900, stage: 4 },
+      { delay: 1500, stage: 5 },
+    ];
+
+    stages.forEach(({ delay, stage }) => {
+      setTimeout(() => setAnimationStage(stage), delay);
+    });
+  }, []);
+
+  // Get project tags based on what files exist
+  // Priority order: PHP, HTML, CSS, JS
+  const tags: string[] = [];
+  if (currentSection?.php) tags.push('PHP');
+  if (currentSection?.html) tags.push('HTML');
+  if (currentSection?.css) tags.push('CSS');
+  if (currentSection?.js) tags.push('JS');
+
+  const projectTitle = currentSection?.name || 'Untitled Project';
+
+  return (
+    <div className="flex justify-center items-center gap-3 mb-4">
+      <div
+        className={`group relative inline-flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium tracking-tight shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] overflow-hidden rounded-full cursor-default
+          ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
+          ${animationStage === 1 ? "opacity-100 translate-y-4" : ""}
+          ${animationStage >= 2 ? "opacity-100 translate-y-0" : ""}
+        `}
+      >
+        {/* Green/Red dot with flash animation - red when context disabled */}
+        <div
+          className={`h-2 w-2 rounded-full ${includeContext ? 'bg-green-500' : 'bg-red-500'} transition-all duration-300
+            ${animationStage >= 5 ? "animate-pulse" : "opacity-0"}
+            ${animationStage >= 3 ? "opacity-100" : ""}
+          `}
+        />
+
+        {/* Content that appears after slide up */}
+        {animationStage >= 3 && (
+          <>
+            <span className="text-xs opacity-70 animate-in fade-in slide-in-from-left-2 duration-300">
+              Current Project
+            </span>
+            <span className="text-xs opacity-50 animate-in fade-in duration-300" style={{ animationDelay: "100ms" }}>
+              •
+            </span>
+            <FileCode
+              className="h-4 w-4 text-orange-400 transition-transform duration-500 group-hover:rotate-12 animate-in fade-in slide-in-from-left-2 duration-300"
+              style={{ animationDelay: "200ms" }}
+            />
+            <span
+              className="animate-in fade-in slide-in-from-left-2 duration-300"
+              style={{ animationDelay: "300ms" }}
+            >
+              {projectTitle}
+            </span>
+
+            {/* File type tags */}
+            <div className="flex items-center gap-1.5 ml-1">
+              {tags.map((tag, i) => (
+                <span
+                  key={tag}
+                  className={`text-xs font-semibold px-1.5 py-0.5 rounded ${getExtensionColor(tag)} animate-in fade-in slide-in-from-right-2 duration-300`}
+                  style={{ animationDelay: `${400 + i * 100}ms` }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      </div>
+    </div>
+  );
 }
 
 const modelGroups = [
@@ -166,15 +269,30 @@ export function ElementorChat({
     return <Response>{pretty}</Response>;
   };
 
+  // Calculate file stats for current project
+  const projectFiles = currentSection ? [
+    currentSection.html && 'HTML',
+    currentSection.css && 'CSS',
+    currentSection.js && 'JS',
+    currentSection.php && 'PHP'
+  ].filter(Boolean) : [];
+
+  const totalChars = currentSection ?
+    (currentSection.html?.length || 0) +
+    (currentSection.css?.length || 0) +
+    (currentSection.js?.length || 0) +
+    (currentSection.php?.length || 0) : 0;
+
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      padding: '0 24px 0 24px'
     }}>
-      <Conversation className="flex-1" style={{ overflow: 'hidden' }}>
-        <ConversationContent style={{ flex: 1, overflow: 'auto' }}>
+      <Conversation className="flex-1 scrollbar-hide">
+        <ConversationContent className="scrollbar-hide" style={{ flex: 1, overflow: 'auto' }}>
           {messages.map((message, index) => (
             <div key={message.id}>
               {/* Show sources for assistant messages - OUTSIDE Message component */}
@@ -370,7 +488,15 @@ export function ElementorChat({
         <ConversationScrollButton />
       </Conversation>
 
-      <PromptInput onSubmit={handleSubmit} style={{ flexShrink: 0, marginTop: '16px' }}>
+      {/* Project Context Badge */}
+      {currentSection && (
+        <ProjectContextBadge
+          currentSection={currentSection}
+          includeContext={includeContext}
+        />
+      )}
+
+      <PromptInput onSubmit={handleSubmit} style={{ flexShrink: 0, margin: '8px 0 24px 0' }}>
         <PromptInputTextarea
           onChange={(e) => setInput(e.target.value)}
           value={input}

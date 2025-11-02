@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Zap, CheckCircle2, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Zap, CheckCircle2, XCircle, ChevronDown, ChevronUp, GitCompare } from 'lucide-react';
 import { useDocumentContent } from '@/hooks/useDocumentContent';
 import { useUsageTracking } from '@/hooks/useUsageTracking';
+import { DiffEditor } from '@monaco-editor/react';
 
 interface DocumentMorphWidgetProps {
   data: {
@@ -15,7 +16,7 @@ interface DocumentMorphWidgetProps {
   };
 }
 
-type WidgetState = 'idle' | 'loading' | 'success' | 'error';
+type WidgetState = 'idle' | 'loading' | 'previewing' | 'success' | 'error';
 
 // Animated loading dots component
 function LoadingDots() {
@@ -35,6 +36,7 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
   const [state, setState] = useState<WidgetState>('idle');
   const [isExpanded, setIsExpanded] = useState(true);
   const [originalDoc, setOriginalDoc] = useState<string>('');
+  const [mergedDoc, setMergedDoc] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [stats, setStats] = useState<any>(null);
 
@@ -50,7 +52,7 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
     }
   }, [state]);
 
-  const handleApplyChanges = async () => {
+  const handlePreviewChanges = async () => {
     try {
       setState('loading');
       setErrorMessage('');
@@ -72,19 +74,10 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
         throw new Error(result.error || `Morph API failed: ${response.statusText}`);
       }
 
-      // Update document with merged content with streaming animation
-      await updateContentWithAnimation(result.mergedCode, originalDoc);
-
-      // Record usage for tracking
-      recordUsage('morph/v3-fast', {
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        cacheCreationTokens: 0,
-        cacheReadTokens: 0,
-      });
-
+      // Store merged content and stats for preview
+      setMergedDoc(result.mergedCode);
       setStats(result.stats);
-      setState('success');
+      setState('previewing');
     } catch (error: any) {
       console.error('❌ Morph merge failed:', error);
       setErrorMessage(error.message || 'Unknown error occurred');
@@ -92,10 +85,35 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
     }
   };
 
+  const handleAcceptChanges = async () => {
+    // Update document with merged content with streaming animation
+    await updateContentWithAnimation(mergedDoc, originalDoc);
+
+    // Record usage for tracking
+    if (stats?.usage) {
+      recordUsage('morph/v3-fast', {
+        inputTokens: stats.usage.inputTokens,
+        outputTokens: stats.usage.outputTokens,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+      });
+    }
+
+    setState('success');
+  };
+
+  const handleDeclineChanges = () => {
+    // Reset to idle state
+    setMergedDoc('');
+    setState('idle');
+  };
+
   const getStateIcon = () => {
     switch (state) {
       case 'loading':
         return <LoadingDots />;
+      case 'previewing':
+        return <GitCompare className="h-4 w-4 text-purple-500" />;
       case 'success':
         return <CheckCircle2 className="h-4 w-4 text-green-500" />;
       case 'error':
@@ -105,21 +123,29 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
     }
   };
 
-  const getStateBg = () => {
+  const getBorderColor = () => {
     switch (state) {
       case 'loading':
-        return 'bg-blue-500/5 border-blue-500/20';
+        return 'border-blue-500/20';
+      case 'previewing':
+        return 'border-purple-500/20';
       case 'success':
-        return 'bg-green-500/5 border-green-500/20';
+        return 'border-green-500/20';
       case 'error':
-        return 'bg-red-500/5 border-red-500/20';
+        return 'border-red-500/20';
       default:
-        return 'bg-purple-500/5 border-purple-500/20';
+        return 'border-purple-500/20';
     }
   };
 
+  const getTruncatedInstruction = (instruction: string, maxWords: number = 5) => {
+    const words = instruction.split(' ');
+    if (words.length <= maxWords) return instruction;
+    return words.slice(0, maxWords).join(' ') + '...';
+  };
+
   return (
-    <div className={`my-3 rounded-lg border ${getStateBg()} transition-all duration-200`}>
+    <div className={`my-3 rounded-lg border ${getBorderColor()} transition-all duration-200`}>
       {/* Collapsed 1-line view */}
       {!isExpanded && (
         <button
@@ -131,7 +157,7 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
             <span className="text-sm font-medium">AI Document Edit</span>
           </div>
           <span className="text-xs text-muted-foreground flex-1 text-left truncate">
-            {data.instruction}
+            {getTruncatedInstruction(data.instruction)}
           </span>
           <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
         </button>
@@ -160,7 +186,7 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
           </div>
 
           {/* Instruction */}
-          <div className="text-sm bg-muted/30 rounded px-3 py-2">
+          <div className="text-sm px-3 py-2">
             <span className="text-muted-foreground text-xs">Instruction:</span>
             <p className="mt-0.5">{data.instruction}</p>
           </div>
@@ -178,23 +204,73 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
             </div>
           )}
 
+          {/* Diff Preview (when previewing) */}
+          {state === 'previewing' && (
+            <div className="space-y-3">
+              <div className="text-xs text-muted-foreground flex items-center gap-2">
+                <GitCompare className="h-3 w-3" />
+                <span>Review changes before applying</span>
+                {stats && (
+                  <span className="ml-auto">
+                    Generated in {stats.durationMs}ms
+                  </span>
+                )}
+              </div>
+              <div className="border rounded-lg overflow-hidden" style={{ height: '400px' }}>
+                <DiffEditor
+                  original={originalDoc}
+                  modified={mergedDoc}
+                  language="markdown"
+                  theme="vs-dark"
+                  options={{
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    renderSideBySide: true,
+                    fontSize: 13,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex gap-2">
             {state === 'idle' && (
               <Button
-                onClick={handleApplyChanges}
+                onClick={handlePreviewChanges}
                 className="flex-1 bg-purple-600 hover:bg-purple-700 h-9"
               >
-                <Zap className="h-3.5 w-3.5 mr-1.5" />
-                Apply Changes
+                <GitCompare className="h-3.5 w-3.5 mr-1.5" />
+                Preview Changes
               </Button>
             )}
 
             {state === 'loading' && (
               <Button disabled className="flex-1 h-9">
                 <LoadingDots />
-                <span className="ml-2">Applying...</span>
+                <span className="ml-2">Loading...</span>
               </Button>
+            )}
+
+            {state === 'previewing' && (
+              <>
+                <Button
+                  onClick={handleAcceptChanges}
+                  className="flex-1 bg-green-600 hover:bg-green-700 h-9"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                  Accept
+                </Button>
+                <Button
+                  onClick={handleDeclineChanges}
+                  variant="outline"
+                  className="flex-1 h-9"
+                >
+                  <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                  Decline
+                </Button>
+              </>
             )}
 
             {state === 'success' && (
@@ -206,7 +282,7 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
 
             {state === 'error' && (
               <Button
-                onClick={handleApplyChanges}
+                onClick={handlePreviewChanges}
                 variant="destructive"
                 className="flex-1 h-9"
               >

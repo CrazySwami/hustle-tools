@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
-import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search, X, Sun, Moon, Activity, MessageSquare, Mic } from "lucide-react"
+import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search, X, Sun, Moon, Activity, MessageSquare, Mic, Zap } from "lucide-react"
 
 type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -265,6 +265,12 @@ export function Navbar() {
         description: "Browse upcoming concerts and events",
         icon: Ticket,
       },
+      {
+        title: "Roadmap",
+        href: "/roadmap",
+        description: "Product roadmap and upcoming features",
+        icon: Zap,
+      },
     ],
   };
 
@@ -278,6 +284,7 @@ export function Navbar() {
     { href: "/page-extractor", label: "Page Extractor" },
     { href: "/tkx-calendar", label: "TKX Events" },
     { href: "/api-monitor", label: "API Monitor" },
+    { href: "/roadmap", label: "Roadmap" },
   ];
 
   return (

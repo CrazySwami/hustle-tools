@@ -40,6 +40,7 @@ export async function middleware(request: NextRequest) {
     '/keyword-research',
     '/voice-chat',
     '/test-cartesia',
+    '/roadmap',
   ]
   const path = request.nextUrl.pathname
 

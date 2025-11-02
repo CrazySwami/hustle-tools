@@ -282,6 +282,30 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
                 disabled: !playgroundReady
               },
               {
+                label: '🔍 Open in New Tab',
+                onClick: () => {
+                  // Get the iframe element and try to open its URL in a new tab
+                  const iframe = document.getElementById('playgroundIframe') as HTMLIFrameElement;
+                  if (iframe && iframe.contentWindow) {
+                    try {
+                      // Try to get the current URL from the iframe
+                      const currentUrl = iframe.contentWindow.location.href;
+                      if (currentUrl && currentUrl !== 'about:blank') {
+                        window.open(currentUrl, '_blank');
+                      } else {
+                        // Fallback: show message
+                        alert('Please wait for the playground to load, then click "👁️ View Live" first.');
+                      }
+                    } catch (e) {
+                      // Cross-origin error - show helpful message
+                      alert('To inspect elements:\n\n1. Click "👁️ View Live" to navigate to the page\n2. Then click "🔍 Open in New Tab" to open it in a new window\n3. Use your browser\'s DevTools (F12) in the new tab to inspect elements');
+                    }
+                  }
+                },
+                disabled: !playgroundReady,
+                divider: true
+              },
+              {
                 label: '⬇️ Pull Changes',
                 onClick: pullFromPlayground,
                 disabled: isLoading || !playgroundReady

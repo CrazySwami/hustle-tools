@@ -1,18 +1,8 @@
 'use client';
 
-/**
- * ============================================================================
- * CREATE PROJECT DIALOG
- * ============================================================================
- *
- * Modal for creating new projects with template selection.
- */
-
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, FolderPlus } from 'lucide-react';
 import { useProjects } from '@/hooks/useProjectHierarchy';
-import { ProjectTemplate, PROJECT_TEMPLATES } from '@/types/project';
-import { cn } from '@/lib/utils';
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -22,42 +12,13 @@ interface CreateProjectDialogProps {
 export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps) {
   const { createProject } = useProjects();
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [template, setTemplate] = useState<ProjectTemplate>('custom');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
+    if (!name.trim()) return;
 
-    console.log('Creating project:', { name, description, template });
-
-    if (!name.trim()) {
-      console.log('Project name is empty, not creating');
-      return;
-    }
-
-    const templateInfo = PROJECT_TEMPLATES[template];
-
-    const newProject = createProject({
-      name: name.trim(),
-      description: description.trim() || undefined,
-      template,
-      icon: templateInfo.icon,
-    });
-
-    console.log('Project created:', newProject);
-
-    // Reset and close
+    createProject(name.trim());
     setName('');
-    setDescription('');
-    setTemplate('custom');
-    onClose();
-  };
-
-  const handleClose = () => {
-    setName('');
-    setDescription('');
-    setTemplate('custom');
     onClose();
   };
 
@@ -67,105 +28,58 @@ export function CreateProjectDialog({ open, onClose }: CreateProjectDialogProps)
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-[9999] animate-in fade-in duration-200"
-        onClick={handleClose}
+        className="fixed inset-0 bg-black/60 z-[9999] backdrop-blur-sm animate-in fade-in duration-200"
+        onClick={onClose}
       />
 
       {/* Dialog */}
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[10000] w-full max-w-md">
-        <div className="bg-card border border-border rounded-lg shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200">
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[10000] w-full max-w-sm">
+        <div className="bg-card border border-border rounded-xl shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200 overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border">
-            <h2 className="text-lg font-semibold">Create New Project</h2>
+          <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-b border-border/50">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <FolderPlus className="w-5 h-5 text-primary" />
+            </div>
+            <h2 className="text-lg font-semibold flex-1">New Project</h2>
             <button
-              onClick={handleClose}
-              className="p-1 hover:bg-muted rounded transition-colors"
+              onClick={onClose}
+              className="p-1.5 hover:bg-muted/80 rounded-md transition-colors"
+              type="button"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-4 space-y-4">
-            {/* Project Name */}
-            <div>
-              <label className="block text-sm font-medium mb-1.5">
-                Project Name *
+          <form onSubmit={handleSubmit} className="p-5">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-muted-foreground">
+                Project Name
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="My Awesome Project"
-                className="w-full px-3 py-2 bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                 autoFocus
                 required
               />
             </div>
 
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium mb-1.5">
-                Description <span className="text-muted-foreground">(optional)</span>
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="What is this project about?"
-                rows={3}
-                className="w-full px-3 py-2 bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-              />
-            </div>
-
-            {/* Template Selection */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Project Template
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {(Object.keys(PROJECT_TEMPLATES) as ProjectTemplate[]).map((key) => {
-                  const tmpl = PROJECT_TEMPLATES[key];
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setTemplate(key)}
-                      className={cn(
-                        "flex flex-col items-start p-3 border rounded-md transition-all text-left",
-                        template === key
-                          ? "border-primary bg-primary/5 ring-2 ring-primary/50"
-                          : "border-border hover:border-primary/50 hover:bg-muted/50"
-                      )}
-                    >
-                      <div className="text-2xl mb-1">{tmpl.icon}</div>
-                      <div className="text-sm font-medium">{tmpl.name}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-2">
-                        {tmpl.description}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              {template !== 'custom' && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Default folders: {PROJECT_TEMPLATES[template].defaultFolders.join(', ')}
-                </p>
-              )}
-            </div>
-
             {/* Actions */}
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 mt-6">
               <button
                 type="button"
-                onClick={handleClose}
-                className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-md transition-colors"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium hover:bg-muted/80 rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={!name.trim()}
-                className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-5 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
               >
                 Create Project
               </button>

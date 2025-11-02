@@ -26,15 +26,15 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/source';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
-import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, PanelRightOpen } from 'lucide-react';
-import { useState } from 'react';
+import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, PanelRightOpen, FileText, FileIcon, EyeIcon, File } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 interface DocumentChatProps {
   messages: any[];
   isLoading: boolean;
   status?: string;
-  onSendMessage: (text: string, settings?: { webSearchEnabled: boolean }) => void;
+  onSendMessage: (text: string, settings?: { webSearchEnabled: boolean; includeContext?: boolean }) => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
   onReload?: () => void;
@@ -42,6 +42,100 @@ interface DocumentChatProps {
   onToggleEditor: () => void;
   webSearchEnabled?: boolean;
   onWebSearchChange?: (enabled: boolean) => void;
+  // Context badge props
+  currentDocument?: { title: string; id: string } | null;
+  currentProject?: { name: string; id: string } | null;
+  wordCount?: number;
+  // System prompt viewer props
+  systemPrompt?: string;
+  documentContent?: string;
+}
+
+// Document Context Badge Component
+function DocumentContextBadge({
+  currentDocument,
+  currentProject,
+  wordCount,
+  includeContext = true,
+}: {
+  currentDocument?: { title: string; id: string } | null;
+  currentProject?: { name: string; id: string } | null;
+  wordCount?: number;
+  includeContext?: boolean;
+}) {
+  const [animationStage, setAnimationStage] = useState(0);
+
+  useEffect(() => {
+    const stages = [
+      { delay: 0, stage: 1 },
+      { delay: 300, stage: 2 },
+      { delay: 600, stage: 3 },
+      { delay: 900, stage: 4 },
+      { delay: 1500, stage: 5 },
+    ];
+
+    stages.forEach(({ delay, stage }) => {
+      setTimeout(() => setAnimationStage(stage), delay);
+    });
+  }, []);
+
+  const documentTitle = currentDocument?.title || 'Untitled Document';
+  const projectName = currentProject?.name || 'My Documents';
+
+  return (
+    <div className="flex justify-center items-center gap-3 mb-4">
+      <div
+        className={`group relative inline-flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium tracking-tight shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] overflow-hidden rounded-full cursor-default
+          ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
+          ${animationStage === 1 ? "opacity-100 translate-y-4" : ""}
+          ${animationStage >= 2 ? "opacity-100 translate-y-0" : ""}
+        `}
+      >
+        {/* Green/Red dot with flash animation - red when context disabled */}
+        <div
+          className={`h-2 w-2 rounded-full ${includeContext ? 'bg-green-500' : 'bg-red-500'} transition-all duration-300
+            ${animationStage >= 5 ? "animate-pulse" : "opacity-0"}
+            ${animationStage >= 3 ? "opacity-100" : ""}
+          `}
+        />
+
+        {/* Content that appears after slide up */}
+        {animationStage >= 3 && (
+          <>
+            <span className="text-xs opacity-70 animate-in fade-in slide-in-from-left-2 duration-300">
+              Current Document
+            </span>
+            <span className="text-xs opacity-50 animate-in fade-in duration-300" style={{ animationDelay: "100ms" }}>
+              •
+            </span>
+            <File
+              className="h-4 w-4 text-cyan-400 transition-transform duration-500 group-hover:rotate-12 animate-in fade-in slide-in-from-left-2 duration-300"
+              style={{ animationDelay: "200ms" }}
+            />
+            <span
+              className="animate-in fade-in slide-in-from-left-2 duration-300"
+              style={{ animationDelay: "300ms" }}
+            >
+              {documentTitle}
+            </span>
+
+            {/* Word count badge */}
+            {wordCount !== undefined && (
+              <div
+                className="flex items-center gap-2 ml-1 animate-in fade-in slide-in-from-right-2 duration-300"
+                style={{ animationDelay: "400ms" }}
+              >
+                <div className="h-4 w-px bg-white/30" />
+                <span className="text-xs opacity-70">{wordCount.toLocaleString()} words</span>
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      </div>
+    </div>
+  );
 }
 
 const modelGroups = [
@@ -96,8 +190,15 @@ export function DocumentChat({
   onToggleEditor,
   webSearchEnabled = false,
   onWebSearchChange,
+  currentDocument,
+  currentProject,
+  wordCount = 0,
+  systemPrompt = '',
+  documentContent = '',
 }: DocumentChatProps) {
   const [input, setInput] = useState('');
+  const [showSystemPrompt, setShowSystemPrompt] = useState(false);
+  const [includeContext, setIncludeContext] = useState(true);
   // Use controlled webSearch if provided, otherwise use local state
   const webSearch = webSearchEnabled;
   const setWebSearch = (value: boolean) => {
@@ -106,11 +207,16 @@ export function DocumentChat({
     }
   };
 
+  // Calculate stats for system prompt viewer
+  const totalChars = systemPrompt.length + documentContent.length;
+  const estimatedTokens = Math.ceil(totalChars / 4);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
       onSendMessage(input, {
         webSearchEnabled: webSearch,
+        includeContext,
       });
       setInput('');
     }
@@ -130,9 +236,10 @@ export function DocumentChat({
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      padding: '0 10px 0 10px'
     }}>
-      <Conversation className="flex-1" style={{ overflow: 'hidden' }}>
+      <Conversation className="flex-1 scrollbar-hide" style={{ overflow: 'hidden' }}>
         <ConversationContent className="scrollbar-hide" style={{ flex: 1, overflow: 'auto' }}>
           {messages.map((message, index) => (
             <div key={message.id}>
@@ -303,7 +410,17 @@ export function DocumentChat({
         <ConversationScrollButton />
       </Conversation>
 
-      <PromptInput onSubmit={handleSubmit} style={{ flexShrink: 0, marginTop: '16px' }}>
+      {/* Document Context Badge */}
+      {currentDocument && (
+        <DocumentContextBadge
+          currentDocument={currentDocument}
+          currentProject={currentProject}
+          wordCount={wordCount}
+          includeContext={includeContext}
+        />
+      )}
+
+      <PromptInput onSubmit={handleSubmit} style={{ flexShrink: 0, margin: '8px 0 10px 0' }}>
         <PromptInputTextarea
           onChange={(e) => setInput(e.target.value)}
           value={input}
@@ -318,6 +435,22 @@ export function DocumentChat({
             >
               <GlobeIcon size={16} />
               <span>Search</span>
+            </PromptInputButton>
+            <PromptInputButton
+              variant={includeContext ? 'default' : 'ghost'}
+              onClick={() => setIncludeContext(!includeContext)}
+              title={includeContext ? 'Document context included' : 'Document context excluded'}
+            >
+              <FileIcon size={16} />
+              <span>Context</span>
+            </PromptInputButton>
+            <PromptInputButton
+              variant="ghost"
+              onClick={() => setShowSystemPrompt(true)}
+              title="View system prompt"
+            >
+              <EyeIcon size={16} />
+              <span>Prompt</span>
             </PromptInputButton>
             <PromptInputButton
               variant={isEditorVisible ? 'default' : 'ghost'}
@@ -352,6 +485,88 @@ export function DocumentChat({
           </PromptInputSubmit>
         </PromptInputToolbar>
       </PromptInput>
+
+      {/* System Prompt Viewer Modal */}
+      {showSystemPrompt && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
+          onClick={() => setShowSystemPrompt(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-xl shadow-2xl max-w-4xl max-h-[80vh] overflow-hidden w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h2 className="text-lg font-semibold">System Prompt Viewer</h2>
+              <button
+                onClick={() => setShowSystemPrompt(false)}
+                className="p-1.5 hover:bg-muted rounded-md transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-auto max-h-[calc(80vh-80px)]">
+              {/* Stats */}
+              <div className="mb-4 p-4 bg-muted/50 rounded-lg space-y-2">
+                <div className="text-sm">
+                  <span className="font-medium">Model:</span> {selectedModel}
+                </div>
+                {currentDocument && (
+                  <>
+                    <div className="text-sm">
+                      <span className="font-medium">Document:</span> {currentDocument.title}
+                    </div>
+                    {currentProject && (
+                      <div className="text-sm">
+                        <span className="font-medium">Project:</span> {currentProject.name}
+                      </div>
+                    )}
+                    <div className="text-sm">
+                      <span className="font-medium">Word Count:</span> {wordCount.toLocaleString()}
+                    </div>
+                  </>
+                )}
+                <div className="text-sm">
+                  <span className="font-medium">Total Characters:</span> {totalChars.toLocaleString()}
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium">Est. Tokens:</span> ~{estimatedTokens.toLocaleString()}
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium">Context:</span>{' '}
+                  <span className={includeContext ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                    {includeContext ? '✓ Enabled' : '✗ Disabled'}
+                  </span> | Web Search:{' '}
+                  <span className={webSearch ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                    {webSearch ? '✓ Enabled' : '✗ Disabled'}
+                  </span>
+                </div>
+              </div>
+
+              {/* System Prompt */}
+              <div className="mb-4">
+                <h3 className="font-medium mb-2">System Prompt:</h3>
+                <pre className="bg-background p-4 rounded-lg text-xs border border-border overflow-auto max-h-60 whitespace-pre-wrap">
+                  {systemPrompt}
+                </pre>
+              </div>
+
+              {/* Document Content */}
+              {documentContent && (
+                <div>
+                  <h3 className="font-medium mb-2">Document Content ({documentContent.length.toLocaleString()} chars):</h3>
+                  <pre className="bg-background p-4 rounded-lg text-xs border border-border overflow-auto max-h-60 whitespace-pre-wrap">
+                    {documentContent}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

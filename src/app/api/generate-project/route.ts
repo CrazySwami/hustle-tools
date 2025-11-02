@@ -4,9 +4,9 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
-    const { description, projectType, projectName, model = 'anthropic/claude-sonnet-4-5-20250929' } = await req.json();
+    const { description, projectType, projectName, model = 'anthropic/claude-sonnet-4-5-20250929', existingCode } = await req.json();
 
-    console.log('🚀 Project Generation Request:', { description, projectType, projectName, model });
+    console.log('🚀 Project Generation Request:', { description, projectType, projectName, model, hasExistingCode: !!existingCode });
 
     // Build prompt based on project type
     const isElementor = projectType === 'elementor';
@@ -72,8 +72,33 @@ export async function POST(req: Request) {
 
 **IMPORTANT**: Create standalone, copy-paste ready code that works immediately in any modern browser.`;
 
+    // Build existing code context if provided
+    const existingCodeContext = existingCode ? `
+**📋 EXISTING CODE TO CONVERT:**
+
+**HTML (${existingCode.html?.length || 0} characters):**
+\`\`\`html
+${existingCode.html || '(empty)'}
+\`\`\`
+
+**CSS (${existingCode.css?.length || 0} characters):**
+\`\`\`css
+${existingCode.css || '(empty)'}
+\`\`\`
+
+**JavaScript (${existingCode.js?.length || 0} characters):**
+\`\`\`javascript
+${existingCode.js || '(empty)'}
+\`\`\`
+
+**CRITICAL**: Use this EXACT code as the foundation. Convert it to an Elementor widget while preserving all functionality, styles, and behavior. Do NOT create something new - convert what's here.
+
+` : '';
+
     const userPrompt = isElementor
-      ? `Create a complete Elementor widget for: ${description}
+      ? `${existingCode ? 'Convert the existing HTML/CSS/JS code below into' : 'Create'} a complete Elementor widget${existingCode ? '' : ' for: ' + description}
+
+${existingCodeContext}${existingCode ? `**Conversion Requirements**: ${description}` : ''}
 
 **Widget Name**: ${projectName}
 **Class Name**: Elementor_${projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('_')}_Widget
@@ -178,12 +203,14 @@ Start with HTML, then CSS, then JS. Be comprehensive and production-ready.`;
           }
 
           // Get final usage after streaming completes
-          const usage = await result.usage;
-          const finishReason = await result.finishReason;
+          const finalResult = await result;
+          const usage = finalResult.usage;
+          const finishReason = finalResult.finishReason;
+
+          console.log('📊 Generation complete. Usage:', usage);
 
           // Send usage metadata as a special marker at the end
           const usageMetadata = {
-            __USAGE__: true,
             usage,
             finishReason,
             model,
@@ -192,6 +219,7 @@ Start with HTML, then CSS, then JS. Be comprehensive and production-ready.`;
 
           controller.close();
         } catch (error) {
+          console.error('Stream error:', error);
           controller.error(error);
         }
       },

@@ -221,7 +221,7 @@ ${Object.entries(elementData.styles).map(([k, v]) => `  ${k}: ${v}`).join('\n')}
         onClick={() => setIsActive(!isActive)}
         variant={isActive ? 'default' : 'outline'}
         size="sm"
-        className={`fixed bottom-4 right-4 z-50 ${isActive ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+        className={`fixed bottom-20 right-4 z-[3300] ${isActive ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
       >
         <Eye className="h-4 w-4 mr-2" />
         {isActive ? 'Inspecting...' : 'Inspect Elements'}
@@ -229,7 +229,7 @@ ${Object.entries(elementData.styles).map(([k, v]) => `  ${k}: ${v}`).join('\n')}
 
       {/* Element Info Panel */}
       {selectedElement && elementData && (
-        <Card className="fixed bottom-20 right-4 z-50 w-96 max-h-96 overflow-auto shadow-lg">
+        <Card className="fixed bottom-36 right-4 z-[3300] w-96 max-h-96 overflow-auto shadow-lg">
           <div className="p-4 space-y-3">
             {/* Header */}
             <div className="flex items-center justify-between">

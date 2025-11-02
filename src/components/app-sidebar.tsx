@@ -1,19 +1,9 @@
 'use client'
 
-import { FileText, Folder, Plus, ChevronRight } from "lucide-react"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-} from "@/components/ui/sidebar"
+import { FileText, Folder, Plus, ChevronRight, X } from "lucide-react"
 import { useProjects, useFolders, useDocuments, useProjectUIState } from "@/hooks/useProjectHierarchy"
 import { useState } from "react"
+import { useSidebar } from "@/components/ui/sidebar"
 import { CreateProjectDialog } from "@/components/project-hierarchy/CreateProjectDialog"
 import { CreateFolderDialog } from "@/components/project-hierarchy/CreateFolderDialog"
 import { CreateDocumentDialog } from "@/components/project-hierarchy/CreateDocumentDialog"
@@ -24,6 +14,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ onDocumentSelect, selectedDocumentId }: AppSidebarProps) {
+  const { open, setOpen } = useSidebar()
   const { projects } = useProjects()
   const { folders } = useFolders()
   const { documents } = useDocuments()
@@ -47,35 +38,44 @@ export function AppSidebar({ onDocumentSelect, selectedDocumentId }: AppSidebarP
     return folders.filter(folder => folder.projectId === projectId && !folder.parentFolderId)
   }
 
+  if (!open) return null
+
   return (
     <>
-      <Sidebar>
-        <SidebarHeader className="border-b px-4 py-3">
+      <div className="h-full w-64 bg-sidebar border-r border-sidebar-border flex flex-col flex-shrink-0">
+        {/* Header */}
+        <div className="border-b border-sidebar-border px-4 py-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Documents</h2>
+            <h2 className="text-sm font-semibold text-sidebar-foreground">Documents</h2>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setShowCreateDocument(true)}
                 className="p-1.5 rounded hover:bg-sidebar-accent transition-colors"
                 title="New Document"
               >
-                <FileText className="w-4 h-4" />
+                <FileText className="w-4 h-4 text-sidebar-foreground" />
               </button>
               <button
                 onClick={() => setShowCreateProject(true)}
                 className="p-1.5 rounded hover:bg-sidebar-accent transition-colors"
                 title="New Project"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 text-sidebar-foreground" />
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                className="p-1.5 rounded hover:bg-sidebar-accent transition-colors"
+                title="Close"
+              >
+                <X className="w-4 h-4 text-sidebar-foreground" />
               </button>
             </div>
           </div>
-        </SidebarHeader>
+        </div>
 
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-2">
+          <div className="space-y-1">
                 {projects.map((project) => {
                   const isExpanded = uiState.expandedProjects.includes(project.id)
                   const projectFolders = getFoldersForProject(project.id)
@@ -84,22 +84,20 @@ export function AppSidebar({ onDocumentSelect, selectedDocumentId }: AppSidebarP
 
                   return (
                     <div key={project.id}>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          onClick={() => hasChildren && toggleProject(project.id)}
-                          className="w-full"
-                        >
-                          {hasChildren && (
-                            <ChevronRight
-                              className={`w-3 h-3 transition-transform ${
-                                isExpanded ? 'rotate-90' : ''
-                              }`}
-                            />
-                          )}
-                          <span className="text-sm">{project.icon || '📁'}</span>
-                          <span className="flex-1 truncate">{project.name}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                      <button
+                        onClick={() => hasChildren && toggleProject(project.id)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-sidebar-accent text-sidebar-foreground text-sm"
+                      >
+                        {hasChildren && (
+                          <ChevronRight
+                            className={`w-3 h-3 transition-transform ${
+                              isExpanded ? 'rotate-90' : ''
+                            }`}
+                          />
+                        )}
+                        <span className="text-sm">{project.icon || '📁'}</span>
+                        <span className="flex-1 truncate text-left">{project.name}</span>
+                      </button>
 
                       {/* Render folders and documents when expanded */}
                       {isExpanded && (
@@ -111,35 +109,35 @@ export function AppSidebar({ onDocumentSelect, selectedDocumentId }: AppSidebarP
 
                             return (
                               <div key={folder.id}>
-                                <SidebarMenuItem>
-                                  <SidebarMenuButton
-                                    onClick={() => toggleFolder(folder.id)}
-                                    className="w-full text-sm"
-                                  >
-                                    <ChevronRight
-                                      className={`w-3 h-3 transition-transform ${
-                                        isFolderExpanded ? 'rotate-90' : ''
-                                      }`}
-                                    />
-                                    <Folder className="w-3 h-3" />
-                                    <span className="flex-1 truncate">{folder.name}</span>
-                                  </SidebarMenuButton>
-                                </SidebarMenuItem>
+                                <button
+                                  onClick={() => toggleFolder(folder.id)}
+                                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-sidebar-accent text-sidebar-foreground text-sm"
+                                >
+                                  <ChevronRight
+                                    className={`w-3 h-3 transition-transform ${
+                                      isFolderExpanded ? 'rotate-90' : ''
+                                    }`}
+                                  />
+                                  <Folder className="w-3 h-3" />
+                                  <span className="flex-1 truncate text-left">{folder.name}</span>
+                                </button>
 
                                 {/* Documents in folder */}
                                 {isFolderExpanded && (
                                   <div className="ml-4">
                                     {folderDocs.map((doc) => (
-                                      <SidebarMenuItem key={doc.id}>
-                                        <SidebarMenuButton
-                                          onClick={() => onDocumentSelect?.(doc.id)}
-                                          isActive={selectedDocumentId === doc.id}
-                                          className="w-full text-sm"
-                                        >
-                                          <FileText className="w-3 h-3" />
-                                          <span className="flex-1 truncate">{doc.title}</span>
-                                        </SidebarMenuButton>
-                                      </SidebarMenuItem>
+                                      <button
+                                        key={doc.id}
+                                        onClick={() => onDocumentSelect?.(doc.id)}
+                                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm ${
+                                          selectedDocumentId === doc.id
+                                            ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                                            : 'hover:bg-sidebar-accent text-sidebar-foreground'
+                                        }`}
+                                      >
+                                        <FileText className="w-3 h-3" />
+                                        <span className="flex-1 truncate text-left">{doc.title}</span>
+                                      </button>
                                     ))}
                                   </div>
                                 )}
@@ -149,27 +147,27 @@ export function AppSidebar({ onDocumentSelect, selectedDocumentId }: AppSidebarP
 
                           {/* Root-level documents */}
                           {projectDocs.map((doc) => (
-                            <SidebarMenuItem key={doc.id}>
-                              <SidebarMenuButton
-                                onClick={() => onDocumentSelect?.(doc.id)}
-                                isActive={selectedDocumentId === doc.id}
-                                className="w-full text-sm"
-                              >
-                                <FileText className="w-3 h-3" />
-                                <span className="flex-1 truncate">{doc.title}</span>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
+                            <button
+                              key={doc.id}
+                              onClick={() => onDocumentSelect?.(doc.id)}
+                              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm ${
+                                selectedDocumentId === doc.id
+                                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                                  : 'hover:bg-sidebar-accent text-sidebar-foreground'
+                              }`}
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span className="flex-1 truncate text-left">{doc.title}</span>
+                            </button>
                           ))}
                         </div>
                       )}
                     </div>
                   )
                 })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-      </Sidebar>
+          </div>
+        </div>
+      </div>
 
       {/* Dialogs */}
       <CreateProjectDialog

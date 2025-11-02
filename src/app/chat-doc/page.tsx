@@ -35,7 +35,7 @@ const ChatBotDemo = () => {
   const { documents, updateDocument, createDocument } = useDocuments();
   const { projects, createProject } = useProjects();
 
-  const { messages, sendMessage, isLoading, reload, status } = useChat({
+  const { messages, sendMessage, isLoading, reload, status, error } = useChat({
     api: '/api/chat-doc', // 🎯 Specialized endpoint for document editing
   });
 
@@ -296,6 +296,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
               messages={messages}
               isLoading={isLoading}
               status={status}
+              error={error}
               onSendMessage={handleSendMessage}
               selectedModel={selectedModel}
               onModelChange={setSelectedModel}
@@ -485,6 +486,7 @@ Use the tools available to edit the document, analyze text, and help with writin
                   messages={messages}
                   isLoading={isLoading}
                   status={status}
+                  error={error}
                   onSendMessage={handleSendMessage}
                   selectedModel={selectedModel}
                   onModelChange={setSelectedModel}

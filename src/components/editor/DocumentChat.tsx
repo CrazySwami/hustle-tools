@@ -37,6 +37,7 @@ interface DocumentChatProps {
   messages: any[];
   isLoading: boolean;
   status?: string;
+  error?: Error | null;
   onSendMessage: (text: string, settings?: { webSearchEnabled: boolean; includeContext?: boolean }) => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
@@ -185,6 +186,7 @@ export function DocumentChat({
   messages,
   isLoading,
   status,
+  error,
   onSendMessage,
   selectedModel,
   onModelChange,
@@ -204,6 +206,7 @@ export function DocumentChat({
   const [includeContext, setIncludeContext] = useState(true);
   const [conversationTokenData, setConversationTokenData] = useState<ConversationTokenData | null>(null);
   const [sendDisabled, setSendDisabled] = useState(false);
+  const [showTokenWarning, setShowTokenWarning] = useState(false);
 
   // Use controlled webSearch if provided, otherwise use local state
   const webSearch = webSearchEnabled;
@@ -244,6 +247,16 @@ export function DocumentChat({
     }
   }, [messages, selectedModel, contextLimit]);
 
+  // Show warning when approaching 70% token usage
+  useEffect(() => {
+    if (conversationTokenData && conversationTokenData.percentUsed >= 70) {
+      setShowTokenWarning(true);
+      // Auto-hide warning after 10 seconds
+      const timer = setTimeout(() => setShowTokenWarning(false), 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [conversationTokenData?.percentUsed]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading && !sendDisabled) {
@@ -281,6 +294,89 @@ export function DocumentChat({
 
       <Conversation className="flex-1 scrollbar-hide" style={{ overflow: 'hidden' }}>
         <ConversationContent className="scrollbar-hide" style={{ flex: 1, overflow: 'auto' }}>
+          {/* API Error Display */}
+          {error && (
+            <div className="mx-4 my-2 p-4 rounded-lg border border-red-500/30 bg-red-500/10">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  <svg className="h-5 w-5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-1">
+                    Request Failed
+                  </h3>
+                  <p className="text-sm text-red-600/90 dark:text-red-400/90">
+                    {error.message || 'An error occurred while processing your request'}
+                  </p>
+                  {error.message?.includes('token') && (
+                    <p className="text-xs text-red-600/70 dark:text-red-400/70 mt-2">
+                      💡 Try starting a new conversation or shortening your message
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Token Usage Warning */}
+          {showTokenWarning && conversationTokenData && (
+            <div className={cn(
+              "mx-4 my-2 p-4 rounded-lg border",
+              conversationTokenData.level === 'warning' && "border-yellow-500/30 bg-yellow-500/10",
+              conversationTokenData.level === 'critical' && "border-orange-500/30 bg-orange-500/10",
+              conversationTokenData.level === 'exceeded' && "border-red-500/30 bg-red-500/10"
+            )}>
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  <svg className={cn(
+                    "h-5 w-5",
+                    conversationTokenData.level === 'warning' && "text-yellow-600 dark:text-yellow-400",
+                    conversationTokenData.level === 'critical' && "text-orange-600 dark:text-orange-400",
+                    conversationTokenData.level === 'exceeded' && "text-red-600 dark:text-red-400"
+                  )} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className={cn(
+                    "text-sm font-semibold mb-1",
+                    conversationTokenData.level === 'warning' && "text-yellow-600 dark:text-yellow-400",
+                    conversationTokenData.level === 'critical' && "text-orange-600 dark:text-orange-400",
+                    conversationTokenData.level === 'exceeded' && "text-red-600 dark:text-red-400"
+                  )}>
+                    {conversationTokenData.message}
+                  </h3>
+                  <p className={cn(
+                    "text-sm mb-2",
+                    conversationTokenData.level === 'warning' && "text-yellow-600/90 dark:text-yellow-400/90",
+                    conversationTokenData.level === 'critical' && "text-orange-600/90 dark:text-orange-400/90",
+                    conversationTokenData.level === 'exceeded' && "text-red-600/90 dark:text-red-400/90"
+                  )}>
+                    {conversationTokenData.action}
+                  </p>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={cn(
+                      "font-mono",
+                      conversationTokenData.level === 'warning' && "text-yellow-600/70 dark:text-yellow-400/70",
+                      conversationTokenData.level === 'critical' && "text-orange-600/70 dark:text-orange-400/70",
+                      conversationTokenData.level === 'exceeded' && "text-red-600/70 dark:text-red-400/70"
+                    )}>
+                      {conversationTokenData.totalTokens.toLocaleString()} / {conversationTokenData.limit.toLocaleString()} tokens ({conversationTokenData.percentUsed.toFixed(1)}%)
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowTokenWarning(false)}
+                    className="text-xs underline mt-2 opacity-70 hover:opacity-100"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {messages.map((message, index) => (
             <div key={message.id}>
               {/* Show sources for assistant messages - OUTSIDE Message component */}

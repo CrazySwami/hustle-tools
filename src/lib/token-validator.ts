@@ -256,9 +256,12 @@ export interface ConversationWindowResult {
  *
  * Best practice thresholds (2025):
  * - 0-70%: Keep all messages (full history)
- * - 70-85%: Use sliding window (keep recent N messages)
- * - 85-90%: Summarize older messages
+ * - 70-80%: Use sliding window (keep recent N messages, target 60% usage)
+ * - 80-90%: Summarize older messages
  * - >90%: Hard limit - refuse or require user action
+ *
+ * Note: Reduced from 85% to 80% threshold because tiktoken estimation
+ * can be 10-15% lower than actual model tokenization, causing rejections.
  */
 export function manageConversationWindow(
   messages: ConversationMessage[],
@@ -271,7 +274,7 @@ export function manageConversationWindow(
     keepRecentMessages?: number;
     /** Soft warning threshold percentage (default: 70) */
     softThreshold?: number;
-    /** Hard limit threshold percentage (default: 85) */
+    /** Hard limit threshold percentage (default: 80) - Reduced from 85 to be more conservative */
     hardThreshold?: number;
   } = {}
 ): ConversationWindowResult {
@@ -279,7 +282,7 @@ export function manageConversationWindow(
     reserveForOutput = 4000,
     keepRecentMessages = 10,
     softThreshold = 70,
-    hardThreshold = 85,
+    hardThreshold = 80, // Reduced from 85 to 80 for more aggressive management
   } = options;
 
   const contextLimit = getModelContextLimit(model);
@@ -304,12 +307,27 @@ export function manageConversationWindow(
     };
   }
 
-  // Strategy 2: Sliding window (70-85% usage)
+  // Strategy 2: Sliding window (70-80% usage)
+  // Target: Reduce to ~60% usage for safety buffer
   if (percentUsed < hardThreshold) {
-    // Keep most recent messages that fit
-    const recentMessages = messages.slice(-keepRecentMessages);
-    const recentTokens = estimateTokenCount(JSON.stringify(recentMessages));
-    const newTotal = systemTokens + recentTokens;
+    // Start with requested number of recent messages, then reduce if still too large
+    let messageCount = keepRecentMessages;
+    let recentMessages = messages.slice(-messageCount);
+    let recentTokens = estimateTokenCount(JSON.stringify(recentMessages));
+    let newTotal = systemTokens + recentTokens;
+    let newPercent = (newTotal / effectiveLimit) * 100;
+
+    // Iteratively reduce message count until we hit 60% or run out of messages
+    const targetPercent = 60; // Conservative target
+    while (newPercent > targetPercent && messageCount > 1) {
+      messageCount--;
+      recentMessages = messages.slice(-messageCount);
+      recentTokens = estimateTokenCount(JSON.stringify(recentMessages));
+      newTotal = systemTokens + recentTokens;
+      newPercent = (newTotal / effectiveLimit) * 100;
+    }
+
+    console.log(`📉 Sliding window reduced from ${messages.length} to ${messageCount} messages (${newPercent.toFixed(1)}% usage)`);
 
     return {
       messages: recentMessages,
@@ -321,9 +339,10 @@ export function manageConversationWindow(
     };
   }
 
-  // Strategy 3: Summarization (85-90% usage)
+  // Strategy 3: Summarization (80-90% usage)
   // Keep very recent messages + create summary of older ones
-  const veryRecentCount = Math.max(5, Math.floor(keepRecentMessages / 2));
+  // Target: Reduce to ~50% usage for safety buffer
+  const veryRecentCount = Math.max(3, Math.floor(keepRecentMessages / 3)); // Reduced from /2 to /3
   const veryRecentMessages = messages.slice(-veryRecentCount);
   const olderMessages = messages.slice(0, -veryRecentCount);
 
@@ -337,6 +356,9 @@ export function manageConversationWindow(
   const summarizedMessages = [summary, ...veryRecentMessages];
   const summarizedTokens = estimateTokenCount(JSON.stringify(summarizedMessages));
   const newTotal = systemTokens + summarizedTokens;
+  const newPercent = (newTotal / effectiveLimit) * 100;
+
+  console.log(`📄 Summarization reduced from ${messages.length} to ${veryRecentCount} messages + summary (${newPercent.toFixed(1)}% usage)`);
 
   return {
     messages: summarizedMessages,
@@ -424,7 +446,7 @@ export async function manageConversationWindowWithAI(
     reserveForOutput = 4000,
     keepRecentMessages = 10,
     softThreshold = 70,
-    hardThreshold = 85,
+    hardThreshold = 80, // Reduced from 85 to 80
     useAI = true,
   } = options;
 
@@ -450,11 +472,27 @@ export async function manageConversationWindowWithAI(
     };
   }
 
-  // Strategy 2: Sliding window (70-85% usage)
+  // Strategy 2: Sliding window (70-80% usage)
+  // Target: Reduce to ~60% usage for safety buffer
   if (percentUsed < hardThreshold) {
-    const recentMessages = messages.slice(-keepRecentMessages);
-    const recentTokens = estimateTokenCount(JSON.stringify(recentMessages));
-    const newTotal = systemTokens + recentTokens;
+    // Start with requested number of recent messages, then reduce if still too large
+    let messageCount = keepRecentMessages;
+    let recentMessages = messages.slice(-messageCount);
+    let recentTokens = estimateTokenCount(JSON.stringify(recentMessages));
+    let newTotal = systemTokens + recentTokens;
+    let newPercent = (newTotal / effectiveLimit) * 100;
+
+    // Iteratively reduce message count until we hit 60% or run out of messages
+    const targetPercent = 60; // Conservative target
+    while (newPercent > targetPercent && messageCount > 1) {
+      messageCount--;
+      recentMessages = messages.slice(-messageCount);
+      recentTokens = estimateTokenCount(JSON.stringify(recentMessages));
+      newTotal = systemTokens + recentTokens;
+      newPercent = (newTotal / effectiveLimit) * 100;
+    }
+
+    console.log(`📉 Sliding window reduced from ${messages.length} to ${messageCount} messages (${newPercent.toFixed(1)}% usage)`);
 
     return {
       messages: recentMessages,
@@ -466,8 +504,9 @@ export async function manageConversationWindowWithAI(
     };
   }
 
-  // Strategy 3: AI-Powered Summarization (85-90% usage)
-  const veryRecentCount = Math.max(5, Math.floor(keepRecentMessages / 2));
+  // Strategy 3: AI-Powered Summarization (80-90% usage)
+  // Target: Reduce to ~50% usage for safety buffer
+  const veryRecentCount = Math.max(3, Math.floor(keepRecentMessages / 3)); // Reduced from /2 to /3
   const veryRecentMessages = messages.slice(-veryRecentCount);
   const olderMessages = messages.slice(0, -veryRecentCount);
 
@@ -491,6 +530,9 @@ export async function manageConversationWindowWithAI(
   const summarizedMessages = [summary, ...veryRecentMessages];
   const summarizedTokens = estimateTokenCount(JSON.stringify(summarizedMessages));
   const newTotal = systemTokens + summarizedTokens;
+  const newPercent = (newTotal / effectiveLimit) * 100;
+
+  console.log(`📄 AI Summarization reduced from ${messages.length} to ${veryRecentCount} messages + summary (${newPercent.toFixed(1)}% usage)`);
 
   return {
     messages: summarizedMessages,
@@ -526,19 +568,19 @@ export function getTokenUsageRecommendation(percentUsed: number): {
     };
   }
 
-  if (percentUsed < 85) {
+  if (percentUsed < 80) {
     return {
       level: 'warning',
       message: 'Approaching context limit',
-      action: 'Consider starting a new conversation or summarizing',
+      action: 'Sliding window will be applied automatically',
     };
   }
 
-  if (percentUsed < 95) {
+  if (percentUsed < 90) {
     return {
       level: 'critical',
       message: 'Very close to context limit',
-      action: 'Start a new conversation or messages will be auto-summarized',
+      action: 'Messages will be auto-summarized',
     };
   }
 

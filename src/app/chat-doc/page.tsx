@@ -235,53 +235,53 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
   };
 
   return (
-    <SidebarProvider defaultOpen={false}>
-      <div className={`flex h-screen w-full max-w-full overflow-x-hidden ${isMobile ? 'px-2 py-2' : 'px-4 py-4'} gap-0`}>
-        {/* Desktop: Two-panel layout (Chat | Editor) with shadcn Sidebar */}
-        {!isMobile && (
-          <>
-            {/* Left Panel: Chat */}
+    <div className={`flex h-screen w-full max-w-full overflow-x-hidden ${isMobile ? 'px-2 py-2' : 'px-4 py-4'} gap-0`}>
+      {/* Desktop: Two-panel layout (Chat | Editor) with shadcn Sidebar */}
+      {!isMobile && (
+        <>
+          {/* Left Panel: Chat */}
+          <div
+            className="flex flex-col h-full"
+            style={{ width: isEditorVisible ? `${chatPanelWidth}%` : '100%' }}
+          >
+            <DocumentChat
+              messages={messages}
+              isLoading={isLoading}
+              status={status}
+              onSendMessage={handleSendMessage}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
+              onReload={reload}
+              isEditorVisible={isEditorVisible}
+              onToggleEditor={handleToggleEditor}
+              webSearchEnabled={webSearchEnabled}
+              onWebSearchChange={setWebSearchEnabled}
+            />
+          </div>
+
+          {/* Divider (between chat and editor) - invisible but functional */}
+          {isEditorVisible && (
             <div
-              className="flex flex-col h-full"
-              style={{ width: isEditorVisible ? `${chatPanelWidth}%` : '100%' }}
-            >
-              <DocumentChat
-                messages={messages}
-                isLoading={isLoading}
-                status={status}
-                onSendMessage={handleSendMessage}
-                selectedModel={selectedModel}
-                onModelChange={setSelectedModel}
-                onReload={reload}
-                isEditorVisible={isEditorVisible}
-                onToggleEditor={handleToggleEditor}
-                webSearchEnabled={webSearchEnabled}
-                onWebSearchChange={setWebSearchEnabled}
-              />
-            </div>
+              onMouseDown={handleMouseDown}
+              style={{
+                width: '4px',
+                cursor: 'col-resize',
+                background: 'transparent',
+                position: 'relative',
+                transition: isResizing ? 'none' : 'background 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                if (!isResizing) e.currentTarget.style.background = 'var(--primary)';
+              }}
+              onMouseLeave={(e) => {
+                if (!isResizing) e.currentTarget.style.background = 'transparent';
+              }}
+            />
+          )}
 
-            {/* Divider (between chat and editor) - invisible but functional */}
-            {isEditorVisible && (
-              <div
-                onMouseDown={handleMouseDown}
-                style={{
-                  width: '4px',
-                  cursor: 'col-resize',
-                  background: 'transparent',
-                  position: 'relative',
-                  transition: isResizing ? 'none' : 'background 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isResizing) e.currentTarget.style.background = 'var(--primary)';
-                }}
-                onMouseLeave={(e) => {
-                  if (!isResizing) e.currentTarget.style.background = 'transparent';
-                }}
-              />
-            )}
-
-            {/* Right Panel: Tiptap Editor with shadcn Sidebar */}
-            {isEditorVisible && (
+          {/* Right Panel: Tiptap Editor with shadcn Sidebar - SidebarProvider only wraps this panel */}
+          {isEditorVisible && (
+            <SidebarProvider defaultOpen={false}>
               <div
                 className="h-full flex overflow-hidden"
                 style={{ width: `${100 - chatPanelWidth}%` }}
@@ -303,9 +303,10 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                   />
                 </div>
               </div>
-            )}
-          </>
-        )}
+            </SidebarProvider>
+          )}
+        </>
+      )}
 
       {/* Mobile: Full-screen editor with bottom chat drawer */}
       {isMobile && (
@@ -437,10 +438,9 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
         </>
       )}
 
-        {/* Bottom Navigation - Mobile Only */}
-        <BottomNav />
-      </div>
-    </SidebarProvider>
+      {/* Bottom Navigation - Mobile Only */}
+      <BottomNav />
+    </div>
   );
 };
 

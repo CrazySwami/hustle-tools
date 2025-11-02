@@ -286,20 +286,24 @@ export function useProjectUIState() {
   }, []);
 
   const toggleFolder = useCallback((folderId: string) => {
-    console.log('[toggleFolder] Before:', uiState.expandedFolders);
-    uiStateStorage.toggleFolder(folderId);
-    const newState = uiStateStorage.get();
-    console.log('[toggleFolder] After:', newState.expandedFolders);
-    setUIState({ ...newState }); // Force new object reference
-  }, [uiState]);
+    setUIState(prevState => {
+      console.log('[toggleFolder] Before:', prevState.expandedFolders);
+      uiStateStorage.toggleFolder(folderId);
+      const newState = uiStateStorage.get();
+      console.log('[toggleFolder] After:', newState.expandedFolders);
+      return { ...newState }; // Force new object reference
+    });
+  }, []);
 
   const toggleProject = useCallback((projectId: string) => {
-    console.log('[toggleProject] Before:', uiState.expandedProjects);
-    uiStateStorage.toggleProject(projectId);
-    const newState = uiStateStorage.get();
-    console.log('[toggleProject] After:', newState.expandedProjects);
-    setUIState({ ...newState }); // Force new object reference
-  }, [uiState]);
+    setUIState(prevState => {
+      console.log('[toggleProject] Before:', prevState.expandedProjects);
+      uiStateStorage.toggleProject(projectId);
+      const newState = uiStateStorage.get();
+      console.log('[toggleProject] After:', newState.expandedProjects);
+      return { ...newState }; // Force new object reference
+    });
+  }, []);
 
   const selectDocument = useCallback((documentId: string) => {
     updateUIState({ selectedDocumentId: documentId });

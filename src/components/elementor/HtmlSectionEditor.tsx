@@ -2648,7 +2648,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
             });
 
             // Switch to PHP tab to show generated widget
-            setActiveEditorTab('php');
+            onCodeTabChange?.('php');
 
             // Show success message
             console.log('✅ Elementor widget generated successfully! PHP, CSS, and JS files populated.');
@@ -2667,7 +2667,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
             });
 
             // Switch to HTML tab to show generated code
-            setActiveEditorTab('html');
+            onCodeTabChange?.('html');
 
             // Show success message
             console.log('✅ HTML section generated successfully!');

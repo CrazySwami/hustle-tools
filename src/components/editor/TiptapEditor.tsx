@@ -766,10 +766,10 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     <>
       <div className="border rounded-lg bg-background shadow-sm h-full flex flex-col w-full overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center gap-1 p-2 pl-3 bg-muted/20 border-b overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 10 }}>
-          {/* Sidebar Toggle (ClickUp-style) */}
-          {onToggleSidebar && (
-            <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
+        <div className="flex items-center gap-1 p-2 pl-3 bg-muted/20 border-b overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}>
+          {/* Sidebar Toggle + Comments + Tools (ClickUp-style) */}
+          <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
+            {onToggleSidebar && (
               <MenuButton
                 onClick={onToggleSidebar}
                 isActive={isSidebarVisible}
@@ -777,8 +777,34 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               >
                 <AlignJustify className="h-4 w-4" />
               </MenuButton>
-            </div>
-          )}
+            )}
+            <MenuButton
+              onClick={() => {
+                setIsCommentsPanelOpen(!isCommentsPanelOpen)
+                if (!isCommentsPanelOpen) {
+                  setPanelTab('comments')
+                }
+              }}
+              isActive={isCommentsPanelOpen && panelTab === 'comments'}
+              title="Comments"
+            >
+              <MessageSquare className="h-4 w-4" />
+            </MenuButton>
+            <MenuButton
+              onClick={() => {
+                setIsCommentsPanelOpen(!isCommentsPanelOpen)
+                if (!isCommentsPanelOpen) {
+                  setPanelTab('tools')
+                } else {
+                  setPanelTab('tools')
+                }
+              }}
+              isActive={isCommentsPanelOpen && panelTab === 'tools'}
+              title="Tools"
+            >
+              <Wrench className="h-4 w-4" />
+            </MenuButton>
+          </div>
 
           {/* Text formatting */}
           <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
@@ -842,7 +868,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <Palette className="h-4 w-4" />
               </MenuButton>
               {showColorSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="color">
+                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="color">
                   <ColorSelector editor={editor} />
                 </div>
               )}
@@ -860,7 +886,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <Highlighter className="h-4 w-4" />
               </MenuButton>
               {showHighlightSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="highlight">
+                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="highlight">
                   <HighlightColorSelector editor={editor} />
                 </div>
               )}
@@ -877,7 +903,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <Type className="h-4 w-4" />
               </MenuButton>
               {showFontSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="font">
+                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="font">
                   <FontSelector editor={editor} />
                 </div>
               )}
@@ -894,7 +920,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <TextSelect className="h-4 w-4" />
               </MenuButton>
               {showFontSizeSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="fontsize">
+                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="fontsize">
                   <FontSizeSelector editor={editor} />
                 </div>
               )}
@@ -911,7 +937,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <AlignJustify className="h-4 w-4" />
               </MenuButton>
               {showLineHeightSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="lineheight">
+                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="lineheight">
                   <LineHeightSelector editor={editor} />
                 </div>
               )}
@@ -934,7 +960,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 </div>
               </MenuButton>
               {showHeadingSelector && (
-                <div className="absolute z-[9999] top-full left-0 mt-1" data-dropdown-menu="heading">
+                <div className="absolute z-[99999] top-full left-0 mt-1" data-dropdown-menu="heading">
                   <HeadingSelector editor={editor} />
                 </div>
               )}
@@ -1033,37 +1059,11 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               <Redo className="h-4 w-4" />
             </MenuButton>
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <MenuButton
-              onClick={() => {
-                setIsCommentsPanelOpen(!isCommentsPanelOpen)
-                // Ensure we're on comments tab when opening
-                if (!isCommentsPanelOpen) {
-                  setPanelTab('comments')
-                }
-              }}
-              isActive={isCommentsPanelOpen && panelTab === 'comments'}
-              title="Comments"
-            >
-              <MessageSquare className="h-4 w-4" />
-            </MenuButton>
-            <MenuButton
-              onClick={() => {
-                setIsCommentsPanelOpen(!isCommentsPanelOpen)
-                // Ensure we're on tools tab when opening
-                if (!isCommentsPanelOpen) {
-                  setPanelTab('tools')
-                } else {
-                  setPanelTab('tools')
-                }
-              }}
-              isActive={isCommentsPanelOpen && panelTab === 'tools'}
-              title="Tools"
-            >
-              <Wrench className="h-4 w-4" />
-            </MenuButton>
-            {toolbarActions}
-          </div>
+          {toolbarActions && (
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {toolbarActions}
+            </div>
+          )}
         </div>
         
         {/* Main content area with editor and comments panel */}

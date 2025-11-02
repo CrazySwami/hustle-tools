@@ -19,6 +19,7 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { SidebarTrigger } from '@/components/ui/sidebar'
 import {
   Bold,
   Italic,
@@ -773,15 +774,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         <div className="flex items-center gap-1 p-2 pl-3 bg-muted/20 border-b overflow-x-auto overflow-y-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}>
           {/* Sidebar Toggle + Comments + Tools (ClickUp-style) */}
           <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
-            {onToggleSidebar && (
-              <MenuButton
-                onClick={onToggleSidebar}
-                isActive={isSidebarVisible}
-                title="Toggle Document Hierarchy"
-              >
-                <AlignJustify className="h-4 w-4" />
-              </MenuButton>
-            )}
+            <SidebarTrigger className="p-2" />
             <MenuButton
               onClick={() => {
                 setIsCommentsPanelOpen(!isCommentsPanelOpen)

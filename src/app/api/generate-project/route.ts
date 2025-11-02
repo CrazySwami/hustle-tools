@@ -73,31 +73,80 @@ export async function POST(req: Request) {
 **IMPORTANT**: Create standalone, copy-paste ready code that works immediately in any modern browser.`;
 
     const userPrompt = isElementor
-      ? `Create a complete Elementor PHP widget for: ${description}
+      ? `Create a complete Elementor widget for: ${description}
 
 **Widget Name**: ${projectName}
+**Class Name**: Elementor_${projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('_')}_Widget
+**Widget ID**: ${projectName}
+**Title**: ${projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
 
-Generate a COMPLETE PHP widget class with:
+Generate THREE files in order:
 
-1. **Class name**: Elementor_${projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('_')}_Widget
-2. **Widget identifier**: ${projectName}
-3. **Widget title**: ${projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+---
 
-**Structure the widget with:**
-- Proper PHP class extending \\Elementor\\Widget_Base
-- All 7 required methods (get_name, get_title, get_icon, get_categories, get_keywords, register_controls, render)
-- Comprehensive controls in register_controls() - add controls for ALL customizable elements
-- Complete render() method that outputs semantic HTML using $settings
-- Include inline styles using {{WRAPPER}} scoping where appropriate
+**1. PHP Widget Class (widget.php)**
 
-**Make it production-ready:**
-- Add default values for all controls
-- Use proper escaping (esc_html, esc_attr, esc_url)
-- Include helpful control descriptions
-- Add responsive design considerations
-- Follow WordPress/Elementor coding standards
+Must include:
+- Complete class extending \\Elementor\\Widget_Base
+- All 7 required methods: get_name, get_title, get_icon, get_categories, get_keywords, register_controls, render
+- **CRITICAL**: register_controls() must create controls for EVERY SINGLE visual element (text, color, size, spacing, etc.)
+- Organize controls into logical sections (Content tab and Style tab)
+- Use proper control types:
+  - TEXT, TEXTAREA for text content
+  - URL for links
+  - MEDIA for images
+  - COLOR for colors
+  - TYPOGRAPHY for font styling
+  - DIMENSIONS for spacing/padding/margin
+  - SLIDER for numeric values
+  - CHOOSE for alignment/position
+  - SELECT for dropdown options
+- Add 'selector' to style controls so they apply to the correct HTML element
+- Add 'description' to explain each control's purpose
+- render() method: Use $settings = $this->get_settings_for_display() and output HTML with proper escaping
 
-Output ONLY the PHP code wrapped in \`\`\`php code blocks. Be comprehensive and include all necessary controls.`
+**MAKE EVERYTHING EDITABLE** - Users should NEVER need to touch code. Every text, color, size, spacing, image, link, etc. must have a control.
+
+---
+
+**2. Widget CSS (widget.css)**
+
+- Include ALL styles with {{WRAPPER}} scoping
+- Rules:
+  - ✅ USE {{WRAPPER}}: .my-element, .heading, .button, etc.
+  - ❌ NEVER use {{WRAPPER}} on: body, html, *, :root, @font-face, @keyframes, @media
+- Responsive design (mobile-first)
+- Include hover states, transitions, animations
+- Well-organized and commented
+
+---
+
+**3. Widget JavaScript (widget.js)**
+
+- If the widget needs interactivity, include JavaScript
+- Wrap in IIFE: (function($) { ... })(jQuery);
+- Use jQuery (Elementor includes it)
+- Target elements with widget-specific classes
+- If no JS needed, output: // No JavaScript needed for this widget
+
+---
+
+**Output Format:**
+\`\`\`php
+<?php
+// Complete widget class code here
+?>
+\`\`\`
+
+\`\`\`css
+/* Complete widget styles here */
+\`\`\`
+
+\`\`\`javascript
+// Complete widget JavaScript here (or comment if not needed)
+\`\`\`
+
+Be comprehensive - this widget should be production-ready and fully customizable through Elementor's interface.`
       : `Create a ${projectType} for: ${description}
 
 **Project Name**: ${projectName}

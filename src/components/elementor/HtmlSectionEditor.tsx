@@ -2632,18 +2632,18 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           const isElementorWidget = code.php && code.php.length > 0;
 
           if (isElementorWidget) {
-            // Elementor widget - update PHP tab
+            // Elementor widget - update PHP/CSS/JS tabs (CSS and JS for widget.css and widget.js)
             updateSection({
               html: '',
-              css: '',
-              js: '',
+              css: code.css || '',
+              js: code.js || '',
               php: code.php,
             });
 
             setAllContent({
               html: '',
-              css: '',
-              js: '',
+              css: code.css || '',
+              js: code.js || '',
               php: code.php,
             });
 
@@ -2651,7 +2651,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
             setActiveEditorTab('php');
 
             // Show success message
-            console.log('✅ Elementor widget generated successfully!');
+            console.log('✅ Elementor widget generated successfully! PHP, CSS, and JS files populated.');
           } else {
             // HTML section - update HTML/CSS/JS tabs
             updateSection({

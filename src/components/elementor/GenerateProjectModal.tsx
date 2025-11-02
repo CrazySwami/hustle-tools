@@ -136,24 +136,17 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, defaultModel
 
           // Stream code to editor in real-time
           if (projectType === 'elementor') {
-            // For Elementor, stream PHP as it comes
+            // For Elementor, stream PHP/CSS/JS as they come
             const phpMatch = fullCode.match(/```php\n([\s\S]*?)```/);
-            if (phpMatch) {
-              onGenerate({
-                html: '',
-                css: '',
-                js: '',
-                php: phpMatch[1].trim(),
-              });
-            } else {
-              // Fallback: stream raw content
-              onGenerate({
-                html: '',
-                css: '',
-                js: '',
-                php: fullCode.trim(),
-              });
-            }
+            const cssMatch = fullCode.match(/```css\n([\s\S]*?)```/);
+            const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)```/);
+
+            onGenerate({
+              html: '',
+              css: cssMatch ? cssMatch[1].trim() : '',
+              js: jsMatch ? jsMatch[1].trim() : '',
+              php: phpMatch ? phpMatch[1].trim() : fullCode.trim(), // Fallback to raw if no markdown
+            });
           } else {
             // For HTML, stream HTML/CSS/JS as they come
             const htmlMatch = fullCode.match(/```html\n([\s\S]*?)```/);

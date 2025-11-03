@@ -619,27 +619,25 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                       hideLogoOnDesktop={false}
                     />
                   </div>
-                  <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
-                    <DocumentChat
-                      messages={messages}
-                      isLoading={isLoading}
-                      status={status}
-                      error={error}
-                      onSendMessage={handleSendMessage}
-                      selectedModel={selectedModel}
-                      onModelChange={setSelectedModel}
-                      onReload={reload}
-                      isEditorVisible={isEditorVisible}
-                      onToggleEditor={handleToggleEditor}
-                      webSearchEnabled={webSearchEnabled}
-                      onWebSearchChange={setWebSearchEnabled}
-                      currentDocument={currentDocument}
-                      currentProject={currentProject}
-                      wordCount={wordCount}
-                      systemPrompt={actualSystemPrompt}
-                      documentContent={documentContent}
-                    />
-                  </div>
+                  <DocumentChat
+                    messages={messages}
+                    isLoading={isLoading}
+                    status={status}
+                    error={error}
+                    onSendMessage={handleSendMessage}
+                    selectedModel={selectedModel}
+                    onModelChange={setSelectedModel}
+                    onReload={reload}
+                    isEditorVisible={isEditorVisible}
+                    onToggleEditor={handleToggleEditor}
+                    webSearchEnabled={webSearchEnabled}
+                    onWebSearchChange={setWebSearchEnabled}
+                    currentDocument={currentDocument}
+                    currentProject={currentProject}
+                    wordCount={wordCount}
+                    systemPrompt={actualSystemPrompt}
+                    documentContent={documentContent}
+                  />
                 </div>
               </div>
             }

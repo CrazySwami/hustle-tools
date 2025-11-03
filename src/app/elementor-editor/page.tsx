@@ -239,42 +239,20 @@ export default function ElementorEditorPage() {
 
     // Code Editor tab actions
     if (tabId === 'code-editor') {
-      // Handle code tab switching
-      if (item === 'HTML') {
-        setActiveTab('json');
-        setActiveCodeTab('html');
-        return;
-      } else if (item === 'CSS') {
-        setActiveTab('json');
-        setActiveCodeTab('css');
-        return;
-      } else if (item === 'JavaScript') {
-        setActiveTab('json');
-        setActiveCodeTab('js');
-        return;
-      } else if (item === 'PHP') {
-        setActiveTab('json');
-        setActiveCodeTab('php');
-        return;
-      }
+      setActiveTab('json'); // Always switch to code editor tab
 
-      // Handle actions
       if (item === 'Generate Code') {
-        setActiveTab('json');
         setGenerateDialogOpen(true);
         return;
       } else if (item === 'Preview HTML') {
-        setActiveTab('json');
         // Trigger HTML preview
         window.dispatchEvent(new CustomEvent('trigger-preview-html'));
         return;
       } else if (item === 'Preview HubL') {
-        setActiveTab('json');
         // Trigger HubL preview
         window.dispatchEvent(new CustomEvent('trigger-preview-hubl'));
         return;
       } else if (item === 'Deploy to WordPress') {
-        setActiveTab('json');
         // Trigger deploy to WordPress
         if (typeof window !== 'undefined' && (window as any).importHtmlSectionToPage && currentSection) {
           (window as any).importHtmlSectionToPage(currentSection.html, currentSection.css, currentSection.js);
@@ -283,30 +261,9 @@ export default function ElementorEditorPage() {
           toast.error('WordPress Playground not ready');
         }
         return;
-      } else if (item === 'Convert to Elementor') {
-        setActiveTab('json');
-        // Trigger convert to Elementor widget
-        window.dispatchEvent(new CustomEvent('convert-to-elementor'));
-        return;
       } else if (item === 'Split HTML') {
-        setActiveTab('json');
         // Trigger split HTML dialog
         window.dispatchEvent(new CustomEvent('split-html'));
-        return;
-      } else if (item === 'New Project') {
-        setActiveTab('json');
-        // Trigger new project creation
-        window.dispatchEvent(new CustomEvent('create-new-project'));
-        return;
-      } else if (item === 'Toggle Project Panel') {
-        setActiveTab('json');
-        setProjectPanelOpen(!projectPanelOpen);
-        window.dispatchEvent(new CustomEvent('toggle-project-panel'));
-        return;
-      } else if (item === 'Toggle Files Panel') {
-        setActiveTab('json');
-        setFilesPanelOpen(!filesPanelOpen);
-        window.dispatchEvent(new CustomEvent('toggle-files-panel'));
         return;
       }
       return;
@@ -511,22 +468,11 @@ export default function ElementorEditorPage() {
       label: 'Code Editor',
       icon: null,
       dropdownItems: [
-        'HTML',
-        'CSS',
-        'JavaScript',
-        'PHP',
-        '---',
         'Generate Code',
         'Preview HTML',
         'Preview HubL',
-        '---',
         'Deploy to WordPress',
-        'Convert to Elementor',
         'Split HTML',
-        '---',
-        'New Project',
-        'Toggle Project Panel',
-        'Toggle Files Panel'
       ],
     },
     {
@@ -1178,29 +1124,27 @@ export default function ElementorEditorPage() {
                       showOnMobile={false}
                     />
                   </div>
-                  <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
-                    <ElementorChat
-                      messages={messages}
-                      isLoading={isLoading}
-                      status={status}
-                      onSendMessage={handleSendMessage}
-                      selectedModel={selectedModel}
-                      onModelChange={setSelectedModel}
-                      onReload={reload}
-                      onStreamUpdate={(type, content) => {
-                        setStreamedCode(prev => ({ ...prev, [type]: content }));
-                      }}
-                      onSwitchToSectionEditor={() => setActiveTab('json')}
-                      onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
-                      onSwitchTab={(tab) => setActiveTab(tab)}
-                      onUpdateSection={(updates) => {
-                        if (currentSection) {
-                          setCurrentSection({ ...currentSection, ...updates });
-                        }
-                      }}
-                      currentSection={currentSection}
-                    />
-                  </div>
+                  <ElementorChat
+                    messages={messages}
+                    isLoading={isLoading}
+                    status={status}
+                    onSendMessage={handleSendMessage}
+                    selectedModel={selectedModel}
+                    onModelChange={setSelectedModel}
+                    onReload={reload}
+                    onStreamUpdate={(type, content) => {
+                      setStreamedCode(prev => ({ ...prev, [type]: content }));
+                    }}
+                    onSwitchToSectionEditor={() => setActiveTab('json')}
+                    onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
+                    onSwitchTab={(tab) => setActiveTab(tab)}
+                    onUpdateSection={(updates) => {
+                      if (currentSection) {
+                        setCurrentSection({ ...currentSection, ...updates });
+                      }
+                    }}
+                    currentSection={currentSection}
+                  />
                 </div>
               </div>
             }

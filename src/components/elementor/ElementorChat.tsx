@@ -283,6 +283,7 @@ export function ElementorChat({
       overflow: 'hidden',
       position: 'relative',
       background: '#F2F2F2',
+      margin: '5px',
     }}>
       <Conversation className="flex-1 scrollbar-hide" style={{ overflow: 'hidden' }}>
         <ConversationContent className="scrollbar-hide px-3" style={{ flex: 1, overflow: 'auto' }}>

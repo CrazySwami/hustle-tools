@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
       model,
       webSearch,
       includeContext,
+      includeCss,
+      globalCss,
       currentSection,
     } = await req.json();
 
@@ -113,6 +115,19 @@ When user asks "can you see my code", say NO - the editor is empty.
 - If files are shown above with ✅: Say "Yes, I can see your [HTML/CSS/JS/PHP] code" and reference specific content
 - If you see ❌: Say "No, the editor appears empty"`;
 
+    // Add global CSS context if includeCss is true
+    if (includeCss && globalCss && globalCss.trim()) {
+      systemPrompt += `\n\n**🎨 GLOBAL STYLE KIT CSS:**
+
+The following CSS represents the global style system for this project. Use these styles as a reference for consistency:
+
+\`\`\`css
+${globalCss}
+\`\`\`
+
+When generating or modifying HTML/CSS, try to align with these global styles (fonts, colors, spacing) for visual consistency. You can reference or override these styles as needed.`;
+    }
+
     // Enable web search for Perplexity models (same as main chat)
     if (webSearch && model?.startsWith('perplexity/')) {
       systemPrompt = `You are an expert Elementor section editor assistant. ALWAYS USE SEARCH to provide accurate and up-to-date information with sources. Keep responses concise and focused.
@@ -133,6 +148,7 @@ ${currentSection ? JSON.stringify(currentSection, null, 2).substring(0, 1000) + 
       cssChars: currentSection?.css?.length || 0,
       jsChars: currentSection?.js?.length || 0,
       phpChars: currentSection?.php?.length || 0,
+      globalCssChars: (includeCss && globalCss) ? globalCss.length : 0,
     };
 
     return NextResponse.json({
@@ -140,6 +156,7 @@ ${currentSection ? JSON.stringify(currentSection, null, 2).substring(0, 1000) + 
       stats,
       model,
       includeContext,
+      includeCss,
       webSearch,
     });
   } catch (error) {

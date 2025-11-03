@@ -9,9 +9,18 @@ import { SettingsModal } from '@/components/elementor/SettingsModal';
 import { CitationDisplay } from '@/components/elementor/CitationDisplay';
 import { GlobeIcon, FileIcon, PaletteIcon, ImageIcon, BrainIcon } from '@/components/ui/icons';
 import { useEffect, useRef, useState } from 'react';
-import { FileCode } from 'lucide-react';
+import { FileCode, SendIcon } from 'lucide-react';
 import { ConversationTokenIndicator, ConversationTokenData } from '@/components/ui/ConversationTokenIndicator';
 import { MODEL_CONTEXT_LIMITS } from '@/lib/token-validator';
+import { PromptTokenCounter } from '@/components/ui/PromptTokenCounter';
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputToolbar,
+  PromptInputTools,
+  PromptInputButton,
+  PromptInputSubmit,
+} from '@/components/ai-elements/prompt-input';
 
 // Model configurations with token limits
 const MODEL_CONFIGS = {
@@ -153,13 +162,14 @@ function ProjectContextBadge({ currentSection }: { currentSection: any }) {
 interface ChatInterfaceProps {
   messages: any[];
   isLoading: boolean;
-  onSendMessage: (content: string, imageData?: { url: string; filename: string }, settings?: { webSearchEnabled: boolean; reasoningEffort: string; detailedMode?: boolean }) => void;
+  onSendMessage: (content: string, imageData?: { url: string; filename: string }, settings?: { webSearchEnabled: boolean; reasoningEffort: string; detailedMode?: boolean; includeCss?: boolean }) => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
   onApprovePatch?: (approvalId: string, patches: any[]) => void;
   onDeclinePatch?: (approvalId: string) => void;
   currentJson?: any; // Legacy - for backward compatibility
   currentSection?: any; // HTML/CSS/JS/PHP files
+  globalCss?: string; // Global CSS from Style Kit
 }
 
 export function ChatInterface({
@@ -172,6 +182,7 @@ export function ChatInterface({
   onDeclinePatch,
   currentJson = {},
   currentSection = null,
+  globalCss = '',
 }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
@@ -186,9 +197,11 @@ export function ChatInterface({
   const [contextTokens, setContextTokens] = useState(0);
   const [cachedTokens, setCachedTokens] = useState(0);
   const [detailedMode, setDetailedMode] = useState(false);
+  const [includeCss, setIncludeCss] = useState(false);
   const [showContextPreview, setShowContextPreview] = useState(false);
   const [contextPreview, setContextPreview] = useState<any>(null);
   const [conversationTokenData, setConversationTokenData] = useState<ConversationTokenData | null>(null);
+  const [inputValue, setInputValue] = useState('');
 
   // Get current model config
   const modelConfig = MODEL_CONFIGS[selectedModel as keyof typeof MODEL_CONFIGS] || MODEL_CONFIGS['anthropic/claude-haiku-4.5-20251022'];
@@ -251,6 +264,7 @@ export function ChatInterface({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
+    setInputValue(value);
 
     // Calculate token count
     let textTokens = estimateTokens(value);
@@ -309,8 +323,9 @@ export function ChatInterface({
     }
 
     if (content) {
-      onSendMessage(content, imagePreview || undefined, { webSearchEnabled, reasoningEffort, detailedMode });
+      onSendMessage(content, imagePreview || undefined, { webSearchEnabled, reasoningEffort, detailedMode, includeCss });
       textarea.value = '';
+      setInputValue('');
       setImagePreview(null);
       setShowSlashMenu(false);
       setSlashFilter('');
@@ -684,7 +699,10 @@ export function ChatInterface({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ position: 'relative' }}>
+        <PromptInput
+          onSubmit={handleSubmit}
+          style={{ flexShrink: 0, margin: '0 0 10px 0' }}
+        >
           {/* Slash Command Menu */}
           <SlashCommandMenu
             show={showSlashMenu}
@@ -692,176 +710,87 @@ export function ChatInterface({
             onSelect={handleSlashCommandSelect}
           />
 
-          <div className="input-row" style={{ position: 'relative' }}>
-            <textarea
-              ref={textareaRef}
-              id="chatInput"
-              className="chat-input"
-              placeholder="Ask me to edit your JSON... (or type / for commands)"
-              rows={2}
-              onKeyDown={handleKeyDown}
-              onChange={handleInputChange}
-              disabled={isLoading}
-              style={{ paddingRight: '120px' }}
-            />
-            <div style={{ position: 'absolute', right: '8px', bottom: '8px', display: 'flex', gap: '4px', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={() => imageFileInputRef.current?.click()}
-                style={{
-                  padding: '6px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: imagePreview ? 'var(--primary)' : 'var(--card)',
-                  color: imagePreview ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title="Upload image"
-              >
-                <ImageIcon size={16} />
-              </button>
-              <button
-                type="button"
+          <PromptInputTextarea
+            ref={textareaRef}
+            value={inputValue}
+            onKeyDown={handleKeyDown}
+            onChange={handleInputChange}
+            disabled={isLoading}
+            placeholder="Ask me to edit your code... (or type / for commands)"
+            rows={2}
+          />
+          <input
+            ref={imageFileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  setImagePreview({
+                    url: event.target?.result as string,
+                    filename: file.name,
+                  });
+                };
+                reader.readAsDataURL(file);
+              }
+            }}
+            className="hidden"
+          />
+          <PromptInputToolbar>
+            <PromptInputTools>
+              <PromptInputButton
+                variant={webSearchEnabled ? 'default' : 'ghost'}
                 onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                style={{
-                  padding: '6px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: webSearchEnabled ? '#3b82f6' : 'var(--card)',
-                  color: webSearchEnabled ? '#fff' : 'var(--muted-foreground)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
                 title={webSearchEnabled ? 'Web search enabled' : 'Web search disabled'}
               >
                 <GlobeIcon size={16} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (textareaRef.current) {
-                    textareaRef.current.value = "What's the weather in ";
-                    textareaRef.current.focus();
-                  }
-                }}
-                style={{
-                  padding: '6px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: 'var(--card)',
-                  color: 'var(--muted-foreground)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title="Ask about weather (test tool)"
+              </PromptInputButton>
+              <PromptInputButton
+                variant={imagePreview ? 'default' : 'ghost'}
+                onClick={() => imageFileInputRef.current?.click()}
+                title="Attach image (PNG/JPEG, max 5MB)"
               >
-                🌤️
-              </button>
-
-              <button
-                type="button"
+                <ImageIcon size={16} />
+              </PromptInputButton>
+              <PromptInputButton
+                variant={detailedMode ? 'default' : 'ghost'}
                 onClick={() => setDetailedMode(!detailedMode)}
-                style={{
-                  padding: '6px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: detailedMode ? '#8b5cf6' : 'var(--card)',
-                  color: detailedMode ? '#fff' : 'var(--muted-foreground)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
                 title={detailedMode ? 'Detailed mode: Full JSON context' : 'Smart mode: Optimized context'}
               >
                 <FileIcon size={16} />
-              </button>
-
-              {/* Token Counter */}
-              <div style={{
-                padding: '4px 10px',
-                borderRadius: '6px',
-                background: (currentInputTokens + contextTokens) > modelConfig.inputLimit ? '#fef2f2' : 'var(--muted)',
-                border: `1px solid ${(currentInputTokens + contextTokens) > modelConfig.inputLimit ? '#ef4444' : 'var(--border)'}`,
-                fontSize: '11px',
-                fontWeight: 600,
-                color: (currentInputTokens + contextTokens) > modelConfig.inputLimit ? '#ef4444' : 'var(--muted-foreground)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '2px',
-              }}
-              title={`Your message: ${currentInputTokens.toLocaleString()}\nContext (JSON + history): ${contextTokens.toLocaleString()}${cachedTokens > 0 ? `\nCached tokens: ${cachedTokens.toLocaleString()} (90% discount)` : ''}`}
+              </PromptInputButton>
+              <PromptInputButton
+                variant={includeCss ? 'default' : 'ghost'}
+                onClick={() => setIncludeCss(!includeCss)}
+                title={includeCss ? 'CSS context enabled' : 'CSS context disabled'}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span>{(currentInputTokens + contextTokens).toLocaleString()}</span>
-                  <span style={{ opacity: 0.6 }}>/</span>
-                  <span style={{ opacity: 0.6 }}>{(modelConfig.inputLimit / 1000).toFixed(0)}K</span>
-                </div>
-                <div style={{ fontSize: '9px', opacity: 0.7, display: 'flex', gap: '4px' }}>
-                  <span>({currentInputTokens.toLocaleString()} msg + {contextTokens.toLocaleString()} ctx)</span>
-                  {cachedTokens > 0 && (
-                    <span style={{ color: '#10b981' }}>💰 {cachedTokens.toLocaleString()} cached</span>
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="button"
+                <span className="text-sm font-medium">CSS</span>
+              </PromptInputButton>
+              <PromptInputButton
+                variant="ghost"
                 onClick={async () => {
                   setShowContextPreview(true);
-                  // Preview the context that will be sent
                   const preview = {
                     detailedMode,
                     currentJson,
                     jsonSize: JSON.stringify(currentJson).length,
                     estimatedTokens: Math.ceil(JSON.stringify(currentJson).length / 4),
-                    message: textareaRef.current?.value || '',
+                    message: inputValue,
                   };
                   setContextPreview(preview);
-                }}
-                style={{
-                  padding: '6px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: 'var(--card)',
-                  color: 'var(--muted-foreground)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                 }}
                 title="Preview context that will be sent"
               >
                 👁️
-              </button>
-
-              <button
-                type="submit"
-                disabled={isLoading || (currentInputTokens + contextTokens) > modelConfig.inputLimit}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: (isLoading || (currentInputTokens + contextTokens) > modelConfig.inputLimit) ? 'var(--muted)' : 'var(--primary)',
-                  color: (isLoading || (currentInputTokens + contextTokens) > modelConfig.inputLimit) ? 'var(--muted-foreground)' : 'var(--primary-foreground)',
-                  cursor: (isLoading || (currentInputTokens + contextTokens) > modelConfig.inputLimit) ? 'not-allowed' : 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                }}
-              >
-                {isLoading ? '...' : 'Send'}
-              </button>
-            </div>
-          </div>
-        </form>
+              </PromptInputButton>
+            </PromptInputTools>
+            <PromptInputSubmit disabled={isLoading || (currentInputTokens + contextTokens) > modelConfig.inputLimit}>
+              <SendIcon size={16} />
+            </PromptInputSubmit>
+          </PromptInputToolbar>
+        </PromptInput>
       </div>
 
       {/* Context Preview Modal */}

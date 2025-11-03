@@ -1,15 +1,35 @@
 import { streamText } from 'ai';
+import { gateway } from '@ai-sdk/gateway';
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
-    const { description, projectType, projectName, model = 'anthropic/claude-sonnet-4-5-20250929', existingCode } = await req.json();
+    const {
+      description,
+      projectType,
+      projectName,
+      model = 'anthropic/claude-sonnet-4-5-20250929',
+      existingCode,
+      globalCSS,
+      hubspotModuleType = 'email',
+      images = [] // Array of image data URLs
+    } = await req.json();
 
-    console.log('🚀 Project Generation Request:', { description, projectType, projectName, model, hasExistingCode: !!existingCode });
+    console.log('🚀 Project Generation Request:', {
+      description,
+      projectType,
+      projectName,
+      model,
+      hasExistingCode: !!existingCode,
+      hasGlobalCSS: !!globalCSS,
+      hubspotModuleType,
+      imageCount: images.length
+    });
 
     // Build prompt based on project type
     const isElementor = projectType === 'elementor';
+    const isHubSpot = projectType === 'hubspot';
 
     const systemPrompt = isElementor
       ? `You are an expert Elementor widget developer. Generate a COMPLETE, PRODUCTION-READY PHP widget class.
@@ -60,7 +80,121 @@ export async function POST(req: Request) {
    - Add ARIA labels for accessibility
 
 **IMPORTANT**: Generate ONLY the complete PHP class. Do NOT include plugin registration code or file includes.`
-      : `You are an expert frontend developer. Generate complete, production-ready HTML/CSS/JS code for a web section based on the user's description.
+      : isHubSpot
+        ? hubspotModuleType === 'email'
+          ? `You are an expert HubSpot email module developer. Generate production-ready HTML with inline CSS optimized for email clients.
+
+**MODULE TYPE: EMAIL (Strict Compatibility Mode)**
+
+**CRITICAL EMAIL CONSTRAINTS:**
+
+1. **HTML Structure**:
+   - Section-level markup only (NO DOCTYPE, html, head, body tags)
+   - **MUST use table-based layouts** - NO flexbox, NO grid
+   - Use <table>, <tr>, <td> for all layout structure
+   - Keep nesting shallow (max 3-4 table levels)
+   - Use semantic class names for HubL tokenization
+
+2. **CSS Requirements (EMAIL-SPECIFIC)**:
+   - **ALL styles MUST be inline** using style="..." attributes
+   - ❌ NEVER use <style> tags or external CSS
+   - ❌ NEVER use @media queries (unreliable across email clients)
+   - ❌ NEVER use display: grid or display: flex
+   - ❌ NEVER use background-image (use <img> instead)
+   - ❌ NEVER use position: absolute or position: fixed
+   - ❌ NEVER use @font-face or custom web fonts
+   - ✅ USE: Basic properties (color, font-size, padding, margin, text-align)
+   - ✅ USE: Table properties (width, cellpadding, cellspacing, align, valign, bgcolor)
+   - ✅ USE: Web-safe fonts only (Arial, Verdana, Georgia, Times New Roman, Courier)
+
+3. **Email-Safe Design Patterns**:
+   - Use <table width="100%"> for full-width sections
+   - Use <td style="padding: X"> for spacing (NOT margin on tables)
+   - Use bgcolor attribute for background colors when possible
+   - Set explicit widths in pixels for fixed layouts
+   - Use <img> with width/height attributes for all images
+   - Center content with align="center" on td elements
+
+4. **JavaScript**:
+   - ⚠️ CRITICAL: NO JavaScript allowed in email modules
+   - Scripts are completely blocked in email clients
+
+5. **Accessibility**:
+   - Add alt text to ALL images
+   - Use role="presentation" on layout tables
+   - Ensure good color contrast for readability
+
+**OUTPUT FORMAT:**
+\`\`\`html
+<!-- Table-based layout with inline styles -->
+\`\`\`
+
+\`\`\`hubl
+<!-- HubL tokenization generated programmatically -->
+\`\`\`
+
+**IMPORTANT**: Email compatibility is CRITICAL. Always use tables with inline styles. Test across Gmail, Outlook, Apple Mail.`
+          : `You are an expert HubSpot page module developer. Generate production-ready HTML with modern CSS for HubSpot CMS pages.
+
+**MODULE TYPE: PAGE (Modern Web Standards)**
+
+**PAGE MODULE CAPABILITIES:**
+
+1. **HTML Structure**:
+   - Section-level markup only (NO DOCTYPE, html, head, body tags)
+   - Use modern semantic HTML5 elements
+   - **Flexbox and Grid are allowed** for page modules
+   - Div-based layouts are perfectly acceptable
+   - Use semantic class names for HubL tokenization
+
+2. **CSS Requirements (PAGE-SPECIFIC)**:
+   - Inline styles are acceptable
+   - External CSS classes are also fine (HubSpot will handle them)
+   - ✅ USE: Modern layout (flexbox, grid)
+   - ✅ USE: CSS variables for theming
+   - ✅ USE: Media queries for responsive design
+   - ✅ USE: Background images and gradients
+   - ✅ USE: Transitions and animations
+   - ✅ USE: Modern web fonts (Google Fonts, etc.)
+   - Keep structure modular for easy HubL field extraction
+
+3. **Modern Design Patterns**:
+   - Use flexbox for flexible layouts
+   - Use CSS Grid for complex grid systems
+   - Apply responsive breakpoints with @media queries
+   - Use modern typography and spacing
+   - Include hover states and interactions
+   - Add smooth transitions for better UX
+
+4. **JavaScript**:
+   - ✅ JavaScript IS supported in page modules
+   - Use vanilla JS or jQuery (HubSpot includes jQuery)
+   - Add interactive features as needed
+   - Keep scripts modular and maintainable
+
+5. **HubSpot-Specific**:
+   - Output clean HTML for HubL tokenization
+   - Use semantic class names
+   - Structure content for easy field mapping
+   - Consider HubDB integration points
+
+6. **Accessibility**:
+   - Use semantic HTML5 elements (header, nav, main, footer, etc.)
+   - Add ARIA labels where appropriate
+   - Ensure keyboard navigation
+   - Maintain good color contrast
+
+**OUTPUT FORMAT:**
+\`\`\`html
+<!-- Modern HTML5 with semantic elements -->
+\`\`\`
+
+\`\`\`hubl
+<!-- HubL tokenization generated programmatically -->
+\`\`\`
+
+**IMPORTANT**: Page modules support modern web standards. Use flexbox, grid, and interactive features freely.`
+        : `You are an expert frontend developer. Generate complete, production-ready HTML/CSS/JS code for a web section based on the user's description.
 
 **CRITICAL RULES:**
 1. **HTML**: Section-level markup only (NO DOCTYPE, html, head, body tags). Use semantic HTML5.
@@ -99,6 +233,8 @@ ${existingCode.js || '(empty)'}
       ? `${existingCode ? 'Convert the existing HTML/CSS/JS code below into' : 'Create'} a complete Elementor widget${existingCode ? '' : ' for: ' + description}
 
 ${existingCodeContext}${existingCode ? `**Conversion Requirements**: ${description}` : ''}
+
+${globalCSS && !existingCode ? `**Global CSS Reference** (for consistent styling):\n\`\`\`css\n${globalCSS}\n\`\`\`\n\nUse these styles for colors, typography, and design consistency.\n\n` : ''}
 
 **Widget Name**: ${projectName}
 **Class Name**: Elementor_${projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('_')}_Widget
@@ -172,10 +308,115 @@ Must include:
 \`\`\`
 
 Be comprehensive - this widget should be production-ready and fully customizable through Elementor's interface.`
-      : `Create a ${projectType} for: ${description}
+      : isHubSpot
+        ? hubspotModuleType === 'email'
+          ? `Create a HubSpot EMAIL module for: ${description}
+
+**Project Name**: ${projectName}
+**Module Type**: EMAIL (Email Client Compatibility Required)
+**Target**: Gmail, Outlook, Apple Mail, and other email clients
+
+${globalCSS ? `**Global CSS Reference** (for color/font inspiration only - DO NOT include directly):\n\`\`\`css\n${globalCSS}\n\`\`\`\n` : ''}
+
+Generate the code in TWO PARTS:
+
+1. **HTML** - Email-safe markup with inline styles
+   - **MUST use table-based layout** (NO flexbox/grid)
+   - ALL styles must be inline (style="...")
+   - Example structure:
+     \`\`\`html
+     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background: #f5f5f5;">
+       <tr>
+         <td align="center" style="padding: 40px 20px;">
+           <table width="600" cellpadding="0" cellspacing="0" style="background: #ffffff; border-radius: 8px;">
+             <tr>
+               <td style="padding: 30px; text-align: center;">
+                 <h1 style="color: #333; font-size: 28px; margin: 0 0 16px 0; font-family: Arial, sans-serif;">Title</h1>
+                 <p style="color: #666; font-size: 16px; line-height: 1.5; margin: 0; font-family: Arial, sans-serif;">Description text here.</p>
+               </td>
+             </tr>
+           </table>
+         </td>
+       </tr>
+     </table>
+     \`\`\`
+
+2. **HubL** - (Empty placeholder)
+   - Output: \`<!-- HubL will be generated automatically -->\`
+
+**CRITICAL EMAIL RULES:**
+- ✅ Tables only (width="X", cellpadding="0", cellspacing="0")
+- ✅ All styles inline
+- ✅ Web-safe fonts (Arial, Verdana, Georgia)
+- ✅ Fixed widths in pixels (email standard: 600px max)
+- ❌ NO flexbox/grid
+- ❌ NO @media queries
+- ❌ NO background-image
+- ❌ NO JavaScript
+
+**Output Format:**
+\`\`\`html
+<!-- Table-based email HTML here -->
+\`\`\`
+
+\`\`\`hubl
+<!-- HubL generated automatically -->
+\`\`\`
+
+Keep it simple and email-compatible!`
+          : `Create a HubSpot PAGE module for: ${description}
+
+**Project Name**: ${projectName}
+**Module Type**: PAGE (Modern Web Standards)
+**Target**: HubSpot CMS pages with full CSS/JS support
+
+${globalCSS ? `**Global CSS Reference** (use for inspiration and consistency):\n\`\`\`css\n${globalCSS}\n\`\`\`\n` : ''}
+
+Generate the code in TWO PARTS:
+
+1. **HTML** - Modern semantic markup
+   - Use modern HTML5 elements (div, section, header, etc.)
+   - Flexbox and Grid are fully supported
+   - Inline or class-based styles both work
+   - Example structure:
+     \`\`\`html
+     <section class="hero" style="padding: 80px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+       <div class="container" style="max-width: 1200px; margin: 0 auto; text-align: center;">
+         <h1 style="font-size: 3rem; color: white; margin-bottom: 1rem;">Modern Hero Section</h1>
+         <p style="font-size: 1.2rem; color: rgba(255, 255, 255, 0.9); margin-bottom: 2rem;">Beautiful, responsive design for your HubSpot pages.</p>
+         <a href="#" class="btn" style="display: inline-block; padding: 14px 32px; background: white; color: #667eea; border-radius: 8px; text-decoration: none; font-weight: 600;">Get Started</a>
+       </div>
+     </section>
+     \`\`\`
+
+2. **HubL** - (Empty placeholder)
+   - Output: \`<!-- HubL will be generated automatically -->\`
+
+**PAGE MODULE CAPABILITIES:**
+- ✅ Flexbox and Grid layouts
+- ✅ Modern CSS (gradients, shadows, transforms)
+- ✅ Media queries for responsive design
+- ✅ Background images and videos
+- ✅ CSS animations and transitions
+- ✅ JavaScript interactivity
+- ✅ Google Fonts and custom typography
+
+**Output Format:**
+\`\`\`html
+<!-- Modern HTML5 page module here -->
+\`\`\`
+
+\`\`\`hubl
+<!-- HubL generated automatically -->
+\`\`\`
+
+Use modern web standards - flexbox, grid, and JavaScript are all supported!`
+        : `Create a ${projectType} for: ${description}
 
 **Project Name**: ${projectName}
 **Type**: ${projectType}
+
+${globalCSS ? `**Global CSS Reference** (for maintaining consistent styling):\n\`\`\`css\n${globalCSS}\n\`\`\`\n\nUse these styles as reference for colors, fonts, and design patterns.\n\n` : ''}
 
 Generate the code in THREE PARTS (in order):
 1. **HTML** - Complete markup
@@ -184,11 +425,35 @@ Generate the code in THREE PARTS (in order):
 
 Start with HTML, then CSS, then JS. Be comprehensive and production-ready.`;
 
-    // Stream the generation
+    // Build messages array (supports text + images)
+    const messages: any[] = [
+      {
+        role: 'user',
+        content: images.length > 0
+          ? [
+              { type: 'text', text: userPrompt },
+              ...images.map((img: { url: string }) => ({
+                type: 'image',
+                image: img.url // data URL or URL
+              }))
+            ]
+          : userPrompt // Plain text if no images
+      }
+    ];
+
+    console.log('📸 Message content:', {
+      hasImages: images.length > 0,
+      imageCount: images.length,
+      messageType: images.length > 0 ? 'multipart (text + images)' : 'text only'
+    });
+
+    // Stream the generation with AI Gateway
     const result = await streamText({
-      model,
+      model: gateway(model, {
+        apiKey: process.env.AI_GATEWAY_API_KEY!,
+      }),
       system: systemPrompt,
-      prompt: userPrompt,
+      messages, // Use messages instead of prompt to support images
       temperature: 0.7,
     });
 

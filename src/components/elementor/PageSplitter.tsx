@@ -44,6 +44,12 @@ export function PageSplitter({
       return;
     }
 
+    // Only run in browser environment
+    if (typeof window === 'undefined') {
+      console.error('detectSections can only be called in the browser');
+      return;
+    }
+
     setIsDetecting(true);
 
     try {
@@ -316,6 +322,12 @@ export function PageSplitter({
 
   // Extract inline styles and scripts from HTML
   const extractStylesAndScripts = (html: string): { html: string; css: string; js: string } => {
+    // Only run in browser environment
+    if (typeof window === 'undefined') {
+      console.error('extractStylesAndScripts can only be called in the browser');
+      return { html, css: '', js: '' };
+    }
+
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
 

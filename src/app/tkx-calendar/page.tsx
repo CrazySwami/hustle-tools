@@ -518,43 +518,49 @@ export default function TKXCalendarPage() {
 
   // SELECTION VIEW
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-4 py-6 pt-24">
+    <div className="min-h-screen bg-gray-50 transition-colors duration-300">
+      {/* Header Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-4">
+        <div className="flex items-center gap-3 justify-center">
+          <Calendar className="w-8 h-8 text-orange-500" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">TKX Event Calendar</h1>
+        </div>
+        <p className="mt-4 text-center text-gray-600">
+          Select events to scrape and view full details
+        </p>
+        {error && (
+          <p className="text-sm text-center text-amber-600 dark:text-amber-400 mt-2">
+            {error} - Visit{' '}
+            <a href="https://tkx.live/calendar/" target="_blank" rel="noopener noreferrer" className="underline">
+              tkx.live
+            </a>
+          </p>
+        )}
+      </div>
+
+      {/* Controls Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-4">
+        <div className="bg-white border-2 border-gray-200 rounded-lg p-4">
           <div className="flex flex-col gap-4">
             <div>
-              <h1 className="text-4xl font-bold mb-2">TKX Event Calendar</h1>
-              <p className="text-muted-foreground">
-                Select events to scrape and view full details
-              </p>
-              {error && (
-                <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-                  {error} - Visit{' '}
-                  <a href="https://tkx.live/calendar/" target="_blank" rel="noopener noreferrer" className="underline">
-                    tkx.live
-                  </a>
-                </p>
-              )}
-            </div>
 
             {!loading && events.length > 1 && (
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex items-center gap-3">
-                  <Button size="sm" variant="outline" onClick={selectAll}>
+                  <Button size="sm" className="bg-gray-900 text-white hover:bg-gray-800" onClick={selectAll}>
                     Select All
                   </Button>
-                  <Button size="sm" variant="outline" onClick={deselectAll}>
+                  <Button size="sm" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100 bg-white" onClick={deselectAll}>
                     Deselect All
                   </Button>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-gray-600">
                     {selectedEvents.size} of {filteredEvents.length} selected
                   </span>
                 </div>
 
                 {/* Aspect Ratio Selector */}
                 <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[180px] border-2 border-gray-300">
                     <SelectValue placeholder="Aspect Ratio" />
                   </SelectTrigger>
                   <SelectContent>
@@ -569,6 +575,7 @@ export default function TKXCalendarPage() {
                 {selectedEvents.size > 0 && (
                   <Button
                     size="sm"
+                    className="bg-orange-500 text-white hover:bg-orange-600"
                     onClick={scrapeSelectedEvents}
                     disabled={scrapingResults}
                   >
@@ -588,17 +595,15 @@ export default function TKXCalendarPage() {
                 <div className="flex items-center gap-2 ml-auto">
                   <Button
                     size="sm"
-                    variant={sortByDate ? 'default' : 'outline'}
+                    className={sortByDate ? 'bg-gray-900 text-white hover:bg-gray-800' : 'border-2 border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'}
                     onClick={toggleDateSort}
-                    className="gap-2"
                   >
-                    <ArrowUpDown className="h-4 w-4" />
+                    <ArrowUpDown className="h-4 w-4 mr-2" />
                     {sortByDate === 'asc' ? 'Date ↑' : sortByDate === 'desc' ? 'Date ↓' : 'Sort by Date'}
                   </Button>
 
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
                   <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-[180px] border-2 border-gray-300">
                       <SelectValue placeholder="Filter by month" />
                     </SelectTrigger>
                     <SelectContent>
@@ -615,21 +620,22 @@ export default function TKXCalendarPage() {
             )}
           </div>
         </div>
+        </div>
       </div>
 
       {/* Events List */}
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <span className="ml-3 text-muted-foreground">Loading events from TKX...</span>
+            <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+            <span className="ml-3 text-gray-600">Loading events from TKX...</span>
           </div>
         ) : filteredEvents.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-muted-foreground text-lg mb-4">
+            <p className="text-gray-600 text-lg mb-4">
               No events found for {selectedMonth}
             </p>
-            <Button asChild>
+            <Button className="bg-gray-900 text-white hover:bg-gray-800" asChild>
               <a href="https://tkx.live/calendar/" target="_blank" rel="noopener noreferrer">
                 View Full Calendar on TKX.live
               </a>
@@ -645,11 +651,11 @@ export default function TKXCalendarPage() {
                   key={event.id}
                   onClick={() => toggleEventSelection(event.id)}
                   className={cn(
-                    "border rounded-lg bg-card overflow-hidden transition-all cursor-pointer group",
+                    "border-2 rounded-lg bg-white overflow-hidden transition-all cursor-pointer group",
                     "hover:shadow-md",
                     isSelected
-                      ? "border-blue-400 ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-950/30"
-                      : "border-border hover:border-blue-300"
+                      ? "border-orange-400 ring-2 ring-orange-400 bg-orange-50"
+                      : "border-gray-200 hover:border-orange-300"
                   )}
                 >
                   <div className="p-4 flex flex-col gap-3">
@@ -660,22 +666,22 @@ export default function TKXCalendarPage() {
                         onClick={(e) => e.stopPropagation()}
                         className={cn(
                           "mt-0.5",
-                          isSelected && "border-blue-500 data-[state=checked]:bg-blue-500"
+                          isSelected && "border-orange-500 data-[state=checked]:bg-orange-500"
                         )}
                       />
 
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold line-clamp-2 leading-tight">
+                        <h3 className="font-semibold line-clamp-2 leading-tight text-gray-900">
                           {event.title}
                         </h3>
                         {event.date && (
-                          <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-2">
+                          <p className="text-sm text-gray-600 flex items-center gap-1.5 mt-2">
                             <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
                             <span className="truncate">{formatDate(event.date)}</span>
                           </p>
                         )}
                         {event.month && (
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className="text-xs text-gray-600 mt-1">
                             {event.month}
                           </p>
                         )}
@@ -684,8 +690,7 @@ export default function TKXCalendarPage() {
 
                     <Button
                       size="sm"
-                      variant="ghost"
-                      className="w-full justify-start"
+                      className="w-full justify-start border-2 border-gray-300 text-gray-700 hover:bg-gray-100 bg-white"
                       asChild
                       onClick={(e) => e.stopPropagation()}
                     >

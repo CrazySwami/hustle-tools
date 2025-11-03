@@ -1152,61 +1152,51 @@ window.getWordPressStylesheet = async function() {
     };
 };
 
-// Update WordPress global stylesheet (create custom CSS file)
+// Update WordPress global stylesheet (append to theme's style.css)
 window.updateGlobalStylesheet = async function(css) {
     if (!playgroundClient) {
         throw new Error('Playground not running');
     }
 
-    console.log('💾 Updating global stylesheet...');
+    console.log('💾 Updating global stylesheet in theme...');
 
-    // Write custom CSS to uploads directory
-    const customCssPath = '/wordpress/wp-content/uploads/custom-global.css';
-
-    // Write the CSS file
-    await playgroundClient.writeFile(customCssPath, css);
-
-    // Enqueue the custom CSS in WordPress
+    // Append custom CSS to Hello Elementor theme's style.css
     const phpCode = `<?php
         require_once '/wordpress/wp-load.php';
 
-        // Create a mu-plugin to enqueue the custom CSS
-        $mu_plugin_code = "<?php
-/**
- * Plugin Name: Custom Global Stylesheet
- * Description: Enqueues custom global CSS
- * Version: 1.0
- */
+        // Get current theme stylesheet path
+        $theme_stylesheet = get_stylesheet_directory() . '/style.css';
 
-add_action('wp_enqueue_scripts', function() {
-    wp_enqueue_style(
-        'custom-global-stylesheet',
-        content_url('uploads/custom-global.css'),
-        array(),
-        filemtime(WP_CONTENT_DIR . '/uploads/custom-global.css')
-    );
-}, 999);
+        // Read existing content
+        $existing_css = file_get_contents($theme_stylesheet);
 
-add_action('admin_enqueue_scripts', function() {
-    wp_enqueue_style(
-        'custom-global-stylesheet-admin',
-        content_url('uploads/custom-global.css'),
-        array(),
-        filemtime(WP_CONTENT_DIR . '/uploads/custom-global.css')
-    );
-}, 999);
-";
+        // Remove any previous custom CSS block (between markers)
+        $start_marker = '/* === CUSTOM GLOBAL STYLES START === */';
+        $end_marker = '/* === CUSTOM GLOBAL STYLES END === */';
 
-        $mu_plugins_dir = WP_CONTENT_DIR . '/mu-plugins';
-        if (!file_exists($mu_plugins_dir)) {
-            mkdir($mu_plugins_dir, 0755, true);
+        if (strpos($existing_css, $start_marker) !== false) {
+            $before_custom = substr($existing_css, 0, strpos($existing_css, $start_marker));
+            $after_custom_pos = strpos($existing_css, $end_marker);
+            if ($after_custom_pos !== false) {
+                $after_custom = substr($existing_css, $after_custom_pos + strlen($end_marker));
+                $existing_css = $before_custom . $after_custom;
+            }
         }
 
-        $mu_plugin_file = $mu_plugins_dir . '/custom-global-stylesheet.php';
-        file_put_contents($mu_plugin_file, $mu_plugin_code);
+        // Prepare custom CSS with markers
+        $custom_css_block = "\\n\\n" . $start_marker . "\\n" . file_get_contents('/tmp/custom.css') . "\\n" . $end_marker;
 
-        echo 'Custom stylesheet updated and enqueued successfully';
+        // Append custom CSS
+        $new_css = rtrim($existing_css) . $custom_css_block;
+
+        // Write back to theme stylesheet
+        file_put_contents($theme_stylesheet, $new_css);
+
+        echo 'Custom stylesheet appended to theme style.css (frontend only)';
     ?>`;
+
+    // Write CSS to temp file for PHP to read
+    await playgroundClient.writeFile('/tmp/custom.css', css);
 
     const result = await playgroundClient.run({ code: phpCode });
     console.log('✅ Stylesheet update result:', result.text);
@@ -1214,7 +1204,7 @@ add_action('admin_enqueue_scripts', function() {
     return {
         success: true,
         message: result.text,
-        path: customCssPath
+        path: 'wp-content/themes/hello-elementor/style.css'
     };
 };
 
@@ -2398,6 +2388,147 @@ window.deployAndPreviewWidget = async function(widgetPhp, widgetCss = '', widget
         updatePlaygroundStatus('❌ Error: ' + error.message, 'error');
         throw error;
     }
+};
+
+// Upload image from URL to WordPress media library
+window.uploadImageToWordPress = async function(imageUrl, filename = null) {
+    if (!playgroundClient) {
+        throw new Error('Playground not running');
+    }
+
+    console.log('📤 Uploading image to WordPress:', imageUrl);
+
+    try {
+        // Extract filename from URL if not provided
+        if (!filename) {
+            filename = imageUrl.split('/').pop().split('?')[0] || 'brand-logo.png';
+        }
+
+        // Create JSON file with image data
+        const dataPath = '/tmp/image-upload-data.json';
+        await playgroundClient.writeFile(dataPath, JSON.stringify({
+            url: imageUrl,
+            filename: filename
+        }));
+
+        // PHP code to download and upload image
+        const phpCode = `<?php
+            require_once '/wordpress/wp-load.php';
+
+            $json = file_get_contents('${dataPath}');
+            $data = json_decode($json, true);
+            @unlink('${dataPath}');
+
+            $image_url = $data['url'];
+            $filename = $data['filename'];
+
+            // Download image from URL
+            $image_data = file_get_contents($image_url);
+            if ($image_data === false) {
+                echo json_encode(array('error' => 'Failed to download image'));
+                exit;
+            }
+
+            // Get upload directory
+            $upload_dir = wp_upload_dir();
+
+            // Ensure filename is unique
+            $file_path = $upload_dir['path'] . '/' . $filename;
+            $counter = 1;
+            $file_info = pathinfo($filename);
+            while (file_exists($file_path)) {
+                $filename = $file_info['filename'] . '-' . $counter . '.' . $file_info['extension'];
+                $file_path = $upload_dir['path'] . '/' . $filename;
+                $counter++;
+            }
+
+            // Save image to uploads directory
+            $saved = file_put_contents($file_path, $image_data);
+            if ($saved === false) {
+                echo json_encode(array('error' => 'Failed to save image'));
+                exit;
+            }
+
+            // Get file type
+            $wp_filetype = wp_check_filetype($filename, null);
+
+            // Prepare attachment data
+            $attachment = array(
+                'post_mime_type' => $wp_filetype['type'],
+                'post_title'     => sanitize_file_name($file_info['filename']),
+                'post_content'   => '',
+                'post_status'    => 'inherit'
+            );
+
+            // Insert attachment
+            $attach_id = wp_insert_attachment($attachment, $file_path);
+
+            if (is_wp_error($attach_id)) {
+                echo json_encode(array('error' => 'Failed to create attachment'));
+                exit;
+            }
+
+            // Generate attachment metadata
+            require_once(ABSPATH . 'wp-admin/includes/image.php');
+            $attach_data = wp_generate_attachment_metadata($attach_id, $file_path);
+            wp_update_attachment_metadata($attach_id, $attach_data);
+
+            // Get attachment URL
+            $attachment_url = wp_get_attachment_url($attach_id);
+
+            echo json_encode(array(
+                'success' => true,
+                'attachment_id' => $attach_id,
+                'url' => $attachment_url,
+                'filename' => $filename
+            ));
+        ?>`;
+
+        const result = await playgroundClient.run({ code: phpCode });
+        const response = JSON.parse(result.text);
+
+        if (response.error) {
+            throw new Error(response.error);
+        }
+
+        console.log('✅ Image uploaded successfully:', response);
+        return response;
+
+    } catch (error) {
+        console.error('❌ Image upload error:', error);
+        throw error;
+    }
+};
+
+// Batch upload multiple images to WordPress
+window.uploadImagesToWordPress = async function(imageUrls) {
+    if (!playgroundClient) {
+        throw new Error('Playground not running');
+    }
+
+    console.log('📤 Batch uploading images to WordPress:', imageUrls.length);
+
+    const results = [];
+    const errors = [];
+
+    for (let i = 0; i < imageUrls.length; i++) {
+        try {
+            const result = await window.uploadImageToWordPress(imageUrls[i]);
+            results.push(result);
+            console.log(`✅ Uploaded ${i + 1}/${imageUrls.length}`);
+        } catch (error) {
+            console.error(`❌ Failed to upload image ${i + 1}:`, error);
+            errors.push({ url: imageUrls[i], error: error.message });
+        }
+    }
+
+    return {
+        success: results,
+        errors: errors,
+        total: imageUrls.length,
+        successCount: results.length,
+        errorCount: errors.length
+    };
 };
 
 // Auto-start playground on page load (if enabled)

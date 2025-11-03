@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { MessageSquare, AlertTriangle, Ban } from 'lucide-react';
-import { estimateTokenCount } from '@/lib/token-validator';
+import { estimateTokenCount, estimateImageTokens } from '@/lib/token-validator';
 
 export interface PromptTokenCounterProps {
   /** Current prompt text to count */
@@ -19,6 +19,10 @@ export interface PromptTokenCounterProps {
   onSendDisabled?: (disabled: boolean) => void;
   /** Show detailed breakdown */
   showDetails?: boolean;
+  /** Current model name (for provider-specific image token calculation) */
+  model?: string;
+  /** Attached image file (if any) */
+  attachedImage?: { file: File; preview: string } | null;
   className?: string;
 }
 
@@ -35,10 +39,13 @@ export function PromptTokenCounter({
   conversationTokens = 0,
   onSendDisabled,
   showDetails = false,
+  model = 'default',
+  attachedImage = null,
   className = '',
 }: PromptTokenCounterProps) {
   const [promptTokens, setPromptTokens] = useState(0);
   const [systemTokens, setSystemTokens] = useState(0);
+  const [imageTokens, setImageTokens] = useState(0);
 
   // Count tokens whenever prompt changes (debounced for performance)
   useEffect(() => {
@@ -56,8 +63,29 @@ export function PromptTokenCounter({
     }
   }, [systemPrompt]);
 
-  // Calculate totals
-  const totalInputTokens = systemTokens + conversationTokens + promptTokens;
+  // Count image tokens when image is attached
+  useEffect(() => {
+    if (attachedImage?.preview) {
+      // Determine provider from model
+      const provider = model.startsWith('anthropic/')
+        ? 'anthropic'
+        : model.startsWith('openai/')
+        ? 'openai'
+        : model.startsWith('google/')
+        ? 'google'
+        : 'other';
+
+      estimateImageTokens(attachedImage.preview, provider).then((tokens) => {
+        setImageTokens(tokens);
+        console.log(`📸 Image attached: ${tokens} tokens (${provider})`);
+      });
+    } else {
+      setImageTokens(0);
+    }
+  }, [attachedImage, model]);
+
+  // Calculate totals (include image tokens)
+  const totalInputTokens = systemTokens + conversationTokens + promptTokens + imageTokens;
   const effectiveLimit = contextLimit - reserveForOutput;
   const percentUsed = (totalInputTokens / effectiveLimit) * 100;
   const percentClamped = Math.min(Math.max(percentUsed, 0), 100);
@@ -72,20 +100,22 @@ export function PromptTokenCounter({
 
   // Debug: Log when rendered
   useEffect(() => {
-    if (prompt.trim()) {
-      console.log('🔍 PromptTokenCounter: Showing counter', {
-        promptTokens,
-        percentUsed,
-        isOverLimit,
-        isNearLimit,
-      });
-    }
-  }, [prompt, promptTokens, percentUsed, isOverLimit, isNearLimit]);
+    console.log('🔍 PromptTokenCounter: Current state', {
+      promptTokens,
+      systemTokens,
+      conversationTokens,
+      imageTokens,
+      totalInputTokens,
+      percentUsed,
+      isOverLimit,
+      isNearLimit,
+    });
+  }, [prompt, promptTokens, systemTokens, conversationTokens, imageTokens, totalInputTokens, percentUsed, isOverLimit, isNearLimit]);
 
-  // Don't show if prompt is empty
-  if (!prompt.trim()) {
-    return null;
-  }
+  // Always show the counter (even when prompt is empty) to display system prompt + conversation tokens
+  // if (!prompt.trim()) {
+  //   return null;
+  // }
 
   const getColorClasses = () => {
     if (isOverLimit) {
@@ -134,7 +164,7 @@ export function PromptTokenCounter({
           <MessageSquare className={`h-4 w-4 ${colors.text}`} />
         )}
         <span className={`text-xs font-medium tabular-nums ${colors.text}`}>
-          {promptTokens.toLocaleString()} tokens
+          {totalInputTokens.toLocaleString()} tokens ({percentClamped.toFixed(1)}%)
         </span>
       </div>
 
@@ -155,11 +185,22 @@ export function PromptTokenCounter({
         <div className={`flex items-center gap-2 px-2 py-1 rounded border ${colors.border} ${colors.bg}`}>
           <div className="flex items-center gap-3 text-[11px]">
             <div className="flex flex-col">
-              <span className="text-muted-foreground">This prompt</span>
+              <span className="text-muted-foreground">Prompt</span>
               <span className={`font-mono font-medium ${colors.text}`}>
                 {promptTokens.toLocaleString()}
               </span>
             </div>
+            {imageTokens > 0 && (
+              <>
+                <div className="w-px h-6 bg-border" />
+                <div className="flex flex-col">
+                  <span className="text-muted-foreground">Image</span>
+                  <span className={`font-mono font-medium ${colors.text}`}>
+                    {imageTokens.toLocaleString()}
+                  </span>
+                </div>
+              </>
+            )}
             <div className="w-px h-6 bg-border" />
             <div className="flex flex-col">
               <span className="text-muted-foreground">Total input</span>

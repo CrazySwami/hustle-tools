@@ -45,6 +45,12 @@ export function HtmlSplitter({ onClose, onImport }: HtmlSplitterProps) {
         return;
       }
 
+      // Only run in browser environment
+      if (typeof window === 'undefined') {
+        setError('This feature can only be used in the browser');
+        return;
+      }
+
       // Parse HTML
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlInput, 'text/html');

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Editor, { DiffEditor } from "@monaco-editor/react";
 import {
   Section,
@@ -12,12 +12,12 @@ import {
 } from "@/lib/section-schema";
 import { useGlobalStylesheet } from "@/lib/global-stylesheet-context";
 import { useTheme } from "next-themes";
-import { OptionsButton } from "@/components/ui/OptionsButton";
 import { useEditorContent } from "@/hooks/useEditorContent";
 import { ElementInspector } from "./ElementInspector";
 import { HTMLGeneratorDialog } from "@/components/html-generator/HTMLGeneratorDialog";
 import { convertToWidgetProgrammatic } from "@/lib/programmatic-widget-converter";
 import { extractCodeFromPhp, isPhpWidget } from "@/lib/php-to-html-converter";
+import { convertHtmlToHubL } from "@/lib/hubspot-converter";
 import { useFileGroups } from "@/hooks/useFileGroups";
 import { ProjectSidebar } from "./ProjectSidebar";
 import { NewGroupDialog } from "./NewGroupDialog";
@@ -26,6 +26,10 @@ import { BatchWidgetConverter } from "./BatchWidgetConverter";
 import { WidgetValidationModal } from "./WidgetValidationModal";
 import { GenerateProjectModal } from "./GenerateProjectModal";
 import { ElementInspectorModal } from "./ElementInspectorModal";
+import { HublPreviewPanel } from "./HublPreviewPanel";
+import { AiFillHtml5 } from 'react-icons/ai';
+import { DiCss3, DiJavascript1, DiPhp } from 'react-icons/di';
+import { SiHubspot } from 'react-icons/si';
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -34,8 +38,8 @@ interface HtmlSectionEditorProps {
   streamedHtml?: string;
   streamedCss?: string;
   streamedJs?: string;
-  activeCodeTab?: "html" | "css" | "js" | "php";
-  onCodeTabChange?: (tab: "html" | "css" | "js" | "php") => void;
+  activeCodeTab?: "html" | "css" | "js" | "php" | "hubl";
+  onCodeTabChange?: (tab: "html" | "css" | "js" | "php" | "hubl") => void;
   onSwitchToVisualEditor?: () => void;
   onSwitchToPlayground?: () => void;
   chatVisible?: boolean;
@@ -76,16 +80,23 @@ export function HtmlSectionEditor({
   const [showNewGroupDialog, setShowNewGroupDialog] = useState(false);
   const [showHtmlSplitter, setShowHtmlSplitter] = useState(false);
   const [showBatchConverter, setShowBatchConverter] = useState(false);
-  const [showProjectSidebar, setShowProjectSidebar] = useState(true); // Show by default on desktop
+  const [showProjectSidebar, setShowProjectSidebar] = useState(() => {
+    // Close by default on mobile, open on desktop
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 768;
+    }
+    return true; // Default to true during SSR
+  });
 
   // Legacy section state (keep for backward compatibility with props)
   const [section, setSection] = useState<Section>(
     initialSection || createSection(),
   );
   const [internalActiveCodeTab, setInternalActiveCodeTab] = useState<
-    "html" | "css" | "js" | "php"
+    "html" | "css" | "js" | "php" | "hubl"
   >("html");
   const [showPreview, setShowPreview] = useState(false);
+  const [showHublPreview, setShowHublPreview] = useState(false); // HubL interactive preview mode
   const [showSettings, setShowSettings] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -123,7 +134,7 @@ export function HtmlSectionEditor({
   const { theme } = useTheme();
 
   // Global editor content state (for chat access)
-  const { updateContent, setAllContent, html: editorHtml, css: editorCss, js: editorJs, php: editorPhp } = useEditorContent();
+  const { updateContent, setAllContent, html: editorHtml, css: editorCss, js: editorJs, php: editorPhp, hubl: editorHubl } = useEditorContent();
 
   // Deploy widget to WordPress Playground
   const handleDeployWidget = async () => {
@@ -636,6 +647,56 @@ export function HtmlSectionEditor({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Event handlers for dropdown actions (defined with useCallback for stable references)
+  const handleGenerateProject = useCallback(() => {
+    setGenerateModalConversionMode(false);
+    setShowGenerateModal(true);
+  }, []);
+
+  const handleSaveLibrary = useCallback(() => {
+    setShowSaveDialog(true);
+  }, []);
+
+  const handleConvertWidget = useCallback(() => {
+    setGenerateModalConversionMode(true);
+    setShowGenerateModal(true);
+  }, []);
+
+  const handlePreviewHtml = useCallback(() => {
+    console.log('🎯 Preview HTML triggered from dropdown');
+    setShowPreview(prev => {
+      const newValue = !prev;
+      if (newValue) setShowHublPreview(false);
+      return newValue;
+    });
+  }, []);
+
+  const handlePreviewHubl = useCallback(() => {
+    console.log('🎯 Preview HubL triggered from dropdown');
+    setShowHublPreview(prev => {
+      const newValue = !prev;
+      if (newValue) setShowPreview(false);
+      return newValue;
+    });
+  }, []);
+
+  // Listen for tab dropdown actions (from parent page tab bar)
+  useEffect(() => {
+    window.addEventListener('trigger-generate-project', handleGenerateProject);
+    window.addEventListener('trigger-save-library', handleSaveLibrary);
+    window.addEventListener('trigger-convert-widget', handleConvertWidget);
+    window.addEventListener('trigger-preview-html', handlePreviewHtml);
+    window.addEventListener('trigger-preview-hubl', handlePreviewHubl);
+
+    return () => {
+      window.removeEventListener('trigger-generate-project', handleGenerateProject);
+      window.removeEventListener('trigger-save-library', handleSaveLibrary);
+      window.removeEventListener('trigger-convert-widget', handleConvertWidget);
+      window.removeEventListener('trigger-preview-html', handlePreviewHtml);
+      window.removeEventListener('trigger-preview-hubl', handlePreviewHubl);
+    };
+  }, [handleGenerateProject, handleSaveLibrary, handleConvertWidget, handlePreviewHtml, handlePreviewHubl]);
+
   // Close menu on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -700,7 +761,7 @@ export function HtmlSectionEditor({
   // Use external activeCodeTab if provided, otherwise use internal
   const activeCodeTab = externalActiveCodeTab ?? internalActiveCodeTab;
 
-  const handleCodeTabChange = (tab: "html" | "css" | "js" | "php") => {
+  const handleCodeTabChange = (tab: "html" | "css" | "js" | "php" | "hubl") => {
     if (onCodeTabChange) {
       onCodeTabChange(tab);
     } else {
@@ -723,6 +784,9 @@ export function HtmlSectionEditor({
     setShowDiffPreview(false);
     setDiffData(null);
 
+    // Dispatch custom event for auto-close chat on mobile
+    window.dispatchEvent(new CustomEvent('code-edit-accepted'));
+
     console.log(`✅ Accepted diff changes for ${diffData.file}`);
   };
 
@@ -744,11 +808,12 @@ export function HtmlSectionEditor({
     onSectionChange?.(updatedSection);
 
     // Sync code changes to global state for chat access
-    if ('html' in updates || 'css' in updates || 'js' in updates || 'php' in updates) {
+    if ('html' in updates || 'css' in updates || 'js' in updates || 'php' in updates || 'hubl' in updates) {
       if ('html' in updates) updateContent('html', updates.html || '');
       if ('css' in updates) updateContent('css', updates.css || '');
       if ('js' in updates) updateContent('js', updates.js || '');
       if ('php' in updates) updateContent('php', updates.php || '');
+      if ('hubl' in updates) updateContent('hubl', updates.hubl || '');
     }
   };
 
@@ -759,7 +824,8 @@ export function HtmlSectionEditor({
       html: section.html || '',
       css: section.css || '',
       js: section.js || '',
-      php: section.php || ''
+      php: section.php || '',
+      hubl: section.hubl || ''
     });
   }, [section.id, setAllContent]);
 
@@ -799,31 +865,55 @@ export function HtmlSectionEditor({
         css: fileGroups.activeGroup.css,
         js: fileGroups.activeGroup.js,
         php: fileGroups.activeGroup.php || '',
+        hubl: fileGroups.activeGroup.hubl || '',
       });
 
       // Update section for backward compatibility
       const updatedSection = {
         ...section,
         name: fileGroups.activeGroup!.name,
+        type: fileGroups.activeGroup!.type,
         html: fileGroups.activeGroup!.html,
         css: fileGroups.activeGroup!.css,
         js: fileGroups.activeGroup!.js,
         php: fileGroups.activeGroup!.php,
+        hubl: fileGroups.activeGroup!.hubl,
         id: fileGroups.activeGroup!.id,
         updatedAt: Date.now(),
       };
       console.log('📁 HtmlSectionEditor: Loading project from file groups:', {
         id: updatedSection.id,
         name: updatedSection.name,
+        type: updatedSection.type,
         htmlLength: updatedSection.html?.length || 0,
         cssLength: updatedSection.css?.length || 0,
         jsLength: updatedSection.js?.length || 0,
         phpLength: updatedSection.php?.length || 0,
+        hublLength: updatedSection.hubl?.length || 0,
       });
       setSection(updatedSection);
 
       // Notify parent of section change (so chat context updates)
       onSectionChange?.(updatedSection);
+
+      // Auto-convert HTML to HubL for HubSpot projects
+      if (fileGroups.activeGroup.type === 'hubspot' &&
+          fileGroups.activeGroup.html &&
+          !fileGroups.activeGroup.hubl) {
+        console.log('🧡 HubSpot project detected with HTML but no HubL - auto-converting...');
+        try {
+          const result = convertHtmlToHubL(fileGroups.activeGroup.html, { kind: 'page' });
+          console.log('✅ Auto-conversion successful:', result.fields.length, 'fields detected');
+          fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'hubl', result.moduleHtml);
+          // Update local state to show the button immediately
+          updateContent('hubl', result.moduleHtml);
+        } catch (error) {
+          console.error('❌ Auto-conversion failed:', error);
+          // Fall back to copying HTML as-is
+          fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'hubl', fileGroups.activeGroup.html);
+          updateContent('hubl', fileGroups.activeGroup.html);
+        }
+      }
 
       // Switch to appropriate tab based on group type
       if (fileGroups.activeGroup.type === 'php' && fileGroups.activeGroup.php) {
@@ -851,10 +941,13 @@ export function HtmlSectionEditor({
       if (editorPhp) {
         fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'php', editorPhp);
       }
+      if (editorHubl) {
+        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'hubl', editorHubl);
+      }
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [editorHtml, editorCss, editorJs, editorPhp, fileGroups.activeGroup?.id]);
+  }, [editorHtml, editorCss, editorJs, editorPhp, editorHubl, fileGroups.activeGroup?.id]);
 
   // Listen for select-project event from Project Library
   useEffect(() => {
@@ -1129,118 +1222,6 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
         position: "relative",
       }}
     >
-      {/* OptionsButton - Universal floating button */}
-      <OptionsButton
-        isMobile={isMobile}
-        isVisible={isTabVisible}
-        options={[
-          {
-            label: "🚀 Generate New Project",
-            onClick: () => {
-              setGenerateModalConversionMode(false);
-              setShowGenerateModal(true);
-            },
-            divider: true,
-          },
-          {
-            label: "💾 Save to Library",
-            onClick: () => setShowSaveDialog(true),
-          },
-          {
-            label: "⚡ Convert to Elementor Widget",
-            onClick: () => {
-              setGenerateModalConversionMode(true);
-              setShowGenerateModal(true);
-            },
-            disabled: !editorHtml.trim(),
-            divider: true,
-          },
-          ...(section.php ? [{
-            label: "🚀 Deploy to WordPress",
-            onClick: handleDeployWidget,
-            divider: true,
-          }] : []),
-          ...(section.php ? [{
-            label: "✅ Validate Widget Code",
-            onClick: async () => {
-              if (!section.php) return;
-
-              setShowValidationModal(true);
-              setIsValidating(true);
-
-              try {
-                const validationResponse = await fetch('/api/validate-widget', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    widgetPhp: section.php,
-                    widgetName: section.name || 'widget',
-                    widgetTitle: section.name || 'Widget',
-                  }),
-                });
-
-                if (validationResponse.ok) {
-                  const validationData = await validationResponse.json();
-                  setValidationResult(validationData);
-                }
-              } catch (error: any) {
-                console.error('Validation failed:', error);
-                alert(`❌ Validation failed: ${error.message}`);
-              } finally {
-                setIsValidating(false);
-              }
-            },
-          }] : []),
-          ...(section.php && editorHtml.trim() ? [{
-            label: "🔃 Update Widget",
-            onClick: handleConvertToWidget,
-            disabled: isConverting,
-          }] : []),
-          ...(section.php ? [{
-            label: "🔄 Convert Back to HTML",
-            onClick: handleConvertBackToHtml,
-            divider: true,
-          }] : []),
-          {
-            label: "File Tree",
-            onClick: () => setShowFileTree(!showFileTree),
-            type: "toggle",
-            active: showFileTree,
-            divider: true,
-          },
-          {
-            label: "Settings",
-            onClick: () => setShowSettings(!showSettings),
-            type: "toggle",
-            active: showSettings,
-          },
-          {
-            label: "Preview",
-            onClick: () => setShowPreview(!showPreview),
-            type: "toggle",
-            active: showPreview,
-          },
-          // Add conditional options only if props are provided
-          ...(setChatVisible
-            ? [
-                {
-                  label: chatVisible ? "Hide Chat" : "Show Chat",
-                  onClick: () => setChatVisible(!chatVisible),
-                  divider: true,
-                },
-              ]
-            : []),
-          ...(setTabBarVisible
-            ? [
-                {
-                  label: tabBarVisible ? "Hide Tab Bar" : "Show Tab Bar",
-                  onClick: () => setTabBarVisible(!tabBarVisible),
-                },
-              ]
-            : []),
-        ]}
-      />
-
       {/* Top Bar - HIDDEN */}
       {false && (
         <div
@@ -1381,30 +1362,6 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
               </button>
             )}
 
-            {/* Preview Toggle - Different behavior on mobile */}
-            <button
-              onClick={() => setShowPreview(!showPreview)}
-              style={{
-                padding: isMobile ? "8px 12px" : "6px 12px",
-                background: showPreview ? "#000000" : "var(--muted)",
-                color: showPreview ? "#ffffff" : "var(--foreground)",
-                border: "none",
-                borderRadius: "6px",
-                fontSize: isMobile ? "14px" : "13px",
-                cursor: "pointer",
-                fontWeight: 500,
-                minHeight: isMobile ? "44px" : "auto",
-              }}
-            >
-              {showPreview
-                ? isMobile
-                  ? "📝"
-                  : "✓ Preview"
-                : isMobile
-                  ? "👁️"
-                  : "Preview"}
-            </button>
-
             {/* Deploy to Playground - Only show in PHP/Widget mode */}
             {section.php && !isMobile && (
               <button
@@ -1448,6 +1405,60 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 👁️ Visual Editor
               </button>
             )}
+
+            {/* HTML Preview - Desktop only */}
+            {!isMobile && (
+              <button
+                onClick={() => {
+                  console.log('🔵 HTML Preview button clicked');
+                  setShowPreview(!showPreview);
+                  if (!showPreview) setShowHublPreview(false);
+                }}
+                style={{
+                  padding: "6px 12px",
+                  background: showPreview ? "#10b981" : "#2d2d2d",
+                  color: showPreview ? "#ffffff" : "#cccccc",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <AiFillHtml5 size={14} color={showPreview ? "#ffffff" : "#E34F26"} />
+                {showPreview ? "✓ Preview HTML" : "Preview HTML"}
+              </button>
+            )}
+
+            {/* HubL Preview - Desktop only, HubSpot projects */}
+            {!isMobile && fileGroups.activeGroup?.type === 'hubspot' && editorHubl && (
+              <button
+                onClick={() => {
+                  console.log('🧡 HubL Preview button clicked');
+                  setShowHublPreview(!showHublPreview);
+                  if (!showHublPreview) setShowPreview(false);
+                }}
+                style={{
+                  padding: "6px 12px",
+                  background: showHublPreview ? "#FF7A59" : "#2d2d2d",
+                  color: showHublPreview ? "#ffffff" : "#cccccc",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <SiHubspot size={14} color={showHublPreview ? "#ffffff" : "#FF7A59"} />
+                {showHublPreview ? "✓ HubL Preview" : "HubL Preview"}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1463,8 +1474,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
         {/* Code Editor Panel */}
         <div
           style={{
-            width: showPreview ? "0%" : "100%",
-            display: showPreview ? "none" : "flex",
+            width: (showPreview || showHublPreview) ? "0%" : "100%",
+            display: (showPreview || showHublPreview) ? "none" : "flex",
             flexDirection: "row",
             transition: "width 0.3s ease",
           }}
@@ -1959,38 +1970,41 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 }}>
                   {(() => {
                     const isPhpWidget = fileGroups.activeGroup?.type === 'php';
-                    if (activeCodeTab === 'html') return '📄 index.html';
-                    if (activeCodeTab === 'css') return isPhpWidget ? '🎨 widget.css' : '🎨 styles.css';
-                    if (activeCodeTab === 'js') return isPhpWidget ? '⚡ widget.js' : '⚡ script.js';
-                    if (activeCodeTab === 'php') return '🔧 widget.php';
+                    const isHubSpotModule = fileGroups.activeGroup?.type === 'hubspot';
+                    if (activeCodeTab === 'html') return (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <AiFillHtml5 size={16} color="#E34F26" />
+                        index.html
+                      </span>
+                    );
+                    if (activeCodeTab === 'css') return (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <DiCss3 size={18} color="#1572B6" />
+                        {isPhpWidget ? 'widget.css' : 'styles.css'}
+                      </span>
+                    );
+                    if (activeCodeTab === 'js') return (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <DiJavascript1 size={18} color="#F7DF1E" />
+                        {isPhpWidget ? 'widget.js' : 'script.js'}
+                      </span>
+                    );
+                    if (activeCodeTab === 'php') return (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <DiPhp size={18} color="#777BB4" />
+                        widget.php
+                      </span>
+                    );
+                    if (activeCodeTab === 'hubl') return (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <SiHubspot size={16} color="#FF7A59" />
+                        template.hubl
+                      </span>
+                    );
                     return '';
                   })()}
                 </span>
               </div>
-
-              {/* Preview Button - Fixed position on right */}
-              <button
-                onClick={() => setShowPreview(!showPreview)}
-                style={{
-                  position: "absolute",
-                  right: isMobile ? "12px" : "16px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  padding: isMobile ? "8px 12px" : "6px 16px",
-                  background: showPreview ? "#10b981" : "transparent",
-                  color: showPreview ? "#ffffff" : "#9ca3af",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: isMobile ? "14px" : "13px",
-                  cursor: "pointer",
-                  fontWeight: showPreview ? 500 : 400,
-                  transition: "all 0.2s",
-                  minHeight: isMobile ? "40px" : "32px",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {showPreview ? "✓ Preview" : "Preview"}
-              </button>
             </div>
 
             {/* Code Editor with Project Sidebar + File Tree */}
@@ -2064,21 +2078,24 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   {/* File List */}
                   <div style={{ flex: 1, overflow: "auto" }}>
                     {(() => {
-                      const isPhpWidget = fileGroups.activeGroup?.type === 'php';
-                      const files = isPhpWidget ? [
-                        { tab: 'php', icon: '🔧', name: 'widget.php', lang: 'PHP' },
-                        { tab: 'css', icon: '🎨', name: 'widget.css', lang: 'CSS' },
-                        { tab: 'js', icon: '⚡', name: 'widget.js', lang: 'JavaScript' }
+                      const projectType = fileGroups.activeGroup?.type;
+                      const files = projectType === 'php' ? [
+                        { tab: 'php', icon: <DiPhp size={18} color="#777BB4" />, name: 'widget.php', lang: 'PHP' },
+                        { tab: 'css', icon: <DiCss3 size={18} color="#1572B6" />, name: 'widget.css', lang: 'CSS' },
+                        { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'widget.js', lang: 'JavaScript' }
+                      ] : projectType === 'hubspot' ? [
+                        { tab: 'html', icon: <AiFillHtml5 size={16} color="#E34F26" />, name: 'index.html', lang: 'HTML' },
+                        { tab: 'hubl', icon: <SiHubspot size={16} color="#FF7A59" />, name: 'template.hubl', lang: 'HubL' }
                       ] : [
-                        { tab: 'html', icon: '📄', name: 'index.html', lang: 'HTML' },
-                        { tab: 'css', icon: '🎨', name: 'styles.css', lang: 'CSS' },
-                        { tab: 'js', icon: '⚡', name: 'script.js', lang: 'JavaScript' }
+                        { tab: 'html', icon: <AiFillHtml5 size={16} color="#E34F26" />, name: 'index.html', lang: 'HTML' },
+                        { tab: 'css', icon: <DiCss3 size={18} color="#1572B6" />, name: 'styles.css', lang: 'CSS' },
+                        { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'script.js', lang: 'JavaScript' }
                       ];
                       return files;
                     })().map((file) => (
                       <button
                         key={file.tab}
-                        onClick={() => handleCodeTabChange(file.tab as 'html' | 'css' | 'js' | 'php')}
+                        onClick={() => handleCodeTabChange(file.tab as 'html' | 'css' | 'js' | 'php' | 'hubl')}
                         style={{
                           width: "100%",
                           padding: "8px 12px",
@@ -2106,10 +2123,77 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                           }
                         }}
                       >
-                        <span style={{ fontSize: "16px" }}>{file.icon}</span>
+                        <span style={{ display: "flex", alignItems: "center" }}>{file.icon}</span>
                         <span style={{ flex: 1 }}>{file.name}</span>
                       </button>
                     ))}
+
+                    {/* Preview Buttons - After file list (Desktop & Mobile) */}
+                    <div style={{
+                      padding: "8px",
+                      borderTop: "1px solid #3e3e3e",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px"
+                    }}>
+                      {/* HTML Preview Button */}
+                      <button
+                        onClick={() => {
+                          setShowPreview(!showPreview);
+                          if (!showPreview) setShowHublPreview(false);
+                          if (isMobile) setShowFileTree(false); // Close file tree after clicking on mobile
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "10px 12px",
+                          background: showPreview ? "#10b981" : "#2d2d2d",
+                          color: showPreview ? "#ffffff" : "#cccccc",
+                          border: "none",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        <AiFillHtml5 size={16} color={showPreview ? "#ffffff" : "#E34F26"} />
+                        <span style={{ flex: 1, textAlign: "left" }}>
+                          {showPreview ? "✓ Preview HTML" : "Preview HTML"}
+                        </span>
+                      </button>
+
+                      {/* HubL Preview Button - Only for HubSpot projects */}
+                      {fileGroups.activeGroup?.type === 'hubspot' && editorHubl && (
+                        <button
+                          onClick={() => {
+                            setShowHublPreview(!showHublPreview);
+                            if (!showHublPreview) setShowPreview(false);
+                            if (isMobile) setShowFileTree(false); // Close file tree after clicking on mobile
+                          }}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            background: showHublPreview ? "#FF7A59" : "#2d2d2d",
+                            color: showHublPreview ? "#ffffff" : "#cccccc",
+                            border: "none",
+                            borderRadius: "6px",
+                            fontSize: "13px",
+                            cursor: "pointer",
+                            fontWeight: 500,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <SiHubspot size={16} color={showHublPreview ? "#ffffff" : "#FF7A59"} />
+                          <span style={{ flex: 1, textAlign: "left" }}>
+                            {showHublPreview ? "✓ HubL Preview" : "HubL Preview"}
+                          </span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -2187,6 +2271,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                         ? "javascript"
                         : activeCodeTab === "php"
                         ? "php"
+                        : activeCodeTab === "hubl"
+                        ? "html" // HubL uses HTML-like syntax
                         : activeCodeTab
                     }
                     theme={theme === "dark" ? "vs-dark" : "light"}
@@ -2211,6 +2297,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     ? "javascript"
                     : activeCodeTab === "php"
                     ? "php"
+                    : activeCodeTab === "hubl"
+                    ? "html" // HubL uses HTML-like syntax
                     : activeCodeTab
                 }
                 theme={theme === "dark" ? "vs-dark" : "light"}
@@ -2223,6 +2311,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     ? editorJs
                     : activeCodeTab === "php"
                     ? editorPhp
+                    : activeCodeTab === "hubl"
+                    ? editorHubl
                     : ""
                 }
                 onChange={(value) => {
@@ -2343,7 +2433,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
         </div>
 
         {/* Preview Panel - Full Screen */}
-        {showPreview && (
+        {showPreview && !showHublPreview && (
           <div
             style={{
               width: "100%",
@@ -2422,6 +2512,16 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
             />
 
           </div>
+        )}
+
+        {/* HubL Interactive Preview - Split Panel */}
+        {showHublPreview && editorHubl && (
+          <HublPreviewPanel
+            html={editorHtml}
+            hubl={editorHubl}
+            css={editorCss}
+            onClose={() => setShowHublPreview(false)}
+          />
         )}
 
       </div>
@@ -2903,6 +3003,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           setGenerateModalConversionMode(false);
         }}
         defaultModel={undefined}
+        globalCSS={globalCss} // Pass global CSS for context
         existingCode={generateModalConversionMode ? {
           html: editorHtml,
           css: editorCss,
@@ -2936,11 +3037,14 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
             const tokens = Math.ceil(content.length / 4); // Estimate: 1 token ≈ 4 characters
             console.log(`📝 Streaming ${file} (${content.length} chars, ~${tokens.toLocaleString()} tokens)`);
 
-            // Switch to the active file tab
-            if (file === 'html' || file === 'css' || file === 'js' || file === 'php') {
+            // Switch to the active file tab (include hubl)
+            if (file === 'html' || file === 'css' || file === 'js' || file === 'php' || file === 'hubl') {
               setGeneratingPhase(file);
               setGeneratingTokens(tokens);
-              onCodeTabChange?.(file);
+              // Only switch tabs for standard files (not hubl, since there's no hubl tab)
+              if (file !== 'hubl') {
+                onCodeTabChange?.(file);
+              }
             }
 
             // Update editor content immediately for visibility

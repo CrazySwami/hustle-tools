@@ -1,16 +1,47 @@
 'use client';
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
-import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search, X, Sun, Moon, Activity, MessageSquare, Mic, Zap } from "lucide-react"
+import { Flame, FileSearch, Ticket, ImageIcon, FileText, Boxes, FileEdit, Search, X, Sun, Moon, Activity, MessageSquare, Mic, Zap, Sparkles, Code2, Menu, ChevronDown } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
-export function Navbar() {
+export interface NavbarProps {
+  showOnDesktop?: boolean;
+  showOnMobile?: boolean;
+  hideMobileOnPaths?: string[];
+  hideButtonOnMobileForPaths?: string[];
+  mode?: 'floating' | 'traditional'; // New prop to switch between modes
+  traditionalOnPaths?: string[]; // Paths where traditional mode should be used
+}
+
+export function Navbar({
+  showOnDesktop = true,
+  showOnMobile = true,
+  hideMobileOnPaths = [],
+  hideButtonOnMobileForPaths = [],
+  mode = 'floating',
+  traditionalOnPaths = []
+}: NavbarProps = {}) {
+  const pathname = usePathname();
   const { theme, setTheme } = useTheme();
+
+  // Determine which mode to use based on current path
+  // If traditionalOnPaths is specified, use traditional mode UNLESS current path is in the array
+  // Otherwise, use the mode prop (default: floating)
+  const useTraditionalMode = traditionalOnPaths.length > 0
+    ? !traditionalOnPaths.includes(pathname)  // Traditional for all EXCEPT listed paths
+    : mode === 'traditional';                  // Otherwise use mode prop
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -131,6 +162,16 @@ export function Navbar() {
     };
   }, [menuOpen]);
 
+  // Listen for custom event to toggle menu from external sources (e.g., mobile HT logo)
+  useEffect(() => {
+    const handleToggleNav = () => {
+      setMenuOpen(prev => !prev);
+    };
+
+    window.addEventListener('toggle-nav-menu', handleToggleNav);
+    return () => window.removeEventListener('toggle-nav-menu', handleToggleNav);
+  }, []);
+
   // Dragging handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     // Store start position to detect if this was a click vs drag
@@ -148,25 +189,11 @@ export function Navbar() {
   const handleMouseMove = (e: MouseEvent) => {
     if (!isDragging) return;
 
-    // Calculate which corner the mouse is closest to
-    const windowCenterX = window.innerWidth / 2;
-    const windowCenterY = window.innerHeight / 2;
+    // Follow cursor smoothly during drag
+    const newX = e.clientX - dragOffsetRef.current.x;
+    const newY = e.clientY - dragOffsetRef.current.y;
 
-    let targetCorner: Corner;
-    if (e.clientX < windowCenterX && e.clientY < windowCenterY) {
-      targetCorner = 'top-left';
-    } else if (e.clientX >= windowCenterX && e.clientY < windowCenterY) {
-      targetCorner = 'top-right';
-    } else if (e.clientX < windowCenterX && e.clientY >= windowCenterY) {
-      targetCorner = 'bottom-left';
-    } else {
-      targetCorner = 'bottom-right';
-    }
-
-    // Only update if corner changed
-    if (targetCorner !== corner) {
-      setCorner(targetCorner);
-    }
+    setPosition({ x: newX, y: newY });
   };
 
   const handleMouseUp = (e: MouseEvent) => {
@@ -184,11 +211,26 @@ export function Navbar() {
       return;
     }
 
-    // Was a drag - corner already updated in handleMouseMove
+    // Was a drag - calculate which corner to snap to
+    const windowCenterX = window.innerWidth / 2;
+    const windowCenterY = window.innerHeight / 2;
+
+    let targetCorner: Corner;
+    if (e.clientX < windowCenterX && e.clientY < windowCenterY) {
+      targetCorner = 'top-left';
+    } else if (e.clientX >= windowCenterX && e.clientY < windowCenterY) {
+      targetCorner = 'top-right';
+    } else if (e.clientX < windowCenterX && e.clientY >= windowCenterY) {
+      targetCorner = 'bottom-left';
+    } else {
+      targetCorner = 'bottom-right';
+    }
+
+    setCorner(targetCorner);
     setIsDragging(false);
 
     // Save to localStorage
-    localStorage.setItem('nav-corner', corner);
+    localStorage.setItem('nav-corner', targetCorner);
     localStorage.setItem('nav-user-dragged', 'true');
   };
 
@@ -206,16 +248,16 @@ export function Navbar() {
   const tools = {
     chat: [
       {
-        title: "Voice Chat",
-        href: "/voice-chat",
-        description: "Real-time voice conversation with AI",
-        icon: Mic,
-      },
-      {
         title: "AI Doc Editor",
         href: "/chat-doc",
         description: "AI-powered document editor with analysis",
         icon: FileText,
+      },
+      {
+        title: "Blog Builder",
+        href: "/blog-builder",
+        description: "Multi-step blog content generation workflow",
+        icon: Sparkles,
       },
     ],
     design: [
@@ -224,6 +266,12 @@ export function Navbar() {
         href: "/elementor-editor",
         description: "WordPress section builder with live preview",
         icon: Boxes,
+      },
+      {
+        title: "HubSpot Converter",
+        href: "/hubspot-converter",
+        description: "Convert HTML to HubSpot modules",
+        icon: Code2,
       },
       {
         title: "Image Editor",
@@ -244,12 +292,6 @@ export function Navbar() {
         href: "/page-extractor",
         description: "Extract HTML, CSS, JS from any page",
         icon: FileSearch,
-      },
-      {
-        title: "Keyword Research",
-        href: "/keyword-research",
-        description: "Google search results and SERP analysis",
-        icon: Search,
       },
     ],
     tools: [
@@ -274,22 +316,171 @@ export function Navbar() {
     ],
   };
 
-  const navLinks = [
-    { href: "/voice-chat", label: "Voice Chat" },
-    { href: "/chat-doc", label: "AI Doc" },
-    { href: "/elementor-editor", label: "Elementor" },
-    { href: "/firecrawl", label: "Firecrawl" },
-    { href: "/keyword-research", label: "Keyword Research" },
-    { href: "/image-editor", label: "Image Editor" },
-    { href: "/page-extractor", label: "Page Extractor" },
-    { href: "/tkx-calendar", label: "TKX Events" },
-    { href: "/api-monitor", label: "API Monitor" },
-    { href: "/roadmap", label: "Roadmap" },
-  ];
+  // Check if we should hide the button on mobile (but keep menu listener)
+  const shouldHideButtonOnMobile = isMobile && hideButtonOnMobileForPaths.includes(pathname);
 
+  // Hide floating button on desktop for Elementor and Doc Editor pages (they have NavigationBar instead)
+  const shouldHideButtonOnDesktop = !isMobile && traditionalOnPaths.includes(pathname);
+
+  // Hide completely on mobile if showOnMobile is false OR if current path is in hideMobileOnPaths
+  if (isMobile && (!showOnMobile || hideMobileOnPaths.includes(pathname))) {
+    return null;
+  }
+
+  // Hide on desktop if showOnDesktop is false OR if should hide button on desktop
+  if (!isMobile && (!showOnDesktop || shouldHideButtonOnDesktop)) {
+    return null;
+  }
+
+  // TRADITIONAL MODE - Horizontal navbar with logo and center links
+  if (useTraditionalMode) {
+    return (
+      <nav className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
+            <Link href="/" className="flex items-center">
+              <span className="text-xl font-bold text-gray-900 hover:text-gray-700 transition-colors">
+                Hustle Tools
+              </span>
+            </Link>
+
+            {/* Desktop Navigation - Grouped Dropdowns */}
+            {!isMobile && (
+              <div className="hidden md:flex items-center space-x-1">
+                {Object.entries(tools).map(([groupName, items]) => (
+                  <DropdownMenu key={groupName}>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className={cn(
+                          "px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1",
+                          items.some(item => item.href === pathname)
+                            ? "bg-gray-900 text-white"
+                            : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                        )}
+                      >
+                        {groupName.charAt(0).toUpperCase() + groupName.slice(1)}
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56">
+                      {items.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <DropdownMenuItem key={item.href} asChild>
+                            <Link
+                              href={item.href}
+                              className={cn(
+                                "flex items-start gap-3 cursor-pointer",
+                                pathname === item.href && "bg-accent"
+                              )}
+                            >
+                              <Icon className="h-4 w-4 mt-0.5 text-orange-500" />
+                              <div className="flex flex-col">
+                                <span className="font-medium">{item.title}</span>
+                                <span className="text-xs text-muted-foreground">{item.description}</span>
+                              </div>
+                            </Link>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ))}
+              </div>
+            )}
+
+            {/* Right side - Theme toggle */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="hidden md:flex p-2 rounded-md hover:bg-gray-100 transition-colors relative"
+              >
+                <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-gray-900" />
+                <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-gray-900" />
+                <span className="sr-only">Toggle theme</span>
+              </button>
+
+              {/* Mobile menu button */}
+              <button
+                className="md:hidden p-2 rounded-md hover:bg-gray-100"
+                onClick={() => setMenuOpen(!menuOpen)}
+              >
+                {menuOpen ? (
+                  <X className="h-6 w-6" />
+                ) : (
+                  <Menu className="h-6 w-6" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Menu - Grouped Navigation */}
+        {isMobile && menuOpen && (
+          <div className="md:hidden border-t border-gray-200 bg-white">
+            <div className="px-2 pt-2 pb-3 space-y-3">
+              {Object.entries(tools).map(([groupName, items]) => (
+                <div key={groupName} className="space-y-1">
+                  <div className="px-3 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    {groupName}
+                  </div>
+                  {items.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMenuOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                          pathname === item.href
+                            ? "bg-gray-900 text-white"
+                            : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                        )}
+                      >
+                        <Icon className={cn(
+                          "h-5 w-5",
+                          pathname === item.href ? "text-white" : "text-orange-500"
+                        )} />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{item.title}</span>
+                          <span className={cn(
+                            "text-xs",
+                            pathname === item.href ? "text-gray-200" : "text-gray-500"
+                          )}>{item.description}</span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
+
+              {/* Theme toggle in mobile menu */}
+              <button
+                onClick={() => {
+                  setTheme(theme === "dark" ? "light" : "dark");
+                  setMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 flex items-center gap-2 relative"
+              >
+                <div className="relative w-5 h-5 flex items-center justify-center">
+                  <Sun className="h-5 w-5 absolute rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                  <Moon className="h-5 w-5 absolute rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                </div>
+                <span className="ml-2">Toggle theme</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </nav>
+    );
+  }
+
+  // FLOATING MODE - Original floating button
   return (
     <>
-      {/* Floating Draggable Button */}
+      {/* Floating Draggable Button - always render but hide if needed */}
       <div
         ref={buttonRef}
         style={{
@@ -298,11 +489,14 @@ export function Navbar() {
           top: `${position.y}px`,
           zIndex: 3250, // Above chat drawer handle (3200) so button is visible
           cursor: isDragging ? 'grabbing' : 'grab',
-          transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: isDragging ? 'none' : 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
           userSelect: 'none',
+          display: shouldHideButtonOnMobile ? 'none' : 'block', // Hide visually but keep in DOM
         }}
       >
         <button
+          data-nav-trigger
+          data-nav-button="true"
           onMouseDown={handleMouseDown}
           className={cn(
             "group relative flex items-center justify-center backdrop-blur-md border-2 overflow-hidden",

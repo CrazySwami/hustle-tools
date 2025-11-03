@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { SettingsIcon, FileTextIcon, UploadIcon, DownloadIcon, SaveIcon, TrashIcon, PlusIcon } from 'lucide-react';
-import { OptionsButton } from '@/components/ui/OptionsButton';
 import { BottomNav } from '@/components/ui/BottomNav';
 
 interface SiteContentManagerProps {
@@ -946,50 +945,6 @@ export function SiteContentManager({ onPush, onPull, playgroundReady, chatVisibl
         )}
       </div>
 
-      {/* Bottom Navigation with Options Button */}
-      <BottomNav
-        pageActions={
-          <OptionsButton
-            isMobile={isMobile}
-            isVisible={isTabVisible}
-            options={[
-              // Settings/Pages toggle
-              {
-                label: activeTab === 'settings' ? `📄 Switch to Pages (${pages.length})` : '⚙️ Switch to Settings',
-                onClick: () => setActiveTab(activeTab === 'settings' ? 'pages' : 'settings'),
-                divider: true
-              },
-              // Pull from WordPress
-              {
-                label: '⬇️ Pull from WordPress',
-                onClick: handlePull,
-                disabled: loading
-              },
-              // Push to WordPress
-              {
-                label: '⬆️ Push to WordPress',
-                onClick: handlePush,
-                disabled: loading,
-                divider: true
-              },
-              // Chat toggle
-              ...(setChatVisible ? [{
-                label: chatVisible ? 'Hide Chat' : 'Show Chat',
-                onClick: () => setChatVisible(!chatVisible),
-                type: 'toggle' as const,
-                active: chatVisible
-              }] : []),
-              // Tab bar toggle
-              ...(setTabBarVisible ? [{
-                label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
-                onClick: () => setTabBarVisible(!tabBarVisible),
-                type: 'toggle' as const,
-                active: tabBarVisible
-              }] : [])
-            ]}
-          />
-        }
-      />
     </div>
   );
 }

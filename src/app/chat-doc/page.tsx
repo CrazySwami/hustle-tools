@@ -7,10 +7,13 @@ import TiptapEditor from '@/components/editor/TiptapEditor';
 import { Comment } from '@/components/editor/CommentExtension';
 import { DocumentChat } from '@/components/editor/DocumentChat';
 import { BottomNav } from '@/components/ui/BottomNav';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/app-sidebar';
-import { useDocuments, useProjects } from '@/hooks/useProjectHierarchy';
+import { useDocuments, useProjects, useFolders } from '@/hooks/useProjectHierarchy';
 import TurndownService from 'turndown';
+import { generateDocSystemPrompt } from '@/lib/generate-doc-system-prompt';
+import { AppSidebar } from '@/components/app-sidebar';
+import { TwoPanelChatLayout } from '@/components/layouts/TwoPanelChatLayout';
+import { NavigationBar } from '@/components/ai-elements/inner-navigation-bar';
+import { CreateItemModal } from '@/components/modals/CreateItemModal';
 
 
 const ChatBotDemo = () => {
@@ -23,17 +26,22 @@ const ChatBotDemo = () => {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | undefined>(undefined);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false); // Project sidebar visibility (overlay on editor)
 
-  // Resizable divider state - now just for chat/editor split
-  const [chatPanelWidth, setChatPanelWidth] = useState(40); // 40% for chat
-  const [isResizing, setIsResizing] = useState(false);
+  // Modal state for creating documents/folders
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalType, setCreateModalType] = useState<'document' | 'folder'>('document');
+
+  // Track comments/tools panel state (for dynamic dropdown items)
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState<'comments' | 'tools'>('comments');
 
   // Document content management - SINGLE source of truth
   const documentContentStore = useDocumentContent();
   const documentContent = documentContentStore.content; // Read directly from store
 
-  // Get documents and projects hooks
+  // Get documents, projects, and folders hooks
   const { documents, updateDocument, createDocument } = useDocuments();
   const { projects, createProject } = useProjects();
+  const { createFolder } = useFolders();
 
   const { messages, sendMessage, isLoading, reload, status, error } = useChat({
     api: '/api/chat-doc', // 🎯 Specialized endpoint for document editing
@@ -53,6 +61,78 @@ const ChatBotDemo = () => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Auto-close chat drawer on mobile when assistant responds (applies edits)
+  useEffect(() => {
+    if (isMobile && chatDrawerOpen && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      // Close drawer when assistant sends a new message
+      if (lastMessage.role === 'assistant') {
+        const autoClose = localStorage.getItem('doc-auto-close-chat');
+        if (autoClose === null || autoClose === 'true') {
+          setChatDrawerOpen(false);
+        }
+      }
+    }
+  }, [messages, isMobile, chatDrawerOpen]);
+
+  // Listen for document edit acceptance and auto-close chat on mobile
+  useEffect(() => {
+    const handleDocEditAccepted = () => {
+      if (isMobile && chatDrawerOpen) {
+        const autoClose = localStorage.getItem('doc-auto-close-chat');
+        if (autoClose === null || autoClose === 'true') {
+          setChatDrawerOpen(false);
+        }
+      }
+    };
+
+    window.addEventListener('doc-edit-accepted', handleDocEditAccepted);
+    return () => window.removeEventListener('doc-edit-accepted', handleDocEditAccepted);
+  }, [isMobile, chatDrawerOpen]);
+
+  // Listen for panel state changes from TiptapEditor
+  useEffect(() => {
+    const handlePanelStateChange = (event: CustomEvent) => {
+      const { open, tab } = event.detail;
+      setIsPanelOpen(open);
+      if (tab) {
+        setPanelTab(tab);
+      }
+    };
+
+    window.addEventListener('doc-panel-state', handlePanelStateChange as EventListener);
+    return () => window.removeEventListener('doc-panel-state', handlePanelStateChange as EventListener);
+  }, []);
+
+  // Check for exported content from Blog Builder on mount
+  useEffect(() => {
+    const newDocContent = localStorage.getItem('newDocContent');
+    const newDocTitle = localStorage.getItem('newDocTitle');
+
+    if (newDocContent && newDocTitle) {
+      console.log('📥 [IMPORT] Found exported content from Blog Builder');
+
+      // Create or get "Blog Posts" project
+      const blogProject = projects.find(p => p.name === 'Blog Posts') || createProject('Blog Posts');
+
+      // Create new document with the exported content
+      const newDoc = createDocument(newDocTitle, blogProject.id);
+
+      // Set the content immediately
+      updateDocument(newDoc.id, { content: newDocContent });
+
+      // Select the new document
+      setSelectedDocumentId(newDoc.id);
+
+      // Clear localStorage
+      localStorage.removeItem('newDocContent');
+      localStorage.removeItem('newDocTitle');
+
+      console.log('✅ [IMPORT] Created new document:', newDocTitle);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // Ensure there's always a document and auto-select one on mount
   useEffect(() => {
@@ -108,7 +188,7 @@ const ChatBotDemo = () => {
   }, [documentContent, selectedDocumentId, documents, updateDocument]);
 
   // Handle message sending from DocumentChat
-  const handleSendMessage = (text: string, settings?: { webSearchEnabled: boolean; includeContext?: boolean }) => {
+  const handleSendMessage = async (text: string, settings?: { webSearchEnabled: boolean; includeContext?: boolean; imageFile?: File }) => {
     // Get latest document content from store (HTML format)
     const htmlContent = documentContentStore.getContent();
 
@@ -127,17 +207,41 @@ const ChatBotDemo = () => {
       setSelectedModel(modelToUse); // Update the UI model selector
     }
 
+    // Convert image to data URL if present
+    let imagePart = null;
+    if (settings?.imageFile) {
+      const reader = new FileReader();
+      const imageDataUrl = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(settings.imageFile!);
+      });
+
+      imagePart = {
+        type: 'file' as const,
+        mediaType: settings.imageFile.type,
+        url: imageDataUrl,
+      };
+    }
+
     console.log('📄 Sending document chat request:', {
       model: modelToUse,
       documentLength: latestDocContent.length,
       webSearch: settings?.webSearchEnabled,
       includeContext: settings?.includeContext !== false, // Default to true
+      hasImage: !!imagePart,
       documentTitle: currentDocument?.title,
       projectName: currentProject?.name,
     });
 
+    // Send message with parts (text + optional image)
+    const parts: any[] = [{ type: 'text', text }];
+    if (imagePart) {
+      parts.push(imagePart);
+    }
+
     sendMessage(
-      { text },
+      { role: 'user', parts },
       {
         body: {
           model: modelToUse,
@@ -155,53 +259,6 @@ const ChatBotDemo = () => {
   const handleToggleEditor = () => {
     setIsEditorVisible(!isEditorVisible);
   };
-
-  // Resizable divider handlers for chat/editor split
-  const handleMouseDown = () => {
-    setIsResizing(true);
-  };
-
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!isResizing) return;
-
-    const containerWidth = window.innerWidth;
-    const newWidth = (e.clientX / containerWidth) * 100;
-
-    // Constrain between 25% and 60%
-    if (newWidth >= 25 && newWidth <= 60) {
-      setChatPanelWidth(newWidth);
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsResizing(false);
-  };
-
-  // Add/remove event listeners for resizing
-  useEffect(() => {
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove as any);
-      document.addEventListener('mouseup', handleMouseUp);
-
-      // Prevent text selection while resizing
-      document.body.style.userSelect = 'none';
-      document.body.style.cursor = 'col-resize';
-    } else {
-      document.removeEventListener('mousemove', handleMouseMove as any);
-      document.removeEventListener('mouseup', handleMouseUp);
-
-      // Re-enable text selection
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove as any);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-    };
-  }, [isResizing]);
 
   // Handle AI edit from bubble menu
   const handleAIEdit = (selectedText: string, instruction: string, enableWebSearch?: boolean) => {
@@ -278,20 +335,346 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
     ? documentContent.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(w => w.length > 0).length
     : 0;
 
+  // Track context inclusion state (default: true)
+  const [includeContext, setIncludeContext] = useState(true);
+
+  // Convert HTML to markdown for system prompt
+  const turndownService = new TurndownService({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced',
+  });
+  const markdownContent = documentContent ? turndownService.turndown(documentContent) : '';
+
+  // Debug: Log document content state
+  useEffect(() => {
+    console.log('📊 Document State:', {
+      documentContentLength: documentContent?.length || 0,
+      documentContentPreview: documentContent?.substring(0, 200) || '(empty)',
+      wordCount,
+      markdownLength: markdownContent?.length || 0,
+      markdownPreview: markdownContent?.substring(0, 200) || '(empty)',
+    });
+  }, [documentContent, wordCount, markdownContent]);
+
+  // Generate actual system prompt (same as API uses) for accurate token counting
+  const actualSystemPrompt = generateDocSystemPrompt({
+    includeContext,
+    documentContent: markdownContent,
+    documentTitle: currentDocument?.title || '',
+    projectName: currentProject?.name || '',
+  });
+
+  // Navigation dropdown handler
+  const handleNavigationDropdownClick = (tabId: string, item: string) => {
+    // Options tab actions
+    if (tabId === 'options') {
+      if (item === 'Hide Chat' || item === 'Show Chat') {
+        setIsEditorVisible(!isEditorVisible);
+      }
+      // Future: Add more general options here
+      return;
+    }
+
+    // Documents tab actions
+    if (tabId === 'documents') {
+      // Handle Open/Close
+      if (item === 'Open' || item === 'Close') {
+        if (isMobile) {
+          // On mobile, control the overlay sidebar directly
+          setIsSidebarVisible(item === 'Open');
+        } else {
+          // On desktop, programmatically click TiptapEditor's sidebar toggle button
+          const sidebarToggle = document.querySelector('[data-sidebar-toggle]') as HTMLButtonElement;
+          if (sidebarToggle) {
+            sidebarToggle.click();
+          }
+        }
+        return;
+      }
+
+      // For document/folder creation, open modal AND ensure sidebar visibility
+      if (item === 'New Document') {
+        setCreateModalType('document');
+        setCreateModalOpen(true);
+        // On mobile, ensure sidebar is visible
+        if (isMobile && !isSidebarVisible) {
+          setIsSidebarVisible(true);
+        }
+      } else if (item === 'New Folder') {
+        setCreateModalType('folder');
+        setCreateModalOpen(true);
+        // On mobile, ensure sidebar is visible
+        if (isMobile && !isSidebarVisible) {
+          setIsSidebarVisible(true);
+        }
+      }
+      return;
+    }
+
+    // Comments tab actions
+    if (tabId === 'comments') {
+      // Handle Open/Close
+      if (item === 'Open') {
+        window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'comments', open: true } }));
+        return;
+      } else if (item === 'Close') {
+        window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'comments', open: false } }));
+        return;
+      }
+
+      // Ensure panel is open for filter actions
+      window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'comments', open: true } }));
+
+      // Handle the filter action
+      if (item === 'Show All') {
+        window.dispatchEvent(new CustomEvent('doc-comments-filter', { detail: 'all' }));
+      } else if (item === 'Show Active') {
+        window.dispatchEvent(new CustomEvent('doc-comments-filter', { detail: 'active' }));
+      } else if (item === 'Show Resolved') {
+        window.dispatchEvent(new CustomEvent('doc-comments-filter', { detail: 'resolved' }));
+      }
+      return;
+    }
+
+    // Tools tab actions
+    if (tabId === 'tools') {
+      // Handle Open/Close
+      if (item === 'Open') {
+        window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'tools', open: true } }));
+        return;
+      } else if (item === 'Close') {
+        window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'tools', open: false } }));
+        return;
+      }
+
+      // Ensure panel is open for tool actions
+      window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'tools', open: true } }));
+
+      // Map display names to tool IDs
+      const toolMap: Record<string, string> = {
+        'Text Statistics': 'stats',
+        'Find Text': 'find',
+        'Readability': 'readability',
+        'Document Outline': 'headings',
+        'Find & Replace': 'replace',
+        'Table of Contents': 'toc',
+        'Find Duplicates': 'duplicates',
+      };
+
+      const toolId = toolMap[item];
+      if (toolId) {
+        window.dispatchEvent(new CustomEvent('doc-open-tool', { detail: toolId }));
+      }
+      return;
+    }
+  };
+
+  // Handle tab change - toggle panels for Comments and Tools
+  const handleTabChange = (tabId: string) => {
+    if (tabId === 'documents') {
+      // Toggle documents sidebar
+      setIsSidebarVisible(!isSidebarVisible);
+    } else if (tabId === 'comments') {
+      // Open comments panel (or close if already open)
+      window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'comments', open: true } }));
+    } else if (tabId === 'tools') {
+      // Open tools panel (or close if already open)
+      window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'tools', open: true } }));
+    }
+  };
+
+  // Handle modal confirmation for creating documents/folders
+  const handleCreateItemConfirm = (name: string) => {
+    // Get the first project, or create one if none exists
+    let projectId = projects[0]?.id;
+    if (!projectId) {
+      const defaultProject = createProject('My Documents');
+      projectId = defaultProject.id;
+    }
+
+    if (createModalType === 'document') {
+      const newDoc = createDocument(name, projectId);
+      setSelectedDocumentId(newDoc.id);
+    } else if (createModalType === 'folder') {
+      createFolder(name, projectId);
+    }
+
+    // Ensure sidebar is open after creating document/folder
+    if (isMobile) {
+      setIsSidebarVisible(true);
+    } else {
+      // On desktop, programmatically click the sidebar toggle if it's closed
+      const sidebarToggle = document.querySelector('[data-sidebar-toggle]') as HTMLButtonElement;
+      if (sidebarToggle && !sidebarToggle.getAttribute('aria-pressed')) {
+        sidebarToggle.click();
+      }
+    }
+  };
+
+  // Navigation tabs configuration - Options, Documents, Comments, Tools as separate tabs
+  const navigationTabs: any[] = [
+    {
+      id: 'options',
+      label: 'Options',
+      icon: null,
+      dropdownItems: [isEditorVisible ? 'Hide Chat' : 'Show Chat'],
+    },
+    {
+      id: 'documents',
+      label: 'Documents',
+      icon: null,
+      dropdownItems: [
+        isSidebarVisible ? 'Close' : 'Open',
+        'New Document',
+        'New Folder'
+      ],
+    },
+    {
+      id: 'comments',
+      label: 'Comments',
+      icon: null,
+      dropdownItems: [
+        (isPanelOpen && panelTab === 'comments') ? 'Close' : 'Open',
+        'Show All',
+        'Show Active',
+        'Show Resolved'
+      ],
+    },
+    {
+      id: 'tools',
+      label: 'Tools',
+      icon: null,
+      dropdownItems: [
+        (isPanelOpen && panelTab === 'tools') ? 'Close' : 'Open',
+        'Text Statistics',
+        'Find Text',
+        'Readability',
+        'Document Outline',
+        'Find & Replace',
+        'Table of Contents',
+        'Find Duplicates'
+      ],
+    }
+  ];
+
   return (
-    <SidebarProvider
-      defaultOpen={true}
-      className="h-screen w-full"
-    >
-      <div className={`flex h-full w-full max-w-full overflow-x-hidden ${isMobile ? 'px-2 py-2' : 'px-4 py-4'} gap-0`}>
-        {/* Desktop: Two-panel layout (Chat | Editor) with shadcn Sidebar */}
-        {!isMobile && (
-        <>
-          {/* Left Panel: Chat */}
-          <div
-            className="flex flex-col h-full"
-            style={{ width: isEditorVisible ? `${chatPanelWidth}%` : '100%' }}
-          >
+    <div className="flex flex-col h-screen w-full max-w-full overflow-x-hidden" style={{
+      paddingTop: isMobile ? '52px' : '0', // Space for fixed nav on mobile
+    }}>
+      {/* Mobile: Fixed navigation bar at top */}
+      {isMobile && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 4000,
+          background: 'var(--background)'
+        }}>
+          <NavigationBar
+            tabs={navigationTabs}
+            onTabChange={handleTabChange}
+            onDropdownItemClick={handleNavigationDropdownClick}
+            showOnDesktop={false}
+            showOnMobile={true}
+            hideLogoOnDesktop={true}
+          />
+        </div>
+      )}
+
+      {/* Main content wrapper */}
+      <div className={`flex flex-1 h-full w-full ${isMobile ? 'px-2' : ''} gap-0 overflow-hidden`}>
+        {/* Desktop: Two-panel layout using TwoPanelChatLayout */}
+        {!isMobile && isEditorVisible && (
+          <TwoPanelChatLayout
+            leftPanel={
+              <div style={{
+                padding: '8px 8px 0 8px',
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                width: '100%',
+                maxWidth: '100%',
+                boxSizing: 'border-box'
+              }}>
+                <div className="rounded-lg bg-background" style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  width: '100%',
+                  maxWidth: '100%'
+                }}>
+                  <NavigationBar
+                    tabs={navigationTabs}
+                    onTabChange={handleTabChange}
+                    onDropdownItemClick={handleNavigationDropdownClick}
+                    logoMenuItems={['Toggle Theme']}
+                    onLogoMenuItemClick={(item) => {
+                      // Theme toggle is handled automatically by inner-navigation-bar
+                    }}
+                    showOnDesktop={true}
+                    showOnMobile={true}
+                    hideLogoOnDesktop={false}
+                  />
+                  <DocumentChat
+                    messages={messages}
+                    isLoading={isLoading}
+                    status={status}
+                    error={error}
+                    onSendMessage={handleSendMessage}
+                    selectedModel={selectedModel}
+                    onModelChange={setSelectedModel}
+                    onReload={reload}
+                    isEditorVisible={isEditorVisible}
+                    onToggleEditor={handleToggleEditor}
+                    webSearchEnabled={webSearchEnabled}
+                    onWebSearchChange={setWebSearchEnabled}
+                    currentDocument={currentDocument}
+                    currentProject={currentProject}
+                    wordCount={wordCount}
+                    systemPrompt={actualSystemPrompt}
+                    documentContent={documentContent}
+                  />
+                </div>
+              </div>
+            }
+            rightPanel={
+              <div
+                style={{
+                  padding: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%'
+                }}
+              >
+                <div className="rounded-lg bg-background shadow-sm" style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden'
+                }}>
+                  <TiptapEditor
+                    initialContent={documentContent}
+                    onContentChange={(html) => {
+                      console.log('📝 [EDITOR] Content changed, updating store (skipEditorUpdate=true)');
+                      documentContentStore.updateContent(html, true); // true = skip editor update
+                    }}
+                    onCommentsChange={setComments}
+                    onAIEdit={handleAIEdit}
+                    selectedModel={selectedModel}
+                    selectedDocumentId={selectedDocumentId}
+                    onDocumentSelect={setSelectedDocumentId}
+                  />
+                </div>
+              </div>
+            }
+          />
+        )}
+
+        {/* Desktop: Chat-only view when editor hidden */}
+        {!isMobile && !isEditorVisible && (
+          <div className="flex flex-col h-full w-full">
             <DocumentChat
               messages={messages}
               isLoading={isLoading}
@@ -308,66 +691,11 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
               currentDocument={currentDocument}
               currentProject={currentProject}
               wordCount={wordCount}
-              systemPrompt={`You are a helpful writing assistant. You help users write and edit documents.
-
-**Current document:** ${currentDocument?.title || 'Untitled'}
-${currentProject ? `**Project:** ${currentProject.name}` : ''}
-**Word count:** ${wordCount.toLocaleString()} words
-
-Use the tools available to edit the document, analyze text, and help with writing tasks.`}
+              systemPrompt={actualSystemPrompt}
               documentContent={documentContent}
             />
           </div>
-
-          {/* Divider (between chat and editor) - invisible but functional */}
-          {isEditorVisible && (
-            <div
-              onMouseDown={handleMouseDown}
-              style={{
-                width: '4px',
-                cursor: 'col-resize',
-                background: 'transparent',
-                position: 'relative',
-                transition: isResizing ? 'none' : 'background 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                if (!isResizing) e.currentTarget.style.background = 'var(--primary)';
-              }}
-              onMouseLeave={(e) => {
-                if (!isResizing) e.currentTarget.style.background = 'transparent';
-              }}
-            />
-          )}
-
-          {/* Right Panel: Tiptap Editor with shadcn Sidebar */}
-          {isEditorVisible && (
-            <div
-              className="h-full overflow-hidden flex"
-              style={{ width: `${100 - chatPanelWidth}%` }}
-            >
-              {/* shadcn Sidebar - auto-handles collapsible state */}
-              <AppSidebar
-                onDocumentSelect={setSelectedDocumentId}
-                selectedDocumentId={selectedDocumentId}
-              />
-
-              {/* Editor - automatically adjusts when sidebar opens/closes */}
-              <div className="flex-1 h-full overflow-hidden p-2">
-                <TiptapEditor
-                  initialContent={documentContent}
-                  onContentChange={(html) => {
-                    console.log('📝 [EDITOR] Content changed, updating store (skipEditorUpdate=true)');
-                    documentContentStore.updateContent(html, true); // true = skip editor update
-                  }}
-                  onCommentsChange={setComments}
-                  onAIEdit={handleAIEdit}
-                  selectedModel={selectedModel}
-                />
-              </div>
-            </div>
-          )}
-        </>
-      )}
+        )}
 
       {/* Mobile: Full-screen editor with bottom chat drawer */}
       {isMobile && (
@@ -412,7 +740,7 @@ Use the tools available to edit the document, analyze text, and help with writin
             />
           </div>
 
-          {/* Overlay backdrop when drawer is open */}
+          {/* Overlay backdrop when drawer is open - covers everything including top nav */}
           {chatDrawerOpen && (
             <div
               onClick={() => setChatDrawerOpen(false)}
@@ -423,7 +751,7 @@ Use the tools available to edit the document, analyze text, and help with writin
                 right: 0,
                 bottom: 0,
                 background: 'rgba(0, 0, 0, 0.5)',
-                zIndex: 1999,
+                zIndex: 4500, // Above nav bar (4000) but below chat drawer (5000)
               }}
             />
           )}
@@ -438,10 +766,13 @@ Use the tools available to edit the document, analyze text, and help with writin
               height: chatDrawerOpen ? '95vh' : '48px',
               background: 'var(--background)',
               borderTop: '1px solid var(--border)',
-              zIndex: 2000,
-              transition: 'height 0.3s ease',
+              borderRadius: chatDrawerOpen ? '0' : '12px 12px 0 0',
+              zIndex: 5000, // Above overlay (4500)
+              transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               display: 'flex',
               flexDirection: 'column',
+              boxShadow: '0 -4px 12px rgba(0,0,0,0.1)',
+              overflow: 'hidden'
             }}
           >
             {/* Drawer handle */}
@@ -498,13 +829,7 @@ Use the tools available to edit the document, analyze text, and help with writin
                   currentDocument={currentDocument}
                   currentProject={currentProject}
                   wordCount={wordCount}
-                  systemPrompt={`You are a helpful writing assistant. You help users write and edit documents.
-
-**Current document:** ${currentDocument?.title || 'Untitled'}
-${currentProject ? `**Project:** ${currentProject.name}` : ''}
-**Word count:** ${wordCount.toLocaleString()} words
-
-Use the tools available to edit the document, analyze text, and help with writing tasks.`}
+                  systemPrompt={actualSystemPrompt}
                   documentContent={documentContent}
                 />
               </div>
@@ -512,11 +837,19 @@ Use the tools available to edit the document, analyze text, and help with writin
           </div>
         </>
       )}
+      </div>
 
       {/* Bottom Navigation - Mobile Only */}
       {isMobile && <BottomNav />}
-      </div>
-    </SidebarProvider>
+
+      {/* Create Document/Folder Modal */}
+      <CreateItemModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        type={createModalType}
+        onConfirm={handleCreateItemConfirm}
+      />
+    </div>
   );
 };
 

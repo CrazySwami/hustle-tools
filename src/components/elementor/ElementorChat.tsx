@@ -26,26 +26,23 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/source';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
-import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, FileCodeIcon, EyeIcon, FileCode } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, FileCodeIcon, EyeIcon, FileCode, Paperclip, XIcon, ImageIcon } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { getModelContextLimit, estimateTokenCount } from '@/lib/token-validator';
+import { PieChartIcon } from '@/components/ui/PieChartIcon';
+import { SystemPromptViewer } from '@/components/ui/SystemPromptViewer';
+import { generateElementorSystemPrompt } from '@/lib/generate-elementor-system-prompt';
+import { MobilePromptActions } from '@/components/ai-elements/MobilePromptActions';
+import { ProjectContextBadge } from '@/components/ai-elements/project-context-badge';
 
 interface ElementorChatProps {
   messages: any[];
   isLoading: boolean;
   status?: string;
-  onSendMessage: (text: string, imageData?: { url: string; filename: string }, settings?: { webSearchEnabled: boolean; reasoningEffort: string; detailedMode?: boolean; includeContext?: boolean }) => void;
+  onSendMessage: (text: string, imageData?: { url: string; filename: string }, settings?: { webSearchEnabled: boolean; reasoningEffort: string; detailedMode?: boolean; includeContext?: boolean; includeCss?: boolean }) => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
   onReload?: () => void;
@@ -55,109 +52,8 @@ interface ElementorChatProps {
   onSwitchTab?: (tab: string) => void;
   onUpdateSection?: (updates: { html?: string; css?: string; js?: string }) => void;
   currentSection?: any;
-}
-
-// Helper function to get extension color
-const getExtensionColor = (extension: string): string => {
-  const colors: Record<string, string> = {
-    HTML: "text-orange-400",
-    CSS: "text-blue-400",
-    JS: "text-amber-400",
-    PHP: "text-purple-400",
-  };
-  return colors[extension] || "text-gray-400";
-};
-
-// Project Context Badge Component
-function ProjectContextBadge({
-  currentSection,
-  includeContext = true
-}: {
-  currentSection: any;
-  includeContext?: boolean;
-}) {
-  const [animationStage, setAnimationStage] = useState(0);
-
-  useEffect(() => {
-    const stages = [
-      { delay: 0, stage: 1 },
-      { delay: 300, stage: 2 },
-      { delay: 600, stage: 3 },
-      { delay: 900, stage: 4 },
-      { delay: 1500, stage: 5 },
-    ];
-
-    stages.forEach(({ delay, stage }) => {
-      setTimeout(() => setAnimationStage(stage), delay);
-    });
-  }, []);
-
-  // Get project tags based on what files exist
-  // Priority order: PHP, HTML, CSS, JS
-  const tags: string[] = [];
-  if (currentSection?.php) tags.push('PHP');
-  if (currentSection?.html) tags.push('HTML');
-  if (currentSection?.css) tags.push('CSS');
-  if (currentSection?.js) tags.push('JS');
-
-  const projectTitle = currentSection?.name || 'Untitled Project';
-
-  return (
-    <div className="flex justify-center items-center gap-3">
-      <div
-        className={`group relative inline-flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium tracking-tight shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] overflow-hidden rounded-full cursor-default
-          ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
-          ${animationStage === 1 ? "opacity-100 translate-y-4" : ""}
-          ${animationStage >= 2 ? "opacity-100 translate-y-0" : ""}
-        `}
-      >
-        {/* Green/Red dot with flash animation - red when context disabled */}
-        <div
-          className={`h-2 w-2 rounded-full ${includeContext ? 'bg-green-500' : 'bg-red-500'} transition-all duration-300
-            ${animationStage >= 5 ? "animate-pulse" : "opacity-0"}
-            ${animationStage >= 3 ? "opacity-100" : ""}
-          `}
-        />
-
-        {/* Content that appears after slide up */}
-        {animationStage >= 3 && (
-          <>
-            <span className="text-xs opacity-70 animate-in fade-in slide-in-from-left-2 duration-300">
-              Current Project
-            </span>
-            <span className="text-xs opacity-50 animate-in fade-in duration-300" style={{ animationDelay: "100ms" }}>
-              •
-            </span>
-            <FileCode
-              className="h-4 w-4 text-orange-400 transition-transform duration-500 group-hover:rotate-12 animate-in fade-in slide-in-from-left-2 duration-300"
-              style={{ animationDelay: "200ms" }}
-            />
-            <span
-              className="animate-in fade-in slide-in-from-left-2 duration-300"
-              style={{ animationDelay: "300ms" }}
-            >
-              {projectTitle}
-            </span>
-
-            {/* File type tags */}
-            <div className="flex items-center gap-1.5 ml-1">
-              {tags.map((tag, i) => (
-                <span
-                  key={tag}
-                  className={`text-xs font-semibold px-1.5 py-0.5 rounded ${getExtensionColor(tag)} animate-in fade-in slide-in-from-right-2 duration-300`}
-                  style={{ animationDelay: `${400 + i * 100}ms` }}
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </>
-        )}
-
-        <div className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      </div>
-    </div>
-  );
+  globalCss?: string;
+  navigationBar?: React.ReactNode;
 }
 
 const modelGroups = [
@@ -213,52 +109,131 @@ export function ElementorChat({
   onSwitchCodeTab,
   onSwitchTab,
   onUpdateSection,
-  currentSection
+  currentSection,
+  globalCss = '',
+  navigationBar
 }: ElementorChatProps) {
   const [input, setInput] = useState('');
   const [webSearch, setWebSearch] = useState(false);
   const [includeContext, setIncludeContext] = useState(true); // Toggle for file context
-  const [systemPrompt, setSystemPrompt] = useState<string>(''); // Store system prompt
-  const [promptStats, setPromptStats] = useState<any>(null); // Store prompt statistics
-  const [showPromptDialog, setShowPromptDialog] = useState(false); // Dialog visibility
-  const { designSystemSummary } = useGlobalStylesheet();
+  const [includeCss, setIncludeCss] = useState(false); // Toggle for CSS context
+  const [attachedImage, setAttachedImage] = useState<{ file: File; preview: string } | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [autoCloseChat, setAutoCloseChat] = useState(() => {
+    // Read from localStorage, default to true
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('elementor-auto-close-chat');
+      return saved !== null ? saved === 'true' : true;
+    }
+    return true;
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { designSystemSummary, globalCss: globalCssFromContext } = useGlobalStylesheet();
+
+  // Detect mobile on mount
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Save autoCloseChat to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('elementor-auto-close-chat', autoCloseChat.toString());
+    }
+  }, [autoCloseChat]);
+
+  // Use globalCss from context if prop is not provided
+  const effectiveGlobalCss = globalCss || globalCssFromContext;
+
+  // Generate system prompt client-side (matches API logic)
+  // CRITICAL: Use useMemo to prevent infinite re-generation on every render
+  const systemPrompt = useMemo(() => {
+    return generateElementorSystemPrompt({
+      includeContext,
+      includeCss,
+      webSearch,
+      currentSection,
+      globalCss: effectiveGlobalCss,
+    });
+  }, [includeContext, includeCss, webSearch, currentSection, effectiveGlobalCss]);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
+      alert('Only PNG and JPEG images are supported');
+      return;
+    }
+
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be under 5MB');
+      return;
+    }
+
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setAttachedImage({ file, preview: previewUrl });
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveImage = () => {
+    if (attachedImage) {
+      URL.revokeObjectURL(attachedImage.preview);
+      setAttachedImage(null);
+    }
+  };
+
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (attachedImage) {
+        URL.revokeObjectURL(attachedImage.preview);
+      }
+    };
+  }, [attachedImage]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
-      onSendMessage(input, undefined, {
-        webSearchEnabled: webSearch,
-        reasoningEffort: 'medium',
-        detailedMode: false,
-        includeContext, // Pass context toggle state
-      });
-      setInput('');
+      // If image is attached, convert to data URL and include in message
+      if (attachedImage) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const imageDataUrl = reader.result as string;
+          onSendMessage(input, { url: imageDataUrl, filename: attachedImage.file.name }, {
+            webSearchEnabled: webSearch,
+            reasoningEffort: 'medium',
+            detailedMode: false,
+            includeContext,
+            includeCss,
+          });
+          setInput('');
+          handleRemoveImage();
+        };
+        reader.readAsDataURL(attachedImage.file);
+      } else {
+        onSendMessage(input, undefined, {
+          webSearchEnabled: webSearch,
+          reasoningEffort: 'medium',
+          detailedMode: false,
+          includeContext,
+          includeCss,
+        });
+        setInput('');
+      }
     }
   };
 
-  const handleViewSystemPrompt = async () => {
-    try {
-      const response = await fetch('/api/get-system-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: selectedModel,
-          webSearch,
-          includeContext,
-          currentSection,
-        }),
-      });
-      const data = await response.json();
-      setSystemPrompt(data.systemPrompt || 'Error loading system prompt');
-      setPromptStats(data.stats || null);
-      setShowPromptDialog(true);
-    } catch (error) {
-      console.error('Error fetching system prompt:', error);
-      setSystemPrompt('Error loading system prompt');
-      setPromptStats(null);
-      setShowPromptDialog(true);
-    }
-  };
 
   const formatToolOutput = (output: any): React.ReactNode => {
     if (output && typeof output === 'object' && 'type' in output && output.type === 'json' && 'value' in output) {
@@ -274,14 +249,31 @@ export function ElementorChat({
     currentSection.html && 'HTML',
     currentSection.css && 'CSS',
     currentSection.js && 'JS',
-    currentSection.php && 'PHP'
+    currentSection.php && 'PHP',
+    currentSection.hubl && 'HubL'
   ].filter(Boolean) : [];
 
   const totalChars = currentSection ?
     (currentSection.html?.length || 0) +
     (currentSection.css?.length || 0) +
     (currentSection.js?.length || 0) +
-    (currentSection.php?.length || 0) : 0;
+    (currentSection.php?.length || 0) +
+    (currentSection.hubl?.length || 0) : 0;
+
+  // Token counter calculations
+  // CRITICAL: Memoize token calculations to prevent recalculating on every render
+  const contextLimit = useMemo(() => getModelContextLimit(selectedModel), [selectedModel]);
+  const systemTokens = useMemo(() => estimateTokenCount(systemPrompt), [systemPrompt]);
+  const inputTokens = useMemo(() => estimateTokenCount(input), [input]);
+  const conversationTokens = useMemo(() => {
+    return messages.reduce((total, msg) => {
+      if (typeof msg.content === 'string') {
+        return total + estimateTokenCount(msg.content);
+      }
+      return total;
+    }, 0);
+  }, [messages]);
+  const totalTokens = systemTokens + conversationTokens + inputTokens;
 
   return (
     <div style={{
@@ -289,10 +281,11 @@ export function ElementorChat({
       flexDirection: 'column',
       height: '100%',
       overflow: 'hidden',
-      position: 'relative'
+      position: 'relative',
+      background: '#F2F2F2',
     }}>
-      <Conversation className="flex-1 scrollbar-hide" style={{ paddingBottom: '140px' }}>
-        <ConversationContent className="scrollbar-hide" style={{ flex: 1, overflow: 'auto', maxWidth: '100%' }}>
+      <Conversation className="flex-1 scrollbar-hide" style={{ overflow: 'hidden' }}>
+        <ConversationContent className="scrollbar-hide px-3" style={{ flex: 1, overflow: 'auto' }}>
           {messages.map((message, index) => (
             <div key={message.id}>
               {/* Show sources for assistant messages - OUTSIDE Message component */}
@@ -323,8 +316,33 @@ export function ElementorChat({
                   </SourcesContent>
                 </Sources>
               )}
-              <Message from={message.role} key={message.id}>
-                <div className={cn('flex flex-col gap-1 max-w-2xl', message.role === 'user' ? 'items-end' : 'items-start')}>
+              <Message from={message.role} key={message.id} className="py-2">
+                <div className={cn('flex flex-col gap-1', message.role === 'user' ? 'items-end' : 'items-start')}>
+                  {/* Image attachments - show above message as small rounded thumbnails */}
+                  {message.role === 'user' && message.parts && message.parts.some((p: any) =>
+                    (p.type === 'file' || p.type === 'image') &&
+                    p.url &&
+                    (p.mediaType?.startsWith('image/') || p.mimeType?.startsWith('image/'))
+                  ) && (
+                    <div className="flex gap-2 mb-1">
+                      {message.parts.filter((p: any) =>
+                        (p.type === 'file' || p.type === 'image') &&
+                        p.url &&
+                        (p.mediaType?.startsWith('image/') || p.mimeType?.startsWith('image/'))
+                      ).map((part: any, i: number) => (
+                        <div key={i} className="relative">
+                          <Image
+                            src={part.url}
+                            alt="Attachment"
+                            width={80}
+                            height={80}
+                            className="rounded-lg object-cover border border-border"
+                            style={{ width: '80px', height: '80px' }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <MessageContent>
                     {message.parts ? (
                       message.parts.filter(part => part != null).map((part: any, i: number) => {
@@ -445,6 +463,10 @@ export function ElementorChat({
                           case 'source-url':
                             // Don't render source-url parts inline
                             return null;
+                          case 'file':
+                          case 'image':
+                            // Don't render images inline - they're shown above as attachments
+                            return null;
                           default:
                             return null;
                         }
@@ -483,54 +505,192 @@ export function ElementorChat({
         <ConversationScrollButton />
       </Conversation>
 
-      {/* Project Context Badge & Prompt - Floating at bottom */}
-      <div style={{
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: 'var(--background)',
-        padding: '0 24px 24px 24px'
-      }}>
-        {currentSection && (
-          <ProjectContextBadge
-            currentSection={currentSection}
-            includeContext={includeContext}
-          />
-        )}
+      {/* Project Context Badge */}
+      {currentSection && (
+        <ProjectContextBadge
+          currentSection={currentSection}
+          includeContext={includeContext}
+        />
+      )}
 
-        <PromptInput onSubmit={handleSubmit} style={{ flexShrink: 0, marginTop: '8px' }}>
+      <PromptInput
+        onSubmit={handleSubmit}
+        style={{ flexShrink: 0, margin: '0 0 10px 0px' }}
+      >
         <PromptInputTextarea
           onChange={(e) => setInput(e.target.value)}
           value={input}
           placeholder="Ask me to modify the Elementor JSON..."
         />
+        {/* Image Preview */}
+        {attachedImage && (
+          <div className="px-3 py-2 border-t border-border">
+            <div className="relative inline-block">
+              <Image
+                src={attachedImage.preview}
+                alt="Attached image"
+                width={120}
+                height={120}
+                className="rounded-lg object-cover"
+              />
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90 transition-colors"
+                title="Remove image"
+              >
+                <XIcon size={14} />
+              </button>
+            </div>
+          </div>
+        )}
         <PromptInputToolbar>
           <PromptInputTools>
-            <PromptInputButton
-              variant={webSearch ? 'default' : 'ghost'}
-              onClick={() => setWebSearch(!webSearch)}
-              title={webSearch ? 'Web search enabled' : 'Web search disabled'}
-            >
-              <GlobeIcon size={16} />
-              <span>Search</span>
-            </PromptInputButton>
-            <PromptInputButton
-              variant={includeContext ? 'default' : 'ghost'}
-              onClick={() => setIncludeContext(!includeContext)}
-              title={includeContext ? 'File context included (HTML/CSS/JS/PHP)' : 'File context excluded'}
-            >
-              <FileCodeIcon size={16} />
-              <span>Context</span>
-            </PromptInputButton>
-            <PromptInputButton
-              variant="ghost"
-              onClick={handleViewSystemPrompt}
-              title="View the full system prompt sent to AI"
-            >
-              <EyeIcon size={16} />
-              <span>Prompt</span>
-            </PromptInputButton>
+            {/* Mobile: Single dropdown menu for all actions */}
+            {isMobile ? (
+              <>
+                <MobilePromptActions
+                  actions={[
+                    {
+                      id: 'web-search',
+                      label: 'Web Search',
+                      icon: <GlobeIcon size={18} />,
+                      type: 'toggle',
+                      active: webSearch,
+                      onClick: () => setWebSearch(!webSearch),
+                    },
+                    {
+                      id: 'attach-image',
+                      label: 'Attach Image',
+                      icon: <ImageIcon size={18} />,
+                      type: 'button',
+                      onClick: () => fileInputRef.current?.click(),
+                    },
+                    {
+                      id: 'project-files',
+                      label: 'Project Files',
+                      icon: <FileCodeIcon size={18} />,
+                      type: 'toggle',
+                      active: includeContext,
+                      onClick: () => setIncludeContext(!includeContext),
+                    },
+                    {
+                      id: 'style-kit-css',
+                      label: 'Style Kit CSS',
+                      icon: <span className="text-sm font-medium">CSS</span>,
+                      type: 'toggle',
+                      active: includeCss,
+                      onClick: () => setIncludeCss(!includeCss),
+                    },
+                    {
+                      id: 'auto-close-chat',
+                      label: 'Auto-close Chat on Edit',
+                      icon: <span className="text-sm font-medium">⚡</span>,
+                      type: 'toggle',
+                      active: autoCloseChat,
+                      onClick: () => setAutoCloseChat(!autoCloseChat),
+                    },
+                  ]}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+              </>
+            ) : (
+              /* Desktop: Individual buttons */
+              <>
+                <PromptInputButton
+                  variant={webSearch ? 'default' : 'ghost'}
+                  onClick={() => setWebSearch(!webSearch)}
+                  title={webSearch ? 'Web search enabled' : 'Web search disabled'}
+                >
+                  <GlobeIcon size={16} />
+                </PromptInputButton>
+                <PromptInputButton
+                  variant={attachedImage ? 'default' : 'ghost'}
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach image (PNG/JPEG, max 5MB)"
+                >
+                  <ImageIcon size={16} />
+                </PromptInputButton>
+                <PromptInputButton
+                  variant={includeContext ? 'default' : 'ghost'}
+                  onClick={() => setIncludeContext(!includeContext)}
+                  title={includeContext ? 'Project files included in prompt' : 'Project files excluded from prompt'}
+                >
+                  <FileCodeIcon size={16} />
+                </PromptInputButton>
+                <PromptInputButton
+                  variant={includeCss ? 'default' : 'ghost'}
+                  onClick={() => setIncludeCss(!includeCss)}
+                  title={includeCss ? 'Style Kit CSS included in prompt' : 'Style Kit CSS excluded'}
+                >
+                  <span className="text-sm font-medium">CSS</span>
+                </PromptInputButton>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+              </>
+            )}
+            <SystemPromptViewer
+              input={input}
+              systemPrompt={systemPrompt}
+              selectedModel={selectedModel}
+              contextLimit={contextLimit}
+              systemTokens={systemTokens}
+              inputTokens={inputTokens}
+              conversationTokens={conversationTokens}
+              totalTokens={totalTokens}
+              trigger={
+                <PromptInputButton
+                  variant="ghost"
+                  title={`Token Usage: ${totalTokens.toLocaleString()} / ${contextLimit.toLocaleString()} (${((totalTokens / contextLimit) * 100).toFixed(1)}%)`}
+                  className="gap-2"
+                >
+                  <PieChartIcon
+                    percentage={(totalTokens / contextLimit) * 100}
+                    size={16}
+                  />
+                  <span className="text-xs font-mono tabular-nums">
+                    {totalTokens.toLocaleString()}
+                  </span>
+                  <span className="text-xs text-muted-foreground">|</span>
+                  <span className="text-xs font-mono tabular-nums text-muted-foreground">
+                    {((totalTokens / contextLimit) * 100).toFixed(1)}%
+                  </span>
+                </PromptInputButton>
+              }
+              metadata={{
+                fileStats: {
+                  html: currentSection?.html?.length || 0,
+                  css: currentSection?.css?.length || 0,
+                  js: currentSection?.js?.length || 0,
+                  php: currentSection?.php?.length || 0,
+                  hubl: currentSection?.hubl?.length || 0,
+                  globalCss: includeCss ? effectiveGlobalCss?.length || 0 : 0,
+                },
+              }}
+              contextToggles={{
+                includeContext,
+                includeCss,
+                webSearch,
+              }}
+              fileContents={{
+                html: currentSection?.html,
+                css: currentSection?.css,
+                js: currentSection?.js,
+                php: currentSection?.php,
+                hubl: currentSection?.hubl,
+              }}
+            />
             <PromptInputModelSelect onValueChange={onModelChange} value={selectedModel}>
               <PromptInputModelSelectTrigger>
                 <PromptInputModelSelectValue />
@@ -556,65 +716,7 @@ export function ElementorChat({
           </PromptInputSubmit>
         </PromptInputToolbar>
       </PromptInput>
-      </div>
 
-      {/* System Prompt Viewer Dialog */}
-      <Dialog open={showPromptDialog} onOpenChange={setShowPromptDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>System Prompt Viewer</DialogTitle>
-            <DialogDescription>
-              This is the exact system prompt sent to the AI with your chat messages.
-            </DialogDescription>
-            <div className="mt-2 text-xs text-muted-foreground">
-              Model: <span className="font-mono">{selectedModel}</span> |
-              Context: {includeContext ? '✅ Enabled' : '❌ Disabled'} |
-              Web Search: {webSearch ? '✅ Enabled' : '❌ Disabled'}
-            </div>
-            {promptStats && (
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t pt-2">
-                <div>
-                  <span className="font-semibold">Total Characters:</span> {promptStats.totalChars.toLocaleString()}
-                </div>
-                <div>
-                  <span className="font-semibold">Est. Tokens:</span> ~{promptStats.estimatedTokens.toLocaleString()}
-                </div>
-                <div>
-                  <span className="font-semibold">HTML Size:</span> {promptStats.htmlChars.toLocaleString()} chars
-                </div>
-                <div>
-                  <span className="font-semibold">CSS Size:</span> {promptStats.cssChars.toLocaleString()} chars
-                </div>
-                <div>
-                  <span className="font-semibold">JS Size:</span> {promptStats.jsChars.toLocaleString()} chars
-                </div>
-                <div>
-                  <span className="font-semibold">PHP Size:</span> {promptStats.phpChars.toLocaleString()} chars
-                </div>
-              </div>
-            )}
-          </DialogHeader>
-          <ScrollArea className="h-[60vh] w-full rounded border bg-muted/50 p-4">
-            <pre className="text-xs whitespace-pre-wrap font-mono">
-              {systemPrompt || 'Loading system prompt...'}
-            </pre>
-          </ScrollArea>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                navigator.clipboard.writeText(systemPrompt);
-              }}
-            >
-              <CopyIcon size={16} className="mr-2" />
-              Copy to Clipboard
-            </Button>
-            <Button onClick={() => setShowPromptDialog(false)}>
-              Close
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -55,6 +55,27 @@ const roadmapItems: RoadmapItem[] = [
     ],
   },
   {
+    id: 'hubspot-form-styler',
+    title: 'HubSpot Form Styler',
+    description: 'Style raw HTML HubSpot forms with CSS and render them with live preview',
+    status: 'planned',
+    category: 'general',
+    priority: 'medium',
+    eta: 'Q2 2025',
+    details: [
+      'Import raw HubSpot form HTML',
+      'Visual CSS editor with live preview',
+      'Generate CSS with proper HubSpot form selectors',
+      'Comprehensive guide on HubSpot form selector patterns',
+      'Pre-built form style templates',
+      'Responsive design tools (mobile/tablet/desktop preview)',
+      'Custom styling for inputs, labels, buttons, error messages',
+      'Support for multi-step forms and conditional fields',
+      'Export styled CSS ready for HubSpot deployment',
+      'AI-assisted form styling suggestions',
+    ],
+  },
+  {
     id: 'plugin-builder',
     title: 'WordPress Plugin Builder',
     description: 'Create complete WordPress plugins with file management and testing',
@@ -70,6 +91,30 @@ const roadmapItems: RoadmapItem[] = [
       'Test plugins in WordPress Playground',
       'Export as installable .zip files',
       'AI-assisted plugin generation',
+    ],
+  },
+  {
+    id: 'gentec-project-generator',
+    title: 'Gentec Project Generator & Multi-Agent System',
+    description: 'Complete project generation system with planner agent, document tracking, and bulk widget creation',
+    status: 'in-progress',
+    category: 'ai',
+    priority: 'high',
+    eta: 'Q1 2025',
+    details: [
+      'Multi-agent system that can run 10-20 tools in sequence',
+      'Project templates and defaults for rapid setup',
+      'Bulk widget/section creation from style guides',
+      'Full WordPress site generation with multiple sections',
+      'Real-time import and testing in WordPress Playground',
+      'Planner agent for task decomposition and scheduling',
+      'Document tracker for project progress and deliverables',
+      'Widget element auditing tool (ensures all elements are editable)',
+      'Automated control generation for dynamic content',
+      'Style guide to full site workflow',
+      'Export complete widget folders with all sections',
+      'Integration with existing Elementor tools',
+      'Version control and project history',
     ],
   },
   {
@@ -106,6 +151,30 @@ const roadmapItems: RoadmapItem[] = [
       'Auto-detect color palettes from CSS',
       'Support for custom CSS frameworks (Tailwind, Bootstrap, etc.)',
       'Preview imported styles before applying',
+    ],
+  },
+  {
+    id: 'client-library-docs',
+    title: 'Client Library Documentation System',
+    description: 'Comprehensive documentation storage and retrieval system for client projects, widgets, and Elementor pages',
+    status: 'planned',
+    category: 'docs',
+    priority: 'high',
+    eta: 'Q2 2025',
+    details: [
+      'Store documentation for individual widgets, components, and pages',
+      'Per-client library storage with version control',
+      'Elementor page/section documentation with usage examples',
+      'Widget documentation with props, controls, and styling guides',
+      'Search and filter documentation by client, project, or component type',
+      'AI-powered documentation generation from code',
+      'Automatic documentation updates when code changes',
+      'Export documentation as Markdown, PDF, or HTML',
+      'Link documentation to specific WordPress/Elementor installations',
+      'Code snippet library with syntax highlighting',
+      'Integration with Elementor editor for inline docs',
+      'Component dependency tracking and relationship mapping',
+      'Template and pattern library with live previews',
     ],
   },
 ];
@@ -154,37 +223,35 @@ export default function RoadmapPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center gap-3 mb-4">
-            <Zap className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl md:text-4xl font-bold">Product Roadmap</h1>
-          </div>
-          <p className="text-muted-foreground text-lg max-w-3xl">
-            Our vision for Hustle Tools - see what we've built, what we're working on, and what's coming next.
-          </p>
+    <div className="min-h-screen bg-gray-50 transition-colors duration-300">
+      {/* Header Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-4">
+        <div className="flex items-center gap-3 justify-center">
+          <Zap className="w-8 h-8 text-orange-500" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Product Roadmap</h1>
+        </div>
+        <p className="mt-4 text-center text-gray-600">
+          Our vision for Hustle Tools - see what we've built, what we're working on, and what's coming next.
+        </p>
 
-          {/* Stats */}
-          <div className="flex justify-center mt-6">
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 min-w-[200px]">
-              <div className="text-2xl font-bold text-blue-500">{stats.inProgress}</div>
-              <div className="text-sm text-muted-foreground">Features In Progress</div>
-            </div>
+        {/* Stats */}
+        <div className="flex justify-center mt-6">
+          <div className="bg-white border-2 border-gray-200 rounded-lg p-4 min-w-[200px]">
+            <div className="text-2xl font-bold text-orange-500">{stats.inProgress}</div>
+            <div className="text-sm text-gray-600">Features In Progress</div>
           </div>
         </div>
       </div>
 
       {/* Roadmap Items */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
         <div className="space-y-4">
           {roadmapItems.map((item) => {
             const isExpanded = expandedItems.has(item.id);
             return (
               <div
                 key={item.id}
-                className="bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                className="bg-white border-2 border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
               >
                 <div
                   className="p-6 cursor-pointer"

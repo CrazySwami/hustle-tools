@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useGlobalStylesheet } from "@/lib/global-stylesheet-context";
 import { useTheme } from "next-themes";
-import { OptionsButton, type OptionItem } from "@/components/ui/OptionsButton";
 import Editor from "@monaco-editor/react";
 import { PageExtractor } from "@/components/page-extractor/PageExtractor";
 import { analyzeCSSWithAI } from "@/lib/css-analyzer";
@@ -660,75 +659,6 @@ export function StyleGuide({
           Previews updated with new stylesheet
         </div>
       )}
-
-      {/* Options Button */}
-      <OptionsButton
-        isMobile={isMobile}
-        isVisible={isTabVisible}
-        options={[
-          // Edit CSS
-          {
-            label: "✏️ Edit CSS",
-            onClick: () => {
-              setEditedCss(globalCss);
-              setShowEditor(true);
-            },
-          },
-          // Page Extractor
-          {
-            label: "🔍 Extract CSS from Page",
-            onClick: () => setShowPageExtractor(true),
-          },
-          // CSS Class Explorer
-          {
-            label: "📚 Browse CSS Classes",
-            onClick: () => setShowClassExplorer(true),
-            disabled: !designSystemSummary,
-            divider: true,
-          },
-          // Pull from WordPress
-          {
-            label: "⬇️ Pull from WordPress",
-            onClick: handlePullFromWordPress,
-            disabled: isLoading,
-          },
-          // Push to WordPress
-          {
-            label: "⬆️ Push to WordPress",
-            onClick: handlePushToWordPress,
-            disabled: isLoading,
-          },
-          // Reset
-          {
-            label: "🔄 Reset to Default",
-            onClick: handleResetToDefault,
-            disabled: isLoading,
-            divider: true,
-          },
-          // Chat toggle
-          ...(setChatVisible
-            ? [
-                {
-                  label: chatVisible ? "Hide Chat" : "Show Chat",
-                  onClick: () => setChatVisible(!chatVisible),
-                  type: "toggle" as const,
-                  active: chatVisible,
-                },
-              ]
-            : []),
-          // Tab bar toggle
-          ...(setTabBarVisible
-            ? [
-                {
-                  label: tabBarVisible ? "Hide Tab Bar" : "Show Tab Bar",
-                  onClick: () => setTabBarVisible(!tabBarVisible),
-                  type: "toggle" as const,
-                  active: tabBarVisible,
-                },
-              ]
-            : []),
-        ]}
-      />
 
       {/* CSS Editor Modal */}
       {showEditor && (

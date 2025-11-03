@@ -100,6 +100,11 @@ export function GlobalStylesheetProvider({ children }: { children: React.ReactNo
     const vars = parseCssVars(css);
     setCssVariables(vars);
 
+    // Expose to window for access by parent components
+    if (typeof window !== 'undefined') {
+      (window as any).globalCss = css;
+    }
+
     console.log('📊 Global CSS updated - previews will refresh');
   }, []);
 

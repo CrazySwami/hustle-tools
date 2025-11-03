@@ -9,6 +9,9 @@
 
 import { useState, useEffect } from 'react';
 import { FileGroup } from '@/lib/file-group-manager';
+import { AiFillHtml5 } from 'react-icons/ai';
+import { FaWordpress } from 'react-icons/fa';
+import { SiHubspot } from 'react-icons/si';
 
 interface ProjectSidebarProps {
   groups: FileGroup[];
@@ -260,8 +263,8 @@ export function ProjectSidebar({
               )}
 
               {/* Icon */}
-              <span style={{ fontSize: '16px' }}>
-                {group.type === 'html' ? '📦' : '🔧'}
+              <span style={{ fontSize: '16px', display: 'flex', alignItems: 'center' }}>
+                {group.type === 'html' ? <AiFillHtml5 color="#E34F26" /> : group.type === 'php' ? <FaWordpress color="#21759B" /> : <SiHubspot color="#FF7A59" />}
               </span>
 
               {/* Name (editable) */}

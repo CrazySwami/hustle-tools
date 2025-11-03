@@ -117,6 +117,10 @@ export type PromptInputTokenCounterProps = {
   onSendDisabled?: (disabled: boolean) => void;
   /** Show detailed breakdown */
   showDetails?: boolean;
+  /** Current model name (for provider-specific image token calculation) */
+  model?: string;
+  /** Attached image file (if any) */
+  attachedImage?: { file: File; preview: string } | null;
   className?: string;
 };
 
@@ -127,13 +131,12 @@ export const PromptInputTokenCounterSection = ({
   conversationTokens = 0,
   onSendDisabled,
   showDetails = false,
+  model = 'default',
+  attachedImage = null,
   className,
 }: PromptInputTokenCounterProps) => {
-  // Only render if prompt has content
-  if (!promptValue?.trim()) {
-    return null;
-  }
-
+  // Always render to show system prompt + conversation tokens
+  // (previously only showed when user was typing)
   return (
     <div className={cn('px-3 py-2 bg-muted/30', className)}>
       <PromptTokenCounter
@@ -143,6 +146,8 @@ export const PromptInputTokenCounterSection = ({
         conversationTokens={conversationTokens}
         onSendDisabled={onSendDisabled}
         showDetails={showDetails}
+        model={model}
+        attachedImage={attachedImage}
       />
     </div>
   );

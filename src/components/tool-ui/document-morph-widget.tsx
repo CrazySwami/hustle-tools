@@ -99,6 +99,9 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
       });
     }
 
+    // Dispatch custom event for auto-close chat on mobile
+    window.dispatchEvent(new CustomEvent('doc-edit-accepted'));
+
     setState('success');
   };
 

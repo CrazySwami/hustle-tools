@@ -2,7 +2,7 @@
 import { streamText, UIMessage, convertToModelMessages, tool } from 'ai';
 import { tools } from '@/lib/tools';
 import { apiMonitor } from '@/lib/api-monitor';
-import { validatePromptTokens, smartTruncateFile, getTokenUsageRecommendation } from '@/lib/token-validator';
+import { validatePromptTokens, smartTruncateFile, getTokenUsageRecommendation, estimateMessagesTokens, estimateTokenCount, getModelContextLimit } from '@/lib/token-validator';
 
 export const maxDuration = 60;
 
@@ -21,6 +21,8 @@ export async function POST(req: Request) {
       webSearch = false,
       currentSection = null,
       includeContext = true,
+      includeCss = false,
+      globalCss = '',
     }: {
       messages: UIMessage[];
       model: string;
@@ -28,6 +30,8 @@ export async function POST(req: Request) {
       webSearch: boolean;
       currentSection: any;
       includeContext: boolean;
+      includeCss: boolean;
+      globalCss: string;
     } = await req.json();
 
     // Detect project type for validation tool
@@ -60,12 +64,29 @@ export async function POST(req: Request) {
       ...(hasPhpCode ? { validateWidget: tools.validateWidget } : {}), // ⭐ PHP VALIDATION
     }));
 
+    // Debug: Log last message if it has parts (especially for image debugging)
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.parts) {
+      console.log('🖼️ Last message has parts:', {
+        partsCount: lastMsg.parts.length,
+        parts: lastMsg.parts.map((p: any) => ({
+          type: p.type,
+          hasImage: !!p.image,
+          imagePrefix: p.image ? (typeof p.image === 'string' ? p.image.substring(0, 50) + '...' : 'not a string') : null,
+        }))
+      });
+    }
+
     // Convert messages with error handling (same as main chat)
     let convertedMessages;
     try {
       convertedMessages = convertToModelMessages(messages);
+      console.log('✅ Successfully converted messages. Count:', convertedMessages.length);
     } catch (error: any) {
-      console.error('Error converting messages:', error);
+      console.error('❌ Error converting messages:', error);
+      console.error('   Error message:', error.message);
+      console.error('   Error stack:', error.stack);
+      console.error('   Original messages:', JSON.stringify(messages, null, 2));
       return new Response(
         JSON.stringify({ error: 'Message conversion failed', details: error.message }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -311,6 +332,19 @@ class Elementor_MyWidget_Widget extends \\Elementor\\Widget_Base {
 **ALWAYS review the existing PHP/CSS code to understand the widget's structure before making edits!**
 ` : ''}`;
 
+    // Add global CSS context if includeCss is true
+    if (includeCss && globalCss && globalCss.trim()) {
+      systemPrompt += `\n\n**🎨 GLOBAL STYLE KIT CSS:**
+
+The following CSS represents the global style system for this project. Use these styles as a reference for consistency:
+
+\`\`\`css
+${globalCss}
+\`\`\`
+
+When generating or modifying HTML/CSS, try to align with these global styles (fonts, colors, spacing) for visual consistency. You can reference or override these styles as needed.`;
+    }
+
     // Enable web search for Perplexity models (same as main chat)
     if (webSearch && model.startsWith('perplexity/')) {
       console.log('Web search enabled with Perplexity model:', model);
@@ -511,8 +545,26 @@ After using a tool, provide a helpful text response that explains what the tool 
     // ============================================================================
     // 🔍 TOKEN VALIDATION: Check if prompt fits within model's context window
     // ============================================================================
-    const messagesText = JSON.stringify(convertedMessages);
-    let validation = validatePromptTokens(systemPrompt, messagesText, model);
+    // Use async image-aware token counting for accurate vision token calculation
+    const messagesTokens = await estimateMessagesTokens(convertedMessages, model);
+    const systemTokens = estimateTokenCount(systemPrompt);
+    const totalInputTokens = systemTokens + messagesTokens;
+
+    const contextLimit = getModelContextLimit(model);
+    const effectiveLimit = contextLimit - 4000; // Reserve for output
+
+    const percentUsed = (totalInputTokens / effectiveLimit) * 100;
+    const exceeded = Math.max(0, totalInputTokens - effectiveLimit);
+
+    let validation = {
+      isValid: totalInputTokens <= effectiveLimit,
+      tokenCount: totalInputTokens,
+      limit: effectiveLimit,
+      percentUsed,
+      exceeded,
+      warning: percentUsed > 75 ? `Prompt uses ${percentUsed.toFixed(1)}% of context window.` : undefined,
+      error: totalInputTokens > effectiveLimit ? `Prompt exceeds model context limit by ${exceeded.toLocaleString()} tokens.` : undefined,
+    };
 
     console.log('📊 Token validation (before management):', {
       model,
@@ -562,8 +614,21 @@ After using a tool, provide a helpful text response that explains what the tool 
 
         windowStrategy = windowResult.strategy;
 
-        const managedMessagesText = JSON.stringify(managedMessages);
-        validation = validatePromptTokens(systemPrompt, managedMessagesText, model);
+        // Re-validate with managed messages (async image-aware counting)
+        const managedMessagesTokens = await estimateMessagesTokens(managedMessages, model);
+        const managedTotalTokens = systemTokens + managedMessagesTokens;
+        const managedPercentUsed = (managedTotalTokens / effectiveLimit) * 100;
+        const managedExceeded = Math.max(0, managedTotalTokens - effectiveLimit);
+
+        validation = {
+          isValid: managedTotalTokens <= effectiveLimit,
+          tokenCount: managedTotalTokens,
+          limit: effectiveLimit,
+          percentUsed: managedPercentUsed,
+          exceeded: managedExceeded,
+          warning: managedPercentUsed > 75 ? `Prompt uses ${managedPercentUsed.toFixed(1)}% of context window.` : undefined,
+          error: managedTotalTokens > effectiveLimit ? `Prompt exceeds model context limit by ${managedExceeded.toLocaleString()} tokens.` : undefined,
+        };
 
         console.log('📊 Token validation (after management):', {
           model,

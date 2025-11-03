@@ -39,6 +39,7 @@ export function VisualSectionEditor({
   const [isMobile, setIsMobile] = useState(false);
   const [blocksOpen, setBlocksOpen] = useState(false);
   const [stylesOpen, setStylesOpen] = useState(false);
+  const isInternalUpdate = useRef(false); // Track if update is from Visual Editor itself
 
   // Desktop panel visibility
   const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
@@ -74,6 +75,13 @@ export function VisualSectionEditor({
   useEffect(() => {
     if (!editorRef.current || !initialSection) return;
 
+    // Skip if this update originated from the Visual Editor itself
+    // This prevents infinite loop where Visual Editor changes trigger useEffect which triggers more changes
+    if (isInternalUpdate.current) {
+      isInternalUpdate.current = false; // Reset flag
+      return;
+    }
+
     console.log('📥 Loading section into Visual Editor:', {
       name: initialSection.name,
       htmlLength: initialSection.html?.length || 0,
@@ -105,6 +113,10 @@ export function VisualSectionEditor({
 
       const html = editor.getHtml();
       const css = editor.getCss();
+
+      // Set flag to indicate this is an internal update
+      // This prevents the useEffect from reloading the editor when we call onSectionChange
+      isInternalUpdate.current = true;
 
       onSectionChange({
         ...(initialSection || {

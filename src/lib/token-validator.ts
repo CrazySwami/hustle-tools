@@ -100,6 +100,176 @@ export function estimateTokenCount(text: string): number {
 }
 
 /**
+ * Decode base64 data URL to get image dimensions
+ * Returns dimensions or null if cannot be determined
+ */
+function getImageDimensions(dataUrl: string): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      // Server-side: cannot determine dimensions, use conservative estimate
+      resolve(null);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      resolve({ width: img.width, height: img.height });
+    };
+    img.onerror = () => {
+      resolve(null);
+    };
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * Estimate tokens for an image based on provider-specific calculations
+ *
+ * Reference documentation:
+ * - Claude: ~85 tokens per image (low detail), varies by resolution
+ * - OpenAI: 85 tokens (low) to 765+ tokens (high detail)
+ * - Gemini: Similar resolution-based calculation
+ *
+ * @param imageUrl - Data URL or URL of the image
+ * @param provider - Model provider (anthropic, openai, google)
+ * @returns Estimated token count for the image
+ */
+export async function estimateImageTokens(
+  imageUrl: string,
+  provider: 'anthropic' | 'openai' | 'google' | 'other' = 'other'
+): Promise<number> {
+  try {
+    // Get image dimensions if possible
+    const dimensions = await getImageDimensions(imageUrl);
+
+    if (!dimensions) {
+      // Conservative fallback: assume high detail
+      console.warn('Could not determine image dimensions, using conservative estimate');
+      return 765; // High detail estimate
+    }
+
+    const { width, height } = dimensions;
+
+    // Provider-specific calculations
+    switch (provider) {
+      case 'anthropic': // Claude
+        // Claude uses ~85 tokens for low detail images
+        // Higher resolution images use more tokens (roughly scales with megapixels)
+        const claudeMegapixels = (width * height) / 1000000;
+        if (claudeMegapixels <= 1) {
+          return 85; // Low detail
+        } else if (claudeMegapixels <= 4) {
+          return Math.ceil(85 + (claudeMegapixels - 1) * 50); // Scale up
+        } else {
+          return Math.ceil(85 + 150 + (claudeMegapixels - 4) * 30); // Large images
+        }
+
+      case 'openai': // GPT-4 Vision
+        // OpenAI's calculation:
+        // - Low detail: 85 tokens
+        // - High detail: 85 base + (tiles * 170), where tiles = ceil(w/512) * ceil(h/512)
+        const tilesW = Math.ceil(width / 512);
+        const tilesH = Math.ceil(height / 512);
+        const tiles = tilesW * tilesH;
+        return 85 + (tiles * 170);
+
+      case 'google': // Gemini
+        // Gemini uses similar calculation to Claude
+        // ~85 tokens baseline, scales with resolution
+        const geminiMegapixels = (width * height) / 1000000;
+        if (geminiMegapixels <= 1) {
+          return 85;
+        } else if (geminiMegapixels <= 4) {
+          return Math.ceil(85 + (geminiMegapixels - 1) * 60);
+        } else {
+          return Math.ceil(85 + 180 + (geminiMegapixels - 4) * 40);
+        }
+
+      default:
+        // Conservative estimate for unknown providers
+        const defaultMegapixels = (width * height) / 1000000;
+        return Math.ceil(85 + defaultMegapixels * 60);
+    }
+  } catch (error) {
+    console.error('Error estimating image tokens:', error);
+    return 765; // Conservative fallback
+  }
+}
+
+/**
+ * Get provider from model name
+ */
+function getProviderFromModel(model: string): 'anthropic' | 'openai' | 'google' | 'other' {
+  if (model.startsWith('anthropic/')) return 'anthropic';
+  if (model.startsWith('openai/')) return 'openai';
+  if (model.startsWith('google/')) return 'google';
+  return 'other';
+}
+
+/**
+ * Estimate tokens for messages that may contain images
+ * Handles both text and image parts properly
+ *
+ * @param messages - Array of messages (can be string or parts-based)
+ * @param model - Model name to determine provider-specific image token calculation
+ */
+export async function estimateMessagesTokens(
+  messages: any[],
+  model: string = 'default'
+): Promise<number> {
+  const provider = getProviderFromModel(model);
+  let totalTokens = 0;
+
+  for (const message of messages) {
+    // Handle string content (simple messages)
+    if (typeof message.content === 'string') {
+      totalTokens += estimateTokenCount(message.content);
+      continue;
+    }
+
+    // Handle parts-based messages (multi-modal)
+    if (Array.isArray(message.content)) {
+      for (const part of message.content) {
+        if (part.type === 'text') {
+          totalTokens += estimateTokenCount(part.text || '');
+        } else if (part.type === 'image' || part.type === 'file') {
+          if (part.url || part.image) {
+            const imageUrl = part.url || part.image;
+            const imageTokens = await estimateImageTokens(imageUrl, provider);
+            console.log(`📸 Image tokens (${provider}):`, imageTokens);
+            totalTokens += imageTokens;
+          }
+        }
+      }
+      continue;
+    }
+
+    // Handle Vercel AI SDK parts format
+    if (Array.isArray(message.parts)) {
+      for (const part of message.parts) {
+        if (part.type === 'text') {
+          totalTokens += estimateTokenCount(part.text || '');
+        } else if (part.type === 'image' || part.type === 'file') {
+          if (part.url || part.image) {
+            const imageUrl = part.url || part.image;
+            const imageTokens = await estimateImageTokens(imageUrl, provider);
+            console.log(`📸 Image tokens (${provider}):`, imageTokens);
+            totalTokens += imageTokens;
+          }
+        }
+      }
+      continue;
+    }
+
+    // Fallback: treat as JSON string
+    const jsonStr = JSON.stringify(message);
+    totalTokens += estimateTokenCount(jsonStr);
+  }
+
+  return totalTokens;
+}
+
+/**
  * Get context window limit for a model
  */
 export function getModelContextLimit(model: string): number {

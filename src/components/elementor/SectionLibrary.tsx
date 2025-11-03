@@ -8,7 +8,6 @@ import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import { sectionsToElementorTemplate, generateSectionsPreviewHTML } from '@/lib/section-to-elementor';
 import { useToast } from '@/hooks/useToast';
 import { LoadingButton } from '@/components/ui/LoadingOverlay';
-import { OptionsButton, type OptionItem } from '@/components/ui/OptionsButton';
 import { BottomNav } from '@/components/ui/BottomNav';
 
 interface SectionLibraryProps {
@@ -34,6 +33,10 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
   const [isMobile, setIsMobile] = useState(false);
   const [isUpdatingPlayground, setIsUpdatingPlayground] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true); // Desktop sidebar visibility
+
+  // Multi-select state
+  const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([]);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
 
   // Mobile detection
   useEffect(() => {
@@ -155,6 +158,52 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
     if (selectedSectionId === sectionId) {
       setSelectedSectionId(null);
     }
+  };
+
+  // Multi-select functions
+  const toggleSectionSelection = (sectionId: string, event?: React.MouseEvent) => {
+    if (event && (event.ctrlKey || event.metaKey)) {
+      // Multi-select mode
+      setIsMultiSelectMode(true);
+      const isSelected = selectedSectionIds.includes(sectionId);
+      if (isSelected) {
+        setSelectedSectionIds(prev => prev.filter(id => id !== sectionId));
+      } else {
+        setSelectedSectionIds(prev => [...prev, sectionId]);
+      }
+    } else if (isMultiSelectMode) {
+      // In multi-select mode, clicking without ctrl toggles selection
+      const isSelected = selectedSectionIds.includes(sectionId);
+      if (isSelected) {
+        setSelectedSectionIds(prev => prev.filter(id => id !== sectionId));
+      } else {
+        setSelectedSectionIds(prev => [...prev, sectionId]);
+      }
+    } else {
+      // Normal single select
+      setSelectedSectionId(sectionId);
+    }
+  };
+
+  const selectAllSections = () => {
+    setIsMultiSelectMode(true);
+    setSelectedSectionIds(sections.map(s => s.id));
+  };
+
+  const deselectAllSections = () => {
+    setSelectedSectionIds([]);
+    setIsMultiSelectMode(false);
+  };
+
+  const deleteSelectedSections = () => {
+    if (selectedSectionIds.length === 0) return;
+
+    if (!confirm(`Delete ${selectedSectionIds.length} section(s)? This cannot be undone.`)) return;
+
+    setSections(prev => prev.filter(s => !selectedSectionIds.includes(s.id)));
+    setSelectedSectionIds([]);
+    setIsMultiSelectMode(false);
+    toast.success(`Deleted ${selectedSectionIds.length} section(s)`);
   };
 
   const moveSection = (fromIndex: number, toIndex: number) => {
@@ -400,31 +449,59 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
                 </p>
               </div>
             ) : (
-              sections.map((section, index) => (
+              sections.map((section, index) => {
+                const isSelected = selectedSectionIds.includes(section.id);
+                return (
               <div
                 key={section.id}
-                onClick={() => setSelectedSectionId(section.id)}
+                onClick={(e) => toggleSectionSelection(section.id, e)}
                 style={{
                   marginBottom: '8px',
                   padding: '12px',
-                  background: selectedSectionId === section.id ? '#ffffff' : '#ffffff',
-                  border: selectedSectionId === section.id ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                  background: (isMultiSelectMode && isSelected) || selectedSectionId === section.id ? '#ffffff' : '#ffffff',
+                  border: (isMultiSelectMode && isSelected) || selectedSectionId === section.id ? '2px solid #3b82f6' : '1px solid #e5e7eb',
                   borderRadius: '6px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  boxShadow: selectedSectionId === section.id ? '0 2px 4px rgba(59, 130, 246, 0.1)' : 'none'
+                  boxShadow: (isMultiSelectMode && isSelected) || selectedSectionId === section.id ? '0 2px 4px rgba(59, 130, 246, 0.1)' : 'none',
+                  position: 'relative' as const
                 }}
                 onMouseEnter={(e) => {
-                  if (selectedSectionId !== section.id) {
+                  if (!isSelected && selectedSectionId !== section.id) {
                     e.currentTarget.style.borderColor = '#d1d5db';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (selectedSectionId !== section.id) {
+                  if (!isSelected && selectedSectionId !== section.id) {
                     e.currentTarget.style.borderColor = '#e5e7eb';
                   }
                 }}
               >
+                {/* Multi-select checkbox */}
+                {isMultiSelectMode && (
+                  <div style={{
+                    position: 'absolute' as const,
+                    top: '8px',
+                    right: '8px',
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '4px',
+                    background: isSelected ? '#3b82f6' : '#ffffff',
+                    border: `2px solid ${isSelected ? '#3b82f6' : '#d1d5db'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10,
+                    transition: 'all 0.2s'
+                  }}>
+                    {isSelected && (
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#ffffff" strokeWidth="3">
+                        <path d="M4 10 L8 14 L16 6" />
+                      </svg>
+                    )}
+                  </div>
+                )}
+
                 {/* Section Preview Thumbnail - Live Render with iframe */}
                 <div style={{
                   width: '100%',
@@ -648,7 +725,8 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
                   </div>
                 )}
               </div>
-            ))
+            );
+              })
             )
           ) : (
             styleKits.length === 0 ? (
@@ -926,87 +1004,6 @@ export function SectionLibrary({ onExportToPlayground, onLoadInEditor, chatVisib
       </div>
       )}
 
-      {/* Bottom Navigation with Options Button */}
-      <BottomNav
-        pageActions={
-          <OptionsButton
-            isMobile={isMobile}
-            isVisible={isTabVisible}
-            options={[
-              // Library view toggle
-              {
-                label: libraryTab === 'sections' ? '🎨 Switch to Style Kits' : '📄 Switch to Sections',
-                onClick: () => setLibraryTab(libraryTab === 'sections' ? 'style-kits' : 'sections'),
-                divider: true
-              },
-              // Sections actions (only show when on sections tab)
-              ...(libraryTab === 'sections' ? [
-                {
-                  label: '+ New Section',
-                  onClick: createNewSection
-                },
-                {
-                  label: '✂️ Split Page',
-                  onClick: () => setViewMode('split-page')
-                },
-                {
-                  label: '📋 Preview All',
-                  onClick: previewAllInPlayground,
-                  disabled: sections.length === 0
-                },
-                {
-                  label: '🔄 Update Playground',
-                  onClick: updatePlaygroundPreview,
-                  disabled: sections.length === 0 || isUpdatingPlayground
-                },
-                {
-                  label: '⬇️ Export Sections',
-                  onClick: exportSections,
-                  disabled: sections.length === 0
-                },
-                {
-                  label: '⬆️ Import Sections',
-                  onClick: importSections,
-                  divider: true
-                }
-              ] : [
-                // Style kits actions (only show when on style-kits tab)
-                {
-                  label: '+ New Style Kit',
-                  onClick: createNewStyleKit
-                },
-                {
-                  label: '⬆️ Import CSS',
-                  onClick: importStyleKit,
-                  divider: true
-                }
-              ]),
-              // Desktop-only sidebar toggle
-              ...(!isMobile ? [{
-                label: sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar',
-                onClick: () => setSidebarVisible(!sidebarVisible),
-                type: 'toggle' as const,
-                active: sidebarVisible,
-                divider: true
-              }] : []),
-              // Chat toggle
-              ...(setChatVisible ? [{
-                label: chatVisible ? 'Hide Chat' : 'Show Chat',
-                onClick: () => setChatVisible(!chatVisible),
-                type: 'toggle' as const,
-                active: chatVisible
-              }] : []),
-              // Tab bar toggle
-              ...(setTabBarVisible ? [{
-                label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
-                onClick: () => setTabBarVisible(!tabBarVisible),
-                type: 'toggle' as const,
-                active: tabBarVisible
-              }] : [])
-            ]}
-          />
-        }
-      />
     </div>
   );
 }

@@ -3,6 +3,8 @@ import { Comment } from './CommentExtension'
 import { X, MessageSquare, Check, Plus, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+export type CommentTabType = 'active' | 'resolved'
+
 interface CommentsPanelProps {
   comments: Comment[]
   activeCommentId: string | null
@@ -12,9 +14,9 @@ interface CommentsPanelProps {
   onAddComment: () => void
   isOpen: boolean
   onToggle: () => void
+  activeTab?: CommentTabType
+  onTabChange?: (tab: CommentTabType) => void
 }
-
-type TabType = 'active' | 'resolved'
 
 export default function CommentsPanel({
   comments,
@@ -25,8 +27,14 @@ export default function CommentsPanel({
   onAddComment,
   isOpen,
   onToggle,
+  activeTab: controlledTab,
+  onTabChange,
 }: CommentsPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('active')
+  const [internalTab, setInternalTab] = useState<CommentTabType>('active')
+
+  // Use controlled tab if provided, otherwise use internal state
+  const activeTab = controlledTab !== undefined ? controlledTab : internalTab
+  const setActiveTab = onTabChange || setInternalTab
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null)
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null)
   
@@ -57,41 +65,38 @@ export default function CommentsPanel({
         )}>
           {isOpen && (
             <>
-              {/* Header */}
-              <div className="p-4 border-b flex items-center justify-between">
-                <h3 className="font-medium">Comments</h3>
-                <button 
+              {/* Tabs with plus button */}
+              <div className="flex items-center justify-between border-b px-2 gap-1">
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setActiveTab('active')}
+                    className={cn(
+                      "px-3 py-2 text-sm font-medium rounded-t-md transition-colors",
+                      activeTab === 'active'
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                  >
+                    Active
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('resolved')}
+                    className={cn(
+                      "px-3 py-2 text-sm font-medium rounded-t-md transition-colors",
+                      activeTab === 'resolved'
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                  >
+                    Resolved
+                  </button>
+                </div>
+                <button
                   onClick={onAddComment}
-                  className="p-1 rounded-full hover:bg-muted"
+                  className="p-1 rounded-full hover:bg-muted mr-2"
                   title="Add comment"
                 >
                   <Plus size={16} />
-                </button>
-              </div>
-              
-              {/* Tabs */}
-              <div className="flex border-b">
-                <button
-                  onClick={() => setActiveTab('active')}
-                  className={cn(
-                    "flex-1 py-2 text-sm font-medium",
-                    activeTab === 'active' 
-                      ? "border-b-2 border-primary" 
-                      : "text-muted-foreground"
-                  )}
-                >
-                  Active
-                </button>
-                <button
-                  onClick={() => setActiveTab('resolved')}
-                  className={cn(
-                    "flex-1 py-2 text-sm font-medium",
-                    activeTab === 'resolved' 
-                      ? "border-b-2 border-primary" 
-                      : "text-muted-foreground"
-                  )}
-                >
-                  Resolved
                 </button>
               </div>
               

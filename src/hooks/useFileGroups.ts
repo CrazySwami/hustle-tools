@@ -32,9 +32,9 @@ export interface UseFileGroupsReturn {
   activeGroupId: string | null;
 
   // Actions
-  createNewGroup: (name: string, type: 'html' | 'php', template?: string) => FileGroup;
+  createNewGroup: (name: string, type: 'html' | 'php' | 'hubspot', template?: string) => FileGroup;
   selectGroup: (id: string) => void;
-  updateGroupFile: (id: string, file: 'html' | 'css' | 'js' | 'php', content: string) => void;
+  updateGroupFile: (id: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
   renameGroup: (id: string, name: string) => void;
   duplicateGroup: (id: string) => FileGroup | null;
   deleteGroup: (id: string) => void;
@@ -75,7 +75,7 @@ export function useFileGroups(): UseFileGroupsReturn {
   // Create new group
   const createNewGroup = useCallback((
     name: string,
-    type: 'html' | 'php',
+    type: 'html' | 'php' | 'hubspot',
     template?: string
   ): FileGroup => {
     const group = createGroup(name, type, template as any);
@@ -93,7 +93,7 @@ export function useFileGroups(): UseFileGroupsReturn {
   // Update file content
   const updateGroupFile = useCallback((
     id: string,
-    file: 'html' | 'css' | 'js' | 'php',
+    file: 'html' | 'css' | 'js' | 'php' | 'hubl',
     content: string
   ) => {
     updateGroupContent(id, file, content);

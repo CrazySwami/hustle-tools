@@ -134,57 +134,62 @@ export default function APIMonitorPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
-          <p className="text-muted-foreground">Loading monitoring data...</p>
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-orange-500" />
+          <p className="text-gray-600">Loading monitoring data...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 md:p-8 md:pt-20">
-      <div className="max-w-7xl mx-auto space-y-6 md:space-y-8">
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold">API Monitor</h1>
-            <p className="text-sm md:text-base text-muted-foreground mt-1">
-              Real-time tracking of all API calls, token usage, and costs
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              size="sm"
-              className="flex-1 md:flex-none"
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}</span>
-              <span className="sm:hidden">{autoRefresh ? 'Auto ON' : 'Auto OFF'}</span>
-            </Button>
-            <Button variant="outline" onClick={handleExport} size="sm" className="flex-1 md:flex-none">
-              <Download className="w-4 h-4 md:mr-2" />
-              <span className="hidden md:inline">Export</span>
-            </Button>
-            <Button variant="destructive" onClick={handleClear} size="sm" className="flex-1 md:flex-none">
-              <Trash2 className="w-4 h-4 md:mr-2" />
-              <span className="hidden md:inline">Clear</span>
-            </Button>
-          </div>
+    <div className="min-h-screen bg-gray-50 transition-colors duration-300">
+      {/* Header Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-4">
+        <div className="flex items-center gap-3 justify-center">
+          <Activity className="text-3xl text-orange-500 w-8 h-8" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">API Monitor</h1>
+        </div>
+        <p className="mt-4 text-center text-gray-600">
+          Real-time tracking of all API calls, token usage, and costs
+        </p>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-6">
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-2 justify-center">
+          <Button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            size="sm"
+            className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100 bg-white"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}</span>
+            <span className="sm:hidden">{autoRefresh ? 'Auto ON' : 'Auto OFF'}</span>
+          </Button>
+          <Button onClick={handleExport} size="sm" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100 bg-white">
+            <Download className="w-4 h-4 md:mr-2" />
+            <span className="hidden md:inline">Export</span>
+          </Button>
+          <Button onClick={handleClear} size="sm" className="bg-red-600 hover:bg-red-700 text-white">
+            <Trash2 className="w-4 h-4 md:mr-2" />
+            <span className="hidden md:inline">Clear</span>
+          </Button>
         </div>
 
         {/* Time Range Selector */}
-        <div className="flex gap-2 overflow-x-auto pb-2">
+        <div className="flex gap-2 overflow-x-auto pb-2 justify-center">
           {(['1h', '24h', '7d', 'all'] as const).map((range) => (
             <Button
               key={range}
-              variant={timeRange === range ? 'default' : 'outline'}
               onClick={() => setTimeRange(range)}
               size="sm"
-              className="whitespace-nowrap"
+              className={`whitespace-nowrap ${
+                timeRange === range
+                  ? 'bg-gray-900 text-white hover:bg-gray-800'
+                  : 'border-2 border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+              }`}
             >
               {range === '1h' ? 'Last Hour' : range === '24h' ? 'Last 24 Hours' : range === '7d' ? 'Last 7 Days' : 'All Time'}
             </Button>
@@ -194,59 +199,59 @@ export default function APIMonitorPage() {
         {/* Stats Cards */}
         {stats && (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
+            <Card className="border-2 border-gray-200 bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total API Calls</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-gray-900">Total API Calls</CardTitle>
+                <Activity className="h-4 w-4 text-gray-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatNumber(stats.totalCalls)}</div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <div className="text-2xl font-bold text-gray-900">{formatNumber(stats.totalCalls)}</div>
+                <p className="text-xs text-gray-600 mt-1">
                   {stats.successfulCalls} successful, {stats.failedCalls} failed
                 </p>
-                <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+                <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-primary"
+                    className="h-full bg-orange-500"
                     style={{ width: `${stats.successRate}%` }}
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-2 border-gray-200 bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Tokens</CardTitle>
-                <Zap className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-gray-900">Total Tokens</CardTitle>
+                <Zap className="h-4 w-4 text-gray-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatNumber(stats.totalTokens)}</div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <div className="text-2xl font-bold text-gray-900">{formatNumber(stats.totalTokens)}</div>
+                <p className="text-xs text-gray-600 mt-1">
                   Across all models and providers
                 </p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-2 border-gray-200 bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Estimated Cost</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-gray-900">Estimated Cost</CardTitle>
+                <DollarSign className="h-4 w-4 text-gray-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCost(stats.totalCost)}</div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <div className="text-2xl font-bold text-gray-900">{formatCost(stats.totalCost)}</div>
+                <p className="text-xs text-gray-600 mt-1">
                   Total spend on API calls
                 </p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-2 border-gray-200 bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-gray-900">Avg Response Time</CardTitle>
+                <TrendingUp className="h-4 w-4 text-gray-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{Math.round(stats.avgResponseTime)}ms</div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <div className="text-2xl font-bold text-gray-900">{Math.round(stats.avgResponseTime)}ms</div>
+                <p className="text-xs text-gray-600 mt-1">
                   Average across all calls
                 </p>
               </CardContent>
@@ -256,10 +261,10 @@ export default function APIMonitorPage() {
 
         {/* Breakdown by Provider */}
         {stats && Object.keys(stats.byProvider).length > 0 && (
-          <Card>
+          <Card className="border-2 border-gray-200 bg-white">
             <CardHeader>
-              <CardTitle>By Provider</CardTitle>
-              <CardDescription>API usage breakdown by provider</CardDescription>
+              <CardTitle className="text-gray-900">By Provider</CardTitle>
+              <CardDescription className="text-gray-600">API usage breakdown by provider</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -286,10 +291,10 @@ export default function APIMonitorPage() {
 
         {/* Breakdown by Model */}
         {stats && Object.keys(stats.byModel).length > 0 && (
-          <Card>
+          <Card className="border-2 border-gray-200 bg-white">
             <CardHeader>
-              <CardTitle>By Model</CardTitle>
-              <CardDescription>API usage breakdown by model</CardDescription>
+              <CardTitle className="text-gray-900">By Model</CardTitle>
+              <CardDescription className="text-gray-600">API usage breakdown by model</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -317,12 +322,12 @@ export default function APIMonitorPage() {
         )}
 
         {/* Recent API Calls */}
-        <Card>
+        <Card className="border-2 border-gray-200 bg-white">
           <CardHeader>
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <CardTitle>Recent API Calls</CardTitle>
-                <CardDescription>Last 100 API requests</CardDescription>
+                <CardTitle className="text-gray-900">Recent API Calls</CardTitle>
+                <CardDescription className="text-gray-600">Last 100 API requests</CardDescription>
               </div>
               <div className="flex flex-col gap-2 md:flex-row">
                 <input
@@ -330,21 +335,21 @@ export default function APIMonitorPage() {
                   placeholder="Filter endpoint..."
                   value={filterEndpoint}
                   onChange={(e) => setFilterEndpoint(e.target.value)}
-                  className="px-3 py-2 text-sm border border-border rounded-md bg-background w-full md:w-auto"
+                  className="px-3 py-2 text-sm border-2 border-gray-300 rounded-md bg-white text-gray-900 w-full md:w-auto"
                 />
                 <input
                   type="text"
                   placeholder="Filter provider..."
                   value={filterProvider}
                   onChange={(e) => setFilterProvider(e.target.value)}
-                  className="px-3 py-2 text-sm border border-border rounded-md bg-background w-full md:w-auto"
+                  className="px-3 py-2 text-sm border-2 border-gray-300 rounded-md bg-white text-gray-900 w-full md:w-auto"
                 />
                 <input
                   type="text"
                   placeholder="Filter model..."
                   value={filterModel}
                   onChange={(e) => setFilterModel(e.target.value)}
-                  className="px-3 py-2 text-sm border border-border rounded-md bg-background w-full md:w-auto"
+                  className="px-3 py-2 text-sm border-2 border-gray-300 rounded-md bg-white text-gray-900 w-full md:w-auto"
                 />
               </div>
             </div>

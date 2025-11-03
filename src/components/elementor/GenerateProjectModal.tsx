@@ -1,8 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUsageTracking } from '@/hooks/useUsageTracking';
 import { MODEL_PRICING } from '@/hooks/useUsageTracking';
+import { AiFillHtml5 } from 'react-icons/ai';
+import { FaWordpress } from 'react-icons/fa';
+import { SiHubspot } from 'react-icons/si';
+
+import { convertHtmlToHubL } from '@/lib/hubspot-converter';
+import { SystemPromptViewer } from '@/components/ui/SystemPromptViewer';
+import { getModelContextLimit, estimateTokenCount } from '@/lib/token-validator';
 
 // Model configurations (same as ChatInterface)
 const MODEL_CONFIGS = {
@@ -17,31 +24,37 @@ const MODEL_CONFIGS = {
 interface GenerateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGenerate: (code: { html: string; css: string; js: string; php?: string; projectName?: string }) => void;
-  onProjectCreate?: (projectName: string, projectType: 'html' | 'php') => string; // Returns new project ID
-  onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php', content: string) => void;
+  onGenerate: (code: { html: string; css: string; js: string; php?: string; hubl?: string; projectName?: string }) => void;
+  onProjectCreate?: (projectName: string, projectType: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
+  onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
   defaultModel?: string;
-  // Optional existing code for conversion mode
+  // Optional existing code for conversion mode or context
   existingCode?: {
     html?: string;
     css?: string;
     js?: string;
   };
+  // Optional global CSS to include in generation
+  globalCSS?: string;
 }
 
-export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCreate, onProjectUpdate, defaultModel, existingCode }: GenerateProjectModalProps) {
+export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCreate, onProjectUpdate, defaultModel, existingCode, globalCSS }: GenerateProjectModalProps) {
   // If existingCode is provided, we're in conversion mode - skip type selection and go straight to elementor
   const isConversionMode = !!existingCode;
   const [step, setStep] = useState<'type' | 'description' | 'generating'>(isConversionMode ? 'description' : 'type');
-  const [projectType, setProjectType] = useState<'html' | 'elementor'>(isConversionMode ? 'elementor' : 'html');
+  const [projectType, setProjectType] = useState<'html' | 'elementor' | 'hubspot'>(isConversionMode ? 'elementor' : 'html');
+  const [hubspotModuleType, setHubspotModuleType] = useState<'email' | 'page'>('email'); // Email by default for safety
   const [description, setDescription] = useState('');
   const [projectName, setProjectName] = useState('');
   const [selectedModel, setSelectedModel] = useState(defaultModel || 'anthropic/claude-sonnet-4-5-20250929');
+  const [includeGlobalCSS, setIncludeGlobalCSS] = useState(true); // Default to including global CSS
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState('');
-  const [currentPhase, setCurrentPhase] = useState<'html' | 'css' | 'js' | 'php' | null>(null);
+  const [currentPhase, setCurrentPhase] = useState<'html' | 'css' | 'js' | 'php' | 'hubl' | null>(null);
   const [usageMetadata, setUsageMetadata] = useState<any>(null);
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<Array<{ url: string; filename: string }>>([]);
+  const [includeImages, setIncludeImages] = useState(false);
 
   const { recordUsage} = useUsageTracking();
 
@@ -71,11 +84,56 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
     setDescription('');
     setProjectName('');
     setSelectedModel(defaultModel || 'anthropic/claude-sonnet-4-5-20250929');
+    setIncludeGlobalCSS(true); // Reset to default (include global CSS)
     setGenerating(false);
     setProgress('');
     setCurrentPhase(null);
     setUsageMetadata(null);
     setCreatedProjectId(null);
+    setUploadedImages([]);
+    setIncludeImages(false);
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Validate file types
+    const validFiles = Array.from(files).filter(file =>
+      ['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)
+    );
+
+    if (validFiles.length !== files.length) {
+      alert('Only PNG and JPEG images are supported');
+    }
+
+    // Limit to 3 images total
+    const remainingSlots = 3 - uploadedImages.length;
+    const filesToProcess = validFiles.slice(0, remainingSlots);
+
+    if (filesToProcess.length === 0) {
+      if (uploadedImages.length >= 3) {
+        alert('Maximum 3 images allowed');
+      }
+      return;
+    }
+
+    // Convert to data URLs
+    filesToProcess.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        setUploadedImages(prev => [...prev, { url: dataUrl, filename: file.name }]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input
+    e.target.value = '';
+  };
+
+  const removeImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleClose = () => {
@@ -93,16 +151,256 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
       .join('_');
   };
 
-  const parseStreamedCode = (text: string): { html: string; css: string; js: string } => {
+  // Build the full system prompt (including Global CSS if enabled)
+  const buildSystemPrompt = (): string => {
+    const isElementor = projectType === 'elementor';
+    const isHubSpot = projectType === 'hubspot';
+
+    let prompt = '';
+
+    if (isElementor) {
+      prompt = `You are an expert Elementor widget developer. Generate a COMPLETE, PRODUCTION-READY PHP widget class.
+
+**CRITICAL REQUIREMENTS:**
+
+1. **Complete PHP Class Structure**:
+   - Extend \\Elementor\\Widget_Base
+   - Include proper PHP opening tags and namespace
+   - Add ABSPATH security check
+   - Implement ALL required methods
+
+2. **Required Methods**:
+   - get_name() - Return widget identifier (snake_case)
+   - get_title() - Return human-readable title
+   - get_icon() - Return Elementor icon (eicon-*)
+   - get_categories() - Return ['general'] or specific category
+   - get_keywords() - Return relevant search keywords array
+   - register_controls() - Define all Elementor controls
+   - render() - Output the widget HTML
+
+3. **register_controls() Guidelines**:
+   - Use start_controls_section() and end_controls_section()
+   - Add controls for CONTENT tab (text, images, URLs, etc.)
+   - Add controls for STYLE tab (colors, typography, spacing)
+   - Use proper control types: TEXT, TEXTAREA, COLOR, TYPOGRAPHY, DIMENSIONS, etc.
+   - Include 'selector' and 'description' for each control
+   - Group related controls logically
+
+4. **render() Method Rules**:
+   - Use $settings = $this->get_settings_for_display()
+   - Output semantic HTML5 markup
+   - Use esc_html(), esc_attr(), esc_url() for all dynamic content
+   - Add CSS classes for styling hooks
+   - Include data attributes if needed for JS
+
+5. **CSS Scoping**:
+   - All styles use {{WRAPPER}} prefix for widget-specific selectors
+   - Do NOT use {{WRAPPER}} for: body, html, *, :root, @font-face, @keyframes, @media
+   - Use 'selectors' parameter in controls for dynamic styling
+
+6. **Best Practices**:
+   - Add helpful descriptions to controls
+   - Use default values for all controls
+   - Follow WordPress coding standards
+   - Include proper escaping and sanitization
+   - Make widget fully responsive
+   - Add ARIA labels for accessibility
+
+**IMPORTANT**: Generate ONLY the complete PHP class. Do NOT include plugin registration code or file includes.`;
+    } else if (isHubSpot) {
+      if (hubspotModuleType === 'email') {
+        prompt = `You are an expert HubSpot email module developer. Generate production-ready HTML with inline CSS optimized for email clients.
+
+**MODULE TYPE: EMAIL (Strict Compatibility Mode)**
+
+**CRITICAL EMAIL CONSTRAINTS:**
+
+1. **HTML Structure**:
+   - Section-level markup only (NO DOCTYPE, html, head, body tags)
+   - **MUST use table-based layouts** - NO flexbox, NO grid
+   - Use <table>, <tr>, <td> for all layout structure
+   - Keep nesting shallow (max 3-4 table levels)
+   - Use semantic class names for HubL tokenization
+
+2. **CSS Requirements (EMAIL-SPECIFIC)**:
+   - **ALL styles MUST be inline** using style="..." attributes
+   - ❌ NEVER use <style> tags or external CSS
+   - ❌ NEVER use @media queries (unreliable across email clients)
+   - ❌ NEVER use display: grid or display: flex
+   - ❌ NEVER use background-image (use <img> instead)
+   - ❌ NEVER use position: absolute or position: fixed
+   - ❌ NEVER use @font-face or custom web fonts
+   - ✅ USE: Basic properties (color, font-size, padding, margin, text-align)
+   - ✅ USE: Table properties (width, cellpadding, cellspacing, align, valign, bgcolor)
+   - ✅ USE: Web-safe fonts only (Arial, Verdana, Georgia, Times New Roman, Courier)
+
+3. **Email-Safe Design Patterns**:
+   - Use <table width="100%"> for full-width sections
+   - Use <td style="padding: X"> for spacing (NOT margin on tables)
+   - Use bgcolor attribute for background colors when possible
+   - Set explicit widths in pixels for fixed layouts
+   - Use <img> with width/height attributes for all images
+   - Center content with align="center" on td elements
+
+4. **JavaScript**:
+   - ⚠️ CRITICAL: NO JavaScript allowed in email modules
+   - Scripts are completely blocked in email clients
+
+5. **Accessibility**:
+   - Add alt text to ALL images
+   - Use role="presentation" on layout tables
+   - Ensure good color contrast for readability
+
+**OUTPUT FORMAT:**
+\`\`\`html
+<!-- Table-based layout with inline styles -->
+\`\`\`
+
+\`\`\`hubl
+<!-- HubL tokenization generated programmatically -->
+\`\`\`
+
+**IMPORTANT**: Email compatibility is CRITICAL. Always use tables with inline styles. Test across Gmail, Outlook, Apple Mail.`;
+      } else {
+        prompt = `You are an expert HubSpot page module developer. Generate production-ready HTML with modern CSS for HubSpot CMS pages.
+
+**MODULE TYPE: PAGE (Modern Web Standards)**
+
+**PAGE MODULE CAPABILITIES:**
+
+1. **HTML Structure**:
+   - Section-level markup only (NO DOCTYPE, html, head, body tags)
+   - Use modern semantic HTML5 elements
+   - **Flexbox and Grid are allowed** for page modules
+   - Div-based layouts are perfectly acceptable
+   - Use semantic class names for HubL tokenization
+
+2. **CSS Requirements (PAGE-SPECIFIC)**:
+   - Inline styles are acceptable
+   - External CSS classes are also fine (HubSpot will handle them)
+   - ✅ USE: Modern layout (flexbox, grid)
+   - ✅ USE: CSS variables for theming
+   - ✅ USE: Media queries for responsive design
+   - ✅ USE: Background images and gradients
+   - ✅ USE: Transitions and animations
+   - ✅ USE: Modern web fonts (Google Fonts, etc.)
+   - Keep structure modular for easy HubL field extraction
+
+3. **Modern Design Patterns**:
+   - Use flexbox for flexible layouts
+   - Use CSS Grid for complex grid systems
+   - Apply responsive breakpoints with @media queries
+   - Use modern typography and spacing
+   - Include hover states and interactions
+   - Add smooth transitions for better UX
+
+4. **JavaScript**:
+   - ✅ JavaScript IS supported in page modules
+   - Use vanilla JS or jQuery (HubSpot includes jQuery)
+   - Add interactive features as needed
+   - Keep scripts modular and maintainable
+
+5. **HubSpot-Specific**:
+   - Output clean HTML for HubL tokenization
+   - Use semantic class names
+   - Structure content for easy field mapping
+   - Consider HubDB integration points
+
+6. **Accessibility**:
+   - Use semantic HTML5 elements (header, nav, main, footer, etc.)
+   - Add ARIA labels where appropriate
+   - Ensure keyboard navigation
+   - Maintain good color contrast
+
+**OUTPUT FORMAT:**
+\`\`\`html
+<!-- Modern HTML5 with semantic elements -->
+\`\`\`
+
+\`\`\`hubl
+<!-- HubL tokenization generated programmatically -->
+\`\`\`
+
+**IMPORTANT**: Page modules support modern web standards. Use flexbox, grid, and interactive features freely.`;
+      }
+    } else {
+      prompt = `You are an expert frontend developer. Generate complete, production-ready HTML/CSS/JS code for a web section based on the user's description.
+
+**CRITICAL RULES:**
+1. **HTML**: Section-level markup only (NO DOCTYPE, html, head, body tags). Use semantic HTML5.
+2. **CSS**: Complete styles including responsive design, modern layout (flexbox/grid), transitions/animations.
+3. **JavaScript**: Vanilla JS only if needed. Modern ES6+. No framework dependencies.
+4. **Design**: Modern, clean, professional design with good spacing, typography, and color harmony.
+5. **Accessibility**: Semantic HTML, ARIA labels where needed, keyboard navigation.
+6. **Responsive**: Mobile-first approach, breakpoints at 768px (tablet) and 1024px (desktop).
+
+**IMPORTANT**: Create standalone, copy-paste ready code that works immediately in any modern browser.`;
+    }
+
+    // Append Global CSS if enabled
+    if (includeGlobalCSS && globalCSS) {
+      prompt += `\n\n**🎨 GLOBAL CSS (Style Guide):**
+
+The following global CSS is available from the Style Guide. Use these styles as reference when styling components:
+
+\`\`\`css
+${globalCSS}
+\`\`\`
+
+Use these global styles to ensure consistency with the overall design system.`;
+    }
+
+    return prompt;
+  };
+
+  // Build the user prompt
+  const buildUserPrompt = (): string => {
+    let prompt = `Project: ${projectName || generateProjectName(description)}
+Description: ${description || '(not provided yet)'}
+Type: ${projectType}`;
+
+    if (projectType === 'hubspot') {
+      prompt += `\nModule Type: ${hubspotModuleType}`;
+    }
+
+    prompt += `\nModel: ${MODEL_CONFIGS[selectedModel]?.name}`;
+
+    if (includeGlobalCSS && globalCSS) {
+      prompt += `\n\nGlobal CSS:\n${globalCSS}`;
+    }
+
+    return prompt;
+  };
+
+  // Calculate token counts
+  const contextLimit = getModelContextLimit(selectedModel);
+  const systemPrompt = buildSystemPrompt();
+  const userPrompt = buildUserPrompt();
+  const systemTokens = estimateTokenCount(systemPrompt);
+  let inputTokens = estimateTokenCount(userPrompt);
+
+  // Add vision tokens for images (if included)
+  // Approximate: 765 tokens per image for high-res vision (based on AI SDK estimates)
+  if (includeImages && uploadedImages.length > 0) {
+    const visionTokens = uploadedImages.length * 765;
+    inputTokens += visionTokens;
+  }
+
+  const conversationTokens = 0; // No conversation history in modal
+  const totalTokens = systemTokens + inputTokens + conversationTokens;
+
+  const parseStreamedCode = (text: string): { html: string; css: string; js: string; hubl: string } => {
     // Try to extract code from markdown code blocks
     const htmlMatch = text.match(/```html\n([\s\S]*?)```/);
     const cssMatch = text.match(/```css\n([\s\S]*?)```/);
     const jsMatch = text.match(/```(?:javascript|js)\n([\s\S]*?)```/);
+    const hublMatch = text.match(/```hubl\n([\s\S]*?)```/);
 
     return {
       html: htmlMatch ? htmlMatch[1].trim() : '',
       css: cssMatch ? cssMatch[1].trim() : '',
       js: jsMatch ? jsMatch[1].trim() : '',
+      hubl: hublMatch ? hublMatch[1].trim() : '',
     };
   };
 
@@ -123,6 +421,9 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
           projectName: generatedName,
           model: selectedModel,
           existingCode: existingCode, // Pass existing code if provided
+          globalCSS: includeGlobalCSS ? globalCSS : undefined, // Only pass global CSS if user opted in
+          hubspotModuleType: projectType === 'hubspot' ? hubspotModuleType : undefined, // Pass HubSpot module type
+          images: includeImages && uploadedImages.length > 0 ? uploadedImages : [], // Pass images if enabled
         }),
       });
 
@@ -141,7 +442,10 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
           .map(word => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ');
 
-        const projectId = onProjectCreate?.(displayName, projectType === 'elementor' ? 'php' : 'html');
+        const projectId = onProjectCreate?.(
+          displayName,
+          projectType === 'elementor' ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html'
+        );
         if (projectId) {
           setCreatedProjectId(projectId);
           console.log('📦 Created project:', displayName, 'ID:', projectId);
@@ -151,6 +455,9 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
         if (projectType === 'elementor') {
           setCurrentPhase('php');
           setProgress('Generating PHP Widget...');
+        } else if (projectType === 'hubspot') {
+          setCurrentPhase('html');
+          setProgress('Generating HTML...');
         } else {
           setCurrentPhase('html');
           setProgress('Generating HTML...');
@@ -179,8 +486,29 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
               if (phpMatch) onProjectUpdate(projectId, 'php', phpMatch[1].trim());
               if (cssMatch) onProjectUpdate(projectId, 'css', cssMatch[1].trim());
               if (jsMatch) onProjectUpdate(projectId, 'js', jsMatch[1].trim());
+            } else if (projectType === 'hubspot') {
+              // HubSpot: HTML + HubL (inline CSS)
+              const htmlMatch = fullCode.match(/```html\n([\s\S]*?)(?:```|$)/);
+              const hublMatch = fullCode.match(/```hubl\n([\s\S]*?)(?:```|$)/);
+
+              if (htmlMatch) onProjectUpdate(projectId, 'html', htmlMatch[1].trim());
+
+              // If HTML is present but no HubL, convert HTML to HubL programmatically
+              if (htmlMatch && !hublMatch) {
+                try {
+                  const htmlCode = htmlMatch[1].trim();
+                  const result = convertHtmlToHubL(htmlCode, { kind: 'page' });
+                  console.log('✅ HTML to HubL conversion successful:', result.fields.length, 'fields detected');
+                  onProjectUpdate(projectId, 'hubl', result.moduleHtml);
+                } catch (error) {
+                  console.error('❌ HTML to HubL conversion failed:', error);
+                  onProjectUpdate(projectId, 'hubl', htmlMatch[1].trim()); // Use HTML as fallback
+                }
+              } else if (hublMatch) {
+                onProjectUpdate(projectId, 'hubl', hublMatch[1].trim());
+              }
             } else {
-              // Use lenient regex that works during streaming (doesn't require closing ```)
+              // Regular HTML: HTML + CSS + JS
               const htmlMatch = fullCode.match(/```html\n([\s\S]*?)(?:```|$)/);
               const cssMatch = fullCode.match(/```css\n([\s\S]*?)(?:```|$)/);
               const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)(?:```|$)/);
@@ -199,6 +527,11 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
             } else if (fullCode.length > 1500 && currentPhase === 'css') {
               setCurrentPhase('js');
               setProgress('Generating JavaScript...');
+            }
+          } else if (projectType === 'hubspot') {
+            if (fullCode.length > 500 && currentPhase === 'html') {
+              setCurrentPhase('hubl');
+              setProgress('Generating HubL...');
             }
           }
           // For Elementor, keep showing PHP generation
@@ -242,6 +575,32 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
             css: cssMatch ? cssMatch[1].trim() : '',
             js: jsMatch ? jsMatch[1].trim() : '',
             php: phpMatch ? phpMatch[1].trim() : codeOnly.trim(),
+            projectName: generatedName,
+          });
+        } else if (projectType === 'hubspot') {
+          const htmlMatch = codeOnly.match(/```html\n([\s\S]*?)```/);
+          const hublMatch = codeOnly.match(/```hubl\n([\s\S]*?)```/);
+
+          const generatedHtml = htmlMatch ? htmlMatch[1].trim() : '';
+          let generatedHubl = hublMatch ? hublMatch[1].trim() : '';
+
+          // If HTML was generated but HubL is empty, convert HTML to HubL programmatically
+          if (generatedHtml && !generatedHubl) {
+            try {
+              const result = convertHtmlToHubL(generatedHtml, { kind: 'page' });
+              console.log('✅ HTML to HubL conversion successful:', result.fields.length, 'fields detected');
+              generatedHubl = result.moduleHtml;
+            } catch (error) {
+              console.error('❌ HTML to HubL conversion failed:', error);
+              generatedHubl = generatedHtml; // Use HTML as fallback
+            }
+          }
+
+          onGenerate({
+            html: generatedHtml,
+            css: '',
+            js: '',
+            hubl: generatedHubl,
             projectName: generatedName,
           });
         } else {
@@ -338,9 +697,12 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
                       onChange={() => setProjectType('html')}
                       style={{ margin: 0 }}
                     />
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-                      📄 HTML Section
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AiFillHtml5 size={20} color="#E34F26" />
+                      <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
+                        HTML Section
+                      </h3>
+                    </div>
                   </div>
                   <p style={{ margin: '0 0 0 28px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
                     Standalone responsive web section with HTML, CSS, and JavaScript
@@ -367,12 +729,47 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
                       onChange={() => setProjectType('elementor')}
                       style={{ margin: 0 }}
                     />
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-                      ⚡ Elementor Widget
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FaWordpress size={20} color="#21759B" />
+                      <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
+                        Elementor Widget
+                      </h3>
+                    </div>
                   </div>
                   <p style={{ margin: '0 0 0 28px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
                     Complete PHP widget class ready for Elementor (no conversion needed)
+                  </p>
+                </div>
+              </label>
+
+              <label>
+                <div
+                  onClick={() => setProjectType('hubspot')}
+                  style={{
+                    padding: '20px',
+                    border: `2px solid ${projectType === 'hubspot' ? 'var(--primary)' : 'var(--border)'}`,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    background: projectType === 'hubspot' ? 'var(--primary)/10' : 'transparent',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                    <input
+                      type="radio"
+                      checked={projectType === 'hubspot'}
+                      onChange={() => setProjectType('hubspot')}
+                      style={{ margin: 0 }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <SiHubspot size={20} color="#FF7A59" />
+                      <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
+                        HubSpot Template
+                      </h3>
+                    </div>
+                  </div>
+                  <p style={{ margin: '0 0 0 28px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                    HubSpot CMS template with HTML and HubL (inline CSS)
                   </p>
                 </div>
               </label>
@@ -447,10 +844,263 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
                 )}
               </div>
 
+              {/* Include Images Toggle */}
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
-                  AI Model
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  padding: '12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  background: includeImages ? 'var(--primary)/10' : 'transparent',
+                  transition: 'all 0.2s',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={includeImages}
+                    onChange={(e) => setIncludeImages(e.target.checked)}
+                    style={{ margin: 0, cursor: 'pointer' }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '14px', fontWeight: 500, marginBottom: '4px' }}>
+                      Include Reference Images
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                      Upload design mockups, screenshots, or inspiration images (max 3)
+                    </div>
+                  </div>
                 </label>
+
+                {/* Image Upload Section */}
+                {includeImages && (
+                  <div style={{ marginTop: '12px' }}>
+                    {uploadedImages.length > 0 && (
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                        gap: '8px',
+                        marginBottom: '12px',
+                      }}>
+                        {uploadedImages.map((img, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              position: 'relative',
+                              paddingBottom: '100%',
+                              borderRadius: '6px',
+                              overflow: 'hidden',
+                              border: '1px solid var(--border)',
+                            }}
+                          >
+                            <img
+                              src={img.url}
+                              alt={img.filename}
+                              style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                            />
+                            <button
+                              onClick={() => removeImage(idx)}
+                              style={{
+                                position: 'absolute',
+                                top: '4px',
+                                right: '4px',
+                                width: '20px',
+                                height: '20px',
+                                borderRadius: '50%',
+                                background: 'rgba(0,0,0,0.7)',
+                                color: 'white',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: 0,
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {uploadedImages.length < 3 && (
+                      <label style={{
+                        display: 'block',
+                        padding: '12px',
+                        border: '2px dashed var(--border)',
+                        borderRadius: '6px',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        color: 'var(--muted-foreground)',
+                        transition: 'all 0.2s',
+                      }}>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg"
+                          multiple
+                          onChange={handleImageSelect}
+                          style={{ display: 'none' }}
+                        />
+                        📷 Click to upload images ({3 - uploadedImages.length} remaining)
+                      </label>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Include Global CSS Toggle */}
+              <div>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: globalCSS ? 'pointer' : 'not-allowed',
+                  padding: '12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  background: includeGlobalCSS && globalCSS ? 'var(--primary)/10' : 'transparent',
+                  opacity: globalCSS ? 1 : 0.5,
+                  transition: 'all 0.2s',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={includeGlobalCSS}
+                    onChange={(e) => setIncludeGlobalCSS(e.target.checked)}
+                    disabled={!globalCSS}
+                    style={{ margin: 0, cursor: globalCSS ? 'pointer' : 'not-allowed' }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '14px', fontWeight: 500, marginBottom: '4px' }}>
+                      Include Global CSS
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                      {globalCSS
+                        ? `Add global styles to AI context for consistent design (${globalCSS.length.toLocaleString()} chars)`
+                        : 'No Global CSS configured. Go to Style Guide tab to add global CSS.'}
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              {/* HubSpot Module Type Selector */}
+              {projectType === 'hubspot' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+                    Module Type *
+                  </label>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <label style={{ flex: 1, cursor: 'pointer' }}>
+                      <div
+                        onClick={() => setHubspotModuleType('email')}
+                        style={{
+                          padding: '16px',
+                          border: `2px solid ${hubspotModuleType === 'email' ? 'var(--primary)' : 'var(--border)'}`,
+                          borderRadius: '6px',
+                          background: hubspotModuleType === 'email' ? 'var(--primary)/10' : 'transparent',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                          <input
+                            type="radio"
+                            checked={hubspotModuleType === 'email'}
+                            onChange={() => setHubspotModuleType('email')}
+                            style={{ margin: 0 }}
+                          />
+                          <strong style={{ fontSize: '14px' }}>Email Module</strong>
+                        </div>
+                        <p style={{ margin: '0 0 0 22px', fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                          Table-based layout, inline styles only
+                        </p>
+                      </div>
+                    </label>
+                    <label style={{ flex: 1, cursor: 'pointer' }}>
+                      <div
+                        onClick={() => setHubspotModuleType('page')}
+                        style={{
+                          padding: '16px',
+                          border: `2px solid ${hubspotModuleType === 'page' ? 'var(--primary)' : 'var(--border)'}`,
+                          borderRadius: '6px',
+                          background: hubspotModuleType === 'page' ? 'var(--primary)/10' : 'transparent',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                          <input
+                            type="radio"
+                            checked={hubspotModuleType === 'page'}
+                            onChange={() => setHubspotModuleType('page')}
+                            style={{ margin: 0 }}
+                          />
+                          <strong style={{ fontSize: '14px' }}>Page Module</strong>
+                        </div>
+                        <p style={{ margin: '0 0 0 22px', fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                          Modern layout, external CSS allowed
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '14px', fontWeight: 500 }}>
+                    AI Model
+                  </label>
+                  <SystemPromptViewer
+                    input={description}
+                    systemPrompt={systemPrompt}
+                    selectedModel={MODEL_CONFIGS[selectedModel]?.name || selectedModel}
+                    contextLimit={contextLimit}
+                    systemTokens={systemTokens}
+                    inputTokens={inputTokens}
+                    conversationTokens={conversationTokens}
+                    totalTokens={totalTokens}
+                    trigger={
+                      <button
+                        type="button"
+                        style={{
+                          padding: '4px 12px',
+                          fontSize: '12px',
+                          background: 'var(--primary)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: 500,
+                        }}
+                      >
+                        📋 View Prompt
+                      </button>
+                    }
+                    metadata={{
+                      projectName: projectName || generateProjectName(description),
+                      fileStats: {
+                        ...(globalCSS && includeGlobalCSS ? { globalCss: globalCSS.length } : {}),
+                        ...(includeImages && uploadedImages.length > 0 ? {
+                          images: uploadedImages.length // Show image count
+                        } as any : {})
+                      }
+                    }}
+                    fileContents={
+                      globalCSS && includeGlobalCSS ? {
+                        // Show Global CSS in a custom section
+                      } : undefined
+                    }
+                  />
+                </div>
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}

@@ -16,6 +16,45 @@ function triggerStorageEvent(key: string) {
   }));
 }
 
+// Helper to safely set localStorage with quota handling
+function safeSetItem(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    if (error instanceof DOMException && (
+      error.name === 'QuotaExceededError' ||
+      error.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    )) {
+      console.error('❌ LocalStorage quota exceeded!');
+      alert('Storage limit reached! Please delete some documents or export your data. The app will now clear old data to free up space.');
+
+      // Try to free up space by removing oldest documents
+      try {
+        const docs = documentStorage.getAll();
+        if (docs.length > 100) {
+          // Keep only the 50 most recent documents
+          const sorted = docs.sort((a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
+          const toKeep = sorted.slice(0, 50);
+          localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(toKeep));
+          console.log(`🧹 Cleaned up ${docs.length - 50} old documents`);
+
+          // Try again
+          localStorage.setItem(key, value);
+          return true;
+        }
+      } catch (cleanupError) {
+        console.error('Failed to clean up storage:', cleanupError);
+      }
+
+      return false;
+    }
+    throw error;
+  }
+}
+
 // ============================================================================
 // PROJECTS
 // ============================================================================
@@ -40,7 +79,9 @@ export const projectStorage = {
     };
 
     projects.push(project);
-    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
+    if (!safeSetItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects))) {
+      throw new Error('Failed to save project due to storage quota');
+    }
     triggerStorageEvent(STORAGE_KEYS.PROJECTS);
 
     return project;
@@ -57,7 +98,7 @@ export const projectStorage = {
       updatedAt: new Date().toISOString(),
     };
 
-    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
+    safeSetItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
     triggerStorageEvent(STORAGE_KEYS.PROJECTS);
     return projects[index];
   },
@@ -76,7 +117,7 @@ export const projectStorage = {
     const filtered = projects.filter(p => p.id !== id);
     if (filtered.length === projects.length) return false;
 
-    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(filtered));
+    safeSetItem(STORAGE_KEYS.PROJECTS, JSON.stringify(filtered));
     triggerStorageEvent(STORAGE_KEYS.PROJECTS);
     return true;
   },
@@ -108,7 +149,9 @@ export const folderStorage = {
     };
 
     folders.push(folder);
-    localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(folders));
+    if (!safeSetItem(STORAGE_KEYS.FOLDERS, JSON.stringify(folders))) {
+      throw new Error('Failed to save folder due to storage quota');
+    }
     triggerStorageEvent(STORAGE_KEYS.FOLDERS);
 
     return folder;
@@ -125,7 +168,7 @@ export const folderStorage = {
       updatedAt: new Date().toISOString(),
     };
 
-    localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(folders));
+    safeSetItem(STORAGE_KEYS.FOLDERS, JSON.stringify(folders));
     triggerStorageEvent(STORAGE_KEYS.FOLDERS);
     return folders[index];
   },
@@ -140,7 +183,7 @@ export const folderStorage = {
     const filtered = folders.filter(f => f.id !== id);
     if (filtered.length === folders.length) return false;
 
-    localStorage.setItem(STORAGE_KEYS.FOLDERS, JSON.stringify(filtered));
+    safeSetItem(STORAGE_KEYS.FOLDERS, JSON.stringify(filtered));
     triggerStorageEvent(STORAGE_KEYS.FOLDERS);
     return true;
   },
@@ -167,7 +210,7 @@ export const documentStorage = {
     const document: Document = {
       id: uuidv4(),
       title,
-      content: '<h1>Welcome to your new document</h1><p>Start typing here...</p>',
+      content: '<p></p>',
       projectId,
       folderId,
       order: siblings.length,
@@ -176,7 +219,9 @@ export const documentStorage = {
     };
 
     documents.push(document);
-    localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(documents));
+    if (!safeSetItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(documents))) {
+      throw new Error('Failed to save document due to storage quota');
+    }
     triggerStorageEvent(STORAGE_KEYS.DOCUMENTS);
 
     return document;
@@ -193,7 +238,10 @@ export const documentStorage = {
       updatedAt: new Date().toISOString(),
     };
 
-    localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(documents));
+    if (!safeSetItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(documents))) {
+      console.error('Failed to save document update');
+      return null;
+    }
     triggerStorageEvent(STORAGE_KEYS.DOCUMENTS);
     return documents[index];
   },
@@ -203,7 +251,7 @@ export const documentStorage = {
     const filtered = documents.filter(d => d.id !== id);
     if (filtered.length === documents.length) return false;
 
-    localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(filtered));
+    safeSetItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(filtered));
     triggerStorageEvent(STORAGE_KEYS.DOCUMENTS);
     return true;
   },
@@ -226,7 +274,8 @@ export const uiStateStorage = {
   update(updates: Partial<ProjectUIState>): void {
     const current = this.get();
     const updated = { ...current, ...updates };
-    localStorage.setItem(STORAGE_KEYS.UI_STATE, JSON.stringify(updated));
+    safeSetItem(STORAGE_KEYS.UI_STATE, JSON.stringify(updated));
+    triggerStorageEvent(STORAGE_KEYS.UI_STATE);
   },
 
   toggleFolder(folderId: string): void {

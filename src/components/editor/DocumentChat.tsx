@@ -27,18 +27,26 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/source';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
-import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, PanelRightOpen, FileText, FileIcon, EyeIcon, File } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, PanelRightOpen, FileText, FileIcon, EyeIcon, File, ImageIcon, XIcon } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { ConversationTokenIndicator, ConversationTokenData } from '@/components/ui/ConversationTokenIndicator';
+import { ConversationTokenData } from '@/components/ui/ConversationTokenIndicator';
 import { MODEL_CONTEXT_LIMITS } from '@/lib/token-validator';
+import { generateDocSystemPrompt } from '@/lib/generate-doc-system-prompt';
+import { encodingForModel } from 'js-tiktoken';
+import TurndownService from 'turndown';
+import { PieChartIcon } from '@/components/ui/PieChartIcon';
+import { SystemPromptViewer } from '@/components/ui/SystemPromptViewer';
+import Image from 'next/image';
+import { MobilePromptActions } from '@/components/ai-elements/MobilePromptActions';
+import { ProjectContextBadge } from '@/components/ai-elements/project-context-badge';
 
 interface DocumentChatProps {
   messages: any[];
   isLoading: boolean;
   status?: string;
   error?: Error | null;
-  onSendMessage: (text: string, settings?: { webSearchEnabled: boolean; includeContext?: boolean }) => void;
+  onSendMessage: (text: string, settings?: { webSearchEnabled: boolean; includeContext?: boolean; imageFile?: File }) => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
   onReload?: () => void;
@@ -47,12 +55,13 @@ interface DocumentChatProps {
   webSearchEnabled?: boolean;
   onWebSearchChange?: (enabled: boolean) => void;
   // Context badge props
-  currentDocument?: { title: string; id: string } | null;
+  currentDocument?: { title: string; id: string} | null;
   currentProject?: { name: string; id: string } | null;
   wordCount?: number;
   // System prompt viewer props
   systemPrompt?: string;
   documentContent?: string;
+  navigationBar?: React.ReactNode;
 }
 
 // Document Context Badge Component
@@ -200,13 +209,41 @@ export function DocumentChat({
   wordCount = 0,
   systemPrompt = '',
   documentContent = '',
+  navigationBar
 }: DocumentChatProps) {
   const [input, setInput] = useState('');
-  const [showSystemPrompt, setShowSystemPrompt] = useState(false);
   const [includeContext, setIncludeContext] = useState(true);
   const [conversationTokenData, setConversationTokenData] = useState<ConversationTokenData | null>(null);
   const [sendDisabled, setSendDisabled] = useState(false);
   const [showTokenWarning, setShowTokenWarning] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [autoCloseChat, setAutoCloseChat] = useState(() => {
+    // Read from localStorage, default to true
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('doc-auto-close-chat');
+      return saved !== null ? saved === 'true' : true;
+    }
+    return true;
+  });
+
+  // Image attachment state
+  const [attachedImage, setAttachedImage] = useState<{ file: File; preview: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Detect mobile on mount
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Save autoCloseChat to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('doc-auto-close-chat', autoCloseChat.toString());
+    }
+  }, [autoCloseChat]);
 
   // Use controlled webSearch if provided, otherwise use local state
   const webSearch = webSearchEnabled;
@@ -216,12 +253,37 @@ export function DocumentChat({
     }
   };
 
-  // Calculate stats for system prompt viewer
-  const totalChars = systemPrompt.length + documentContent.length;
-  const estimatedTokens = Math.ceil(totalChars / 4);
-
   // Get context limit for selected model
   const contextLimit = MODEL_CONTEXT_LIMITS[selectedModel] || 128000;
+
+  // Convert HTML to markdown for system prompt
+  const turndownService = new TurndownService({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced',
+  });
+  const markdownContent = documentContent ? turndownService.turndown(documentContent) : '';
+
+  // Generate actual system prompt (same as API uses) for accurate token counting
+  // This recalculates whenever includeContext changes
+  const actualSystemPrompt = generateDocSystemPrompt({
+    includeContext,
+    documentContent: markdownContent,
+    documentTitle: currentDocument?.title || '',
+    projectName: currentProject?.name || '',
+  });
+
+  // Calculate stats for system prompt viewer (uses proper tiktoken encoding to match prompt counter)
+  const encoding = encodingForModel('gpt-4o'); // cl100k_base encoding
+  const systemTokensForModal = encoding.encode(actualSystemPrompt).length;
+  const inputTokensForModal = input ? encoding.encode(input).length : 0;
+
+  // Get conversation tokens from the PromptTokenCounter state
+  // (this will be extracted in the useEffect below)
+  const conversationTokensForModal = conversationTokenData?.totalTokens || 0;
+
+  // Total tokens = system + conversation + input (matches PromptTokenCounter exactly)
+  const totalTokensForModal = systemTokensForModal + conversationTokensForModal + inputTokensForModal;
+  const totalCharsForModal = actualSystemPrompt.length + input.length;
 
   // Extract conversation token data from message metadata
   useEffect(() => {
@@ -257,14 +319,60 @@ export function DocumentChat({
     }
   }, [conversationTokenData?.percentUsed]);
 
+  // Handle image file selection
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
+      alert('Only PNG and JPEG images are supported');
+      return;
+    }
+
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be under 5MB');
+      return;
+    }
+
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setAttachedImage({ file, preview: previewUrl });
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Remove attached image
+  const handleRemoveImage = () => {
+    if (attachedImage) {
+      URL.revokeObjectURL(attachedImage.preview);
+      setAttachedImage(null);
+    }
+  };
+
+  // Cleanup preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (attachedImage) {
+        URL.revokeObjectURL(attachedImage.preview);
+      }
+    };
+  }, [attachedImage]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading && !sendDisabled) {
       onSendMessage(input, {
         webSearchEnabled: webSearch,
         includeContext,
+        imageFile: attachedImage?.file,
       });
       setInput('');
+      handleRemoveImage(); // Clear image after sending
     }
   };
 
@@ -283,17 +391,11 @@ export function DocumentChat({
       flexDirection: 'column',
       height: '100%',
       overflow: 'hidden',
-      padding: '0 24px 24px 24px',
       position: 'relative',
+      background: '#F2F2F2',
     }}>
-      {/* Conversation Token Indicator - Fixed top-right */}
-      <ConversationTokenIndicator
-        data={conversationTokenData}
-        position="top-right"
-      />
-
       <Conversation className="flex-1 scrollbar-hide" style={{ overflow: 'hidden' }}>
-        <ConversationContent className="scrollbar-hide" style={{ flex: 1, overflow: 'auto' }}>
+        <ConversationContent className="scrollbar-hide px-3" style={{ flex: 1, overflow: 'auto' }}>
           {/* API Error Display */}
           {error && (
             <div className="mx-4 my-2 p-4 rounded-lg border border-red-500/30 bg-red-500/10">
@@ -409,12 +511,42 @@ export function DocumentChat({
               )}
               <Message from={message.role} key={message.id} className="py-2">
                 <div className={cn('flex flex-col gap-1', message.role === 'user' ? 'items-end' : 'items-start')}>
+                  {/* Image attachments - show above message as small rounded thumbnails */}
+                  {message.role === 'user' && message.parts && message.parts.some((p: any) =>
+                    (p.type === 'file' || p.type === 'image') &&
+                    p.url &&
+                    (p.mediaType?.startsWith('image/') || p.mimeType?.startsWith('image/'))
+                  ) && (
+                    <div className="flex gap-2 mb-1">
+                      {message.parts.filter((p: any) =>
+                        (p.type === 'file' || p.type === 'image') &&
+                        p.url &&
+                        (p.mediaType?.startsWith('image/') || p.mimeType?.startsWith('image/'))
+                      ).map((part: any, i: number) => (
+                        <div key={i} className="relative">
+                          <Image
+                            src={part.url}
+                            alt="Attachment"
+                            width={80}
+                            height={80}
+                            className="rounded-lg object-cover border border-border"
+                            style={{ width: '80px', height: '80px' }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <MessageContent>
                     {message.parts ? (
                       message.parts.filter(part => part != null).map((part: any, i: number) => {
                         switch (part.type) {
                           case 'text':
                             return <Response key={i}>{(part.text ?? part.value) as string}</Response>;
+
+                          case 'file':
+                          case 'image':
+                            // Don't render images inline - they're shown above as attachments
+                            return null;
 
                           case 'step-start':
                             // Ignore step-start parts (just markers)
@@ -546,21 +678,29 @@ export function DocumentChat({
         <ConversationScrollButton />
       </Conversation>
 
-      {/* Document Context Badge */}
+      {/* Project Context Badge - using same component as Elementor editor */}
       {currentDocument && (
-        <DocumentContextBadge
-          currentDocument={currentDocument}
-          currentProject={currentProject}
-          wordCount={wordCount}
+        <ProjectContextBadge
+          currentSection={{
+            name: currentDocument.title,
+            type: 'document',
+            // Document doesn't have code files, so leave these undefined
+            html: undefined,
+            css: undefined,
+            js: undefined,
+            php: undefined,
+            hubl: undefined,
+          }}
           includeContext={includeContext}
         />
       )}
 
       <PromptInput
         onSubmit={handleSubmit}
-        style={{ flexShrink: 0, margin: '8px 0 10px 0' }}
+        style={{ flexShrink: 0, margin: '0 0 10px 0px' }}
+
         promptValue={input}
-        systemPrompt={systemPrompt}
+        systemPrompt={actualSystemPrompt}
         contextLimit={contextLimit}
         conversationTokens={conversationTokenData?.totalTokens || 0}
         onSendDisabled={setSendDisabled}
@@ -571,48 +711,150 @@ export function DocumentChat({
           value={input}
           placeholder="Ask me to write or edit your document..."
         />
-        <PromptInputTokenCounterSection
-          promptValue={input}
-          systemPrompt={systemPrompt}
-          contextLimit={contextLimit}
-          conversationTokens={conversationTokenData?.totalTokens || 0}
-          onSendDisabled={setSendDisabled}
-          showDetails={false}
-        />
+        {/* Image Preview */}
+        {attachedImage && (
+          <div className="px-3 py-2 border-t border-border">
+            <div className="relative inline-block">
+              <Image
+                src={attachedImage.preview}
+                alt="Attached image"
+                width={120}
+                height={120}
+                className="rounded-lg object-cover"
+              />
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90 transition-colors"
+                title="Remove image"
+              >
+                <XIcon size={14} />
+              </button>
+            </div>
+          </div>
+        )}
         <PromptInputToolbar>
           <PromptInputTools>
-            <PromptInputButton
-              variant={webSearch ? 'default' : 'ghost'}
-              onClick={() => setWebSearch(!webSearch)}
-              title={webSearch ? 'Web search enabled' : 'Web search disabled'}
-            >
-              <GlobeIcon size={16} />
-              <span>Search</span>
-            </PromptInputButton>
-            <PromptInputButton
-              variant={includeContext ? 'default' : 'ghost'}
-              onClick={() => setIncludeContext(!includeContext)}
-              title={includeContext ? 'Document context included' : 'Document context excluded'}
-            >
-              <FileIcon size={16} />
-              <span>Context</span>
-            </PromptInputButton>
-            <PromptInputButton
-              variant="ghost"
-              onClick={() => setShowSystemPrompt(true)}
-              title="View system prompt"
-            >
-              <EyeIcon size={16} />
-              <span>Prompt</span>
-            </PromptInputButton>
-            <PromptInputButton
-              variant={isEditorVisible ? 'default' : 'ghost'}
-              onClick={onToggleEditor}
-              title="Toggle document editor"
-            >
-              <PanelRightOpen size={16} />
-              <span>Editor</span>
-            </PromptInputButton>
+            {/* Mobile: Single dropdown menu for all actions */}
+            {isMobile ? (
+              <>
+                <MobilePromptActions
+                  actions={[
+                    {
+                      id: 'web-search',
+                      label: 'Web Search',
+                      icon: <GlobeIcon size={18} />,
+                      type: 'toggle',
+                      active: webSearch,
+                      onClick: () => setWebSearch(!webSearch),
+                    },
+                    {
+                      id: 'document-context',
+                      label: 'Document Context',
+                      icon: <FileIcon size={18} />,
+                      type: 'toggle',
+                      active: includeContext,
+                      onClick: () => setIncludeContext(!includeContext),
+                    },
+                    {
+                      id: 'attach-image',
+                      label: 'Attach Image',
+                      icon: <ImageIcon size={18} />,
+                      type: 'button',
+                      onClick: () => fileInputRef.current?.click(),
+                    },
+                    {
+                      id: 'auto-close-chat',
+                      label: 'Auto-close Chat on Edit',
+                      icon: <span className="text-sm font-medium">⚡</span>,
+                      type: 'toggle',
+                      active: autoCloseChat,
+                      onClick: () => setAutoCloseChat(!autoCloseChat),
+                    },
+                  ]}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+              </>
+            ) : (
+              /* Desktop: Individual buttons */
+              <>
+                <PromptInputButton
+                  variant={webSearch ? 'default' : 'ghost'}
+                  onClick={() => setWebSearch(!webSearch)}
+                  title={webSearch ? 'Web search enabled' : 'Web search disabled'}
+                >
+                  <GlobeIcon size={16} />
+                </PromptInputButton>
+                <PromptInputButton
+                  variant={includeContext ? 'default' : 'ghost'}
+                  onClick={() => setIncludeContext(!includeContext)}
+                  title={includeContext ? 'Document context included' : 'Document context excluded'}
+                >
+                  <FileIcon size={16} />
+                </PromptInputButton>
+                <PromptInputButton
+                  variant={attachedImage ? 'default' : 'ghost'}
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach image (PNG/JPEG, max 5MB)"
+                >
+                  <ImageIcon size={16} />
+                </PromptInputButton>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+              </>
+            )}
+            <SystemPromptViewer
+              input={input}
+              systemPrompt={actualSystemPrompt}
+              selectedModel={selectedModel}
+              contextLimit={contextLimit}
+              systemTokens={systemTokensForModal}
+              inputTokens={inputTokensForModal}
+              conversationTokens={conversationTokensForModal}
+              totalTokens={totalTokensForModal}
+              trigger={
+                <PromptInputButton
+                  variant="ghost"
+                  title={`Token Usage: ${totalTokensForModal.toLocaleString()} / ${contextLimit.toLocaleString()} (${((totalTokensForModal / contextLimit) * 100).toFixed(1)}%)`}
+                  className="gap-2"
+                >
+                  <PieChartIcon
+                    percentage={(totalTokensForModal / contextLimit) * 100}
+                    size={16}
+                  />
+                  <span className="text-xs font-mono tabular-nums">
+                    {totalTokensForModal.toLocaleString()}
+                  </span>
+                  <span className="text-xs text-muted-foreground">|</span>
+                  <span className="text-xs font-mono tabular-nums text-muted-foreground">
+                    {((totalTokensForModal / contextLimit) * 100).toFixed(1)}%
+                  </span>
+                </PromptInputButton>
+              }
+              metadata={{
+                documentTitle: currentDocument?.title,
+                projectName: currentProject?.name,
+                wordCount,
+              }}
+              contextToggles={{
+                includeContext,
+                webSearch: webSearchEnabled,
+              }}
+              fileContents={{
+                documentContent,
+              }}
+            />
             <PromptInputModelSelect onValueChange={onModelChange} value={selectedModel}>
               <PromptInputModelSelectTrigger>
                 <PromptInputModelSelectValue />
@@ -639,87 +881,6 @@ export function DocumentChat({
         </PromptInputToolbar>
       </PromptInput>
 
-      {/* System Prompt Viewer Modal */}
-      {showSystemPrompt && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
-          onClick={() => setShowSystemPrompt(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl shadow-2xl max-w-4xl max-h-[80vh] overflow-hidden w-full mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-semibold">System Prompt Viewer</h2>
-              <button
-                onClick={() => setShowSystemPrompt(false)}
-                className="p-1.5 hover:bg-muted rounded-md transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 overflow-auto max-h-[calc(80vh-80px)]">
-              {/* Stats */}
-              <div className="mb-4 p-4 bg-muted/50 rounded-lg space-y-2">
-                <div className="text-sm">
-                  <span className="font-medium">Model:</span> {selectedModel}
-                </div>
-                {currentDocument && (
-                  <>
-                    <div className="text-sm">
-                      <span className="font-medium">Document:</span> {currentDocument.title}
-                    </div>
-                    {currentProject && (
-                      <div className="text-sm">
-                        <span className="font-medium">Project:</span> {currentProject.name}
-                      </div>
-                    )}
-                    <div className="text-sm">
-                      <span className="font-medium">Word Count:</span> {wordCount.toLocaleString()}
-                    </div>
-                  </>
-                )}
-                <div className="text-sm">
-                  <span className="font-medium">Total Characters:</span> {totalChars.toLocaleString()}
-                </div>
-                <div className="text-sm">
-                  <span className="font-medium">Est. Tokens:</span> ~{estimatedTokens.toLocaleString()}
-                </div>
-                <div className="text-sm">
-                  <span className="font-medium">Context:</span>{' '}
-                  <span className={includeContext ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                    {includeContext ? '✓ Enabled' : '✗ Disabled'}
-                  </span> | Web Search:{' '}
-                  <span className={webSearch ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                    {webSearch ? '✓ Enabled' : '✗ Disabled'}
-                  </span>
-                </div>
-              </div>
-
-              {/* System Prompt */}
-              <div className="mb-4">
-                <h3 className="font-medium mb-2">System Prompt:</h3>
-                <pre className="bg-background p-4 rounded-lg text-xs border border-border overflow-auto max-h-60 whitespace-pre-wrap">
-                  {systemPrompt}
-                </pre>
-              </div>
-
-              {/* Document Content */}
-              {documentContent && (
-                <div>
-                  <h3 className="font-medium mb-2">Document Content ({documentContent.length.toLocaleString()} chars):</h3>
-                  <pre className="bg-background p-4 rounded-lg text-xs border border-border overflow-auto max-h-60 whitespace-pre-wrap">
-                    {documentContent}
-                  </pre>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -127,10 +127,12 @@ export interface SectionSettings {
 export interface Section {
   id: string;
   name: string;
+  type: 'html' | 'php' | 'hubspot'; // Project type
   html: string;
   css: string;
   js: string;
   php?: string; // Elementor widget PHP code (optional)
+  hubl?: string; // HubSpot HubL template code (optional)
   settings: SectionSettings;
   createdAt: number;
   updatedAt: number;
@@ -222,9 +224,12 @@ export function createSection(partial?: Partial<Section>): Section {
   return {
     id: partial?.id || `section_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     name: partial?.name || 'Untitled Section',
+    type: partial?.type || 'html', // Default to HTML project
     html: partial?.html || '',
     css: partial?.css || '',
     js: partial?.js || '',
+    php: partial?.php,
+    hubl: partial?.hubl,
     settings: partial?.settings || defaultSectionSettings,
     createdAt: partial?.createdAt || Date.now(),
     updatedAt: Date.now()

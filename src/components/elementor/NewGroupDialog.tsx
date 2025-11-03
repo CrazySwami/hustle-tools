@@ -7,15 +7,18 @@
 'use client';
 
 import { useState } from 'react';
+import { AiFillHtml5 } from 'react-icons/ai';
+import { FaWordpress } from 'react-icons/fa';
+import { SiHubspot } from 'react-icons/si';
 
 interface NewGroupDialogProps {
   onClose: () => void;
-  onCreate: (name: string, type: 'html' | 'php', template: string) => void;
+  onCreate: (name: string, type: 'html' | 'php' | 'hubspot', template: string) => void;
 }
 
 export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
   const [name, setName] = useState('');
-  const [type, setType] = useState<'html' | 'php'>('html');
+  const [type, setType] = useState<'html' | 'php' | 'hubspot'>('html');
   const [template, setTemplate] = useState('empty');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -145,23 +148,26 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                     name="type"
                     value="html"
                     checked={type === 'html'}
-                    onChange={(e) => setType(e.target.value as 'html' | 'php')}
+                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot')}
                     style={{ marginRight: '12px' }}
                   />
-                  <div>
-                    <div style={{
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      color: '#ffffff',
-                      marginBottom: '4px'
-                    }}>
-                      📦 HTML Project
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#888'
-                    }}>
-                      Standard HTML + CSS + JavaScript
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AiFillHtml5 size={20} color="#E34F26" style={{ flexShrink: 0 }} />
+                    <div>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: '#ffffff',
+                        marginBottom: '4px'
+                      }}>
+                        HTML Project
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#888'
+                      }}>
+                        Standard HTML + CSS + JavaScript
+                      </div>
                     </div>
                   </div>
                 </label>
@@ -182,23 +188,66 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                     name="type"
                     value="php"
                     checked={type === 'php'}
-                    onChange={(e) => setType(e.target.value as 'html' | 'php')}
+                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot')}
                     style={{ marginRight: '12px' }}
                   />
-                  <div>
-                    <div style={{
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      color: '#ffffff',
-                      marginBottom: '4px'
-                    }}>
-                      🔧 PHP Widget
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FaWordpress size={20} color="#21759B" style={{ flexShrink: 0 }} />
+                    <div>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: '#ffffff',
+                        marginBottom: '4px'
+                      }}>
+                        WordPress PHP Widget
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#888'
+                      }}>
+                        Elementor widget (PHP + CSS + JavaScript)
+                      </div>
                     </div>
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#888'
-                    }}>
-                      Elementor widget (PHP + CSS + JavaScript)
+                  </div>
+                </label>
+
+                {/* HubSpot Template Option */}
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '12px',
+                  background: type === 'hubspot' ? '#2a2d2e' : '#1e1e1e',
+                  border: type === 'hubspot' ? '2px solid #007acc' : '2px solid #3e3e3e',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}>
+                  <input
+                    type="radio"
+                    name="type"
+                    value="hubspot"
+                    checked={type === 'hubspot'}
+                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot')}
+                    style={{ marginRight: '12px' }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <SiHubspot size={20} color="#FF7A59" style={{ flexShrink: 0 }} />
+                    <div>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: '#ffffff',
+                        marginBottom: '4px'
+                      }}>
+                        HubSpot Template
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#888'
+                      }}>
+                        HubSpot CMS template (HTML + HubL)
+                      </div>
                     </div>
                   </div>
                 </label>
@@ -237,11 +286,16 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                     <option value="hero">Hero Section</option>
                     <option value="contact-form">Contact Form</option>
                   </>
-                ) : (
+                ) : type === 'php' ? (
                   <>
                     <option value="basic-widget">Basic Widget</option>
                   </>
-                )}
+                ) : type === 'hubspot' ? (
+                  <>
+                    <option value="hubspot-hero">Hero Section (Page Module)</option>
+                    <option value="hubspot-email">Email CTA (Email Module)</option>
+                  </>
+                ) : null}
               </select>
             </div>
           </div>

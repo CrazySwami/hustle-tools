@@ -38,7 +38,8 @@ import { streamText, UIMessage, convertToModelMessages } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
 import { tools } from '@/lib/tools';
 import { apiMonitor } from '@/lib/api-monitor';
-import { validatePromptTokens, smartTruncateFile, getTokenUsageRecommendation } from '@/lib/token-validator';
+import { validatePromptTokens, smartTruncateFile, getTokenUsageRecommendation, estimateMessagesTokens, estimateTokenCount, getModelContextLimit } from '@/lib/token-validator';
+import { generateDocSystemPrompt } from '@/lib/generate-doc-system-prompt';
 
 export const maxDuration = 60;
 
@@ -90,22 +91,23 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get current date for context
-    const currentDate = new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-
     // ============================================================================
     // 📦 BENEFIT #2 & #3: SPECIALIZED CONTEXT + OPTIMIZED SYSTEM PROMPT
     // ============================================================================
     // This prompt is ONLY for document editing - no code editing instructions!
     // Result: Saves 2000+ tokens per request vs. generic prompt
+    // Uses shared function to ensure frontend token counting matches
     // ============================================================================
 
-    let systemPrompt = `You are an expert document editing assistant. You help users write, edit, and improve prose, articles, blog posts, essays, and other written content.
+    let systemPrompt = generateDocSystemPrompt({
+      includeContext,
+      documentContent,
+      documentTitle,
+      projectName,
+    });
+
+    // OLD INLINE GENERATION (kept for reference, now replaced by shared function):
+    /* const oldSystemPrompt = `You are an expert document editing assistant. You help users write, edit, and improve prose, articles, blog posts, essays, and other written content.
 
 **Current date:** ${currentDate}
 
@@ -231,7 +233,7 @@ ${includeContext ? `
 - "Write an introduction" → Use editDocumentWithMorph to write content
 - "Make this better" → Use editDocumentWithMorph to improve selected text
 - "Change the title" → Use editDocumentWithMorph to modify title
-- "Fix the grammar" → Use editDocumentWithMorph to correct text`;
+- "Fix the grammar" → Use editDocumentWithMorph to correct text`; */
 
     // Enable web search for Perplexity models
     if (webSearch && model.startsWith('perplexity/')) {
@@ -409,11 +411,48 @@ After using a tool, provide a brief text response explaining what you did.`;
       systemPromptLength: systemPrompt.length,
     });
 
+    // 🔍 DETAILED LOGGING: Show what's actually being sent to the API
+    console.log('📋 SYSTEM PROMPT PREVIEW (first 500 chars):', systemPrompt.substring(0, 500));
+    console.log('📋 SYSTEM PROMPT (full length):', systemPrompt.length, 'characters');
+    console.log('📋 DOCUMENT CONTENT IN SYSTEM PROMPT:', {
+      includeContext,
+      documentContentLength: documentContent.length,
+      documentContentPreview: documentContent.substring(0, 200),
+    });
+    console.log('📋 MESSAGES BEING SENT:', {
+      messageCount: convertedMessages.length,
+      messages: convertedMessages.map((msg: any, i: number) => ({
+        index: i,
+        role: msg.role,
+        contentType: Array.isArray(msg.content) ? 'parts[]' : typeof msg.content,
+        contentLength: typeof msg.content === 'string' ? msg.content.length : JSON.stringify(msg.content).length,
+        contentPreview: typeof msg.content === 'string' ? msg.content.substring(0, 100) : JSON.stringify(msg.content).substring(0, 100),
+      })),
+    });
+
     // ============================================================================
     // 🔍 TOKEN VALIDATION: Check if prompt fits within model's context window
     // ============================================================================
-    const messagesText = JSON.stringify(convertedMessages);
-    let validation = validatePromptTokens(systemPrompt, messagesText, model);
+    // Use async image-aware token counting for accurate vision token calculation
+    const messagesTokens = await estimateMessagesTokens(convertedMessages, model);
+    const systemTokens = estimateTokenCount(systemPrompt);
+    const totalInputTokens = systemTokens + messagesTokens;
+
+    const contextLimit = getModelContextLimit(model);
+    const effectiveLimit = contextLimit - 4000; // Reserve for output
+
+    const percentUsed = (totalInputTokens / effectiveLimit) * 100;
+    const exceeded = Math.max(0, totalInputTokens - effectiveLimit);
+
+    let validation = {
+      isValid: totalInputTokens <= effectiveLimit,
+      tokenCount: totalInputTokens,
+      limit: effectiveLimit,
+      percentUsed,
+      exceeded,
+      warning: percentUsed > 75 ? `Prompt uses ${percentUsed.toFixed(1)}% of context window.` : undefined,
+      error: totalInputTokens > effectiveLimit ? `Prompt exceeds model context limit by ${exceeded.toLocaleString()} tokens.` : undefined,
+    };
 
     console.log('📊 Token validation (before management):', {
       model,
@@ -466,9 +505,21 @@ After using a tool, provide a brief text response explaining what you did.`;
 
         windowStrategy = windowResult.strategy;
 
-        // Re-validate with managed messages
-        const managedMessagesText = JSON.stringify(managedMessages);
-        validation = validatePromptTokens(systemPrompt, managedMessagesText, model);
+        // Re-validate with managed messages (async image-aware counting)
+        const managedMessagesTokens = await estimateMessagesTokens(managedMessages, model);
+        const managedTotalTokens = systemTokens + managedMessagesTokens;
+        const managedPercentUsed = (managedTotalTokens / effectiveLimit) * 100;
+        const managedExceeded = Math.max(0, managedTotalTokens - effectiveLimit);
+
+        validation = {
+          isValid: managedTotalTokens <= effectiveLimit,
+          tokenCount: managedTotalTokens,
+          limit: effectiveLimit,
+          percentUsed: managedPercentUsed,
+          exceeded: managedExceeded,
+          warning: managedPercentUsed > 75 ? `Prompt uses ${managedPercentUsed.toFixed(1)}% of context window.` : undefined,
+          error: managedTotalTokens > effectiveLimit ? `Prompt exceeds model context limit by ${managedExceeded.toLocaleString()} tokens.` : undefined,
+        };
 
         console.log('📊 Token validation (after management):', {
           model,

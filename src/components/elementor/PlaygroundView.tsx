@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCwIcon, ExternalLinkIcon, EyeIcon, DownloadIcon, PackageIcon } from 'lucide-react';
-import { OptionsButton } from '@/components/ui/OptionsButton';
 import { BottomNav } from '@/components/ui/BottomNav';
 
 interface PlaygroundViewProps {
@@ -259,81 +258,6 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
         title="WordPress Playground"
       />
 
-      {/* Bottom Navigation with OptionsButton */}
-      <BottomNav
-        pageActions={
-          <OptionsButton
-            isMobile={isMobile}
-            isVisible={isTabVisible}
-            options={[
-              {
-                label: '🚀 Launch',
-                onClick: launchPlayground,
-                disabled: isLoading || !playgroundReady
-              },
-              {
-                label: '🔄 Update & Open',
-                onClick: refreshPlayground,
-                disabled: isLoading || !playgroundReady
-              },
-              {
-                label: '👁️ View Live',
-                onClick: viewPage,
-                disabled: !playgroundReady
-              },
-              {
-                label: '🔍 Open in New Tab',
-                onClick: () => {
-                  // Get the iframe element and try to open its URL in a new tab
-                  const iframe = document.getElementById('playgroundIframe') as HTMLIFrameElement;
-                  if (iframe && iframe.contentWindow) {
-                    try {
-                      // Try to get the current URL from the iframe
-                      const currentUrl = iframe.contentWindow.location.href;
-                      if (currentUrl && currentUrl !== 'about:blank') {
-                        window.open(currentUrl, '_blank');
-                      } else {
-                        // Fallback: show message
-                        alert('Please wait for the playground to load, then click "👁️ View Live" first.');
-                      }
-                    } catch (e) {
-                      // Cross-origin error - show helpful message
-                      alert('To inspect elements:\n\n1. Click "👁️ View Live" to navigate to the page\n2. Then click "🔍 Open in New Tab" to open it in a new window\n3. Use your browser\'s DevTools (F12) in the new tab to inspect elements');
-                    }
-                  }
-                },
-                disabled: !playgroundReady,
-                divider: true
-              },
-              {
-                label: '⬇️ Pull Changes',
-                onClick: pullFromPlayground,
-                disabled: isLoading || !playgroundReady
-              },
-              {
-                label: '📦 Export Site',
-                onClick: exportSite,
-                disabled: isLoading || !playgroundReady,
-                divider: true
-              },
-              // Chat toggle
-              ...(setChatVisible ? [{
-                label: chatVisible ? 'Hide Chat' : 'Show Chat',
-                onClick: () => setChatVisible(!chatVisible),
-                type: 'toggle' as const,
-                active: chatVisible
-              }] : []),
-              // Tab bar toggle
-              ...(setTabBarVisible ? [{
-                label: tabBarVisible ? 'Hide Tab Bar' : 'Show Tab Bar',
-                onClick: () => setTabBarVisible(!tabBarVisible),
-                type: 'toggle' as const,
-                active: tabBarVisible
-              }] : [])
-            ]}
-          />
-        }
-      />
     </div>
   );
 }

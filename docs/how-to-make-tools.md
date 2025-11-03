@@ -34,6 +34,7 @@ This guide provides a clear, repeatable process for adding new tools to the chat
 5. [Simple Tools (Synchronous)](#simple-tools-synchronous)
 6. [Streaming Tools (Asynchronous)](#streaming-tools-asynchronous-with-ui)
 7. [Creating a Chat Interface](#creating-a-chat-interface-complete-guide)
+   - [Standardized Two-Panel Chat Layout Pattern](#standardized-two-panel-chat-layout-pattern) ⭐ **REQUIRED**
 8. [AI SDK 5 Tool Part Rendering](#ai-sdk-5-tool-part-rendering-critical)
    - [Preventing Duplicate Tool Rendering](#preventing-duplicate-tool-rendering)
 9. [Troubleshooting](#troubleshooting--common-pitfalls)
@@ -3819,6 +3820,524 @@ When creating a new chat feature:
 - [ ] Tested web search integration (if enabled)
 - [ ] Tested system prompt viewer
 - [ ] Tested copy and regenerate actions
+
+---
+
+### Standardized Two-Panel Chat Layout Pattern
+
+**CRITICAL**: All chat pages with split-screen layouts (Chat | Content) MUST use the `TwoPanelChatLayout` component. This ensures consistent spacing, resizing behavior, and mobile responsiveness across all chat interfaces.
+
+#### Why This Pattern Exists
+
+We created a reusable `TwoPanelChatLayout` component to eliminate code duplication and ensure:
+
+1. **True Reusability** - Edit the layout once, all pages update automatically
+2. **Visual Consistency** - All chat interfaces use the exact same structure
+3. **Predictable UX** - Users get identical behavior everywhere
+4. **Maintainability** - Single source of truth for layout logic
+5. **Mobile Support** - Built-in responsive behavior (desktop split, mobile drawer)
+
+#### Using TwoPanelChatLayout Component
+
+**Import the component:**
+
+```typescript
+import { TwoPanelChatLayout } from '@/components/layouts/TwoPanelChatLayout';
+```
+
+**Basic usage:**
+
+```typescript
+<TwoPanelChatLayout
+  leftPanel={
+    <YourChatComponent
+      messages={messages}
+      onSendMessage={handleSendMessage}
+      // ... other props
+    />
+  }
+  rightPanel={
+    <div style={{ padding: '16px' }}>
+      <div className="border rounded-lg bg-background shadow-sm">
+        <YourEditorOrContentComponent />
+      </div>
+    </div>
+  }
+/>
+```
+
+**Desktop behavior:** 40/60 resizable split with transparent divider (shows on hover)
+**Mobile behavior:** Content main view, chat slides up from bottom (handled by chat component drawer)
+
+#### Component API
+
+```typescript
+interface TwoPanelChatLayoutProps {
+  /** Left panel - typically the chat interface (40% default on desktop) */
+  leftPanel: ReactNode;
+  /** Right panel - content area (editor, canvas, etc) (60% default on desktop) */
+  rightPanel: ReactNode;
+  /** Default split percentage for left panel (default: 40) */
+  defaultSplitPercent?: number;
+  /** Minimum left panel width percentage (default: 25) */
+  minLeftPercent?: number;
+  /** Maximum left panel width percentage (default: 75) */
+  maxLeftPercent?: number;
+}
+```
+
+#### Complete Example: Document Editor Page
+
+**Full implementation from `/src/app/chat-doc/page.tsx`:**
+
+```typescript
+import { TwoPanelChatLayout } from '@/components/layouts/TwoPanelChatLayout';
+import { DocumentChat } from '@/components/editor/DocumentChat';
+import TiptapEditor from '@/components/editor/TiptapEditor';
+
+// Inside your page component render:
+{!isMobile && isEditorVisible && (
+  <TwoPanelChatLayout
+    leftPanel={
+      <DocumentChat
+        messages={messages}
+        isLoading={isLoading}
+        onSendMessage={handleSendMessage}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+        // ... other chat props
+      />
+    }
+    rightPanel={
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div className="border rounded-lg bg-background shadow-sm" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <TiptapEditor
+            initialContent={documentContent}
+            onContentChange={handleContentChange}
+            // ... other editor props
+          />
+        </div>
+      </div>
+    }
+  />
+)}
+```
+
+#### What the Component Handles For You
+
+The `TwoPanelChatLayout` component automatically manages:
+
+- ✅ **Responsive split** - 40/60 default, customizable
+- ✅ **Resize dragging** - Mouse handlers, constraints (25-75%)
+- ✅ **Transparent divider** - Shows on hover, hidden while dragging
+- ✅ **Mobile detection** - Auto-switches between split and stacked layouts
+- ✅ **User select prevention** - During resize operations
+- ✅ **State management** - Width percentage tracking
+
+#### Implementation Checklist
+
+When creating a new two-panel chat page:
+
+- [ ] Import `TwoPanelChatLayout` from `@/components/layouts/TwoPanelChatLayout`
+- [ ] Pass your chat component as `leftPanel` prop
+- [ ] Pass your content (editor/canvas) as `rightPanel` prop
+- [ ] Wrap right panel content in padding div (`16px`) + bordered container
+- [ ] Do NOT manually implement resize handlers (component handles it)
+- [ ] Do NOT create custom dividers (component handles it)
+- [ ] Test desktop resize (drag divider)
+- [ ] Test mobile view (chat drawer from bottom)
+
+#### Reference Implementations
+
+**Current pages using TwoPanelChatLayout:**
+
+1. **[/src/app/chat-doc/page.tsx](../src/app/chat-doc/page.tsx)** - Document Editor with TiptapEditor
+2. **[/src/app/elementor-editor/page.tsx](../src/app/elementor-editor/page.tsx)** - Elementor Editor with tabbed content
+
+**Component source:**
+- **[/src/components/layouts/TwoPanelChatLayout.tsx](../src/components/layouts/TwoPanelChatLayout.tsx)** - The reusable layout component
+
+**When creating new chat interfaces**, copy the usage pattern from `/chat-doc/page.tsx`. The component handles all layout complexity for you.
+
+#### Testing Your Implementation
+
+After implementing with TwoPanelChatLayout:
+
+1. **Resize test**: Drag the divider - it should smoothly resize from 25% to 75% width
+2. **Hover test**: Divider should show primary color on hover, transparent otherwise
+3. **Mobile test**: On mobile (`< 768px`), content should be main view with chat as drawer
+4. **Consistency test**: Open both `/chat-doc` and your new page - behavior should be identical
+
+---
+
+### System Prompt Viewer & Token Tracking
+
+**CRITICAL**: All chat interfaces MUST include the `SystemPromptViewer` component for token tracking and prompt inspection. This provides users with visibility into context usage and helps debug token limit issues.
+
+#### Why This Pattern Exists
+
+The SystemPromptViewer component provides:
+
+1. **Token Tracking** - Real-time display of token usage vs. context limits
+2. **System Prompt Inspection** - View the exact prompt sent to the AI
+3. **Context Visibility** - See what files/content are included in the prompt
+4. **Debug Tool** - Helps identify why responses might be incomplete or incorrect
+5. **Cost Awareness** - Users can monitor token consumption
+
+#### Component Features
+
+**Two-Tab Modal Interface:**
+1. **System Prompt Tab** - View current prompt, file contents, metadata
+2. **Token Breakdown Tab** - Detailed token usage with color-coded warnings
+
+**Visual Indicators:**
+- 🟢 Green (< 70% usage) - Safe
+- 🟡 Yellow (70-90% usage) - Warning
+- 🔴 Red (> 90% usage) - Critical
+
+#### Using SystemPromptViewer
+
+**Import the component:**
+
+```typescript
+import { SystemPromptViewer } from '@/components/ui/SystemPromptViewer';
+import { getModelContextLimit, estimateTokenCount } from '@/lib/token-validator';
+import { PieChartIcon } from '@/components/ui/PieChartIcon';
+```
+
+**Calculate token counts:**
+
+```typescript
+// In your chat component
+const contextLimit = getModelContextLimit(selectedModel);
+const systemTokens = estimateTokenCount(systemPrompt);
+const inputTokens = estimateTokenCount(input);
+const conversationTokens = messages.reduce((total, msg) => {
+  if (typeof msg.content === 'string') {
+    return total + estimateTokenCount(msg.content);
+  }
+  return total;
+}, 0);
+const totalTokens = systemTokens + conversationTokens + inputTokens;
+```
+
+**Render in prompt input toolbar:**
+
+```typescript
+<SystemPromptViewer
+  input={input}
+  systemPrompt={systemPrompt}
+  selectedModel={selectedModel}
+  contextLimit={contextLimit}
+  systemTokens={systemTokens}
+  inputTokens={inputTokens}
+  conversationTokens={conversationTokens}
+  totalTokens={totalTokens}
+  trigger={
+    <PromptInputButton
+      variant="ghost"
+      title={`Token Usage: ${totalTokens.toLocaleString()} / ${contextLimit.toLocaleString()} (${((totalTokens / contextLimit) * 100).toFixed(1)}%)`}
+      className="gap-2"
+    >
+      <PieChartIcon
+        percentage={(totalTokens / contextLimit) * 100}
+        size={16}
+      />
+      <span className="text-xs font-mono tabular-nums">
+        {totalTokens.toLocaleString()}
+      </span>
+      <span className="text-xs text-muted-foreground">|</span>
+      <span className="text-xs font-mono tabular-nums text-muted-foreground">
+        {((totalTokens / contextLimit) * 100).toFixed(1)}%
+      </span>
+    </PromptInputButton>
+  }
+  metadata={{
+    documentTitle: currentDocument?.title,
+    projectName: currentProject?.name,
+    wordCount,
+    fileStats: {
+      html: currentSection?.html?.length || 0,
+      css: currentSection?.css?.length || 0,
+      js: currentSection?.js?.length || 0,
+      php: currentSection?.php?.length || 0,
+      globalCss: includeCss ? effectiveGlobalCss?.length || 0 : 0,
+    },
+  }}
+  contextToggles={{
+    includeContext,
+    includeCss,
+    webSearch,
+  }}
+  fileContents={{
+    html: currentSection?.html,
+    css: currentSection?.css,
+    js: currentSection?.js,
+    php: currentSection?.php,
+    documentContent,
+  }}
+/>
+```
+
+#### Client-Side System Prompt Generation
+
+**CRITICAL**: System prompts should be generated client-side for the SystemPromptViewer to work correctly. This matches the exact prompt sent to the API.
+
+**For Elementor Chat:**
+
+```typescript
+import { generateElementorSystemPrompt } from '@/lib/generate-elementor-system-prompt';
+
+// Generate system prompt client-side (matches API logic)
+const systemPrompt = generateElementorSystemPrompt({
+  includeContext,
+  includeCss,
+  webSearch,
+  currentSection,
+  globalCss: effectiveGlobalCss,
+});
+```
+
+**For Document Chat:**
+
+```typescript
+import { generateDocSystemPrompt } from '@/lib/generate-doc-system-prompt';
+
+const systemPrompt = generateDocSystemPrompt({
+  includeContext,
+  documentContent: markdownContent,
+  documentTitle: currentDocument?.title || '',
+  projectName: currentProject?.name || '',
+});
+```
+
+#### Context Toggle Buttons
+
+**Pattern**: Add toggle buttons in the prompt input toolbar to control what context is included in the system prompt.
+
+**Common toggles:**
+
+```typescript
+{/* Web Search Toggle */}
+<PromptInputButton
+  variant={webSearch ? 'default' : 'ghost'}
+  onClick={() => setWebSearch(!webSearch)}
+  title={webSearch ? 'Web search enabled' : 'Web search disabled'}
+>
+  <GlobeIcon size={16} />
+</PromptInputButton>
+
+{/* File Context Toggle */}
+<PromptInputButton
+  variant={includeContext ? 'default' : 'ghost'}
+  onClick={() => setIncludeContext(!includeContext)}
+  title={includeContext ? 'Project files included in prompt' : 'Project files excluded from prompt'}
+>
+  <FileCodeIcon size={16} />
+</PromptInputButton>
+
+{/* CSS Context Toggle (Elementor only) */}
+<PromptInputButton
+  variant={includeCss ? 'default' : 'ghost'}
+  onClick={() => setIncludeCss(!includeCss)}
+  title={includeCss ? 'Style Kit CSS included in prompt' : 'Style Kit CSS excluded'}
+>
+  <span className="text-sm font-medium">CSS</span>
+</PromptInputButton>
+
+{/* Image Attachment (Optional) */}
+<PromptInputButton
+  variant={attachedImage ? 'default' : 'ghost'}
+  onClick={() => fileInputRef.current?.click()}
+  title="Attach image (PNG/JPEG, max 5MB)"
+>
+  <ImageIcon size={16} />
+</PromptInputButton>
+```
+
+#### State Management for Context Toggles
+
+```typescript
+// In your chat component
+const [webSearch, setWebSearch] = useState(false);
+const [includeContext, setIncludeContext] = useState(true);
+const [includeCss, setIncludeCss] = useState(false); // Elementor only
+```
+
+**Pass to onSendMessage:**
+
+```typescript
+const handleSend = async () => {
+  if (input.trim()) {
+    onSendMessage(
+      input,
+      attachedImage ? { url: imageDataUrl, filename: attachedImage.file.name } : undefined,
+      {
+        webSearchEnabled: webSearch,
+        reasoningEffort,
+        includeContext,
+        includeCss, // Elementor only
+      }
+    );
+    setInput('');
+  }
+};
+```
+
+#### Component API Reference
+
+```typescript
+interface SystemPromptViewerProps {
+  /** Currently typed input text */
+  input: string;
+  /** Generated system prompt to display */
+  systemPrompt: string;
+  /** Selected model name */
+  selectedModel: string;
+  /** Model context limit */
+  contextLimit: number;
+  /** System prompt token count */
+  systemTokens: number;
+  /** Input token count */
+  inputTokens: number;
+  /** Conversation token count */
+  conversationTokens: number;
+  /** Total token count */
+  totalTokens: number;
+  /** Trigger element (button to open modal) */
+  trigger: React.ReactNode;
+  /** Optional: Document/Project metadata to display */
+  metadata?: {
+    documentTitle?: string;
+    projectName?: string;
+    wordCount?: number;
+    fileStats?: {
+      html?: number;
+      css?: number;
+      js?: number;
+      php?: number;
+      globalCss?: number;
+    };
+  };
+  /** Optional: Context toggles state */
+  contextToggles?: {
+    includeContext?: boolean;
+    includeCss?: boolean;
+    webSearch?: boolean;
+  };
+  /** Optional: Full file contents to display */
+  fileContents?: {
+    html?: string;
+    css?: string;
+    js?: string;
+    php?: string;
+    documentContent?: string;
+  };
+}
+```
+
+#### Implementation Checklist
+
+When adding SystemPromptViewer to a chat component:
+
+- [ ] Import SystemPromptViewer, getModelContextLimit, estimateTokenCount, PieChartIcon
+- [ ] Create client-side system prompt generation function if not exists
+- [ ] Add state for context toggles (webSearch, includeContext, etc.)
+- [ ] Calculate token counts (system, input, conversation, total)
+- [ ] Add toggle buttons in PromptInputToolbar
+- [ ] Render SystemPromptViewer with PieChartIcon trigger
+- [ ] Pass metadata, contextToggles, and fileContents
+- [ ] Pass toggle states to onSendMessage callback
+- [ ] Test: Click token button → Modal opens with prompt and breakdown
+- [ ] Test: Toggle context buttons → Token count updates in real-time
+- [ ] Test: Verify prompt contents match what's sent to API
+
+#### Reference Implementations
+
+**Current components with SystemPromptViewer:**
+
+1. **[ElementorChat.tsx](../src/components/elementor/ElementorChat.tsx)** - Lines 617-703
+   - Context toggles: File context, CSS context, Web search, Image attachment
+   - Metadata: File stats (HTML, CSS, JS, PHP, Global CSS character counts)
+   - Client-side prompt: `generateElementorSystemPrompt()`
+
+2. **[DocumentChat.tsx](../src/components/editor/DocumentChat.tsx)** - Lines 726-766
+   - Context toggles: Include context, Web search, Image attachment
+   - Metadata: Document title, project name, word count
+   - Client-side prompt: `generateDocSystemPrompt()`
+
+**Component source:**
+- **[SystemPromptViewer.tsx](../src/components/ui/SystemPromptViewer.tsx)** - The reusable modal component
+- **[PieChartIcon.tsx](../src/components/ui/PieChartIcon.tsx)** - Visual token usage indicator
+
+**System prompt generators:**
+- **[generate-elementor-system-prompt.ts](../src/lib/generate-elementor-system-prompt.ts)** - Elementor chat prompts
+- **[generate-doc-system-prompt.ts](../src/lib/generate-doc-system-prompt.ts)** - Document chat prompts
+
+#### Testing Your Implementation
+
+After adding SystemPromptViewer:
+
+1. **Token button visibility**: Should show in prompt input toolbar with pie chart icon
+2. **Token count updates**: Type in input → Count increases in real-time
+3. **Modal opens**: Click token button → Two-tab modal displays
+4. **System Prompt tab**: Shows full prompt, file contents, metadata
+5. **Token Breakdown tab**: Shows detailed usage with color-coded warnings
+6. **Context toggles reflect**: Toggle buttons show correct state in modal
+7. **Copy functionality**: "Copy System Prompt" button works
+8. **Real-time sync**: Change context toggles → Token count updates immediately
+
+#### Common Issues & Solutions
+
+**Issue: System prompt shows "Loading..." and never updates**
+
+**Cause**: System prompt not generated client-side
+**Solution**: Create system prompt generator function and call it in component
+
+```typescript
+// ❌ Wrong - fetching from API
+const [systemPrompt, setSystemPrompt] = useState('');
+useEffect(() => {
+  fetch('/api/get-system-prompt').then(/*...*/);
+}, []);
+
+// ✅ Correct - generate client-side
+const systemPrompt = generateElementorSystemPrompt({
+  includeContext,
+  includeCss,
+  webSearch,
+  currentSection,
+  globalCss,
+});
+```
+
+**Issue: Token count doesn't update when typing**
+
+**Cause**: Not recalculating tokens on input change
+**Solution**: Token calculations should be outside useEffect, recalculated on every render
+
+```typescript
+// ✅ Correct - recalculates on every render
+const systemTokens = estimateTokenCount(systemPrompt);
+const inputTokens = estimateTokenCount(input); // Updates when input changes
+const totalTokens = systemTokens + conversationTokens + inputTokens;
+```
+
+**Issue: File contents not showing in modal**
+
+**Cause**: Not passing `fileContents` prop
+**Solution**: Pass actual file contents to SystemPromptViewer
+
+```typescript
+<SystemPromptViewer
+  // ... other props
+  fileContents={{
+    html: currentSection?.html, // ✅ Pass actual content
+    css: currentSection?.css,
+    documentContent, // ✅ For document chat
+  }}
+/>
+```
 
 ---
 

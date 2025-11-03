@@ -18,9 +18,10 @@ interface OptionsButtonProps {
   position?: { bottom?: string; left?: string; right?: string; top?: string };
   isMobile?: boolean;
   isVisible?: boolean; // For tab-based layouts - controls portal rendering
+  inline?: boolean; // If true, uses relative positioning for inline placement (e.g., in tab bars)
 }
 
-export function OptionsButton({ options, position, isMobile = false, isVisible = true }: OptionsButtonProps) {
+export function OptionsButton({ options, position, isMobile = false, isVisible = true, inline = false }: OptionsButtonProps) {
   // Smart default positioning: account for mobile chat drawer
   const defaultPosition = {
     bottom: isMobile ? '25px' : '20px', // Lower on mobile to clear chat drawer
@@ -127,16 +128,16 @@ export function OptionsButton({ options, position, isMobile = false, isVisible =
     </div>
   );
 
-  // Desktop button component (absolute positioning)
+  // Desktop button component (absolute positioning or inline)
   const desktopButton = (
-    <div ref={menuRef}>
+    <div ref={menuRef} style={{ position: 'relative', display: inline ? 'block' : undefined }}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          position: 'absolute',
-          ...finalPosition,
-          width: '56px',
-          height: '56px',
+          position: inline ? 'relative' : 'absolute',
+          ...(inline ? {} : finalPosition),
+          width: inline ? '36px' : '56px',
+          height: inline ? '36px' : '56px',
           borderRadius: '50%',
           background: isOpen ? 'var(--foreground)' : 'var(--muted)',
           color: isOpen ? 'var(--background)' : 'var(--foreground)',
@@ -147,12 +148,13 @@ export function OptionsButton({ options, position, isMobile = false, isVisible =
           alignItems: 'center',
           justifyContent: 'center',
           padding: '0',
-          zIndex: 100,
-          transition: 'all 0.2s ease'
+          zIndex: inline ? undefined : 100,
+          transition: 'all 0.2s ease',
+          flexShrink: 0
         }}
         aria-label="Options menu"
       >
-        <MenuIcon size={24} />
+        <MenuIcon size={inline ? 18 : 24} />
       </button>
 
       {/* Dropdown Menu - for desktop */}
@@ -160,10 +162,11 @@ export function OptionsButton({ options, position, isMobile = false, isVisible =
         <div
           style={{
             position: 'absolute',
-            bottom: finalPosition.bottom ? `calc(${finalPosition.bottom} + 65px)` : undefined,
-            top: finalPosition.top ? `calc(${finalPosition.top} + 65px)` : undefined,
-            left: finalPosition.left,
-            right: finalPosition.right,
+            bottom: inline ? undefined : (finalPosition.bottom ? `calc(${finalPosition.bottom} + 65px)` : undefined),
+            top: inline ? '100%' : (finalPosition.top ? `calc(${finalPosition.top} + 65px)` : undefined),
+            left: inline ? undefined : finalPosition.left,
+            right: inline ? '0' : finalPosition.right,
+            marginTop: inline ? '8px' : undefined,
             background: 'var(--card)',
             borderRadius: '12px',
             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',

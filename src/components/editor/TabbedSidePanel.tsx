@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { X, MessageSquare, Wrench, ArrowLeft, FileText, Search, BookOpen, List, Replace, BookMarked, Copy as CopyIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import CommentsPanel from './CommentsPanel'
+import CommentsPanel, { CommentTabType } from './CommentsPanel'
 import { Comment } from './CommentExtension'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,6 +32,14 @@ interface TabbedSidePanelProps {
   activeTab?: 'comments' | 'tools'
   onTabChange?: (tab: 'comments' | 'tools') => void
 
+  // Tool state
+  activeTool?: ActiveTool
+  onToolChange?: (tool: ActiveTool) => void
+
+  // Comment tab state
+  activeCommentTab?: CommentTabType
+  onCommentTabChange?: (tab: CommentTabType) => void
+
   // Library props
   onDocumentSelect?: (documentId: string, content: string) => void
 }
@@ -49,10 +57,18 @@ export function TabbedSidePanel({
   onToggle,
   activeTab: controlledTab,
   onTabChange,
+  activeTool: controlledTool,
+  onToolChange,
+  activeCommentTab,
+  onCommentTabChange,
   onDocumentSelect,
 }: TabbedSidePanelProps) {
   const [internalTab, setInternalTab] = useState<'comments' | 'tools'>('comments')
-  const [activeTool, setActiveTool] = useState<ActiveTool>(null)
+  const [internalTool, setInternalTool] = useState<ActiveTool>(null)
+
+  // Use controlled tool if provided, otherwise use internal state
+  const activeTool = controlledTool !== undefined ? controlledTool : internalTool
+  const setActiveTool = onToolChange || setInternalTool
 
   // Find string state
   const [findTerm, setFindTerm] = useState('')
@@ -130,44 +146,36 @@ export function TabbedSidePanel({
   return (
     <div
       className={cn(
-        "absolute top-0 right-0 h-full bg-background border-l flex flex-col transition-transform duration-300 ease-in-out",
-        isOpen ? "translate-x-0" : "translate-x-full"
+        "absolute bg-background border border-border flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
+        // Mobile: full width, no margins, square corners
+        "top-0 right-0 bottom-0 left-0 w-full rounded-none",
+        // Desktop: right margin, fixed width, rounded corners (overrides mobile)
+        "md:top-2 md:right-2 md:bottom-2 md:left-auto md:rounded-lg md:w-80",
+        // Conditionally apply shadow only when open
+        isOpen ? "translate-x-0 shadow-sm" : "translate-x-full shadow-none"
       )}
-      style={{ width: '20rem', zIndex: 10 }}
+      style={{ zIndex: 10 }}
     >
-      {/* Header with tabs */}
+      {/* Header - no tabs, just title and close button */}
       <div className="flex-shrink-0 border-b">
-        <div className="flex items-center justify-between p-2">
-          <div className="flex gap-1">
-            <button
-              onClick={() => setActiveTab('comments')}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                activeTab === 'comments'
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              )}
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span>Comments</span>
-              {comments.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded-full">
-                  {comments.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('tools')}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                activeTab === 'tools'
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              )}
-            >
-              <Wrench className="h-4 w-4" />
-              <span>Tools</span>
-            </button>
+        <div className="flex items-center justify-between p-3">
+          <div className="flex items-center gap-2">
+            {activeTab === 'comments' ? (
+              <>
+                <MessageSquare className="h-4 w-4" />
+                <span className="text-sm font-semibold">Comments</span>
+                {comments.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded-full">
+                    {comments.length}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <Wrench className="h-4 w-4" />
+                <span className="text-sm font-semibold">Tools</span>
+              </>
+            )}
           </div>
           <button
             onClick={onToggle}
@@ -191,6 +199,8 @@ export function TabbedSidePanel({
             onAddComment={onAddComment}
             isOpen={isOpen}
             onToggle={onToggle}
+            activeTab={activeCommentTab}
+            onTabChange={onCommentTabChange}
           />
         )}
         {activeTab === 'tools' && (
@@ -198,7 +208,6 @@ export function TabbedSidePanel({
             {/* Tool List View */}
             {!activeTool && (
               <div className="p-4 space-y-2">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3">DOCUMENT TOOLS</h3>
                 {tools.map((tool) => {
                   const Icon = tool.icon
                   return (

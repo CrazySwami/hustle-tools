@@ -5,6 +5,7 @@
  * Each group can be:
  * - HTML Project: HTML + CSS + JavaScript
  * - PHP Widget: PHP + CSS + JavaScript
+ * - HubSpot Template: HTML + HubL template
  *
  * Features:
  * - Create, read, update, delete groups
@@ -16,15 +17,16 @@
 export interface FileGroup {
   id: string;                    // Unique ID
   name: string;                  // User-defined name (e.g., "Hero Section", "Contact Form")
-  type: 'html' | 'php';          // Project type
+  type: 'html' | 'php' | 'hubspot';  // Project type
   createdAt: number;             // Timestamp
   updatedAt: number;             // Timestamp
 
   // Files
-  html: string;                  // Only for type='html'
+  html: string;                  // For type='html' or type='hubspot'
   css: string;
   js: string;
   php?: string;                  // Only for type='php'
+  hubl?: string;                 // Only for type='hubspot' - HubL template
 
   // Metadata
   description?: string;          // Optional description
@@ -114,8 +116,8 @@ export function saveEditorState(state: EditorState): void {
  */
 export function createGroup(
   name: string,
-  type: 'html' | 'php',
-  template?: 'empty' | 'hero' | 'contact-form' | 'basic-widget' | 'button-widget'
+  type: 'html' | 'php' | 'hubspot',
+  template?: 'empty' | 'hero' | 'contact-form' | 'basic-widget' | 'button-widget' | 'hubspot-hero' | 'hubspot-email'
 ): FileGroup {
   const now = Date.now();
   const group: FileGroup = {
@@ -128,6 +130,7 @@ export function createGroup(
     css: '',
     js: '',
     php: type === 'php' ? '' : undefined,
+    hubl: type === 'hubspot' ? '' : undefined,
   };
 
   // Apply template
@@ -143,7 +146,7 @@ export function createGroup(
  */
 function applyTemplate(
   group: FileGroup,
-  template: 'hero' | 'contact-form' | 'basic-widget' | 'button-widget'
+  template: 'hero' | 'contact-form' | 'basic-widget' | 'button-widget' | 'hubspot-hero' | 'hubspot-email'
 ): void {
   if (group.type === 'html') {
     if (template === 'hero') {
@@ -349,6 +352,142 @@ class Basic_Widget extends \\Elementor\\Widget_Base {
   color: #333;
 }`;
     }
+  } else if (group.type === 'hubspot') {
+    if (template === 'hubspot-hero') {
+      // HubSpot Hero Section (Page Module)
+      group.html = `<section class="hero-module" style="background-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 80px 20px; text-align: center; color: white; border-radius: 12px;">
+  <div class="hero-container" style="max-width: 1200px; margin: 0 auto;">
+    <span class="hero-badge" style="display: inline-block; padding: 8px 16px; background-color: rgba(255,255,255,0.2); border-radius: 20px; font-size: 14px; margin-bottom: 20px;">
+      New Feature
+    </span>
+
+    <h1 class="hero-heading" style="font-size: 48px; font-weight: 700; margin: 0 0 20px 0; line-height: 1.2;">
+      Welcome to Our Platform
+    </h1>
+
+    <p class="hero-description" style="font-size: 20px; max-width: 700px; margin: 0 auto 30px auto; opacity: 0.95;">
+      Build amazing experiences with our powerful tools and intuitive interface.
+    </p>
+
+    <a href="#" class="hero-cta" style="display: inline-block; padding: 16px 32px; background-color: white; color: #667eea; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(0,0,0,0.2);">
+      Get Started
+    </a>
+  </div>
+</section>`;
+      group.hubl = `{# HubSpot Hero Section - Page Module #}
+<section class="hero-module" style="background-image: linear-gradient(135deg, {{ module.gradient_start.color }}, {{ module.gradient_end.color }}); padding: {{ module.padding_y }}px {{ module.padding_x }}px; text-align: {{ module.text_alignment|default('center') }}; color: {{ module.text_color.color }}; border-radius: {{ module.border_radius }}px;">
+  <div class="hero-container" style="max-width: {{ module.container_width }}px; margin: 0 auto;">
+    {% if module.show_badge %}
+    <span class="hero-badge" style="display: inline-block; padding: 8px 16px; background-color: {{ module.badge_background.color }}; border-radius: 20px; font-size: 14px; margin-bottom: 20px;">
+      {{ module.badge_text }}
+    </span>
+    {% endif %}
+
+    <h1 class="hero-heading" style="font-size: {{ module.heading_size }}px; font-weight: 700; margin: 0 0 20px 0; line-height: 1.2;">
+      {{ module.heading }}
+    </h1>
+
+    <p class="hero-description" style="font-size: {{ module.description_size }}px; max-width: 700px; margin: 0 auto 30px auto; opacity: 0.95;">
+      {{ module.description }}
+    </p>
+
+    {% if module.show_button %}
+    <a href="{{ module.button_url }}" class="hero-cta" style="display: inline-block; padding: {{ module.button_padding_y }}px {{ module.button_padding_x }}px; background-color: {{ module.button_background.color }}; color: {{ module.button_text_color.color }}; text-decoration: none; border-radius: {{ module.button_radius }}px; font-weight: 600; font-size: {{ module.button_text_size }}px; box-shadow: 0 4px 14px rgba(0,0,0,0.2);">
+      {{ module.button_text }}
+    </a>
+    {% endif %}
+  </div>
+</section>`;
+      group.css = `.hero-module {
+  position: relative;
+  min-height: 500px;
+}
+
+.hero-cta:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .hero-heading {
+    font-size: 32px !important;
+  }
+
+  .hero-description {
+    font-size: 16px !important;
+  }
+}`;
+    } else if (template === 'hubspot-email') {
+      // HubSpot Email CTA Section (Email Module)
+      group.html = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff;">
+  <tr>
+    <td align="center" style="padding: 40px 20px;">
+      <table width="600" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td align="center" style="padding: 30px; background-color: #f7f7f7; border-radius: 8px;">
+            <!-- Heading -->
+            <h2 style="margin: 0 0 16px 0; font-family: Arial, Helvetica, sans-serif; font-size: 28px; font-weight: 700; color: #333333;">
+              Special Offer Just for You
+            </h2>
+
+            <!-- Description -->
+            <p style="margin: 0 0 24px 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 24px; color: #666666;">
+              Don't miss out on this exclusive opportunity to upgrade your experience with our premium features.
+            </p>
+
+            <!-- Button -->
+            <table cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" style="border-radius: 6px; background-color: #007bff;">
+                  <a href="#" style="display: inline-block; padding: 14px 28px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">
+                    Claim Your Offer
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+      group.hubl = `{# HubSpot Email CTA Section - Email Module #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: {{ module.background_color|default('#ffffff') }};">
+  <tr>
+    <td align="center" style="padding: 40px 20px;">
+      <table width="600" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td align="{{ module.text_alignment|default('center') }}" style="padding: {{ module.padding }}px; background-color: {{ module.section_background|default('#f7f7f7') }}; border-radius: {{ module.border_radius|default('8') }}px;">
+            <!-- Heading -->
+            <h2 style="margin: 0 0 16px 0; font-family: Arial, Helvetica, sans-serif; font-size: {{ module.heading_size|default('28') }}px; font-weight: 700; color: {{ module.heading_color|default('#333333') }};">
+              {{ module.heading }}
+            </h2>
+
+            <!-- Description -->
+            <p style="margin: 0 0 24px 0; font-family: Arial, Helvetica, sans-serif; font-size: {{ module.text_size|default('16') }}px; line-height: {{ module.line_height|default('24') }}px; color: {{ module.text_color|default('#666666') }};">
+              {{ module.description }}
+            </p>
+
+            <!-- Button -->
+            {% if module.show_button %}
+            <table cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" style="border-radius: {{ module.button_radius|default('6') }}px; background-color: {{ module.button_background|default('#007bff') }};">
+                  <a href="{{ module.button_url }}" style="display: inline-block; padding: {{ module.button_padding|default('14px 28px') }}; font-family: Arial, Helvetica, sans-serif; font-size: {{ module.button_text_size|default('16') }}px; font-weight: 600; color: {{ module.button_text_color|default('#ffffff') }}; text-decoration: none;">
+                    {{ module.button_text }}
+                  </a>
+                </td>
+              </tr>
+            </table>
+            {% endif %}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+    }
   }
 }
 
@@ -415,7 +554,7 @@ export function updateGroup(id: string, updates: Partial<FileGroup>): void {
  */
 export function updateGroupContent(
   id: string,
-  file: 'html' | 'css' | 'js' | 'php',
+  file: 'html' | 'css' | 'js' | 'php' | 'hubl',
   content: string
 ): void {
   updateGroup(id, { [file]: content });
@@ -574,13 +713,14 @@ export function migrateFromOldFormat(): boolean {
       groups: sections.map((section: any) => ({
         id: generateId(),
         name: section.name || 'Untitled Section',
-        type: section.php ? 'php' : 'html',
+        type: section.hubl ? 'hubspot' : section.php ? 'php' : 'html',
         createdAt: Date.now(),
         updatedAt: Date.now(),
         html: section.html || '',
         css: section.css || '',
         js: section.js || '',
         php: section.php,
+        hubl: section.hubl,
         description: section.description,
       })),
       activeGroupId: null,
@@ -619,6 +759,7 @@ export function saveGroupToLibrary(group: FileGroup): void {
     css: group.css,
     js: group.js,
     php: group.php,
+    hubl: group.hubl,
     settings: {},
     createdAt: group.createdAt,
     updatedAt: group.updatedAt,
@@ -647,13 +788,14 @@ export function loadGroupFromLibrary(libraryId: string): FileGroup | null {
   const group: FileGroup = {
     id: generateId(), // New ID for the group
     name: librarySection.name || 'Untitled',
-    type: librarySection.php ? 'php' : 'html',
+    type: librarySection.hubl ? 'hubspot' : librarySection.php ? 'php' : 'html',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     html: librarySection.html || '',
     css: librarySection.css || '',
     js: librarySection.js || '',
     php: librarySection.php,
+    hubl: librarySection.hubl,
   };
 
   addGroup(group);

@@ -31,6 +31,17 @@ export function ProjectLibrary({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Listen for view mode changes from navigation dropdown
+  useEffect(() => {
+    const handleViewModeChange = (event: CustomEvent) => {
+      const mode = event.detail as 'grid' | 'list';
+      setViewMode(mode);
+    };
+
+    window.addEventListener('set-view-mode', handleViewModeChange as EventListener);
+    return () => window.removeEventListener('set-view-mode', handleViewModeChange as EventListener);
+  }, []);
+
   // Load all projects from storage
   useEffect(() => {
     const loadProjects = () => {

@@ -21,7 +21,7 @@ import TiptapHeading from '@tiptap/extension-heading'
 import TiptapParagraph from '@tiptap/extension-paragraph'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { SidebarTrigger } from '@/components/ui/sidebar'
+import { AppSidebar } from '@/components/app-sidebar'
 import { marked } from 'marked'
 import {
   Bold,
@@ -64,7 +64,8 @@ import {
   AlignJustify,
   Eraser,
   FileText,
-  Code2
+  Code2,
+  PanelLeft
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
@@ -81,6 +82,66 @@ import '@/styles/comments.css'
 import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+
+// Constants extracted outside component for performance
+const TEXT_COLORS = [
+  { name: 'Black', value: '#000000' },
+  { name: 'White', value: '#ffffff' },
+  { name: 'Red', value: '#ef4444' },
+  { name: 'Orange', value: '#f97316' },
+  { name: 'Yellow', value: '#eab308' },
+  { name: 'Green', value: '#22c55e' },
+  { name: 'Blue', value: '#3b82f6' },
+  { name: 'Purple', value: '#a855f7' },
+  { name: 'Pink', value: '#ec4899' },
+  { name: 'Gray', value: '#6b7280' },
+] as const
+
+const HIGHLIGHT_COLORS = [
+  { name: 'Yellow', value: '#fef08a' },
+  { name: 'Green', value: '#bbf7d0' },
+  { name: 'Blue', value: '#bfdbfe' },
+  { name: 'Pink', value: '#fbcfe8' },
+  { name: 'Purple', value: '#e9d5ff' },
+  { name: 'Orange', value: '#fed7aa' },
+  { name: 'Red', value: '#fecaca' },
+  { name: 'None', value: 'transparent' },
+] as const
+
+const FONT_FAMILIES = [
+  { name: 'Default', value: 'inherit' },
+  { name: 'Inter', value: 'Inter, sans-serif' },
+  { name: 'Arial', value: 'Arial, sans-serif' },
+  { name: 'Times New Roman', value: 'Times New Roman, serif' },
+  { name: 'Georgia', value: 'Georgia, serif' },
+  { name: 'Courier New', value: 'Courier New, monospace' },
+  { name: 'Helvetica', value: 'Helvetica, sans-serif' },
+  { name: 'Verdana', value: 'Verdana, sans-serif' },
+] as const
+
+const FONT_SIZES = [
+  { name: 'Small', value: '14px' },
+  { name: 'Normal', value: '16px' },
+  { name: 'Medium', value: '18px' },
+  { name: 'Large', value: '24px' },
+  { name: 'Extra Large', value: '32px' },
+  { name: 'Huge', value: '48px' },
+] as const
+
+const LINE_HEIGHTS = [
+  { name: 'Compact', value: '1.2' },
+  { name: 'Normal', value: '1.5' },
+  { name: 'Relaxed', value: '1.75' },
+  { name: 'Loose', value: '2' },
+] as const
+
+const SPACING_OPTIONS = [
+  { name: 'None', value: '0' },
+  { name: 'Small', value: '0.5rem' },
+  { name: 'Medium', value: '1rem' },
+  { name: 'Large', value: '1.5rem' },
+  { name: 'Extra Large', value: '2rem' },
+] as const
 
 // FontSize extension - extends TextStyle to support fontSize attribute
 declare module '@tiptap/core' {
@@ -148,11 +209,13 @@ const CustomPlaceholder = Extension.create({
     return [
       new Plugin({
         props: {
-          decorations: ({ doc }) => {
+          decorations: ({ doc, selection }, view) => {
             const decorations: any[] = []
             const isEmpty = doc.textContent.length === 0
+            const isFocused = view?.hasFocus?.() ?? false
 
-            if (isEmpty) {
+            // Only show placeholder if document is empty AND editor is not focused
+            if (isEmpty && !isFocused) {
               doc.descendants((node, pos) => {
                 if (node.type.name === 'paragraph' && pos === 0) {
                   const decoration = Decoration.node(pos, pos + node.nodeSize, {
@@ -294,29 +357,18 @@ const MenuButton = React.forwardRef<HTMLButtonElement, {
 
 MenuButton.displayName = 'MenuButton'
 
-const ColorSelector = ({
+const ColorSelector = React.memo(({
   editor
 }: {
   editor: any
 }) => {
   const [customColor, setCustomColor] = useState('#000000')
-  const colors = [
-    { name: 'Black', value: '#000000' },
-    { name: 'White', value: '#ffffff' },
-    { name: 'Red', value: '#ef4444' },
-    { name: 'Orange', value: '#f97316' },
-    { name: 'Yellow', value: '#eab308' },
-    { name: 'Green', value: '#22c55e' },
-    { name: 'Blue', value: '#3b82f6' },
-    { name: 'Purple', value: '#a855f7' },
-    { name: 'Pink', value: '#ec4899' },
-  ]
 
   return (
     <div className="p-3 bg-background border rounded-md shadow-lg w-80">
       <div className="mb-2 text-sm font-medium">Text Color</div>
       <div className="flex flex-wrap gap-2 mb-3">
-        {colors.map((color) => (
+        {TEXT_COLORS.map((color) => (
           <button
             key={color.value}
             onClick={() => editor.chain().focus().setColor(color.value).run()}
@@ -358,29 +410,20 @@ const ColorSelector = ({
       </button>
     </div>
   )
-}
+})
 
-const HighlightColorSelector = ({
+const HighlightColorSelector = React.memo(({
   editor
 }: {
   editor: any
 }) => {
   const [customColor, setCustomColor] = useState('#ffff00')
-  const colors = [
-    { name: 'Yellow', value: '#fef08a' },
-    { name: 'Green', value: '#bbf7d0' },
-    { name: 'Blue', value: '#bfdbfe' },
-    { name: 'Pink', value: '#fbcfe8' },
-    { name: 'Purple', value: '#e9d5ff' },
-    { name: 'Orange', value: '#fed7aa' },
-    { name: 'Red', value: '#fecaca' },
-  ]
 
   return (
     <div className="p-3 bg-background border rounded-md shadow-lg w-80">
       <div className="mb-2 text-sm font-medium">Highlight Color</div>
       <div className="flex flex-wrap gap-2 mb-3">
-        {colors.map((color) => (
+        {HIGHLIGHT_COLORS.map((color) => (
           <button
             key={color.value}
             onClick={() => editor.chain().focus().toggleHighlight({ color: color.value }).run()}
@@ -422,29 +465,17 @@ const HighlightColorSelector = ({
       </button>
     </div>
   )
-}
+})
 
-const FontSelector = ({
+const FontSelector = React.memo(({
   editor
 }: {
   editor: any
 }) => {
-  const fonts = [
-    { name: 'Default', value: 'inherit' },
-    { name: 'Inter', value: 'Inter, sans-serif' },
-    { name: 'Arial', value: 'Arial, sans-serif' },
-    { name: 'Helvetica', value: 'Helvetica, sans-serif' },
-    { name: 'Times New Roman', value: 'Times New Roman, serif' },
-    { name: 'Georgia', value: 'Georgia, serif' },
-    { name: 'Courier New', value: 'Courier New, monospace' },
-    { name: 'Verdana', value: 'Verdana, sans-serif' },
-    { name: 'Comic Sans MS', value: 'Comic Sans MS, cursive' },
-  ]
-
   return (
     <div className="p-2 bg-background border rounded-md shadow-lg w-56 max-h-80 overflow-y-auto">
       <div className="mb-1 text-xs font-medium text-muted-foreground px-2">Font Family</div>
-      {fonts.map((font) => (
+      {FONT_FAMILIES.map((font) => (
         <button
           key={font.value}
           onClick={() => editor.chain().focus().setFontFamily(font.value).run()}
@@ -456,14 +487,14 @@ const FontSelector = ({
       ))}
     </div>
   )
-}
+})
 
-const HeadingSelector = ({
+const HeadingSelector = React.memo(({
   editor
 }: {
   editor: any
 }) => {
-  const headings = [
+  const headings = React.useMemo(() => [
     { name: 'Paragraph', level: 0, command: () => editor.chain().focus().setParagraph().run() },
     { name: 'Heading 1', level: 1, command: () => editor.chain().focus().toggleHeading({ level: 1 }).run() },
     { name: 'Heading 2', level: 2, command: () => editor.chain().focus().toggleHeading({ level: 2 }).run() },
@@ -471,7 +502,7 @@ const HeadingSelector = ({
     { name: 'Heading 4', level: 4, command: () => editor.chain().focus().toggleHeading({ level: 4 }).run() },
     { name: 'Heading 5', level: 5, command: () => editor.chain().focus().toggleHeading({ level: 5 }).run() },
     { name: 'Heading 6', level: 6, command: () => editor.chain().focus().toggleHeading({ level: 6 }).run() },
-  ]
+  ], [editor])
 
   return (
     <div className="p-2 bg-background border rounded-md shadow-lg w-44">
@@ -490,32 +521,31 @@ const HeadingSelector = ({
       ))}
     </div>
   )
-}
+})
 
-const FontSizeSelector = ({
+const FontSizeSelector = React.memo(({
   editor
 }: {
   editor: any
 }) => {
   const [customSize, setCustomSize] = useState('')
-  const sizes = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px', '64px']
 
-  const applyFontSize = (size: string) => {
+  const applyFontSize = React.useCallback((size: string) => {
     // First ensure textStyle mark exists, then set fontSize
     editor.chain().focus().setMark('textStyle', { fontSize: size }).run()
-  }
+  }, [editor])
 
   return (
     <div className="p-3 bg-background border rounded-md shadow-lg w-72">
       <div className="mb-2 text-sm font-medium">Font Size</div>
       <div className="grid grid-cols-2 gap-1 mb-3">
-        {sizes.map((size) => (
+        {FONT_SIZES.map((size) => (
           <button
-            key={size}
-            onClick={() => applyFontSize(size)}
+            key={size.value}
+            onClick={() => applyFontSize(size.value)}
             className="px-3 py-1.5 text-left hover:bg-muted rounded text-sm border"
           >
-            {size}
+            {size.value}
           </button>
         ))}
       </div>
@@ -539,25 +569,23 @@ const FontSizeSelector = ({
       </div>
     </div>
   )
-}
+})
 
-const LineHeightSelector = ({
+const LineHeightSelector = React.memo(({
   editor
 }: {
   editor: any
 }) => {
-  const lineHeights = ['1', '1.15', '1.25', '1.5', '1.75', '2', '2.5', '3']
-
   return (
     <div className="p-2 bg-background border rounded-md shadow-lg w-44">
       <div className="mb-1 text-xs font-medium text-muted-foreground px-2">Line Height</div>
-      {lineHeights.map((height) => (
+      {LINE_HEIGHTS.map((height) => (
         <button
-          key={height}
-          onClick={() => editor.chain().focus().setLineHeight(height).run()}
+          key={height.value}
+          onClick={() => editor.chain().focus().setLineHeight(height.value).run()}
           className="w-full px-3 py-2 text-left hover:bg-muted rounded text-sm"
         >
-          {height}
+          {height.value}
         </button>
       ))}
       <button
@@ -568,22 +596,22 @@ const LineHeightSelector = ({
       </button>
     </div>
   )
-}
+})
 
-const SpacingSelector = ({
+const SpacingSelector = React.memo(({
   editor
 }: {
   editor: any
 }) => {
-  const spacingPresets = [
+  const spacingPresets = React.useMemo(() => [
     { label: 'No space', top: '0', bottom: '0' },
     { label: 'Compact', top: '0.25em', bottom: '0.25em' },
     { label: 'Normal', top: '0.5em', bottom: '0.5em' },
     { label: 'Relaxed', top: '0.75em', bottom: '0.75em' },
     { label: 'Loose', top: '1em', bottom: '1em' },
-  ]
+  ], [])
 
-  const applySpacing = (top: string, bottom: string) => {
+  const applySpacing = React.useCallback((top: string, bottom: string) => {
     // Get current selection or cursor position
     const { from, to } = editor.state.selection
 
@@ -607,7 +635,7 @@ const SpacingSelector = ({
         marginBottom: bottom
       })
     }
-  }
+  }, [editor])
 
   return (
     <div className="p-3 bg-background border rounded-md shadow-lg w-56">
@@ -625,7 +653,7 @@ const SpacingSelector = ({
       </div>
     </div>
   )
-}
+})
 
 interface TiptapEditorProps {
   initialContent?: string;
@@ -636,24 +664,50 @@ interface TiptapEditorProps {
   selectedModel?: string;
   onToggleSidebar?: () => void;
   isSidebarVisible?: boolean;
+  selectedDocumentId?: string;
+  onDocumentSelect?: (documentId: string) => void;
+  onToggleCommentsPanel?: () => void;
+  onSetPanelTab?: (tab: 'comments' | 'tools') => void;
 }
 
 const savedContent = typeof window !== 'undefined' ? localStorage.getItem('tiptap-document') : null;
 const initialComments = typeof window !== 'undefined' ? localStorage.getItem('tiptap-comments') : null;
 
-export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions, onAIEdit, selectedModel, onToggleSidebar, isSidebarVisible }: TiptapEditorProps = {}) {
+export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions, onAIEdit, selectedModel, onToggleSidebar, isSidebarVisible, selectedDocumentId, onDocumentSelect, onToggleCommentsPanel, onSetPanelTab }: TiptapEditorProps = {}) {
   const [isMounted, setIsMounted] = useState(false)
-  const [showColorSelector, setShowColorSelector] = useState(false)
-  const [showHighlightSelector, setShowHighlightSelector] = useState(false)
-  const [showFontSelector, setShowFontSelector] = useState(false)
-  const [showHeadingSelector, setShowHeadingSelector] = useState(false)
-  const [showFontSizeSelector, setShowFontSizeSelector] = useState(false)
-  const [showLineHeightSelector, setShowLineHeightSelector] = useState(false)
-  const [showSpacingSelector, setShowSpacingSelector] = useState(false)
+  // Consolidated dropdown state for performance
+  const [dropdownStates, setDropdownStates] = useState({
+    showColorSelector: false,
+    showHighlightSelector: false,
+    showFontSelector: false,
+    showHeadingSelector: false,
+    showFontSizeSelector: false,
+    showLineHeightSelector: false,
+    showSpacingSelector: false,
+  })
+
+  // Consolidated dropdown positions for performance
+  const [dropdownPositions, setDropdownPositions] = useState<{
+    color: { top: number; left: number } | null
+    highlight: { top: number; left: number } | null
+    font: { top: number; left: number } | null
+    fontSize: { top: number; left: number } | null
+    lineHeight: { top: number; left: number } | null
+    spacing: { top: number; left: number } | null
+    heading: { top: number; left: number } | null
+  }>({
+    color: null,
+    highlight: null,
+    font: null,
+    fontSize: null,
+    lineHeight: null,
+    spacing: null,
+    heading: null,
+  })
+
   const [markdownMode, setMarkdownMode] = useState(true) // true = rich text editor, false = raw markdown textarea
   const [markdownText, setMarkdownText] = useState('') // Stores raw markdown when in markdown view mode
   const [comments, setComments] = useState<Comment[]>(initialComments ? JSON.parse(initialComments) : [])
-  const [dropdownPosition, setDropdownPosition] = useState<{top: number, left: number} | null>(null)
   const isInternalUpdate = useRef(false) // Flag to prevent circular updates
   const hasUserInteracted = useRef(false) // Track if user has clicked/edited the document
   const colorButtonRef = useRef<HTMLButtonElement>(null)
@@ -663,23 +717,19 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   const lineHeightButtonRef = useRef<HTMLButtonElement>(null)
   const headingButtonRef = useRef<HTMLButtonElement>(null)
   const spacingButtonRef = useRef<HTMLButtonElement>(null)
-  const [highlightDropdownPosition, setHighlightDropdownPosition] = useState<{top: number, left: number} | null>(null)
-  const [fontDropdownPosition, setFontDropdownPosition] = useState<{top: number, left: number} | null>(null)
-  const [fontSizeDropdownPosition, setFontSizeDropdownPosition] = useState<{top: number, left: number} | null>(null)
-  const [lineHeightDropdownPosition, setLineHeightDropdownPosition] = useState<{top: number, left: number} | null>(null)
-  const [spacingDropdownPosition, setSpacingDropdownPosition] = useState<{top: number, left: number} | null>(null)
-  const [headingDropdownPosition, setHeadingDropdownPosition] = useState<{top: number, left: number} | null>(null)
 
-  // Helper function to close all dropdowns
-  const closeAllDropdowns = () => {
-    setShowColorSelector(false)
-    setShowHighlightSelector(false)
-    setShowFontSelector(false)
-    setShowHeadingSelector(false)
-    setShowFontSizeSelector(false)
-    setShowLineHeightSelector(false)
-    setShowSpacingSelector(false)
-  }
+  // Memoized helper function to close all dropdowns
+  const closeAllDropdowns = useCallback(() => {
+    setDropdownStates({
+      showColorSelector: false,
+      showHighlightSelector: false,
+      showFontSelector: false,
+      showHeadingSelector: false,
+      showFontSizeSelector: false,
+      showLineHeightSelector: false,
+      showSpacingSelector: false,
+    })
+  }, [])
 
   // Close all dropdowns when clicking outside
   useEffect(() => {
@@ -706,14 +756,67 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   }, [comments, onCommentsChange]);
   const [isCommentsPanelOpen, setIsCommentsPanelOpen] = useState(false)
   const [panelTab, setPanelTab] = useState<'comments' | 'tools'>('comments')
+  const [activeTool, setActiveTool] = useState<'stats' | 'find' | 'readability' | 'headings' | 'replace' | 'toc' | 'duplicates' | null>(null)
+  const [activeCommentTab, setActiveCommentTab] = useState<'active' | 'resolved'>('active')
   const [showAddCommentForm, setShowAddCommentForm] = useState(false)
   const [selectedText, setSelectedText] = useState('')
   const [aiInstruction, setAiInstruction] = useState('')
   const [showAIMenu, setShowAIMenu] = useState(false)
   const [isInlineProcessing, setIsInlineProcessing] = useState(false)
+  const [isDocumentsPanelOpen, setIsDocumentsPanelOpen] = useState(false)
 
   // Get document content store for animations
   const { setEditor: registerEditor } = useDocumentContent()
+
+  // Debounce timers for performance optimization
+  const selectionDebounceTimer = useRef<NodeJS.Timeout | null>(null)
+  const contentDebounceTimer = useRef<NodeJS.Timeout | null>(null)
+  const localStorageDebounceTimer = useRef<NodeJS.Timeout | null>(null)
+
+  // Memoized callbacks for editor events to prevent re-initialization
+  const handleEditorUpdate = useCallback(({ editor }: { editor: any }) => {
+    const json = editor.getJSON();
+
+    // Debounce localStorage writes (300ms delay)
+    if (localStorageDebounceTimer.current) {
+      clearTimeout(localStorageDebounceTimer.current);
+    }
+    localStorageDebounceTimer.current = setTimeout(() => {
+      localStorage.setItem('tiptap-document', JSON.stringify(json));
+    }, 300);
+
+    // Debounce expensive HTML conversion and parent callback (150ms delay)
+    if (onContentChange && !isInternalUpdate.current) {
+      if (contentDebounceTimer.current) {
+        clearTimeout(contentDebounceTimer.current);
+      }
+      contentDebounceTimer.current = setTimeout(() => {
+        const html = editor.getHTML();
+        onContentChange(html);
+      }, 150);
+    }
+  }, [onContentChange]);
+
+  const handleSelectionUpdate = useCallback(({ editor }: { editor: any }) => {
+    // Debounce selection updates to prevent state changes on every keystroke (100ms delay)
+    if (selectionDebounceTimer.current) {
+      clearTimeout(selectionDebounceTimer.current);
+    }
+    selectionDebounceTimer.current = setTimeout(() => {
+      const { from, to } = editor.state.selection;
+      const text = editor.state.doc.textBetween(from, to, ' ');
+      setSelectedText(text);
+    }, 100);
+  }, []);
+
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (selectionDebounceTimer.current) clearTimeout(selectionDebounceTimer.current);
+      if (contentDebounceTimer.current) clearTimeout(contentDebounceTimer.current);
+      if (localStorageDebounceTimer.current) clearTimeout(localStorageDebounceTimer.current);
+    };
+  }, []);
 
   // Initialize the editor
   const editor = useEditor({
@@ -777,28 +880,8 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none w-full max-w-none min-h-[calc(100vh-16rem)] [&_h1]:text-2xl [&_h1]:sm:text-3xl [&_h1]:lg:text-4xl',
       },
     },
-    onUpdate: ({ editor }) => {
-      const json = editor.getJSON();
-
-      // Don't convert on every keystroke - just store JSON
-      // Conversion happens only when needed (e.g., when sending to AI)
-      localStorage.setItem('tiptap-document', JSON.stringify(json));
-
-      // Send a simple update notification without heavy conversion
-      // The actual HTML will be converted to markdown only when sending to AI
-      if (onContentChange && !isInternalUpdate.current) {
-        console.log('⌨️ [EDITOR] onUpdate → onContentChange (isInternalUpdate:', isInternalUpdate.current, ')');
-        const html = editor.getHTML();
-        onContentChange(html);
-      } else if (isInternalUpdate.current) {
-        console.log('⏭️ [EDITOR] onUpdate SKIPPED (isInternalUpdate=true)');
-      }
-    },
-    onSelectionUpdate: ({ editor }) => {
-      const { from, to } = editor.state.selection;
-      const text = editor.state.doc.textBetween(from, to, ' ');
-      setSelectedText(text);
-    },
+    onUpdate: handleEditorUpdate,
+    onSelectionUpdate: handleSelectionUpdate,
   });
 
   // Handle client-side rendering
@@ -816,42 +899,6 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     }
   }, [editor, registerEditor])
 
-  // Handle click-to-clear welcome message on first interaction
-  useEffect(() => {
-    if (!editor) return
-
-    const handleFirstInteraction = () => {
-      // Only clear once, on first interaction
-      if (hasUserInteracted.current) return
-
-      const currentHTML = editor.getHTML()
-      const welcomeMessage = '<h1>Welcome to your new document</h1><p>Start typing here...</p>'
-
-      // Check if current content matches the welcome message
-      if (currentHTML === welcomeMessage) {
-        hasUserInteracted.current = true
-        isInternalUpdate.current = true
-
-        // Clear the content and focus
-        editor.commands.setContent('')
-        editor.commands.focus()
-
-        setTimeout(() => {
-          isInternalUpdate.current = false
-        }, 10)
-      } else {
-        // If content is different, mark as interacted
-        hasUserInteracted.current = true
-      }
-    }
-
-    // Listen for focus event
-    editor.on('focus', handleFirstInteraction)
-
-    return () => {
-      editor.off('focus', handleFirstInteraction)
-    }
-  }, [editor])
 
   // Update editor content when initialContent prop changes (ONLY from external sources like Morph)
   // DO NOT update on every keystroke - this would reset the cursor!
@@ -885,6 +932,80 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       }, 10);
     }
   }, [editor, initialContent]);
+
+  // Expose comments panel toggle for external control (from navigation menu)
+  useEffect(() => {
+    // Handle the new doc-set-panel event with mutual exclusivity
+    const handleSetPanel = (event: CustomEvent) => {
+      const { tab, open } = event.detail;
+
+      if (tab === 'comments') {
+        // If already on comments and panel is open, toggle it off
+        if (panelTab === 'comments' && isCommentsPanelOpen && !open) {
+          setIsCommentsPanelOpen(false);
+        } else {
+          // Otherwise open comments panel (replacing tools if needed)
+          setIsCommentsPanelOpen(true);
+          setPanelTab('comments');
+        }
+      } else if (tab === 'tools') {
+        // If already on tools and panel is open, toggle it off
+        if (panelTab === 'tools' && isCommentsPanelOpen && !open) {
+          setIsCommentsPanelOpen(false);
+        } else {
+          // Otherwise open tools panel (replacing comments if needed)
+          setIsCommentsPanelOpen(true);
+          setPanelTab('tools');
+        }
+      }
+    };
+
+    // Handle filter changes for comments
+    const handleCommentsFilter = (event: CustomEvent) => {
+      const filter = event.detail; // 'all', 'active', or 'resolved'
+      console.log('Filter comments:', filter);
+
+      // Ensure comments panel is open
+      setIsCommentsPanelOpen(true);
+      setPanelTab('comments');
+
+      // Set the appropriate tab
+      if (filter === 'all') {
+        setActiveCommentTab('active'); // Default to active when showing all
+      } else if (filter === 'active') {
+        setActiveCommentTab('active');
+      } else if (filter === 'resolved') {
+        setActiveCommentTab('resolved');
+      }
+    };
+
+    // Handle individual tool opening
+    const handleOpenTool = (event: CustomEvent) => {
+      const toolId = event.detail;
+      console.log('Open tool:', toolId);
+      // Open tools panel and select specific tool
+      setIsCommentsPanelOpen(true);
+      setPanelTab('tools');
+      setActiveTool(toolId);
+    };
+
+    window.addEventListener('doc-set-panel', handleSetPanel as EventListener);
+    window.addEventListener('doc-comments-filter', handleCommentsFilter as EventListener);
+    window.addEventListener('doc-open-tool', handleOpenTool as EventListener);
+
+    return () => {
+      window.removeEventListener('doc-set-panel', handleSetPanel as EventListener);
+      window.removeEventListener('doc-comments-filter', handleCommentsFilter as EventListener);
+      window.removeEventListener('doc-open-tool', handleOpenTool as EventListener);
+    };
+  }, [isCommentsPanelOpen, panelTab]);
+
+  // Notify parent component about panel state changes
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('doc-panel-state', {
+      detail: { open: isCommentsPanelOpen, tab: panelTab }
+    }));
+  }, [isCommentsPanelOpen, panelTab]);
 
   // Add a new comment
   const handleAddComment = () => {
@@ -1126,6 +1247,17 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     }
   }
 
+  // Memoize active heading level to avoid multiple isActive() calls
+  const activeHeading = React.useMemo(() => {
+    if (!editor) return null
+    for (let level = 1; level <= 6; level++) {
+      if (editor.isActive('heading', { level })) {
+        return level
+      }
+    }
+    return 0 // Paragraph
+  }, [editor, editor?.state?.selection]) // Re-compute when selection changes
+
   if (!isMounted) {
     return null
   }
@@ -1136,12 +1268,22 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
   return (
     <>
-      <div className="border rounded-lg bg-background shadow-sm h-full flex flex-col w-full overflow-x-hidden overflow-y-hidden" style={{ position: 'relative', isolation: 'isolate' }}>
-        {/* Toolbar */}
-        <div className="flex items-center gap-1 p-2 pl-3 bg-muted/20 border-b overflow-x-auto overflow-y-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}>
-          {/* Sidebar Toggle + Markdown Toggle + Comments + Tools (ClickUp-style) */}
-          <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
-            <SidebarTrigger className="p-2 bg-black hover:bg-black/80 text-white rounded" />
+      <div className="h-full flex flex-col w-full overflow-x-hidden overflow-y-hidden" style={{ position: 'relative', isolation: 'isolate' }}>
+          {/* Toolbar */}
+          <div className="flex items-center gap-1 p-2 pl-3 bg-muted/20 border-b overflow-x-auto overflow-y-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}>
+            {/* Documents Panel Toggle + Markdown Toggle + Comments + Tools (ClickUp-style) */}
+            <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
+              <MenuButton
+                onClick={() => {
+                  setIsDocumentsPanelOpen(!isDocumentsPanelOpen);
+                  onToggleSidebar?.();
+                }}
+                isActive={isDocumentsPanelOpen}
+                title="Documents"
+                data-sidebar-toggle=""
+              >
+                <PanelLeft className="h-4 w-4" />
+              </MenuButton>
 
             <MenuButton
               onClick={handleMarkdownToggle}
@@ -1153,9 +1295,15 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
             <MenuButton
               onClick={() => {
-                setIsCommentsPanelOpen(!isCommentsPanelOpen)
-                if (!isCommentsPanelOpen) {
+                if (isCommentsPanelOpen && panelTab !== 'comments') {
+                  // Panel is open but different tab is active - just switch tabs
                   setPanelTab('comments')
+                } else {
+                  // Panel is closed OR comments tab is already active - toggle panel
+                  setIsCommentsPanelOpen(!isCommentsPanelOpen)
+                  if (!isCommentsPanelOpen) {
+                    setPanelTab('comments')
+                  }
                 }
               }}
               isActive={isCommentsPanelOpen && panelTab === 'comments'}
@@ -1165,11 +1313,15 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
             </MenuButton>
             <MenuButton
               onClick={() => {
-                setIsCommentsPanelOpen(!isCommentsPanelOpen)
-                if (!isCommentsPanelOpen) {
+                if (isCommentsPanelOpen && panelTab !== 'tools') {
+                  // Panel is open but different tab is active - just switch tabs
                   setPanelTab('tools')
                 } else {
-                  setPanelTab('tools')
+                  // Panel is closed OR tools tab is already active - toggle panel
+                  setIsCommentsPanelOpen(!isCommentsPanelOpen)
+                  if (!isCommentsPanelOpen) {
+                    setPanelTab('tools')
+                  }
                 }
               }}
               isActive={isCommentsPanelOpen && panelTab === 'tools'}
@@ -1240,14 +1392,14 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               <MenuButton
                 onClick={(e) => {
                   e?.stopPropagation()
-                  const wasOpen = showColorSelector
+                  const wasOpen = dropdownStates.showColorSelector
                   closeAllDropdowns()
                   const btn = e?.currentTarget
                   if (btn) {
                     const rect = btn.getBoundingClientRect()
-                    setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                    setDropdownPositions(prev => ({ ...prev, color: { top: rect.bottom + 4, left: rect.left } }))
                   }
-                  setShowColorSelector(!wasOpen)
+                  setDropdownStates(prev => ({ ...prev, showColorSelector: !wasOpen }))
                 }}
                 isActive={editor.isActive('textStyle')}
                 title="Text Color"
@@ -1261,14 +1413,14 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 ref={highlightButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  const wasOpen = showHighlightSelector
+                  const wasOpen = dropdownStates.showHighlightSelector
                   closeAllDropdowns()
                   const btn = highlightButtonRef.current
                   if (btn) {
                     const rect = btn.getBoundingClientRect()
-                    setHighlightDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                    setDropdownPositions(prev => ({ ...prev, highlight: { top: rect.bottom + 4, left: rect.left } }))
                   }
-                  setShowHighlightSelector(!wasOpen)
+                  setDropdownStates(prev => ({ ...prev, showHighlightSelector: !wasOpen }))
                 }}
                 isActive={editor.isActive('highlight')}
                 title="Highlight Color"
@@ -1282,14 +1434,14 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 ref={fontButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  const wasOpen = showFontSelector
+                  const wasOpen = dropdownStates.showFontSelector
                   closeAllDropdowns()
                   const btn = fontButtonRef.current
                   if (btn) {
                     const rect = btn.getBoundingClientRect()
-                    setFontDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                    setDropdownPositions(prev => ({ ...prev, font: { top: rect.bottom + 4, left: rect.left } }))
                   }
-                  setShowFontSelector(!wasOpen)
+                  setDropdownStates(prev => ({ ...prev, showFontSelector: !wasOpen }))
                 }}
                 title="Font Family"
               >
@@ -1302,14 +1454,14 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 ref={fontSizeButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  const wasOpen = showFontSizeSelector
+                  const wasOpen = dropdownStates.showFontSizeSelector
                   closeAllDropdowns()
                   const btn = fontSizeButtonRef.current
                   if (btn) {
                     const rect = btn.getBoundingClientRect()
-                    setFontSizeDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                    setDropdownPositions(prev => ({ ...prev, fontSize: { top: rect.bottom + 4, left: rect.left } }))
                   }
-                  setShowFontSizeSelector(!wasOpen)
+                  setDropdownStates(prev => ({ ...prev, showFontSizeSelector: !wasOpen }))
                 }}
                 title="Font Size"
               >
@@ -1332,14 +1484,14 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 ref={lineHeightButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  const wasOpen = showLineHeightSelector
+                  const wasOpen = dropdownStates.showLineHeightSelector
                   closeAllDropdowns()
                   const btn = lineHeightButtonRef.current
                   if (btn) {
                     const rect = btn.getBoundingClientRect()
-                    setLineHeightDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                    setDropdownPositions(prev => ({ ...prev, lineHeight: { top: rect.bottom + 4, left: rect.left } }))
                   }
-                  setShowLineHeightSelector(!wasOpen)
+                  setDropdownStates(prev => ({ ...prev, showLineHeightSelector: !wasOpen }))
                 }}
                 title="Line Height"
               >
@@ -1352,14 +1504,14 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 ref={spacingButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  const wasOpen = showSpacingSelector
+                  const wasOpen = dropdownStates.showSpacingSelector
                   closeAllDropdowns()
                   const btn = spacingButtonRef.current
                   if (btn) {
                     const rect = btn.getBoundingClientRect()
-                    setSpacingDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                    setDropdownPositions(prev => ({ ...prev, spacing: { top: rect.bottom + 4, left: rect.left } }))
                   }
-                  setShowSpacingSelector(!wasOpen)
+                  setDropdownStates(prev => ({ ...prev, showSpacingSelector: !wasOpen }))
                 }}
                 title="Paragraph Spacing"
               >
@@ -1375,30 +1527,30 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 ref={headingButtonRef}
                 onClick={(e) => {
                   e?.stopPropagation()
-                  const wasOpen = showHeadingSelector
+                  const wasOpen = dropdownStates.showHeadingSelector
                   closeAllDropdowns()
                   const btn = headingButtonRef.current
                   if (btn) {
                     const rect = btn.getBoundingClientRect()
-                    setHeadingDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                    setDropdownPositions(prev => ({ ...prev, heading: { top: rect.bottom + 4, left: rect.left } }))
                   }
-                  setShowHeadingSelector(!wasOpen)
+                  setDropdownStates(prev => ({ ...prev, showHeadingSelector: !wasOpen }))
                 }}
                 title="Text Style"
               >
                 <div className="flex items-center gap-1">
                   {/* Show current heading level or "P" for paragraph */}
-                  {editor.isActive('heading', { level: 1 }) ? (
+                  {activeHeading === 1 ? (
                     <Heading1 className="h-4 w-4" />
-                  ) : editor.isActive('heading', { level: 2 }) ? (
+                  ) : activeHeading === 2 ? (
                     <Heading2 className="h-4 w-4" />
-                  ) : editor.isActive('heading', { level: 3 }) ? (
+                  ) : activeHeading === 3 ? (
                     <Heading3 className="h-4 w-4" />
-                  ) : editor.isActive('heading', { level: 4 }) ? (
+                  ) : activeHeading === 4 ? (
                     <span className="text-xs font-semibold">H4</span>
-                  ) : editor.isActive('heading', { level: 5 }) ? (
+                  ) : activeHeading === 5 ? (
                     <span className="text-xs font-semibold">H5</span>
-                  ) : editor.isActive('heading', { level: 6 }) ? (
+                  ) : activeHeading === 6 ? (
                     <span className="text-xs font-semibold">H6</span>
                   ) : (
                     <span className="text-xs font-semibold">P</span>
@@ -1508,12 +1660,34 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
           )}
         </div>
         
-        {/* Main content area with editor and comments panel */}
-        <div className="flex-1 relative overflow-hidden" style={{ zIndex: 1 }}>
+        {/* Main content area with LEFT documents panel, editor, and RIGHT comments panel */}
+        <div className="flex-1 relative overflow-hidden bg-background" style={{ zIndex: 1 }}>
+          {/* LEFT Documents Panel */}
+          {isDocumentsPanelOpen && (
+            <div
+              className={cn(
+                "absolute z-50 transition-transform duration-300 ease-in-out bg-background border border-border shadow-sm",
+                // Desktop: left margin, fixed width, rounded corners
+                "md:left-2 md:top-2 md:bottom-2 md:w-64 md:rounded-lg",
+                // Mobile: full width, no margins, square corners
+                "left-0 top-0 bottom-0 right-0 w-full rounded-none"
+              )}
+              style={{
+                transform: isDocumentsPanelOpen ? 'translateX(0)' : 'translateX(-100%)',
+              }}
+            >
+              <AppSidebar
+                onDocumentSelect={onDocumentSelect}
+                selectedDocumentId={selectedDocumentId}
+              />
+            </div>
+          )}
+
           {/* Editor Content */}
           <div className={cn(
-            "p-4 h-full overflow-y-auto scrollbar-hide transition-all duration-300 ease-in-out",
-            isCommentsPanelOpen ? "pr-[21rem]" : "pr-4"
+            "p-4 h-full overflow-y-auto scrollbar-hide transition-all duration-300 ease-in-out bg-background",
+            isDocumentsPanelOpen && "md:pl-[17.5rem]",
+            isCommentsPanelOpen && "md:pr-[21.5rem]"
           )}>
             {markdownMode ? (
               <EditorContent editor={editor} className="w-full" />
@@ -1527,7 +1701,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
             )}
           </div>
 
-          {/* Tabbed Side Panel (Comments + Tools) */}
+          {/* RIGHT Tabbed Side Panel (Comments + Tools) */}
           <TabbedSidePanel
             comments={comments}
             activeCommentId={activeCommentId}
@@ -1539,6 +1713,10 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
             onToggle={() => setIsCommentsPanelOpen(!isCommentsPanelOpen)}
             activeTab={panelTab}
             onTabChange={setPanelTab}
+            activeTool={activeTool}
+            onToolChange={setActiveTool}
+            activeCommentTab={activeCommentTab}
+            onCommentTabChange={setActiveCommentTab}
           />
         </div>
         
@@ -1594,13 +1772,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       </div>
       
       {/* Portaled Dropdowns - Render outside overflow context */}
-      {isMounted && showColorSelector && dropdownPosition && createPortal(
+      {isMounted && dropdownStates.showColorSelector && dropdownPositions.color && createPortal(
         <div
           className="fixed z-[99999]"
           data-dropdown-menu="color"
           style={{
-            top: `${dropdownPosition.top}px`,
-            left: `${dropdownPosition.left}px`
+            top: `${dropdownPositions.color.top}px`,
+            left: `${dropdownPositions.color.left}px`
           }}
         >
           <ColorSelector editor={editor} />
@@ -1608,13 +1786,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         document.body
       )}
 
-      {isMounted && showHighlightSelector && highlightDropdownPosition && createPortal(
+      {isMounted && dropdownStates.showHighlightSelector && dropdownPositions.highlight && createPortal(
         <div
           className="fixed z-[99999]"
           data-dropdown-menu="highlight"
           style={{
-            top: `${highlightDropdownPosition.top}px`,
-            left: `${highlightDropdownPosition.left}px`
+            top: `${dropdownPositions.highlight.top}px`,
+            left: `${dropdownPositions.highlight.left}px`
           }}
         >
           <HighlightColorSelector editor={editor} />
@@ -1622,13 +1800,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         document.body
       )}
 
-      {isMounted && showFontSelector && fontDropdownPosition && createPortal(
+      {isMounted && dropdownStates.showFontSelector && dropdownPositions.font && createPortal(
         <div
           className="fixed z-[99999]"
           data-dropdown-menu="font"
           style={{
-            top: `${fontDropdownPosition.top}px`,
-            left: `${fontDropdownPosition.left}px`
+            top: `${dropdownPositions.font.top}px`,
+            left: `${dropdownPositions.font.left}px`
           }}
         >
           <FontSelector editor={editor} />
@@ -1636,13 +1814,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         document.body
       )}
 
-      {isMounted && showFontSizeSelector && fontSizeDropdownPosition && createPortal(
+      {isMounted && dropdownStates.showFontSizeSelector && dropdownPositions.fontSize && createPortal(
         <div
           className="fixed z-[99999]"
           data-dropdown-menu="fontsize"
           style={{
-            top: `${fontSizeDropdownPosition.top}px`,
-            left: `${fontSizeDropdownPosition.left}px`
+            top: `${dropdownPositions.fontSize.top}px`,
+            left: `${dropdownPositions.fontSize.left}px`
           }}
         >
           <FontSizeSelector editor={editor} />
@@ -1650,13 +1828,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         document.body
       )}
 
-      {isMounted && showLineHeightSelector && lineHeightDropdownPosition && createPortal(
+      {isMounted && dropdownStates.showLineHeightSelector && dropdownPositions.lineHeight && createPortal(
         <div
           className="fixed z-[99999]"
           data-dropdown-menu="lineheight"
           style={{
-            top: `${lineHeightDropdownPosition.top}px`,
-            left: `${lineHeightDropdownPosition.left}px`
+            top: `${dropdownPositions.lineHeight.top}px`,
+            left: `${dropdownPositions.lineHeight.left}px`
           }}
         >
           <LineHeightSelector editor={editor} />
@@ -1664,13 +1842,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         document.body
       )}
 
-      {isMounted && showSpacingSelector && spacingDropdownPosition && createPortal(
+      {isMounted && dropdownStates.showSpacingSelector && dropdownPositions.spacing && createPortal(
         <div
           className="fixed z-[99999]"
           data-dropdown-menu="spacing"
           style={{
-            top: `${spacingDropdownPosition.top}px`,
-            left: `${spacingDropdownPosition.left}px`
+            top: `${dropdownPositions.spacing.top}px`,
+            left: `${dropdownPositions.spacing.left}px`
           }}
         >
           <SpacingSelector editor={editor} />
@@ -1678,13 +1856,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         document.body
       )}
 
-      {isMounted && showHeadingSelector && headingDropdownPosition && createPortal(
+      {isMounted && dropdownStates.showHeadingSelector && dropdownPositions.heading && createPortal(
         <div
           className="fixed z-[99999]"
           data-dropdown-menu="heading"
           style={{
-            top: `${headingDropdownPosition.top}px`,
-            left: `${headingDropdownPosition.left}px`
+            top: `${dropdownPositions.heading.top}px`,
+            left: `${dropdownPositions.heading.left}px`
           }}
         >
           <HeadingSelector editor={editor} />
@@ -1703,7 +1881,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               <p className="text-sm text-muted-foreground mb-4">
                 Adding comment to: <span className="font-medium">"{selectedText}"</span>
               </p>
-              <AddCommentForm 
+              <AddCommentForm
                 onSubmit={handleCommentSubmit}
                 onCancel={() => setShowAddCommentForm(false)}
               />

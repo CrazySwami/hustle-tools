@@ -2,7 +2,7 @@ import { streamText, UIMessage, convertToModelMessages } from 'ai';
 import { tools } from '@/lib/tools';
 import { Comment } from '@/components/editor/CommentExtension';
 import { apiMonitor } from '@/lib/api-monitor';
-import { validatePromptTokens, getTokenUsageRecommendation } from '@/lib/token-validator';
+import { validatePromptTokens, getTokenUsageRecommendation, estimateMessagesTokens, estimateTokenCount, getModelContextLimit } from '@/lib/token-validator';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -369,9 +369,26 @@ The editor is empty. You can write new code directly using the \`editCodeWithMor
     // For Claude models, we'll just use the system prompt as-is
     // Cache control will be added via experimental_providerMetadata if needed in the future
 
-    // Validate token count before sending to model
-    const messagesText = JSON.stringify(convertedMessages);
-    let validation = validatePromptTokens(systemPrompt, messagesText, selectedModel);
+    // Validate token count before sending to model (async image-aware counting)
+    const messagesTokens = await estimateMessagesTokens(convertedMessages, selectedModel);
+    const systemTokens = estimateTokenCount(systemPrompt);
+    const totalInputTokens = systemTokens + messagesTokens;
+
+    const contextLimit = getModelContextLimit(selectedModel);
+    const effectiveLimit = contextLimit - 4000; // Reserve for output
+
+    const percentUsed = (totalInputTokens / effectiveLimit) * 100;
+    const exceeded = Math.max(0, totalInputTokens - effectiveLimit);
+
+    let validation = {
+      isValid: totalInputTokens <= effectiveLimit,
+      tokenCount: totalInputTokens,
+      limit: effectiveLimit,
+      percentUsed,
+      exceeded,
+      warning: percentUsed > 75 ? `Prompt uses ${percentUsed.toFixed(1)}% of context window.` : undefined,
+      error: totalInputTokens > effectiveLimit ? `Prompt exceeds model context limit by ${exceeded.toLocaleString()} tokens.` : undefined,
+    };
 
     console.log('📊 Token validation (before management):', {
       model: selectedModel,
@@ -416,8 +433,21 @@ The editor is empty. You can write new code directly using the \`editCodeWithMor
 
         windowStrategy = windowResult.strategy;
 
-        const managedMessagesText = JSON.stringify(managedMessages);
-        validation = validatePromptTokens(systemPrompt, managedMessagesText, selectedModel);
+        // Re-validate with managed messages (async image-aware counting)
+        const managedMessagesTokens = await estimateMessagesTokens(managedMessages, selectedModel);
+        const managedTotalTokens = systemTokens + managedMessagesTokens;
+        const managedPercentUsed = (managedTotalTokens / effectiveLimit) * 100;
+        const managedExceeded = Math.max(0, managedTotalTokens - effectiveLimit);
+
+        validation = {
+          isValid: managedTotalTokens <= effectiveLimit,
+          tokenCount: managedTotalTokens,
+          limit: effectiveLimit,
+          percentUsed: managedPercentUsed,
+          exceeded: managedExceeded,
+          warning: managedPercentUsed > 75 ? `Prompt uses ${managedPercentUsed.toFixed(1)}% of context window.` : undefined,
+          error: managedTotalTokens > effectiveLimit ? `Prompt exceeds model context limit by ${managedExceeded.toLocaleString()} tokens.` : undefined,
+        };
 
         console.log('📊 Token validation (after management):', {
           tokenCount: validation.tokenCount.toLocaleString(),

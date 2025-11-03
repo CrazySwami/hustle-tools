@@ -230,51 +230,57 @@ export default function FirecrawlPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground">
-      <div className="mx-auto max-w-5xl p-5 pt-24">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold">Firecrawl</h1>
-          <p className="mt-2 text-foreground/80">
-            Crawl a website and extract markdown from all pages.
-          </p>
+    <div className="min-h-screen bg-gray-50 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-4">
+        <div className="flex items-center gap-3 justify-center">
+          <svg className="w-8 h-8 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+          </svg>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Firecrawl Site Mapper</h1>
         </div>
-        <div className="flex flex-col md:flex-row gap-6 mt-6 items-start">
+        <p className="mt-4 text-center text-gray-600">
+          Crawl a website and extract markdown from all pages.
+        </p>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="flex flex-col md:flex-row gap-6 items-start">
           <section className="w-full md:w-[35%]">
-            <div className="space-y-4 rounded-lg border border-foreground/15 p-4 h-full">
-              <h2 className="font-medium">1. Map Site</h2>
-              <p className="text-sm text-foreground/70">
+            <div className="space-y-4 rounded-lg border-2 bg-white border-gray-200 p-4 sm:p-6 transition-colors h-full">
+              <h2 className="text-lg font-semibold text-gray-900">1. Map Site</h2>
+              <p className="text-sm text-gray-700">
                 Find all the links on a website.
               </p>
 
               <div className="grid grid-cols-1 gap-4">
                 <div>
-                  <label className="text-sm">URL to crawl</label>
+                  <label className="text-sm font-medium text-gray-700">URL to crawl</label>
                   <input
                     type="url"
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
                     placeholder="https://example.com"
-                    className="w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-foreground/30"
+                    className="w-full rounded-md border-2 border-gray-300 bg-white text-gray-900 px-3 py-2 text-sm transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="text-sm">Limit</label>
+                  <label className="text-sm font-medium text-gray-700">Limit</label>
                   <input
                     type="number"
                     value={limit}
                     onChange={(e) => setLimit(e.target.value ? parseInt(e.target.value) : "")}
                     placeholder="200"
-                    className="w-full rounded-md border border-foreground/15 bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-foreground/30"
+                    className="w-full rounded-md border-2 border-gray-300 bg-white text-gray-900 px-3 py-2 text-sm transition-colors"
                   />
                 </div>
               </div>
 
-              <label className="inline-flex items-center gap-2 text-sm">
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={includeSubdomains}
                   onChange={(e) => setIncludeSubdomains(e.target.checked)}
-                  className="accent-foreground"
+                  className="w-4 h-4"
                 />
                 Include subdomains
               </label>
@@ -283,32 +289,32 @@ export default function FirecrawlPage() {
                 <button
                   onClick={handleMap}
                   disabled={!baseUrl || mapping}
-                  className="inline-flex items-center justify-center rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium disabled:opacity-60"
+                  className="inline-flex items-center justify-center rounded-md bg-gray-900 text-white px-4 py-2 text-sm font-medium disabled:opacity-60 hover:bg-gray-800 transition-colors"
                 >
                   {mapping ? "Mapping..." : "Map"}
                 </button>
                 {mappedCount > 0 && (
                   <button
                     onClick={useLinksInTextarea}
-                    className="inline-flex items-center justify-center rounded-md border border-foreground/15 px-3 py-2 text-sm hover:bg-foreground/5"
+                    className="inline-flex items-center justify-center rounded-md border-2 border-gray-300 text-gray-700 hover:bg-gray-100 px-3 py-2 text-sm transition-colors"
                   >
                     Use {mappedCount} links in textarea
                   </button>
                 )}
               </div>
 
-              {mapError && <p className="text-sm text-red-500">{mapError}</p>}
+              {mapError && <p className="text-sm text-red-600">{mapError}</p>}
 
               {mappedCount > 0 && (
                 <>
-                  <div className="text-sm text-foreground/70">
+                  <div className="text-sm text-gray-700">
                     Found {mappedCount} links.
                   </div>
-                  <div className="rounded-md border border-foreground/10 bg-background/40 p-3 max-h-64 overflow-auto">
+                  <div className="rounded-md border border-gray-200 bg-gray-50 p-3 max-h-64 overflow-auto">
                     <ul className="list-disc pl-5 text-sm space-y-1">
                       {links.map((l) => (
                         <li key={l} className="break-all">
-                          <a href={l} target="_blank" rel="noreferrer" className="underline">
+                          <a href={l} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 underline">
                             {l}
                           </a>
                         </li>
@@ -321,22 +327,22 @@ export default function FirecrawlPage() {
           </section>
 
           <section className="w-full md:w-[65%]">
-            <div className="space-y-4 rounded-lg border border-foreground/15 p-4 h-full">
-              <h2 className="font-medium">2. Batch Scrape</h2>
-              <p className="text-sm text-foreground/70">
+            <div className="space-y-4 rounded-lg border-2 bg-white border-gray-200 p-4 sm:p-6 transition-colors h-full">
+              <h2 className="text-lg font-semibold text-gray-900">2. Batch Scrape</h2>
+              <p className="text-sm text-gray-700">
                 Extract markdown from a list of URLs.
               </p>
 
-              <label className="text-sm">URLs (one per line)</label>
+              <label className="text-sm font-medium text-gray-700">URLs (one per line)</label>
               <textarea
                 value={urlsText}
                 onChange={(e) => setUrlsText(e.target.value)}
                 placeholder={links.length ? links.slice(0, 5).join("\n") + (links.length > 5 ? "\n…" : "") : "https://example.com/page-1\nhttps://example.com/page-2"}
-                className="min-h-40 w-full rounded-md border border-foreground/15 bg-background px-3 py-2 font-mono text-sm outline-none focus:ring-2 focus:ring-foreground/30"
+                className="min-h-40 w-full rounded-md border-2 border-gray-300 bg-white text-gray-900 px-3 py-2 font-mono text-sm transition-colors"
               />
 
               <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="text-xs text-foreground/70">{urlsCount} URL(s)</div>
+                <div className="text-xs text-gray-600">{urlsCount} URL(s)</div>
 
               </div>
 
@@ -344,51 +350,51 @@ export default function FirecrawlPage() {
                 <button
                   onClick={handleBatchScrape}
                   disabled={!urlsCount || scraping}
-                  className="inline-flex items-center justify-center rounded-md bg-foreground text-background px-4 py-2 text-sm font-medium disabled:opacity-60"
+                  className="inline-flex items-center justify-center rounded-md bg-gray-900 text-white px-4 py-2 text-sm font-medium disabled:opacity-60 hover:bg-gray-800 transition-colors"
                 >
                   {scraping ? `Scraping... ${jobStatus || ''} (${jobProgress.completed}/${jobProgress.total})` : "Extract Markdown"}
                 </button>
 
                 {scrapeResults.length > 0 && (
                   <div className="flex items-center gap-3">
-                    <Button onClick={handleDownloadZip} disabled={!scrapeResults.some(r => r.markdown)} variant="outline">Download All as .zip</Button>
-                    <Button onClick={() => downloadText("combined.md", scrapeResults.map(r => r.markdown).join("\n\n---\n\n"))} variant="outline">Download combined.md</Button>
+                    <Button onClick={handleDownloadZip} disabled={!scrapeResults.some(r => r.markdown)} variant="outline" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100">Download All as .zip</Button>
+                    <Button onClick={() => downloadText("combined.md", scrapeResults.map(r => r.markdown).join("\n\n---\n\n"))} variant="outline" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100">Download combined.md</Button>
                   </div>
                 )}
               </div>
 
               {scrapeError && (
-                <p className="text-sm text-red-500">{scrapeError}</p>
+                <p className="text-sm text-red-600">{scrapeError}</p>
               )}
 
               {scrapeResults.length > 0 && (
                 <div className="mt-4 space-y-3">
-                  <div className="text-sm text-foreground/70">
+                  <div className="text-sm text-gray-700">
                     {scrapeResults.filter((r) => r.markdown).length} succeeded, {scrapeResults.filter((r) => r.error).length} failed
                   </div>
                   {scrapeResults.map((result) => (
-                    <div key={result.url} className="rounded-lg border border-foreground/15">
-                      <div 
-                        className="flex justify-between items-center p-4 cursor-pointer"
+                    <div key={result.url} className="rounded-lg border-2 border-gray-200 bg-white transition-colors">
+                      <div
+                        className="flex justify-between items-center p-4 cursor-pointer hover:bg-gray-50"
                         onClick={() => result.markdown && handleToggleOne(result.url)}
                       >
                         <div className="flex items-center gap-2">
                           {result.markdown && (
-                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-700">
                               {openStates[result.url] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                             </Button>
                           )}
-                          <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline truncate">
+                          <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline truncate">
                             {result.url}
                           </a>
                         </div>
                         {result.markdown && (
-                          <Button onClick={(e) => { e.stopPropagation(); if (result.markdown) handleDownloadSingle(result.markdown, result.url); }} variant="outline" size="sm">Download .md</Button>
+                          <Button onClick={(e) => { e.stopPropagation(); if (result.markdown) handleDownloadSingle(result.markdown, result.url); }} variant="outline" size="sm" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100">Download .md</Button>
                         )}
                       </div>
                       {result.markdown && openStates[result.url] && (
-                        <div className="border-t border-foreground/15 px-4 py-4">
-                          <pre className="whitespace-pre-wrap text-sm">{result.markdown}</pre>
+                        <div className="border-t border-gray-200 px-4 py-4 bg-gray-50">
+                          <pre className="whitespace-pre-wrap text-sm text-gray-900">{result.markdown}</pre>
                         </div>
                       )}
                     </div>
@@ -399,7 +405,7 @@ export default function FirecrawlPage() {
           </section>
         </div>
 
-        <div className="mt-10 text-xs text-foreground/60">
+        <div className="mt-10 pb-6 text-xs text-gray-600 text-center">
           Note: Set FIRECRAWL_API_KEY in your .env.local and restart the dev server.
         </div>
       </div>

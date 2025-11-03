@@ -24,6 +24,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const unprotectedRoutes = [
+    '/',
     '/login',
     '/signup',
     '/image-alterations',
@@ -36,11 +37,13 @@ export async function middleware(request: NextRequest) {
     '/editor',
     '/elementor-editor',
     '/blog-planner',
+    '/blog-builder',
     '/tkx-calendar',
     '/keyword-research',
     '/voice-chat',
     '/test-cartesia',
     '/roadmap',
+    '/hubspot-converter',
   ]
   const path = request.nextUrl.pathname
 

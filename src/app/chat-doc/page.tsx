@@ -619,8 +619,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                       hideLogoOnDesktop={false}
                     />
                   </div>
-                  <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
-                    <DocumentChat
+                  <DocumentChat
                     messages={messages}
                     isLoading={isLoading}
                     status={status}

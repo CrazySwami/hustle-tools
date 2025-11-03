@@ -1178,29 +1178,27 @@ export default function ElementorEditorPage() {
                       showOnMobile={false}
                     />
                   </div>
-                  <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
-                    <ElementorChat
-                      messages={messages}
-                      isLoading={isLoading}
-                      status={status}
-                      onSendMessage={handleSendMessage}
-                      selectedModel={selectedModel}
-                      onModelChange={setSelectedModel}
-                      onReload={reload}
-                      onStreamUpdate={(type, content) => {
-                        setStreamedCode(prev => ({ ...prev, [type]: content }));
-                      }}
-                      onSwitchToSectionEditor={() => setActiveTab('json')}
-                      onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
-                      onSwitchTab={(tab) => setActiveTab(tab)}
-                      onUpdateSection={(updates) => {
-                        if (currentSection) {
-                          setCurrentSection({ ...currentSection, ...updates });
-                        }
-                      }}
-                      currentSection={currentSection}
-                    />
-                  </div>
+                  <ElementorChat
+                    messages={messages}
+                    isLoading={isLoading}
+                    status={status}
+                    onSendMessage={handleSendMessage}
+                    selectedModel={selectedModel}
+                    onModelChange={setSelectedModel}
+                    onReload={reload}
+                    onStreamUpdate={(type, content) => {
+                      setStreamedCode(prev => ({ ...prev, [type]: content }));
+                    }}
+                    onSwitchToSectionEditor={() => setActiveTab('json')}
+                    onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
+                    onSwitchTab={(tab) => setActiveTab(tab)}
+                    onUpdateSection={(updates) => {
+                      if (currentSection) {
+                        setCurrentSection({ ...currentSection, ...updates });
+                      }
+                    }}
+                    currentSection={currentSection}
+                  />
                 </div>
               </div>
             }

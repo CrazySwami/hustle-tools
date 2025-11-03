@@ -589,7 +589,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
           <TwoPanelChatLayout
             leftPanel={
               <div style={{
-                padding: '8px 8px 0 8px',
+                padding: '8px',
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
@@ -605,19 +605,22 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                   width: '100%',
                   maxWidth: '100%'
                 }}>
-                  <NavigationBar
-                    tabs={navigationTabs}
-                    onTabChange={handleTabChange}
-                    onDropdownItemClick={handleNavigationDropdownClick}
-                    logoMenuItems={['Toggle Theme']}
-                    onLogoMenuItemClick={(item) => {
-                      // Theme toggle is handled automatically by inner-navigation-bar
-                    }}
-                    showOnDesktop={true}
-                    showOnMobile={true}
-                    hideLogoOnDesktop={false}
-                  />
-                  <DocumentChat
+                  <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                    <NavigationBar
+                      tabs={navigationTabs}
+                      onTabChange={handleTabChange}
+                      onDropdownItemClick={handleNavigationDropdownClick}
+                      logoMenuItems={['Toggle Theme']}
+                      onLogoMenuItemClick={(item) => {
+                        // Theme toggle is handled automatically by inner-navigation-bar
+                      }}
+                      showOnDesktop={true}
+                      showOnMobile={true}
+                      hideLogoOnDesktop={false}
+                    />
+                  </div>
+                  <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
+                    <DocumentChat
                     messages={messages}
                     isLoading={isLoading}
                     status={status}

@@ -1143,7 +1143,7 @@ export default function ElementorEditorPage() {
           <TwoPanelChatLayout
             leftPanel={
               <div style={{
-                padding: '8px 8px 0 8px',
+                padding: '8px',
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
@@ -1159,44 +1159,48 @@ export default function ElementorEditorPage() {
                   width: '100%',
                   maxWidth: '100%'
                 }}>
-                  <NavigationBar
-                    tabs={navigationTabs}
-                    onTabChange={(tabId) => {
-                      const tabMap: Record<string, string> = {
-                        'code-editor': 'json',
-                        'project-library': 'sections',
-                        'wordpress-playground': 'playground',
-                        'site-content': 'site-content',
-                        'style-guide': 'style-guide',
-                        'usage': 'usage',
-                      };
-                      setActiveTab(tabMap[tabId] || tabId);
-                    }}
-                    onDropdownItemClick={handleNavigationDropdownClick}
-                    showOnDesktop={true}
-                    showOnMobile={false}
-                  />
-                  <ElementorChat
-                    messages={messages}
-                    isLoading={isLoading}
-                    status={status}
-                    onSendMessage={handleSendMessage}
-                    selectedModel={selectedModel}
-                    onModelChange={setSelectedModel}
-                    onReload={reload}
-                    onStreamUpdate={(type, content) => {
-                      setStreamedCode(prev => ({ ...prev, [type]: content }));
-                    }}
-                    onSwitchToSectionEditor={() => setActiveTab('json')}
-                    onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
-                    onSwitchTab={(tab) => setActiveTab(tab)}
-                    onUpdateSection={(updates) => {
-                      if (currentSection) {
-                        setCurrentSection({ ...currentSection, ...updates });
-                      }
-                    }}
-                    currentSection={currentSection}
-                  />
+                  <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                    <NavigationBar
+                      tabs={navigationTabs}
+                      onTabChange={(tabId) => {
+                        const tabMap: Record<string, string> = {
+                          'code-editor': 'json',
+                          'project-library': 'sections',
+                          'wordpress-playground': 'playground',
+                          'site-content': 'site-content',
+                          'style-guide': 'style-guide',
+                          'usage': 'usage',
+                        };
+                        setActiveTab(tabMap[tabId] || tabId);
+                      }}
+                      onDropdownItemClick={handleNavigationDropdownClick}
+                      showOnDesktop={true}
+                      showOnMobile={false}
+                    />
+                  </div>
+                  <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
+                    <ElementorChat
+                      messages={messages}
+                      isLoading={isLoading}
+                      status={status}
+                      onSendMessage={handleSendMessage}
+                      selectedModel={selectedModel}
+                      onModelChange={setSelectedModel}
+                      onReload={reload}
+                      onStreamUpdate={(type, content) => {
+                        setStreamedCode(prev => ({ ...prev, [type]: content }));
+                      }}
+                      onSwitchToSectionEditor={() => setActiveTab('json')}
+                      onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
+                      onSwitchTab={(tab) => setActiveTab(tab)}
+                      onUpdateSection={(updates) => {
+                        if (currentSection) {
+                          setCurrentSection({ ...currentSection, ...updates });
+                        }
+                      }}
+                      currentSection={currentSection}
+                    />
+                  </div>
                 </div>
               </div>
             }

@@ -393,7 +393,6 @@ export function DocumentChat({
       overflow: 'hidden',
       position: 'relative',
       background: '#F2F2F2',
-      margin: '5px',
     }}>
       <Conversation className="flex-1 scrollbar-hide" style={{ overflow: 'hidden' }}>
         <ConversationContent className="scrollbar-hide px-3" style={{ flex: 1, overflow: 'auto' }}>
@@ -698,7 +697,7 @@ export function DocumentChat({
 
       <PromptInput
         onSubmit={handleSubmit}
-        style={{ flexShrink: 0, margin: '0 0 10px 0px' }}
+        style={{ flexShrink: 0, margin: '0 0 10px 0px', padding: '0 8px' }}
 
         promptValue={input}
         systemPrompt={actualSystemPrompt}

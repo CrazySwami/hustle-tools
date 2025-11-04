@@ -3,6 +3,9 @@
 import { BlogBuilderTool } from '@/components/ai-elements/blog-builder-tool';
 import { Sparkles } from 'lucide-react';
 
+// Force dynamic rendering (no static generation)
+export const dynamic = 'force-dynamic';
+
 export default function BlogBuilderPage() {
   return (
     <div className="min-h-screen w-full overflow-y-auto bg-gray-50">

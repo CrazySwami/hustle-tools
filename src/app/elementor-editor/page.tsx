@@ -132,7 +132,7 @@ export default function ElementorEditorPage() {
 
   // Derive currentSection from activeGroup (single source of truth)
   // This prevents race conditions where onSectionChange overwrites project selection
-  // Use useMemo with STABLE dependencies (activeGroupId, NOT entire currentProject object)
+  // Now that fileGroups is memoized, currentProject is stable and safe to use
   const currentSection: Section | null = useMemo(() => {
     const section = currentProject ? {
       id: currentProject.id,
@@ -157,7 +157,7 @@ export default function ElementorEditorPage() {
     });
 
     return section;
-  }, [fileGroups.activeGroupId, fileGroups.groups, currentProject?.id]);
+  }, [currentProject, fileGroups.activeGroupId]);
 
   // Chat panel width tracking for responsive NavigationBar
   const [chatPanelWidth, setChatPanelWidth] = useState<number>(0);

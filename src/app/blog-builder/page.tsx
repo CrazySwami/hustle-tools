@@ -1,10 +1,13 @@
 'use client';
 
-import { BlogBuilderTool } from '@/components/ai-elements/blog-builder-tool';
+import dynamic from 'next/dynamic';
 import { Sparkles } from 'lucide-react';
 
-// Force dynamic rendering (no static generation)
-export const dynamic = 'force-dynamic';
+// Dynamically import with SSR disabled for browser-only code
+const BlogBuilderTool = dynamic(
+  () => import('@/components/ai-elements/blog-builder-tool').then(mod => ({ default: mod.BlogBuilderTool })),
+  { ssr: false }
+);
 
 export default function BlogBuilderPage() {
   return (

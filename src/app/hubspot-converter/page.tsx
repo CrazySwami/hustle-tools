@@ -1,10 +1,13 @@
-"use client"
+'use client';
 
-import HubSpotModuleConverter from '@/components/hubspot/hubspot-module-converter'
+import dynamic from 'next/dynamic';
 
-// Force dynamic rendering (no static generation)
-export const dynamic = 'force-dynamic';
+// Dynamically import with SSR disabled for browser-only code
+const HubSpotModuleConverter = dynamic(
+  () => import('@/components/hubspot/hubspot-module-converter'),
+  { ssr: false }
+);
 
 export default function HubSpotConverterPage() {
-  return <HubSpotModuleConverter />
+  return <HubSpotModuleConverter />;
 }

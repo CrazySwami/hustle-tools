@@ -1,5 +1,4 @@
 import { streamText } from 'ai';
-import { gateway } from '@/lib/ai-gateway';
 
 export const maxDuration = 60;
 
@@ -54,9 +53,7 @@ SUMMARY:`;
 
     // Use Gemini 2.5 Flash for summarization (cheap + fast + 1M context)
     const result = await streamText({
-      model: gateway('google/gemini-2.5-flash', {
-        apiKey: process.env.AI_GATEWAY_API_KEY!,
-      }),
+      model: 'google/gemini-2.5-flash',
       prompt: summaryPrompt,
       temperature: 0.3, // Lower temperature for more consistent summaries
       maxTokens: 1000, // Limit summary length

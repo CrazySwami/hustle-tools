@@ -126,38 +126,34 @@ export default function ElementorEditorPage() {
       activeGroupId: fileGroups.activeGroupId,
       currentProjectId: currentProject?.id,
       currentProjectName: currentProject?.name,
+      currentProjectReference: currentProject, // Log full object to see if reference changes
       timestamp: new Date().toISOString(),
     });
-  }, [fileGroups.activeGroupId, currentProject?.id]);
+  }, [fileGroups.activeGroupId, currentProject]);
 
   // Derive currentSection from activeGroup (single source of truth)
-  // This prevents race conditions where onSectionChange overwrites project selection
-  // Now that fileGroups is memoized, currentProject is stable and safe to use
-  const currentSection: Section | null = useMemo(() => {
-    const section = currentProject ? {
-      id: currentProject.id,
-      name: currentProject.name,
-      type: currentProject.type,
-      html: currentProject.html || '',
-      css: currentProject.css || '',
-      js: currentProject.js || '',
-      php: currentProject.php || '',
-      createdAt: currentProject.createdAt,
-      updatedAt: currentProject.updatedAt,
-    } : null;
+  // Compute directly without memoization to ensure updates propagate immediately
+  const currentSection: Section | null = currentProject ? {
+    id: currentProject.id,
+    name: currentProject.name,
+    type: currentProject.type,
+    html: currentProject.html || '',
+    css: currentProject.css || '',
+    js: currentProject.js || '',
+    php: currentProject.php || '',
+    createdAt: currentProject.createdAt,
+    updatedAt: currentProject.updatedAt,
+  } : null;
 
-    console.log('🔄 currentSection recomputed:', {
-      activeGroupId: fileGroups.activeGroupId,
-      projectId: currentProject?.id,
-      projectName: currentProject?.name,
-      sectionId: section?.id,
-      sectionName: section?.name,
-      htmlLength: section?.html?.length || 0,
-      timestamp: new Date().toISOString(),
-    });
-
-    return section;
-  }, [currentProject, fileGroups.activeGroupId]);
+  console.log('🔄 currentSection computed:', {
+    activeGroupId: fileGroups.activeGroupId,
+    projectId: currentProject?.id,
+    projectName: currentProject?.name,
+    sectionId: currentSection?.id,
+    sectionName: currentSection?.name,
+    htmlLength: currentSection?.html?.length || 0,
+    timestamp: new Date().toISOString(),
+  });
 
   // Chat panel width tracking for responsive NavigationBar
   const [chatPanelWidth, setChatPanelWidth] = useState<number>(0);
@@ -1573,7 +1569,7 @@ export default function ElementorEditorPage() {
                 ) : (
                   // Regular View Mode - Keep all tabs mounted, just hide inactive ones
                   <>
-                <div className={`tab-panel ${activeTab === 'json' ? 'active' : ''}`} id="jsonPanel" style={{ display: activeTab === 'json' ? 'flex' : 'none' }}>
+                <div className={`tab-panel ${activeTab === 'json' ? 'active' : ''}`} id="jsonPanel" style={{ display: activeTab === 'json' ? 'flex' : 'none', height: '100%', width: '100%', overflow: 'hidden', position: activeTab === 'json' ? 'relative' : 'absolute', visibility: activeTab === 'json' ? 'visible' : 'hidden' }}>
                   <HtmlSectionEditor
                 key={loadedSection?.id || 'default'} // Force remount when loading new section
                 initialSection={loadedSection || undefined}
@@ -1628,7 +1624,7 @@ export default function ElementorEditorPage() {
                   />
                 </div>
 
-                <div className={`tab-panel ${activeTab === 'visual' ? 'active' : ''}`} id="visualPanel" style={{ display: activeTab === 'visual' ? 'flex' : 'none' }}>
+                <div className={`tab-panel ${activeTab === 'visual' ? 'active' : ''}`} id="visualPanel" style={{ display: activeTab === 'visual' ? 'flex' : 'none', height: '100%', width: '100%', overflow: 'hidden', position: activeTab === 'visual' ? 'relative' : 'absolute', visibility: activeTab === 'visual' ? 'visible' : 'hidden' }}>
                   <VisualSectionEditor
                     initialSection={currentSection || undefined}
                     onSectionChange={(section) => {
@@ -1644,7 +1640,7 @@ export default function ElementorEditorPage() {
                   />
                 </div>
 
-                <div className={`tab-panel ${activeTab === 'playground' ? 'active' : ''}`} id="playgroundPanel" style={{ display: activeTab === 'playground' ? 'flex' : 'none' }}>
+                <div className={`tab-panel ${activeTab === 'playground' ? 'active' : ''}`} id="playgroundPanel" style={{ display: activeTab === 'playground' ? 'flex' : 'none', height: '100%', width: '100%', overflow: 'hidden', position: activeTab === 'playground' ? 'relative' : 'absolute', visibility: activeTab === 'playground' ? 'visible' : 'hidden', pointerEvents: activeTab === 'playground' ? 'auto' : 'none' }}>
                   <PlaygroundView
                     json={currentJson}
                     isActive={true} // Always active so playground initializes immediately on page load
@@ -1664,7 +1660,7 @@ export default function ElementorEditorPage() {
                   />
                 </div>
 
-                <div className={`tab-panel ${activeTab === 'sections' ? 'active' : ''}`} id="sectionsPanel" style={{ display: activeTab === 'sections' ? 'flex' : 'none' }}>
+                <div className={`tab-panel ${activeTab === 'sections' ? 'active' : ''}`} id="sectionsPanel" style={{ display: activeTab === 'sections' ? 'flex' : 'none', height: '100%', width: '100%', overflow: 'hidden', position: activeTab === 'sections' ? 'relative' : 'absolute', visibility: activeTab === 'sections' ? 'visible' : 'hidden' }}>
                   <ProjectLibrary
                     isTabVisible={activeTab === 'sections'}
                     chatVisible={chatVisible}
@@ -1716,7 +1712,7 @@ export default function ElementorEditorPage() {
                   />
                 </div>
 
-                <div className={`tab-panel ${activeTab === 'style-guide' ? 'active' : ''}`} id="styleGuidePanel" style={{ display: activeTab === 'style-guide' ? 'flex' : 'none' }}>
+                <div className={`tab-panel ${activeTab === 'style-guide' ? 'active' : ''}`} id="styleGuidePanel" style={{ display: activeTab === 'style-guide' ? 'flex' : 'none', height: '100%', width: '100%', overflow: 'hidden', position: activeTab === 'style-guide' ? 'relative' : 'absolute', visibility: activeTab === 'style-guide' ? 'visible' : 'hidden' }}>
                   <StyleGuideUnified
                     isTabVisible={activeTab === 'style-guide'}
                     chatVisible={chatVisible}
@@ -1726,7 +1722,7 @@ export default function ElementorEditorPage() {
                   />
                 </div>
 
-                <div className={`tab-panel ${activeTab === 'usage' ? 'active' : ''}`} id="usagePanel" style={{ display: activeTab === 'usage' ? 'flex' : 'none' }}>
+                <div className={`tab-panel ${activeTab === 'usage' ? 'active' : ''}`} id="usagePanel" style={{ display: activeTab === 'usage' ? 'flex' : 'none', height: '100%', width: '100%', overflow: 'hidden', position: activeTab === 'usage' ? 'relative' : 'absolute', visibility: activeTab === 'usage' ? 'visible' : 'hidden' }}>
                   <UsageTrackingTab
                     chatVisible={chatVisible}
                     setChatVisible={setChatVisible}
@@ -2126,7 +2122,7 @@ export default function ElementorEditorPage() {
                   right: 0,
                   bottom: 0,
                   background: 'rgba(0,0,0,0.5)',
-                  zIndex: 1999,
+                  zIndex: 9999, // Below chat drawer, above everything else
                   transition: 'opacity 0.3s ease'
                 }}
               />
@@ -2143,7 +2139,7 @@ export default function ElementorEditorPage() {
                 background: 'var(--background)',
                 border: '1px solid var(--border)',
                 borderRadius: '12px',
-                zIndex: 3200, // Above options button (3000)
+                zIndex: 10000, // Highest z-index on the page
                 transition: 'height 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',

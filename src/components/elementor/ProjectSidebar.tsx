@@ -38,12 +38,18 @@ export function ProjectSidebar({
   onDeleteGroup,
   onSaveToLibrary,
 }: ProjectSidebarProps) {
+  const [hasMounted, setHasMounted] = useState(false);
   const [contextMenuGroupId, setContextMenuGroupId] = useState<string | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
   const [openMenuGroupId, setOpenMenuGroupId] = useState<string | null>(null);
+
+  // Prevent hydration mismatch - only render actual content after mount
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Handle right-click on group
   const handleContextMenu = (e: React.MouseEvent, groupId: string) => {
@@ -221,7 +227,17 @@ export function ProjectSidebar({
 
       {/* Group List */}
       <div style={{ flex: 1, overflow: 'auto' }}>
-        {groups.length === 0 ? (
+        {!hasMounted ? (
+          // Show placeholder during SSR to prevent hydration mismatch
+          <div style={{
+            padding: '20px',
+            textAlign: 'center',
+            color: '#888',
+            fontSize: '13px'
+          }}>
+            Loading...
+          </div>
+        ) : groups.length === 0 ? (
           <div style={{
             padding: '20px',
             textAlign: 'center',
@@ -236,7 +252,18 @@ export function ProjectSidebar({
           groups.map((group) => (
             <div
               key={group.id}
-              onClick={() => onSelectGroup(group.id)}
+              onClick={() => {
+                console.log('🖱️ ProjectSidebar: User clicked project:', {
+                  clickedId: group.id,
+                  clickedName: group.name,
+                  clickedType: group.type,
+                  currentActiveId: activeGroupId,
+                  idType: typeof group.id,
+                  idMatch: group.id === activeGroupId,
+                  timestamp: new Date().toISOString(),
+                });
+                onSelectGroup(group.id);
+              }}
               onContextMenu={(e) => handleContextMenu(e, group.id)}
               onMouseEnter={() => setHoveredGroupId(group.id)}
               onMouseLeave={() => {

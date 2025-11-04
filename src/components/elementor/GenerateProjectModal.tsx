@@ -5,11 +5,13 @@ import { useUsageTracking } from '@/hooks/useUsageTracking';
 import { MODEL_PRICING } from '@/hooks/useUsageTracking';
 import { AiFillHtml5 } from 'react-icons/ai';
 import { FaWordpress } from 'react-icons/fa';
-import { SiHubspot } from 'react-icons/si';
+import { SiHubspot, SiCss3, SiJavascript } from 'react-icons/si';
+import { MdTransform } from 'react-icons/md';
 
 import { convertHtmlToHubL } from '@/lib/hubspot-converter';
 import { SystemPromptViewer } from '@/components/ui/SystemPromptViewer';
 import { getModelContextLimit, estimateTokenCount } from '@/lib/token-validator';
+import { loadEditorState, type FileGroup } from '@/lib/file-group-manager';
 
 // Model configurations (same as ChatInterface)
 const MODEL_CONFIGS = {
@@ -42,7 +44,8 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
   // If existingCode is provided, we're in conversion mode - skip type selection and go straight to elementor
   const isConversionMode = !!existingCode;
   const [step, setStep] = useState<'type' | 'description' | 'generating'>(isConversionMode ? 'description' : 'type');
-  const [projectType, setProjectType] = useState<'html' | 'elementor' | 'hubspot'>(isConversionMode ? 'elementor' : 'html');
+  const [projectType, setProjectType] = useState<'html' | 'elementor' | 'hubspot' | 'convert-to-elementor'>(isConversionMode ? 'elementor' : 'html');
+  const [selectedHtmlProjectId, setSelectedHtmlProjectId] = useState<string>(''); // For convert-to-elementor option
   const [hubspotModuleType, setHubspotModuleType] = useState<'email' | 'page'>('email'); // Email by default for safety
   const [description, setDescription] = useState('');
   const [projectName, setProjectName] = useState('');
@@ -55,8 +58,18 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
   const [uploadedImages, setUploadedImages] = useState<Array<{ url: string; filename: string }>>([]);
   const [includeImages, setIncludeImages] = useState(false);
+  const [htmlProjects, setHtmlProjects] = useState<FileGroup[]>([]);
 
   const { recordUsage} = useUsageTracking();
+
+  // Load HTML projects when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const state = loadEditorState();
+      const htmlOnly = state.groups.filter(g => g.type === 'html');
+      setHtmlProjects(htmlOnly);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -64,9 +77,16 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
     if (step === 'type') {
       setStep('description');
     } else if (step === 'description') {
+      // For convert-to-elementor, require HTML project selection
+      if (projectType === 'convert-to-elementor') {
+        if (!selectedHtmlProjectId) {
+          alert('Please select an HTML project to convert');
+          return;
+        }
+      }
       // In conversion mode, description is optional
       // In new project mode, description is required
-      if (isConversionMode || description.trim()) {
+      if (isConversionMode || description.trim() || projectType === 'convert-to-elementor') {
         startGeneration();
       }
     }
@@ -81,6 +101,7 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
   const resetModal = () => {
     setStep(isConversionMode ? 'description' : 'type');
     setProjectType(isConversionMode ? 'elementor' : 'html');
+    setSelectedHtmlProjectId(''); // Reset selected HTML project
     setDescription('');
     setProjectName('');
     setSelectedModel(defaultModel || 'anthropic/claude-sonnet-4-5-20250929');
@@ -155,11 +176,21 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
   const buildSystemPrompt = (): string => {
     const isElementor = projectType === 'elementor';
     const isHubSpot = projectType === 'hubspot';
+    const isConvertToElementor = projectType === 'convert-to-elementor';
 
     let prompt = '';
 
-    if (isElementor) {
+    // Get the selected HTML project data for conversion
+    let selectedProject: FileGroup | null = null;
+    if (isConvertToElementor && selectedHtmlProjectId) {
+      selectedProject = htmlProjects.find(p => p.id === selectedHtmlProjectId) || null;
+    }
+
+    if (isElementor || isConvertToElementor) {
       prompt = `You are an expert Elementor widget developer. Generate a COMPLETE, PRODUCTION-READY PHP widget class.
+
+**🎯 HIGHEST PRIORITY - USER INSTRUCTIONS:**
+The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. These instructions come from the project owner and decision-maker. If the user's instructions conflict with any guidelines below, ALWAYS follow the user's instructions. Their requirements override everything else.
 
 **CRITICAL REQUIREMENTS:**
 
@@ -207,11 +238,58 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
    - Add ARIA labels for accessibility
 
 **IMPORTANT**: Generate ONLY the complete PHP class. Do NOT include plugin registration code or file includes.`;
+
+      // Add context for convert-to-elementor mode
+      if (isConvertToElementor && selectedProject) {
+        prompt += `
+
+**🔄 CONVERSION MODE - Existing HTML Project Context:**
+
+You are converting an existing HTML project to an Elementor widget. Your goal is to maintain the EXACT look, structure, and styling of the original HTML/CSS/JS code while adapting it to the Elementor widget format.
+
+**Original Project:** ${selectedProject.name}
+
+**Existing HTML:**
+\`\`\`html
+${selectedProject.html}
+\`\`\`
+
+**Existing CSS:**
+\`\`\`css
+${selectedProject.css}
+\`\`\`
+
+${selectedProject.js ? `**Existing JavaScript:**
+\`\`\`javascript
+${selectedProject.js}
+\`\`\`
+` : ''}
+
+**CONVERSION REQUIREMENTS:**
+
+1. **Preserve Visual Design**: The converted widget MUST look identical to the original HTML/CSS
+2. **Maintain Structure**: Keep the same HTML structure, element hierarchy, and semantic markup
+3. **Convert Styles**: Transform CSS to use {{WRAPPER}} scoping and Elementor selectors
+4. **Create Controls**: Add Elementor controls for:
+   - All text content (make editable)
+   - All colors used in the design
+   - All images and media
+   - Spacing and sizing where appropriate
+   - Typography settings
+5. **JavaScript**: If JavaScript is present, include it in the render() method with proper escaping
+6. **Responsiveness**: Maintain or improve responsive behavior from original CSS
+
+**CRITICAL**: The final widget should be a pixel-perfect conversion of the original design, just in Elementor format.`;
+      }
+
     } else if (isHubSpot) {
       if (hubspotModuleType === 'email') {
         prompt = `You are an expert HubSpot email module developer. Generate production-ready HTML with inline CSS optimized for email clients.
 
 **MODULE TYPE: EMAIL (Strict Compatibility Mode)**
+
+**🎯 HIGHEST PRIORITY - USER INSTRUCTIONS:**
+The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. These instructions come from the project owner and decision-maker. If the user's instructions conflict with any guidelines below, ALWAYS follow the user's instructions. Their requirements override everything else.
 
 **CRITICAL EMAIL CONSTRAINTS:**
 
@@ -265,6 +343,9 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
         prompt = `You are an expert HubSpot page module developer. Generate production-ready HTML with modern CSS for HubSpot CMS pages.
 
 **MODULE TYPE: PAGE (Modern Web Standards)**
+
+**🎯 HIGHEST PRIORITY - USER INSTRUCTIONS:**
+The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. These instructions come from the project owner and decision-maker. If the user's instructions conflict with any guidelines below, ALWAYS follow the user's instructions. Their requirements override everything else.
 
 **PAGE MODULE CAPABILITIES:**
 
@@ -325,6 +406,9 @@ export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCre
       }
     } else {
       prompt = `You are an expert frontend developer. Generate complete, production-ready HTML/CSS/JS code for a web section based on the user's description.
+
+**🎯 HIGHEST PRIORITY - USER INSTRUCTIONS:**
+The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. These instructions come from the project owner and decision-maker. If the user's instructions conflict with any guidelines below, ALWAYS follow the user's instructions. Their requirements override everything else.
 
 **CRITICAL RULES:**
 1. **HTML**: Section-level markup only (NO DOCTYPE, html, head, body tags). Use semantic HTML5.
@@ -412,6 +496,19 @@ Type: ${projectType}`;
     const generatedName = projectName || generateProjectName(description);
 
     try {
+      // For convert-to-elementor mode, get the selected HTML project data
+      let conversionCode = existingCode;
+      if (projectType === 'convert-to-elementor' && selectedHtmlProjectId) {
+        const selectedProject = htmlProjects.find(p => p.id === selectedHtmlProjectId);
+        if (selectedProject) {
+          conversionCode = {
+            html: selectedProject.html,
+            css: selectedProject.css,
+            js: selectedProject.js,
+          };
+        }
+      }
+
       const response = await fetch('/api/generate-project', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -420,7 +517,7 @@ Type: ${projectType}`;
           projectType,
           projectName: generatedName,
           model: selectedModel,
-          existingCode: existingCode, // Pass existing code if provided
+          existingCode: conversionCode, // Pass existing code if provided (including convert-to-elementor)
           globalCSS: includeGlobalCSS ? globalCSS : undefined, // Only pass global CSS if user opted in
           hubspotModuleType: projectType === 'hubspot' ? hubspotModuleType : undefined, // Pass HubSpot module type
           images: includeImages && uploadedImages.length > 0 ? uploadedImages : [], // Pass images if enabled
@@ -444,7 +541,7 @@ Type: ${projectType}`;
 
         const projectId = onProjectCreate?.(
           displayName,
-          projectType === 'elementor' ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html'
+          (projectType === 'elementor' || projectType === 'convert-to-elementor') ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html'
         );
         if (projectId) {
           setCreatedProjectId(projectId);
@@ -452,9 +549,9 @@ Type: ${projectType}`;
         }
 
         // Set initial phase based on project type
-        if (projectType === 'elementor') {
+        if (projectType === 'elementor' || projectType === 'convert-to-elementor') {
           setCurrentPhase('php');
-          setProgress('Generating PHP Widget...');
+          setProgress(projectType === 'convert-to-elementor' ? 'Converting to PHP Widget...' : 'Generating PHP Widget...');
         } else if (projectType === 'hubspot') {
           setCurrentPhase('html');
           setProgress('Generating HTML...');
@@ -477,7 +574,7 @@ Type: ${projectType}`;
 
           // Stream updates to project files in real-time
           if (projectId && onProjectUpdate) {
-            if (projectType === 'elementor') {
+            if (projectType === 'elementor' || projectType === 'convert-to-elementor') {
               // Use lenient regex that works during streaming (doesn't require closing ```)
               const phpMatch = fullCode.match(/```php\n([\s\S]*?)(?:```|$)/);
               const cssMatch = fullCode.match(/```css\n([\s\S]*?)(?:```|$)/);
@@ -773,12 +870,182 @@ Type: ${projectType}`;
                   </p>
                 </div>
               </label>
+
+              <label>
+                <div
+                  onClick={() => setProjectType('convert-to-elementor')}
+                  style={{
+                    padding: '20px',
+                    border: `2px solid ${projectType === 'convert-to-elementor' ? 'var(--primary)' : 'var(--border)'}`,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    background: projectType === 'convert-to-elementor' ? 'var(--primary)/10' : 'transparent',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                    <input
+                      type="radio"
+                      checked={projectType === 'convert-to-elementor'}
+                      onChange={() => setProjectType('convert-to-elementor')}
+                      style={{ margin: 0 }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <MdTransform size={20} color="#9333EA" />
+                      <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
+                        Convert HTML to Elementor
+                      </h3>
+                    </div>
+                  </div>
+                  <p style={{ margin: '0 0 0 28px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                    Convert existing HTML project to Elementor widget (maintains look & structure)
+                  </p>
+                </div>
+              </label>
             </div>
           )}
 
           {/* Step 2: Description Input */}
           {step === 'description' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* HTML Project Selection for convert-to-elementor */}
+              {projectType === 'convert-to-elementor' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+                    Select HTML Project to Convert *
+                  </label>
+                  <select
+                    value={selectedHtmlProjectId}
+                    onChange={(e) => setSelectedHtmlProjectId(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      background: 'var(--background)',
+                      color: 'var(--foreground)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="">-- Select a project --</option>
+                    {htmlProjects.length === 0 && (
+                      <option value="" disabled>No HTML projects found</option>
+                    )}
+                    {htmlProjects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                  {htmlProjects.length === 0 && (
+                    <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: 'var(--destructive)' }}>
+                      No HTML projects found. Please create an HTML project first in the Section Library.
+                    </p>
+                  )}
+                  {selectedHtmlProjectId && (() => {
+                    const selected = htmlProjects.find(p => p.id === selectedHtmlProjectId);
+                    if (!selected) return null;
+
+                    const htmlChars = selected.html?.length || 0;
+                    const cssChars = selected.css?.length || 0;
+                    const jsChars = selected.js?.length || 0;
+                    const htmlLines = selected.html ? selected.html.split('\n').length : 0;
+                    const cssLines = selected.css ? selected.css.split('\n').length : 0;
+                    const jsLines = selected.js ? selected.js.split('\n').length : 0;
+                    const htmlTokens = estimateTokenCount(selected.html || '');
+                    const cssTokens = estimateTokenCount(selected.css || '');
+                    const jsTokens = estimateTokenCount(selected.js || '');
+
+                    return (
+                      <>
+                        <p style={{ margin: '8px 0 8px 0', fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                          Selected project will be converted to an Elementor widget while maintaining its exact look and structure.
+                        </p>
+                        <div style={{
+                          display: 'flex',
+                          gap: '12px',
+                          padding: '12px',
+                          background: 'var(--muted)',
+                          borderRadius: '6px',
+                        }}>
+                          {/* HTML Card */}
+                          <div style={{
+                            flex: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '12px',
+                            background: 'var(--background)',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border)',
+                          }}>
+                            <AiFillHtml5 size={24} color="#E34F26" />
+                            <span style={{ fontWeight: 600, fontSize: '13px' }}>HTML</span>
+                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px', color: 'var(--muted-foreground)', textAlign: 'center' }}>
+                              <span>{htmlTokens.toLocaleString()} tokens</span>
+                              <span>{htmlChars.toLocaleString()} characters</span>
+                              <span>{htmlLines.toLocaleString()} lines</span>
+                            </div>
+                          </div>
+
+                          {/* CSS Card */}
+                          <div style={{
+                            flex: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '12px',
+                            background: 'var(--background)',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border)',
+                          }}>
+                            <SiCss3 size={24} color="#1572B6" />
+                            <span style={{ fontWeight: 600, fontSize: '13px' }}>CSS</span>
+                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px', color: 'var(--muted-foreground)', textAlign: 'center' }}>
+                              <span>{cssTokens.toLocaleString()} tokens</span>
+                              <span>{cssChars.toLocaleString()} characters</span>
+                              <span>{cssLines.toLocaleString()} lines</span>
+                            </div>
+                          </div>
+
+                          {/* JS Card - Always show, but indicate if empty */}
+                          <div style={{
+                            flex: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '12px',
+                            background: 'var(--background)',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border)',
+                            opacity: jsChars > 0 ? 1 : 0.5,
+                          }}>
+                            <SiJavascript size={24} color="#F7DF1E" />
+                            <span style={{ fontWeight: 600, fontSize: '13px' }}>JavaScript</span>
+                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px', color: 'var(--muted-foreground)', textAlign: 'center' }}>
+                              {jsChars > 0 ? (
+                                <>
+                                  <span>{jsTokens.toLocaleString()} tokens</span>
+                                  <span>{jsChars.toLocaleString()} characters</span>
+                                  <span>{jsLines.toLocaleString()} lines</span>
+                                </>
+                              ) : (
+                                <span style={{ fontStyle: 'italic' }}>No JavaScript</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
               {isConversionMode && (
                 <div style={{
                   padding: '12px',
@@ -793,13 +1060,13 @@ Type: ${projectType}`;
               )}
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
-                  {isConversionMode ? 'Conversion Instructions (Optional)' : 'Project Description *'}
+                  {isConversionMode || projectType === 'convert-to-elementor' ? 'Conversion Instructions (Optional)' : 'Project Description *'}
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder={isConversionMode
-                    ? "E.g., Make all text editable, add color controls, include hover effects"
+                  placeholder={(isConversionMode || projectType === 'convert-to-elementor')
+                    ? "E.g., Make all text editable, add color controls, include hover effects, add animations"
                     : "E.g., A modern hero section with gradient background, call-to-action button, and image"}
                   style={{
                     width: '100%',
@@ -1099,6 +1366,8 @@ Type: ${projectType}`;
                         // Show Global CSS in a custom section
                       } : undefined
                     }
+                    attachedImages={includeImages && uploadedImages.length > 0 ? uploadedImages : undefined}
+                    modelPricing={MODEL_PRICING[selectedModel as keyof typeof MODEL_PRICING]}
                   />
                 </div>
                 <select

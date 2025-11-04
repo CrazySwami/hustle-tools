@@ -60,18 +60,18 @@ export default function CommentsPanel({
       {/* Panel container with toggle button - both move together */}
       <div className="relative">
         <div className={cn(
-          "h-screen transition-all duration-300 ease-in-out bg-background border-l shadow-lg flex flex-col",
+          "h-screen transition-all duration-300 ease-in-out bg-background border-l shadow-lg flex flex-col overflow-x-hidden",
           isOpen ? "w-80" : "w-0 opacity-0"
         )}>
           {isOpen && (
             <>
               {/* Tabs with plus button */}
-              <div className="flex items-center justify-between border-b px-2 gap-1">
-                <div className="flex gap-1">
+              <div className="flex items-center border-b px-2 gap-1">
+                <div className="flex gap-1 flex-1">
                   <button
                     onClick={() => setActiveTab('active')}
                     className={cn(
-                      "px-3 py-2 text-sm font-medium rounded-t-md transition-colors",
+                      "flex-1 px-3 py-2 text-sm font-medium rounded-t-md transition-colors",
                       activeTab === 'active'
                         ? "bg-muted text-foreground"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -82,7 +82,7 @@ export default function CommentsPanel({
                   <button
                     onClick={() => setActiveTab('resolved')}
                     className={cn(
-                      "px-3 py-2 text-sm font-medium rounded-t-md transition-colors",
+                      "flex-1 px-3 py-2 text-sm font-medium rounded-t-md transition-colors",
                       activeTab === 'resolved'
                         ? "bg-muted text-foreground"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -93,7 +93,7 @@ export default function CommentsPanel({
                 </div>
                 <button
                   onClick={onAddComment}
-                  className="p-1 rounded-full hover:bg-muted mr-2"
+                  className="p-1 rounded-full hover:bg-muted flex-shrink-0"
                   title="Add comment"
                 >
                   <Plus size={16} />
@@ -209,7 +209,7 @@ function CommentItem({
               {new Date(comment.createdAt).toLocaleDateString()}
             </span>
           </div>
-          <p className="text-sm mt-1">{comment.text}</p>
+          <p className="text-sm mt-1 break-words">{comment.text}</p>
         </div>
         
         <div className="flex gap-1">

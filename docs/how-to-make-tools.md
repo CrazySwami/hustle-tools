@@ -1986,6 +1986,311 @@ export function StockWidget({ data }: { data: StockData }) {
 
 ---
 
+## Step 2.5: Tool Loading State Pattern (IMPORTANT)
+
+**⚠️ CRITICAL: Always show a loading animation during tool execution, not raw JSON input!**
+
+When a tool is called by the AI, there are **two phases**:
+
+1. **Loading Phase** (tool-call part) - Tool is executing, no result yet
+2. **Result Phase** (tool-result part) - Tool completed, result available
+
+### ❌ The Problem: Showing Raw JSON During Loading
+
+By default, Vercel AI SDK shows the tool's input arguments as raw JSON during the loading phase:
+
+```tsx
+// ❌ BAD: Shows ugly JSON to user during loading
+case 'tool-myTool':
+  if (!part.output && !part.result) {
+    return (
+      <Tool key={i} defaultOpen>
+        <ToolHeader type="myTool" state="input-available" />
+        <ToolContent>
+          <ToolInput input={part.input} /> {/* Shows raw JSON! */}
+        </ToolContent>
+      </Tool>
+    );
+  }
+```
+
+**User sees:**
+```json
+{
+  "param1": "value",
+  "param2": 123
+}
+```
+
+This creates a poor UX - users see technical JSON instead of a polished loading animation.
+
+### ✅ The Solution: Loading State with Animation
+
+Instead, render a **custom loading widget** that matches your tool's branding:
+
+```tsx
+// ✅ GOOD: Shows polished loading animation
+case 'tool-myTool': {
+  const toolName = part.type.replace('tool-', '');
+
+  // If tool completed, show result widget
+  if (part.output || part.result) {
+    const result = part.output ?? part.result;
+    return (
+      <ToolResultRenderer
+        key={i}
+        toolResult={{
+          toolCallId: part.toolCallId ?? '',
+          toolName,
+          args: part.input ?? {},
+          result: result.type === 'json' ? result.value : result,
+        }}
+      />
+    );
+  }
+
+  // Otherwise show loading animation (input phase)
+  return (
+    <div key={i} className="my-3 rounded-lg border border-purple-500/20">
+      <div className="p-4 space-y-3">
+        {/* Loading animation */}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+            <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+            <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce"></span>
+          </div>
+          <span className="text-sm font-semibold">⚡ AI Tool Running</span>
+        </div>
+
+        {/* Description */}
+        <div className="text-sm text-muted-foreground">
+          Processing your request...
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-1 bg-muted rounded-full overflow-hidden">
+          <div className="h-full bg-purple-500 rounded-full animate-pulse" style={{ width: '60%' }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+**User sees:** A polished loading card with:
+- Animated bouncing dots
+- Tool name and description
+- Pulsing progress bar
+- Professional appearance
+
+### Real-World Example: Document Edit Tool
+
+Here's the complete pattern from the document editor:
+
+```tsx
+// Document-specific tools loading state
+case 'tool-editDocumentWithMorph':
+case 'tool-getTextStats':
+case 'tool-findString': {
+  const toolName = part.type.replace('tool-', '');
+
+  // Tool completed - show result
+  if (part.output || part.result) {
+    const result = part.output ?? part.result;
+    return (
+      <ToolResultRenderer
+        key={i}
+        toolResult={{
+          toolCallId: part.toolCallId ?? '',
+          toolName,
+          args: part.input ?? {},
+          result: result.type === 'json' ? result.value : result,
+        }}
+      />
+    );
+  }
+
+  // Tool loading - show animation
+  const toolLabels: Record<string, { icon: string; label: string; description: string }> = {
+    editDocumentWithMorph: {
+      icon: '✨',
+      label: 'AI Document Edit',
+      description: 'Analyzing and applying changes...'
+    },
+    getTextStats: {
+      icon: '📊',
+      label: 'Text Statistics',
+      description: 'Analyzing document...'
+    },
+    findString: {
+      icon: '🔍',
+      label: 'Find Text',
+      description: 'Searching document...'
+    },
+  };
+
+  const toolConfig = toolLabels[toolName] || {
+    icon: '⚡',
+    label: toolName,
+    description: 'Processing...'
+  };
+
+  return (
+    <div key={i} className="my-3 rounded-lg border border-purple-500/20">
+      <div className="p-4 space-y-3">
+        {/* Header with loading dots */}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+            <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+            <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce"></span>
+          </div>
+          <span className="text-sm font-semibold">
+            {toolConfig.icon} {toolConfig.label}
+          </span>
+        </div>
+
+        {/* Description */}
+        <div className="text-sm text-muted-foreground">
+          {toolConfig.description}
+        </div>
+
+        {/* Progress indicator */}
+        <div className="flex items-center gap-2 text-xs text-purple-600">
+          <div className="h-1 flex-1 bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-purple-500 rounded-full animate-pulse" style={{ width: '60%' }} />
+          </div>
+          <span>Processing...</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+### Loading Animation Components
+
+**Bouncing Dots:**
+```tsx
+<div className="flex gap-1">
+  <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+  <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+  <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce"></span>
+</div>
+```
+
+**Pulsing Progress Bar:**
+```tsx
+<div className="h-1 bg-muted rounded-full overflow-hidden">
+  <div className="h-full bg-purple-500 rounded-full animate-pulse" style={{ width: '60%' }} />
+</div>
+```
+
+**Spinner (Alternative):**
+```tsx
+<Loader2 className="h-4 w-4 text-purple-500 animate-spin" />
+```
+
+### Checklist: Implementing Loading States
+
+When adding loading states to your tools:
+
+- [ ] **Check for output/result first** - Only show loading if tool hasn't completed
+- [ ] **Use tool name in header** - Match the actual tool being executed
+- [ ] **Add descriptive text** - Explain what's happening ("Analyzing...", "Generating...")
+- [ ] **Include animation** - Bouncing dots, spinner, or progress bar
+- [ ] **Match tool branding** - Use colors/icons consistent with result widget
+- [ ] **Keep it compact** - Loading state should be smaller than result widget
+- [ ] **Show immediately** - No delay between tool call and loading UI appearing
+- [ ] **Replace with result** - When tool completes, smoothly transition to result widget
+
+### Where to Add Loading States
+
+Loading states should be added in your **chat component's message renderer**, not in the tool definition or result renderer:
+
+**File:** `src/components/YOUR-CHAT/Chat.tsx` (or equivalent)
+
+```tsx
+// Inside your message parts map/loop:
+message.parts?.map((part, i) => {
+  switch (part.type) {
+    case 'tool-yourToolName': {
+      // Check if completed
+      if (part.output || part.result) {
+        // Show result widget
+        return <ToolResultRenderer ... />;
+      }
+
+      // Show loading state
+      return <LoadingWidget ... />;
+    }
+  }
+})
+```
+
+### Common Mistakes
+
+**❌ Mistake 1: Only handling result phase**
+```tsx
+case 'tool-myTool':
+  // This only works when tool is done!
+  return <MyToolWidget data={part.output} />;
+```
+
+**✅ Fix: Check if output exists**
+```tsx
+case 'tool-myTool':
+  if (!part.output) {
+    return <LoadingState />;
+  }
+  return <MyToolWidget data={part.output} />;
+```
+
+**❌ Mistake 2: Showing generic "Tool" component**
+```tsx
+case 'tool-myTool':
+  if (!part.output) {
+    // Generic component shows JSON
+    return <Tool defaultOpen><ToolInput input={part.input} /></Tool>;
+  }
+```
+
+**✅ Fix: Custom loading component**
+```tsx
+case 'tool-myTool':
+  if (!part.output) {
+    return <MyToolLoadingState />;
+  }
+```
+
+**❌ Mistake 3: Forgetting loading state entirely**
+```tsx
+// Only handles result phase
+case 'tool-result':
+  if (toolName === 'myTool') {
+    return <MyToolWidget data={result} />;
+  }
+```
+
+**✅ Fix: Also handle input phase**
+```tsx
+// Handle both phases
+case 'tool-myTool': {
+  if (part.output) {
+    return <MyToolWidget data={part.output} />;
+  }
+  return <MyToolLoadingState />;
+}
+
+case 'tool-result':
+  if (toolName === 'myTool') {
+    return <MyToolWidget data={result} />;
+  }
+```
+
+---
+
 ## Step 3: Integrate the New Widget (Frontend)
 
 Finally, tell the `ToolResultRenderer` to use your new widget.

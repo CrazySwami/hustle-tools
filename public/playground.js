@@ -718,7 +718,7 @@ window.openPlaygroundDirect = async function() {
         await playgroundClient.isReady();
         console.log('WordPress is ready!');
 
-        updatePlaygroundStatus('✅ WordPress ready! Redirecting to dashboard...', 'success');
+        updatePlaygroundStatus('✅ WordPress ready!', 'success');
 
         // Auto-redirect to wp-admin after 2 seconds
         setTimeout(async function() {
@@ -2257,8 +2257,12 @@ add_action( 'elementor/frontend/after_register_scripts', '${widgetSlug}_enqueue_
 
 /**
  * Deploy widget and create a test page with it already placed
+ * @param {string} widgetPhp - PHP code
+ * @param {string} widgetCss - CSS code
+ * @param {string} widgetJs - JavaScript code
+ * @param {string} deploymentType - 'live-page' or 'elementor-editor' (default: 'elementor-editor')
  */
-window.deployAndPreviewWidget = async function(widgetPhp, widgetCss = '', widgetJs = '') {
+window.deployAndPreviewWidget = async function(widgetPhp, widgetCss = '', widgetJs = '', deploymentType = 'elementor-editor') {
     if (!playgroundClient) {
         throw new Error('Playground not running. Launch it first.');
     }
@@ -2273,6 +2277,7 @@ window.deployAndPreviewWidget = async function(widgetPhp, widgetCss = '', widget
         // Extract widget slug from deploy result
         const widgetSlug = deployResult.widgetSlug;
         const widgetClassName = deployResult.widgetClassName;
+        const pluginSlug = deployResult.widgetSlug; // Plugin slug is same as widget slug
 
         // Create a new page with the widget already placed
         const createPageCode = `<?php
@@ -2349,42 +2354,161 @@ window.deployAndPreviewWidget = async function(widgetPhp, widgetCss = '', widget
             update_post_meta($page_id, '_elementor_page_settings', array());
             update_post_meta($page_id, '_elementor_version', ELEMENTOR_VERSION);
 
-            echo "PAGE_ID: " . $page_id;
+            echo "PAGE_ID: " . $page_id . "\\n";
+            echo "PAGE_SLUG: " . $page_slug;
         ?>`;
 
         const createResult = await playgroundClient.run({ code: createPageCode });
-        console.log('📄 Page creation result:', createResult.text);
+        console.log('📄 Page creation result:', createResult);
 
-        // Extract page ID from result
+        // Validate result
+        if (!createResult || !createResult.text) {
+            throw new Error('Failed to create page - no result returned from WordPress');
+        }
+
+        console.log('📄 Page creation text:', createResult.text);
+
+        // Extract page ID and slug from result
         const idMatch = createResult.text.match(/PAGE_ID:\s*(\d+)/);
+        const slugMatch = createResult.text.match(/PAGE_SLUG:\s*([^\s\n]+)/);
+
         const pageId = idMatch ? idMatch[1].trim() : null;
+        const pageSlug = slugMatch ? slugMatch[1].trim() : null;
 
         if (!pageId) {
-            throw new Error('Failed to create test page');
+            throw new Error('Failed to create test page - could not extract page ID');
+        }
+
+        if (!pageSlug) {
+            throw new Error('Failed to get page slug - could not extract from result');
         }
 
         console.log('🎯 Test page ID:', pageId);
+        console.log('🎯 Test page slug:', pageSlug);
 
-        // Build the Elementor editor URL
-        const editorUrl = `/wp-admin/post.php?post=${pageId}&action=elementor`;
-        console.log('🎨 Opening Elementor editor:', editorUrl);
-
-        // Navigate the playground iframe to the editor
-        await playgroundClient.goTo(editorUrl);
-
-        updatePlaygroundStatus('✅ Widget deployed and preview page created!', 'success');
+        // Navigate based on deployment type
+        if (deploymentType === 'live-page') {
+            // Navigate to live page
+            const liveUrl = `/${pageSlug}`;
+            console.log('🔗 Opening live page:', liveUrl);
+            await playgroundClient.goTo(liveUrl);
+            updatePlaygroundStatus('✅ Widget deployed and live page opened!', 'success');
+        } else {
+            // Navigate to Elementor editor (default)
+            const editorUrl = `/wp-admin/post.php?post=${pageId}&action=elementor`;
+            console.log('🎨 Opening Elementor editor:', editorUrl);
+            await playgroundClient.goTo(editorUrl);
+            updatePlaygroundStatus('✅ Widget deployed and preview page created!', 'success');
+        }
 
         return {
             success: true,
             widgetSlug,
             widgetClassName,
+            pluginSlug,
             pageId,
-            editorUrl,
-            message: `Widget deployed and preview page opened in Elementor editor!`
+            pageSlug,
+            deploymentType,
+            message: `Widget deployed and opened in ${deploymentType === 'live-page' ? 'live page' : 'Elementor editor'}!`
         };
 
     } catch (error) {
         console.error('❌ Deploy and preview error:', error);
+        updatePlaygroundStatus('❌ Error: ' + error.message, 'error');
+        throw error;
+    }
+};
+
+/**
+ * Update widget files and auto-refresh (for hot reload)
+ * @param {string} widgetPhp - PHP code
+ * @param {string} widgetCss - CSS code
+ * @param {string} widgetJs - JavaScript code
+ * @param {string} pluginSlug - Plugin folder slug
+ * @param {string} pageSlug - Page slug to view
+ * @param {string} deploymentType - 'live-page' or 'elementor-editor'
+ */
+window.updateWidgetAndRefresh = async function(widgetPhp, widgetCss = '', widgetJs = '', pluginSlug, pageSlug, deploymentType = 'live-page') {
+    if (!playgroundClient) {
+        throw new Error('Playground not running. Launch it first.');
+    }
+
+    // Validate required parameters
+    if (!pluginSlug) {
+        throw new Error('Plugin slug is not defined. Deploy the widget first using "Deploy to Live Page" or "Deploy to Elementor Editor".');
+    }
+
+    if (!pageSlug && deploymentType === 'live-page') {
+        throw new Error('Page slug is not defined. Deploy the widget first using "Deploy to Live Page".');
+    }
+
+    console.log('🔄 Updating widget files...');
+    updatePlaygroundStatus('🔄 Updating widget files...');
+
+    try {
+        // Update widget files in the plugin directory
+        const pluginDir = `/wordpress/wp-content/plugins/${pluginSlug}`;
+
+        await playgroundClient.writeFile(`${pluginDir}/widget.php`, widgetPhp);
+        await playgroundClient.writeFile(`${pluginDir}/widget.css`, widgetCss);
+        await playgroundClient.writeFile(`${pluginDir}/widget.js`, widgetJs);
+
+        console.log('✅ Widget files updated');
+
+        // Force Elementor cache clear
+        const clearCacheCode = `<?php
+            require_once '/wordpress/wp-load.php';
+
+            if (class_exists('\\Elementor\\Plugin')) {
+                // Clear Elementor cache
+                \\Elementor\\Plugin::$instance->files_manager->clear_cache();
+                delete_transient('elementor_remote_info_api_data_' . ELEMENTOR_VERSION);
+                wp_cache_flush();
+                echo 'SUCCESS: Elementor cache cleared';
+            } else {
+                echo 'ERROR: Elementor not loaded';
+            }
+        ?>`;
+
+        await playgroundClient.run({ code: clearCacheCode });
+        console.log('🧹 Cache cleared');
+
+        // Auto-refresh based on deployment type
+        if (deploymentType === 'live-page') {
+            // Navigate to live page with cache-busting parameter
+            const timestamp = Date.now();
+            const liveUrl = `/${pageSlug}?v=${timestamp}`;
+            console.log(`🔄 Navigating to live page: ${liveUrl}`);
+            await playgroundClient.goTo(liveUrl);
+            updatePlaygroundStatus('✅ Widget updated and live page refreshed!', 'success');
+        } else if (deploymentType === 'elementor-editor') {
+            // For Elementor editor, need to reload the editor
+            // Extract page ID from current URL or navigate by slug
+            console.log('🔄 Reloading Elementor editor...');
+
+            // Try to reload the current page if in editor
+            try {
+                const iframeDoc = playgroundClient.iframe?.contentDocument || playgroundClient.iframe?.contentWindow?.document;
+                if (iframeDoc && iframeDoc.location.href.includes('elementor')) {
+                    console.log('🔄 Reloading current Elementor editor page...');
+                    iframeDoc.location.reload();
+                } else {
+                    console.log('ℹ️ Not in Elementor editor - navigate manually');
+                }
+            } catch (e) {
+                console.log('⚠️ Could not reload Elementor editor:', e.message);
+            }
+
+            updatePlaygroundStatus('✅ Widget updated! Reload Elementor editor manually if needed.', 'success');
+        }
+
+        return {
+            success: true,
+            message: 'Widget files updated and page refreshed'
+        };
+
+    } catch (error) {
+        console.error('❌ Update widget error:', error);
         updatePlaygroundStatus('❌ Error: ' + error.message, 'error');
         throw error;
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useState, useCallback, useEffect } from 'react';
+import { ReactNode, useState, useCallback, useEffect, useRef } from 'react';
 import { NavigationBar, type NavigationBarProps } from '@/components/ai-elements/inner-navigation-bar';
 
 interface TwoPanelChatLayoutProps {
@@ -32,6 +32,8 @@ export function TwoPanelChatLayout({
   const [leftPanelWidth, setLeftPanelWidth] = useState(defaultSplitPercent);
   const [isResizing, setIsResizing] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [leftPanelPixelWidth, setLeftPanelPixelWidth] = useState<number>(0);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
 
   // Mobile detection
   useEffect(() => {
@@ -40,6 +42,27 @@ export function TwoPanelChatLayout({
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Measure left panel width in pixels for NavigationBar
+  useEffect(() => {
+    if (!leftPanelRef.current) return;
+
+    const updatePixelWidth = () => {
+      if (leftPanelRef.current) {
+        const width = leftPanelRef.current.offsetWidth;
+        setLeftPanelPixelWidth(width);
+      }
+    };
+
+    // Initial measurement
+    updatePixelWidth();
+
+    // Set up ResizeObserver to track panel width changes
+    const observer = new ResizeObserver(updatePixelWidth);
+    observer.observe(leftPanelRef.current);
+
+    return () => observer.disconnect();
+  }, [leftPanelWidth]);
 
   // Resize handlers for desktop divider
   const handleMouseDown = useCallback(() => {
@@ -119,9 +142,14 @@ export function TwoPanelChatLayout({
     >
       {/* Left Panel - Chat (40% default) */}
       <div
+        ref={leftPanelRef}
         className="flex flex-col h-full overflow-hidden"
         style={{ width: `${leftPanelWidth}%` }}
       >
+        {/* Navigation bar inside left panel if positioned on left */}
+        {navigationBarProps && navigationBarPosition === 'left' && (
+          <NavigationBar {...navigationBarProps} containerWidth={leftPanelPixelWidth} />
+        )}
         {leftPanel}
       </div>
 

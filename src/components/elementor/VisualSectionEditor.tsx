@@ -7,6 +7,7 @@ import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import { Section } from '@/lib/section-schema';
 import { DownloadIcon, CodeIcon, SaveIcon, EyeIcon, XIcon, PaletteIcon } from 'lucide-react';
 import { CSSCascadeInspector } from './CSSCascadeInspector';
+import { useFileGroups } from '@/hooks/useFileGroups';
 
 interface VisualSectionEditorProps {
   initialSection?: Section;
@@ -33,6 +34,7 @@ export function VisualSectionEditor({
 }: VisualSectionEditorProps) {
   const editorRef = useRef<grapesjs.Editor | null>(null);
   const { globalCss } = useGlobalStylesheet();
+  const fileGroups = useFileGroups(); // Access file groups for direct updates
   const [gjsLoaded, setGjsLoaded] = useState(false);
   const [selectedComponent, setSelectedComponent] = useState<grapesjs.Component | null>(null);
   const [inspectorVisible, setInspectorVisible] = useState(true);
@@ -109,26 +111,34 @@ export function VisualSectionEditor({
 
     // Debounced update handler to prevent jittery re-renders
     const debouncedUpdate = debounce(() => {
-      if (!onSectionChange) return;
-
       const html = editor.getHtml();
       const css = editor.getCss();
 
-      // Set flag to indicate this is an internal update
-      // This prevents the useEffect from reloading the editor when we call onSectionChange
-      isInternalUpdate.current = true;
+      // Update file groups directly (single source of truth)
+      if (fileGroups.activeGroup?.id) {
+        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'html', html);
+        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'css', css);
+        console.log('💾 VisualEditor: Saved changes to file group:', fileGroups.activeGroup.id);
+      }
 
-      onSectionChange({
-        ...(initialSection || {
-          id: `section-${Date.now()}`,
-          name: 'New Section',
-          createdAt: Date.now(),
-        }),
-        html,
-        css,
-        js: initialSection?.js || '',
-        updatedAt: Date.now(),
-      });
+      // Also notify parent (for backwards compatibility, though parent now ignores this)
+      if (onSectionChange) {
+        // Set flag to indicate this is an internal update
+        // This prevents the useEffect from reloading the editor when we call onSectionChange
+        isInternalUpdate.current = true;
+
+        onSectionChange({
+          ...(initialSection || {
+            id: `section-${Date.now()}`,
+            name: 'New Section',
+            createdAt: Date.now(),
+          }),
+          html,
+          css,
+          js: initialSection?.js || '',
+          updatedAt: Date.now(),
+        });
+      }
     }, 1000); // Only update 1 second after user stops making changes
 
     // Listen for changes with debouncing
@@ -175,6 +185,14 @@ export function VisualSectionEditor({
 
     console.log('📤 Exporting to code editor:', { html, css });
 
+    // Update file groups directly
+    if (fileGroups.activeGroup?.id) {
+      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'html', html);
+      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'css', css);
+      console.log('💾 VisualEditor: Exported changes to file group:', fileGroups.activeGroup.id);
+    }
+
+    // Also notify parent (for backwards compatibility)
     if (onSectionChange) {
       onSectionChange({
         ...(initialSection || {

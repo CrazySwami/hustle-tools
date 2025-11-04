@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Elementor Kit Editor - Complete v2</title>
+  
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+      background: #f5f5f5;
+      overflow: hidden;
+    }
+
+    .editor-container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .editor-sidebar {
+      width: 500px;
+      background: white;
+      border-right: 2px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .preview-panel {
+      flex: 1;
+      background: #f5f5f5;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .editor-header {
+      background: #0073aa;
+      color: white;
+      padding: 15px 20px;
+      border-bottom: 2px solid #005a87;
+    }
+
+    .editor-header h1 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-light {
+      background: white;
+      color: #0073aa;
+    }
+
+    .btn-light:hover {
+      background: #f0f0f0;
+    }
+
+    .preview-header {
+      background: white;
+      padding: 15px 20px;
+      border-bottom: 2px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .preview-header h2 {
+      font-size: 16px;
+      color: #333;
+    }
+
+    .device-toggle {
+      display: flex;
+      gap: 5px;
+      background: #f0f0f0;
+      padding: 3px;
+      border-radius: 4px;
+    }
+
+    .device-btn {
+      padding: 6px 12px;
+      background: transparent;
+      border: none;
+      border-radius: 3px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .device-btn.active {
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .editor-tabs {
+      display: flex;
+      background: #f8f8f8;
+      border-bottom: 1px solid #e0e0e0;
+      overflow-x: auto;
+    }
+
+    .tab {
+      padding: 12px 16px;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      font-size: 13px;
+      font-weight: 500;
+      color: #666;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .tab.active {
+      background: white;
+      color: #0073aa;
+      border-bottom-color: #0073aa;
+    }
+
+    .sub-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 12px 20px;
+      background: #f8f8f8;
+      border-bottom: 1px solid #e0e0e0;
+      overflow-x: auto;
+    }
+
+    .sub-tab {
+      padding: 6px 12px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .sub-tab:hover {
+      border-color: #0073aa;
+      color: #0073aa;
+    }
+
+    .sub-tab.active {
+      background: #0073aa;
+      border-color: #0073aa;
+      color: white;
+    }
+
+    .editor-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .control-group {
+      margin-bottom: 20px;
+      background: #f8f8f8;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .control-group h3 {
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e0e0e0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-badge {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-badge.has-data {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-badge.is-default {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-badge.is-missing {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .control-row {
+      margin-bottom: 12px;
+      position: relative;
+    }
+
+    .control-row label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    .field-status {
+      font-size: 16px;
+    }
+
+    .control-row input[type="text"],
+    .control-row input[type="number"],
+    .control-row select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      background: white;
+    }
+
+    .control-row input:focus,
+    .control-row select:focus {
+      outline: none;
+      border-color: #0073aa;
+    }
+
+    .control-row input.has-data {
+      border-left: 3px solid #28a745;
+    }
+
+    .control-row input.is-default {
+      border-left: 3px solid #ffc107;
+    }
+
+    .control-row input.is-missing {
+      border-left: 3px solid #dc3545;
+      background: #fff5f5;
+    }
+
+    .control-split {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+
+    .control-split input {
+      width: 100%;
+    }
+
+    .control-split select {
+      min-width: 70px;
+    }
+
+    .color-picker {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .color-picker input[type="color"] {
+      width: 40px;
+      height: 38px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .color-picker input[type="text"] {
+      flex: 1;
+    }
+
+    .help-text {
+      font-size: 11px;
+      color: #999;
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    .preview-content {
+      flex: 1;
+      padding: 40px;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .preview-content.tablet {
+      max-width: 768px;
+    }
+
+    .preview-content.mobile {
+      max-width: 375px;
+    }
+
+    .preview-section {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .preview-section h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #999;
+      margin-bottom: 20px;
+    }
+
+    .typography-preview h1,
+    .typography-preview h2,
+    .typography-preview h3,
+    .typography-preview h4,
+    .typography-preview h5,
+    .typography-preview h6 {
+      margin-bottom: 15px;
+    }
+
+    .typography-preview p {
+      margin-bottom: 15px;
+    }
+
+    .typography-preview a {
+      text-decoration: none;
+    }
+
+    .button-preview {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .preview-button {
+      display: inline-block;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .form-preview {
+      max-width: 500px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .form-group input {
+      width: 100%;
+      transition: all 0.3s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+    }
+
+    .image-preview {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+
+    .preview-image-wrapper {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .preview-image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      transition: all 0.3s;
+    }
+
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 15px;
+    }
+
+    .color-swatch {
+      aspect-ratio: 1;
+      border-radius: 8px;
+      display: flex;
+      align-items: flex-end;
+      padding: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .color-swatch span {
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    .preset-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .preset-item {
+      background: white;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .preset-item:hover {
+      border-color: #0073aa;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .preset-item h4 {
+      font-size: 13px;
+      color: #333;
+      margin-bottom: 6px;
+    }
+
+    .preset-item .preset-details {
+      font-size: 11px;
+      color: #666;
+    }
+
+    .add-preset-btn {
+      width: 100%;
+      padding: 10px;
+      background: #0073aa;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 10px;
+    }
+
+    .add-preset-btn:hover {
+      background: #005a87;
+    }
+
+    .legend {
+      background: #f8f8f8;
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .legend h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .legend-items {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #555;
+    }
+
+    .legend-icon {
+      font-size: 14px;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+
+    @media (max-width: 1024px) {
+      .editor-sidebar {
+        width: 400px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .editor-container {
+        flex-direction: column;
+      }
+      
+      .editor-sidebar {
+        width: 100%;
+        height: 50vh;
+      }
+      
+      .preview-panel {
+        height: 50vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef } = React;
+
+    function ElementorKitEditor() {
+      const [kit, setKit] = useState({
+        title: 'My Style Kit',
+        type: 'kit',
+        version: '0.4',
+        page_settings: {
+          system_colors: [
+            { _id: 'primary', title: 'Primary', color: '#2563eb' },
+            { _id: 'secondary', title: 'Secondary', color: '#7c3aed' },
+            { _id: 'text', title: 'Text', color: '#1f2937' },
+            { _id: 'accent', title: 'Accent', color: '#f59e0b' }
+          ],
+          custom_colors: [],
+          system_typography: [
+            { _id: 'primary', title: 'Primary', typography_font_family: 'Inter', typography_font_weight: '700' },
+            { _id: 'secondary', title: 'Secondary', typography_font_family: 'Inter', typography_font_weight: '600' },
+            { _id: 'text', title: 'Text', typography_font_family: 'Inter', typography_font_weight: '400' },
+            { _id: 'accent', title: 'Accent', typography_font_family: 'Inter', typography_font_weight: '600' }
+          ],
+          custom_typography: []
+        }
+      });
+
+      const [activeTab, setActiveTab] = useState('global-colors');
+      const [activeSubTab, setActiveSubTab] = useState('system');
+      const [activeHeading, setActiveHeading] = useState('h1');
+      const [deviceMode, setDeviceMode] = useState('desktop');
+      const fileInputRef = useRef(null);
+
+      // Helper to check field status
+      const getFieldStatus = (value, defaultValue) => {
+        if (value === undefined || value === null) return 'missing';
+        if (JSON.stringify(value) === JSON.stringify(defaultValue)) return 'default';
+        return 'has-data';
+      };
+
+      const getStatusIcon = (status) => {
+        if (status === 'has-data') return '✅';
+        if (status === 'default') return '⚠️';
+        return '🔴';
+      };
+
+      const getStatusBadge = (status) => {
+        if (status === 'has-data') return 'HAS DATA';
+        if (status === 'default') return 'DEFAULT';
+        return 'MISSING';
+      };
+
+      const updateSetting = (key, value) => {
+        setKit(prev => ({
+          ...prev,
+          page_settings: {
+            ...prev.page_settings,
+            [key]: value
+          }
+        }));
+      };
+
+      const updateSize = (key, field, value) => {
+        const current = kit.page_settings[key] || { unit: 'px', size: 0 };
+        updateSetting(key, { ...current, [field]: value });
+      };
+
+      const updateDimension = (key, field, value) => {
+        const current = kit.page_settings[key] || { unit: 'px', top: 0, right: 0, bottom: 0, left: 0 };
+        updateSetting(key, { ...current, [field]: value });
+      };
+
+      const handleExport = () => {
+        const dataStr = JSON.stringify(kit, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${kit.title.toLowerCase().replace(/\s+/g, '-')}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+      };
+
+      const handleImport = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const imported = JSON.parse(event.target.result);
+            setKit(prev => ({
+              ...prev,
+              ...imported,
+              page_settings: {
+                ...prev.page_settings,
+                ...(imported.page_settings || {})
+              }
+            }));
+            alert('✅ Imported successfully!');
+          } catch (e) {
+            alert('❌ Failed to import: ' + e.message);
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      // Preview style generators
+      const getHeadingStyle = (level) => {
+        const s = kit.page_settings;
+        const prefix = level;
+        return {
+          fontFamily: s[`${prefix}_typography_font_family`] || 'Inter',
+          fontWeight: s[`${prefix}_typography_font_weight`] || '700',
+          fontSize: `${s[`${prefix}_typography_font_size`]?.size || 48}${s[`${prefix}_typography_font_size`]?.unit || 'px'}`,
+          lineHeight: s[`${prefix}_typography_line_height`]?.size || 1.2,
+          letterSpacing: `${s[`${prefix}_typography_letter_spacing`]?.size || 0}${s[`${prefix}_typography_letter_spacing`]?.unit || 'px'}`,
+          textTransform: s[`${prefix}_typography_text_transform`] || 'none',
+          color: s[`${prefix}_color`] || '#000000'
+        };
+      };
+
+      const getBodyStyle = () => {
+        const s = kit.page_settings;
+        return {
+          fontFamily: s.body_typography_font_family || 'Inter',
+          fontWeight: s.body_typography_font_weight || '400',
+          fontSize: `${s.body_typography_font_size?.size || 16}${s.body_typography_font_size?.unit || 'px'}`,
+          lineHeight: s.body_typography_line_height?.size || 1.7,
+          letterSpacing: `${s.body_typography_letter_spacing?.size || 0}${s.body_typography_letter_spacing?.unit || 'px'}`,
+          color: s.body_color || '#333333'
+        };
+      };
+
+      const getLinkStyle = () => {
+        const s = kit.page_settings;
+        return {
+          color: s.link_normal_color || '#0073aa',
+          textDecoration: s.link_typography_text_decoration || 'none'
+        };
+      };
+
+      const getButtonStyle = () => {
+        const s = kit.page_settings;
+        const shadow = s.button_box_shadow_box_shadow_type === 'yes' && s.button_box_shadow_box_shadow
+          ? `${s.button_box_shadow_box_shadow.horizontal}px ${s.button_box_shadow_box_shadow.vertical}px ${s.button_box_shadow_box_shadow.blur}px ${s.button_box_shadow_box_shadow.spread}px ${s.button_box_shadow_box_shadow.color}`
+          : 'none';
+        
+        return {
+          fontFamily: s.button_typography_font_family || 'Inter',
+          fontWeight: s.button_typography_font_weight || '600',
+          fontSize: `${s.button_typography_font_size?.size || 16}${s.button_typography_font_size?.unit || 'px'}`,
+          lineHeight: `${s.button_typography_line_height?.size || 24}${s.button_typography_line_height?.unit || 'px'}`,
+          letterSpacing: `${s.button_typography_letter_spacing?.size || 0}${s.button_typography_letter_spacing?.unit || 'px'}`,
+          textTransform: s.button_typography_text_transform || 'none',
+          color: s.button_text_color || '#ffffff',
+          backgroundColor: s.button_background_color || '#0073aa',
+          borderColor: s.button_border_color || '#0073aa',
+          borderWidth: `${s.button_border_width?.top || 2}px`,
+          borderStyle: 'solid',
+          borderRadius: `${s.button_border_radius?.top || 8}px`,
+          padding: `${s.button_padding?.top || 14}px ${s.button_padding?.right || 28}px`,
+          boxShadow: shadow,
+          transition: `all ${s.button_hover_transition?.size || 200}ms ease`
+        };
+      };
+
+      const getButtonHoverStyle = () => {
+        const s = kit.page_settings;
+        return {
+          color: s.button_hover_color || '#ffffff',
+          backgroundColor: s.button_hover_background_color || '#005a87',
+          borderColor: s.button_hover_border_color || '#005a87'
+        };
+      };
+
+      const getFormLabelStyle = () => {
+        const s = kit.page_settings;
+        return {
+          color: s.form_label_color || '#000000',
+          fontWeight: s.form_label_typography_font_weight || '500',
+          fontSize: `${s.form_label_typography_font_size?.size || 14}${s.form_label_typography_font_size?.unit || 'px'}`
+        };
+      };
+
+      const getFormInputStyle = () => {
+        const s = kit.page_settings;
+        return {
+          color: s.form_field_text_color || '#333333',
+          backgroundColor: s.form_field_background_color || '#ffffff',
+          borderColor: s.form_field_border_color || '#cccccc',
+          borderWidth: `${s.form_field_border_width?.top || 1}px`,
+          borderStyle: 'solid',
+          borderRadius: `${s.form_field_border_radius?.top || 6}px`,
+          padding: `${s.form_field_padding?.top || 12}px ${s.form_field_padding?.right || 16}px`,
+          transition: `all ${s.form_field_focus_transition_duration?.size || 150}ms ease`
+        };
+      };
+
+      const getFormInputFocusStyle = () => {
+        const s = kit.page_settings;
+        return {
+          borderColor: s.form_field_focus_border_color || '#0073aa',
+          outline: 'none'
+        };
+      };
+
+      const getImageStyle = () => {
+        const s = kit.page_settings;
+        const filters = `blur(${s.image_css_filters_blur?.size || 0}px) brightness(${s.image_css_filters_brightness?.size || 100}%) contrast(${s.image_css_filters_contrast?.size || 100}%) saturate(${s.image_css_filters_saturation?.size || 100}%)`;
+        
+        return {
+          borderRadius: `${s.image_border_radius?.top || 8}px`,
+          filter: filters,
+          opacity: s.image_opacity?.size || 1,
+          transition: `all ${s.image_hover_transition_duration?.size || 300}ms ease`
+        };
+      };
+
+      const getImageHoverStyle = () => {
+        const s = kit.page_settings;
+        return {
+          opacity: s.image_hover_opacity?.size || 0.9
+        };
+      };
+
+      // Render functions
+      const renderGlobalColors = () => {
+        const s = kit.page_settings;
+        
+        if (activeSubTab === 'system') {
+          return (
+            <div>
+              <div className="legend">
+                <h4>Field Status Legend</h4>
+                <div className="legend-items">
+                  <div className="legend-item">
+                    <span className="legend-icon">✅</span>
+                    <span>Has Data</span>
+                  </div>
+                  <div className="legend-item">
+                    <span className="legend-icon">⚠️</span>
+                    <span>Default Value</span>
+                  </div>
+                  <div className="legend-item">
+                    <span className="legend-icon">🔴</span>
+                    <span>Missing from JSON</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="control-group">
+                <h3>
+                  System Colors (4 Required)
+                  <span className={`status-badge ${s.system_colors && s.system_colors.length === 4 ? 'has-data' : 'is-missing'}`}>
+                    {s.system_colors && s.system_colors.length === 4 ? 'COMPLETE' : 'INCOMPLETE'}
+                  </span>
+                </h3>
+                {s.system_colors && s.system_colors.length > 0 ? (
+                  s.system_colors.map((color, idx) => (
+                    <div key={color._id} className="control-row">
+                      <label>
+                        <span className="field-status">{getStatusIcon(getFieldStatus(color.color, null))}</span>
+                        {color.title}
+                      </label>
+                      <div className="color-picker">
+                        <input
+                          type="color"
+                          value={color.color || '#000000'}
+                          className={getFieldStatus(color.color, null)}
+                          onChange={(e) => {
+                            const newColors = [...s.system_colors];
+                            newColors[idx].color = e.target.value;
+                            updateSetting('system_colors', newColors);
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={color.color || '#000000'}
+                          className={getFieldStatus(color.color, null)}
+                          onChange={(e) => {
+                            const newColors = [...s.system_colors];
+                            newColors[idx].color = e.target.value;
+                            updateSetting('system_colors', newColors);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{color: '#dc3545', fontSize: '13px'}}>🔴 No system colors found in JSON. Please add 4 system colors.</p>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        if (activeSubTab === 'custom') {
+          return (
+            <div>
+              <div className="control-group">
+                <h3>
+                  Custom Colors
+                  <span className={`status-badge ${s.custom_colors && s.custom_colors.length > 0 ? 'has-data' : 'is-default'}`}>
+                    {s.custom_colors && s.custom_colors.length > 0 ? `${s.custom_colors.length} COLORS` : 'NONE'}
+                  </span>
+                </h3>
+                {s.custom_colors && s.custom_colors.length > 0 ? (
+                  s.custom_colors.map((color, idx) => (
+                    <div key={color._id} className="control-row">
+                      <label>
+                        <span className="field-status">✅</span>
+                        {color.title}
+                      </label>
+                      <div className="color-picker">
+                        <input
+                          type="color"
+                          value={color.color}
+                          className="has-data"
+                          onChange={(e) => {
+                            const newColors = [...s.custom_colors];
+                            newColors[idx].color = e.target.value;
+                            updateSetting('custom_colors', newColors);
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={color.color}
+                          className="has-data"
+                          onChange={(e) => {
+                            const newColors = [...s.custom_colors];
+                            newColors[idx].color = e.target.value;
+                            updateSetting('custom_colors', newColors);
+                          }}
+                        />
+                        <button 
+                          className="btn btn-light"
+                          onClick={() => {
+                            const newColors = s.custom_colors.filter((_, i) => i !== idx);
+                            updateSetting('custom_colors', newColors);
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{color: '#856404', fontSize: '13px'}}>⚠️ No custom colors in JSON.</p>
+                )}
+                <button 
+                  className="add-preset-btn"
+                  onClick={() => {
+                    const newColor = {
+                      _id: Math.random().toString(36).substr(2, 9),
+                      title: 'New Color',
+                      color: '#000000'
+                    };
+                    updateSetting('custom_colors', [...(s.custom_colors || []), newColor]);
+                  }}
+                >
+                  + Add Custom Color
+                </button>
+              </div>
+            </div>
+          );
+        }
+      };
+
+      const renderGlobalTypography = () => {
+        const s = kit.page_settings;
+        
+        if (activeSubTab === 'system') {
+          return (
+            <div>
+              <div className="legend">
+                <h4>Field Status Legend</h4>
+                <div className="legend-items">
+                  <div className="legend-item">
+                    <span className="legend-icon">✅</span>
+                    <span>Has Data</span>
+                  </div>
+                  <div className="legend-item">
+                    <span className="legend-icon">⚠️</span>
+                    <span>Default Value</span>
+                  </div>
+                  <div className="legend-item">
+                    <span className="legend-icon">🔴</span>
+                    <span>Missing from JSON</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="control-group">
+                <h3>
+                  System Typography (4 Required)
+                  <span className={`status-badge ${s.system_typography && s.system_typography.length === 4 ? 'has-data' : 'is-missing'}`}>
+                    {s.system_typography && s.system_typography.length === 4 ? 'COMPLETE' : 'INCOMPLETE'}
+                  </span>
+                </h3>
+                {s.system_typography && s.system_typography.length > 0 ? (
+                  <div className="preset-list">
+                    {s.system_typography.map((typo, idx) => (
+                      <div key={typo._id} className="preset-item">
+                        <h4>
+                          {getStatusIcon(getFieldStatus(typo.typography_font_family, null))} {typo.title}
+                        </h4>
+                        <div className="preset-details">
+                          {typo.typography_font_family || '🔴 No font'} • {typo.typography_font_weight || '🔴 No weight'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{color: '#dc3545', fontSize: '13px'}}>🔴 No system typography found in JSON.</p>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        if (activeSubTab === 'custom') {
+          return (
+            <div>
+              <div className="control-group">
+                <h3>
+                  Custom Typography
+                  <span className={`status-badge ${s.custom_typography && s.custom_typography.length > 0 ? 'has-data' : 'is-default'}`}>
+                    {s.custom_typography && s.custom_typography.length > 0 ? `${s.custom_typography.length} PRESETS` : 'NONE'}
+                  </span>
+                </h3>
+                {s.custom_typography && s.custom_typography.length > 0 ? (
+                  <div className="preset-list">
+                    {s.custom_typography.map((typo, idx) => (
+                      <div key={typo._id} className="preset-item">
+                        <h4>✅ {typo.title}</h4>
+                        <div className="preset-details">
+                          {typo.typography_font_family} • {typo.typography_font_weight}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{color: '#856404', fontSize: '13px'}}>⚠️ No custom typography presets in JSON.</p>
+                )}
+                <button 
+                  className="add-preset-btn"
+                  onClick={() => {
+                    alert('Custom typography preset editor coming soon!');
+                  }}
+                >
+                  + Add Custom Typography
+                </button>
+              </div>
+            </div>
+          );
+        }
+      };
+
+      const renderThemeTypography = () => {
+        const headings = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+        const s = kit.page_settings;
+        const prefix = activeHeading;
+
+        return (
+          <div>
+            <div className="legend">
+              <h4>Field Status Legend</h4>
+              <div className="legend-items">
+                <div className="legend-item">
+                  <span className="legend-icon">✅</span>
+                  <span>Has Data</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-icon">⚠️</span>
+                  <span>Default Value</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-icon">🔴</span>
+                  <span>Missing from JSON</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="sub-tabs" style={{marginBottom: '15px'}}>
+              {headings.map(h => (
+                <button
+                  key={h}
+                  className={`sub-tab ${activeHeading === h ? 'active' : ''}`}
+                  onClick={() => setActiveHeading(h)}
+                >
+                  {h.toUpperCase()}
+                </button>
+              ))}
+              <button
+                className={`sub-tab ${activeHeading === 'body' ? 'active' : ''}`}
+                onClick={() => setActiveHeading('body')}
+              >
+                BODY
+              </button>
+              <button
+                className={`sub-tab ${activeHeading === 'link' ? 'active' : ''}`}
+                onClick={() => setActiveHeading('link')}
+              >
+                LINK
+              </button>
+            </div>
+
+            {headings.includes(activeHeading) && (
+              <div>
+                <div className="control-group">
+                  <h3>{activeHeading.toUpperCase()} Typography</h3>
+                  
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_family`], null))}</span>
+                      Font Family
+                    </label>
+                    <input
+                      type="text"
+                      value={s[`${prefix}_typography_font_family`] || ''}
+                      className={getFieldStatus(s[`${prefix}_typography_font_family`], null)}
+                      onChange={(e) => updateSetting(`${prefix}_typography_font_family`, e.target.value)}
+                      placeholder="e.g., Inter, Arial, Helvetica"
+                    />
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_weight`], null))}</span>
+                      Font Weight
+                    </label>
+                    <select
+                      value={s[`${prefix}_typography_font_weight`] || '700'}
+                      className={getFieldStatus(s[`${prefix}_typography_font_weight`], null)}
+                      onChange={(e) => updateSetting(`${prefix}_typography_font_weight`, e.target.value)}
+                    >
+                      <option value="100">100 - Thin</option>
+                      <option value="200">200 - Extra Light</option>
+                      <option value="300">300 - Light</option>
+                      <option value="400">400 - Normal</option>
+                      <option value="500">500 - Medium</option>
+                      <option value="600">600 - Semi Bold</option>
+                      <option value="700">700 - Bold</option>
+                      <option value="800">800 - Extra Bold</option>
+                      <option value="900">900 - Black</option>
+                    </select>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_size`], null))}</span>
+                      Font Size
+                    </label>
+                    <div className="control-split">
+                      <input
+                        type="number"
+                        value={s[`${prefix}_typography_font_size`]?.size || 48}
+                        className={getFieldStatus(s[`${prefix}_typography_font_size`], null)}
+                        onChange={(e) => updateSize(`${prefix}_typography_font_size`, 'size', parseFloat(e.target.value))}
+                      />
+                      <select
+                        value={s[`${prefix}_typography_font_size`]?.unit || 'px'}
+                        onChange={(e) => updateSize(`${prefix}_typography_font_size`, 'unit', e.target.value)}
+                      >
+                        <option value="px">px</option>
+                        <option value="em">em</option>
+                        <option value="rem">rem</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s[`${prefix}_typography_line_height`], null))}</span>
+                      Line Height ✨
+                    </label>
+                    <div className="control-split">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={s[`${prefix}_typography_line_height`]?.size || 1.2}
+                        className={getFieldStatus(s[`${prefix}_typography_line_height`], null)}
+                        onChange={(e) => updateSize(`${prefix}_typography_line_height`, 'size', parseFloat(e.target.value))}
+                      />
+                      <select
+                        value={s[`${prefix}_typography_line_height`]?.unit || 'em'}
+                        onChange={(e) => updateSize(`${prefix}_typography_line_height`, 'unit', e.target.value)}
+                      >
+                        <option value="em">em</option>
+                        <option value="px">px</option>
+                        <option value="">none</option>
+                      </select>
+                    </div>
+                    <div className="help-text">Controls spacing between lines</div>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s[`${prefix}_typography_letter_spacing`], null))}</span>
+                      Letter Spacing ✨
+                    </label>
+                    <div className="control-split">
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={s[`${prefix}_typography_letter_spacing`]?.size || 0}
+                        className={getFieldStatus(s[`${prefix}_typography_letter_spacing`], null)}
+                        onChange={(e) => updateSize(`${prefix}_typography_letter_spacing`, 'size', parseFloat(e.target.value))}
+                      />
+                      <select
+                        value={s[`${prefix}_typography_letter_spacing`]?.unit || 'px'}
+                        onChange={(e) => updateSize(`${prefix}_typography_letter_spacing`, 'unit', e.target.value)}
+                      >
+                        <option value="px">px</option>
+                        <option value="em">em</option>
+                      </select>
+                    </div>
+                    <div className="help-text">Controls spacing between characters</div>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s[`${prefix}_typography_text_transform`], null))}</span>
+                      Text Transform ✨
+                    </label>
+                    <select
+                      value={s[`${prefix}_typography_text_transform`] || 'none'}
+                      className={getFieldStatus(s[`${prefix}_typography_text_transform`], null)}
+                      onChange={(e) => updateSetting(`${prefix}_typography_text_transform`, e.target.value)}
+                    >
+                      <option value="none">None</option>
+                      <option value="uppercase">UPPERCASE</option>
+                      <option value="lowercase">lowercase</option>
+                      <option value="capitalize">Capitalize</option>
+                    </select>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s[`${prefix}_color`], null))}</span>
+                      Color
+                    </label>
+                    <div className="color-picker">
+                      <input
+                        type="color"
+                        value={s[`${prefix}_color`] || '#000000'}
+                        className={getFieldStatus(s[`${prefix}_color`], null)}
+                        onChange={(e) => updateSetting(`${prefix}_color`, e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        value={s[`${prefix}_color`] || '#000000'}
+                        className={getFieldStatus(s[`${prefix}_color`], null)}
+                        onChange={(e) => updateSetting(`${prefix}_color`, e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeHeading === 'body' && (
+              <div>
+                <div className="control-group">
+                  <h3>Body Typography</h3>
+                  
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s.body_typography_font_family, null))}</span>
+                      Font Family
+                    </label>
+                    <input
+                      type="text"
+                      value={s.body_typography_font_family || ''}
+                      className={getFieldStatus(s.body_typography_font_family, null)}
+                      onChange={(e) => updateSetting('body_typography_font_family', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s.body_typography_font_weight, null))}</span>
+                      Font Weight
+                    </label>
+                    <select
+                      value={s.body_typography_font_weight || '400'}
+                      className={getFieldStatus(s.body_typography_font_weight, null)}
+                      onChange={(e) => updateSetting('body_typography_font_weight', e.target.value)}
+                    >
+                      <option value="300">300 - Light</option>
+                      <option value="400">400 - Normal</option>
+                      <option value="500">500 - Medium</option>
+                      <option value="600">600 - Semi Bold</option>
+                      <option value="700">700 - Bold</option>
+                    </select>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s.body_typography_font_size, null))}</span>
+                      Font Size
+                    </label>
+                    <div className="control-split">
+                      <input
+                        type="number"
+                        value={s.body_typography_font_size?.size || 16}
+                        className={getFieldStatus(s.body_typography_font_size, null)}
+                        onChange={(e) => updateSize('body_typography_font_size', 'size', parseFloat(e.target.value))}
+                      />
+                      <select
+                        value={s.body_typography_font_size?.unit || 'px'}
+                        onChange={(e) => updateSize('body_typography_font_size', 'unit', e.target.value)}
+                      >
+                        <option value="px">px</option>
+                        <option value="em">em</option>
+                        <option value="rem">rem</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s.body_typography_line_height, null))}</span>
+                      Line Height ✨
+                    </label>
+                    <div className="control-split">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={s.body_typography_line_height?.size || 1.7}
+                        className={getFieldStatus(s.body_typography_line_height, null)}
+                        onChange={(e) => updateSize('body_typography_line_height', 'size', parseFloat(e.target.value))}
+                      />
+                      <select
+                        value={s.body_typography_line_height?.unit || 'em'}
+                        onChange={(e) => updateSize('body_typography_line_height', 'unit', e.target.value)}
+                      >
+                        <option value="em">em</option>
+                        <option value="px">px</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s.body_typography_letter_spacing, null))}</span>
+                      Letter Spacing ✨
+                    </label>
+                    <div className="control-split">
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={s.body_typography_letter_spacing?.size || 0}
+                        className={getFieldStatus(s.body_typography_letter_spacing, null)}
+                        onChange={(e) => updateSize('body_typography_letter_spacing', 'size', parseFloat(e.target.value))}
+                      />
+                      <select
+                        value={s.body_typography_letter_spacing?.unit || 'px'}
+                        onChange={(e) => updateSize('body_typography_letter_spacing', 'unit', e.target.value)}
+                      >
+                        <option value="px">px</option>
+                        <option value="em">em</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s.body_color, null))}</span>
+                      Color
+                    </label>
+                    <div className="color-picker">
+                      <input
+                        type="color"
+                        value={s.body_color || '#333333'}
+                        className={getFieldStatus(s.body_color, null)}
+                        onChange={(e) => updateSetting('body_color', e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        value={s.body_color || '#333333'}
+                        className={getFieldStatus(s.body_color, null)}
+                        onChange={(e) => updateSetting('body_color', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeHeading === 'link' && (
+              <div>
+                <div className="control-group">
+                  <h3>Link Typography</h3>
+                  
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s.link_normal_color, null))}</span>
+                      Normal Color
+                    </label>
+                    <div className="color-picker">
+                      <input
+                        type="color"
+                        value={s.link_normal_color || '#0073aa'}
+                        className={getFieldStatus(s.link_normal_color, null)}
+                        onChange={(e) => updateSetting('link_normal_color', e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        value={s.link_normal_color || '#0073aa'}
+                        className={getFieldStatus(s.link_normal_color, null)}
+                        onChange={(e) => updateSetting('link_normal_color', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s.link_hover_color, null))}</span>
+                      Hover Color
+                    </label>
+                    <div className="color-picker">
+                      <input
+                        type="color"
+                        value={s.link_hover_color || '#005a87'}
+                        className={getFieldStatus(s.link_hover_color, null)}
+                        onChange={(e) => updateSetting('link_hover_color', e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        value={s.link_hover_color || '#005a87'}
+                        className={getFieldStatus(s.link_hover_color, null)}
+                        onChange={(e) => updateSetting('link_hover_color', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="control-row">
+                    <label>
+                      <span className="field-status">{getStatusIcon(getFieldStatus(s.link_typography_text_decoration, null))}</span>
+                      Text Decoration ✨
+                    </label>
+                    <select
+                      value={s.link_typography_text_decoration || 'none'}
+                      className={getFieldStatus(s.link_typography_text_decoration, null)}
+                      onChange={(e) => updateSetting('link_typography_text_decoration', e.target.value)}
+                    >
+                      <option value="none">None</option>
+                      <option value="underline">Underline</option>
+                      <option value="overline">Overline</option>
+                      <option value="line-through">Line Through</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      return (
+        <div className="editor-container">
+          <div className="editor-sidebar">
+            <div className="editor-header">
+              <h1>🎨 Elementor Kit Editor v2</h1>
+              <div className="header-actions">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  style={{ display: 'none' }}
+                  onChange={handleImport}
+                />
+                <button className="btn btn-light" onClick={handleExport}>
+                  📥 Export JSON
+                </button>
+                <button className="btn btn-light" onClick={() => fileInputRef.current?.click()}>
+                  📤 Import JSON
+                </button>
+              </div>
+            </div>
+
+            <div className="editor-tabs">
+              <button 
+                className={`tab ${activeTab === 'global-colors' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('global-colors'); setActiveSubTab('system'); }}
+              >
+                🎨 Global Colors
+              </button>
+              <button 
+                className={`tab ${activeTab === 'global-typography' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('global-typography'); setActiveSubTab('system'); }}
+              >
+                📝 Global Typography
+              </button>
+              <button 
+                className={`tab ${activeTab === 'theme-typography' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('theme-typography'); setActiveHeading('h1'); }}
+              >
+                📄 Theme Typography
+              </button>
+              <button 
+                className={`tab ${activeTab === 'buttons' ? 'active' : ''}`}
+                onClick={() => setActiveTab('buttons')}
+              >
+                🔘 Buttons
+              </button>
+              <button 
+                className={`tab ${activeTab === 'forms' ? 'active' : ''}`}
+                onClick={() => setActiveTab('forms')}
+              >
+                📋 Forms
+              </button>
+              <button 
+                className={`tab ${activeTab === 'images' ? 'active' : ''}`}
+                onClick={() => setActiveTab('images')}
+              >
+                🖼️ Images
+              </button>
+            </div>
+
+            {(activeTab === 'global-colors' || activeTab === 'global-typography') && (
+              <div className="sub-tabs">
+                <button
+                  className={`sub-tab ${activeSubTab === 'system' ? 'active' : ''}`}
+                  onClick={() => setActiveSubTab('system')}
+                >
+                  System (4 Required)
+                </button>
+                <button
+                  className={`sub-tab ${activeSubTab === 'custom' ? 'active' : ''}`}
+                  onClick={() => setActiveSubTab('custom')}
+                >
+                  Custom (Unlimited)
+                </button>
+              </div>
+            )}
+
+            <div className="editor-content">
+              {activeTab === 'global-colors' && renderGlobalColors()}
+              {activeTab === 'global-typography' && renderGlobalTypography()}
+              {activeTab === 'theme-typography' && renderThemeTypography()}
+            </div>
+          </div>
+
+          <div className="preview-panel">
+            <div className="preview-header">
+              <h2>👁️ Live Preview</h2>
+              <div className="device-toggle">
+                <button 
+                  className={`device-btn ${deviceMode === 'desktop' ? 'active' : ''}`}
+                  onClick={() => setDeviceMode('desktop')}
+                >
+                  🖥️ Desktop
+                </button>
+                <button 
+                  className={`device-btn ${deviceMode === 'tablet' ? 'active' : ''}`}
+                  onClick={() => setDeviceMode('tablet')}
+                >
+                  📱 Tablet
+                </button>
+                <button 
+                  className={`device-btn ${deviceMode === 'mobile' ? 'active' : ''}`}
+                  onClick={() => setDeviceMode('mobile')}
+                >
+                  📱 Mobile
+                </button>
+              </div>
+            </div>
+
+            <div className={`preview-content ${deviceMode}`}>
+              {activeTab === 'global-colors' && (
+                <div className="preview-section">
+                  <h4>Color Palette</h4>
+                  <div className="color-grid">
+                    {kit.page_settings.system_colors && kit.page_settings.system_colors.map((color) => (
+                      <div 
+                        key={color._id} 
+                        className="color-swatch" 
+                        style={{ backgroundColor: color.color }}
+                      >
+                        <span>{color.title}</span>
+                      </div>
+                    ))}
+                    {kit.page_settings.custom_colors && kit.page_settings.custom_colors.map((color) => (
+                      <div 
+                        key={color._id} 
+                        className="color-swatch" 
+                        style={{ backgroundColor: color.color }}
+                      >
+                        <span>{color.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(activeTab === 'theme-typography' || activeTab === 'global-typography') && (
+                <div className="preview-section">
+                  <h4>Typography Preview</h4>
+                  <div className="typography-preview">
+                    {['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(activeHeading) && (
+                      React.createElement(activeHeading, { style: getHeadingStyle(activeHeading) }, 
+                        `This is ${activeHeading.toUpperCase()} Heading Text`
+                      )
+                    )}
+                    {activeHeading === 'body' && (
+                      <>
+                        <p style={getBodyStyle()}>
+                          This is body text. Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
+                          Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+                        </p>
+                        <p style={getBodyStyle()}>
+                          Another paragraph to show line height and letter spacing in action.
+                        </p>
+                      </>
+                    )}
+                    {activeHeading === 'link' && (
+                      <p style={getBodyStyle()}>
+                        Here's a paragraph with a <a href="#" style={getLinkStyle()}>clickable link</a> inside. 
+                        Hover over it to see the color change.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<ElementorKitEditor />);
+  </script>
+</body>
+</html>

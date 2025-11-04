@@ -4218,51 +4218,51 @@ Provide a detailed review with specific feedback and suggested edits.`
       {/* Variable Viewer Modal */}
       {viewingVariable && (
         <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 animate-in fade-in duration-200"
-            onClick={() => setViewingVariable(null)}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 animate-in fade-in duration-200"
+          onClick={() => setViewingVariable(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden animate-in zoom-in slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden animate-in zoom-in slide-in-from-bottom-4 duration-300"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white sticky top-0 z-10">
-                <div className="flex items-center gap-3">
-                  <Eye className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <h3 className="font-semibold text-lg text-gray-900">Variable Content</h3>
-                    <code className="text-sm text-blue-600 font-mono">{viewingVariable.tag}</code>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setViewingVariable(null)}
-                  className="p-1 hover:bg-gray-200 rounded transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="p-6 overflow-y-auto max-h-[calc(85vh-180px)]">
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-sm whitespace-pre-wrap break-words">
-                  {viewingVariable.content || '(Empty)'}
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white sticky top-0 z-10">
+              <div className="flex items-center gap-3">
+                <Eye className="h-5 w-5 text-blue-600" />
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-900">Variable Content</h3>
+                  <code className="text-sm text-blue-600 font-mono">{viewingVariable.tag}</code>
                 </div>
               </div>
+              <button
+                onClick={() => setViewingVariable(null)}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-              <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between gap-2 sticky bottom-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(viewingVariable.content)
-                  }}
-                  className="bg-transparent"
-                >
-                  <Copy className="h-3.5 w-3.5 mr-1.5" />
-                  Copy Content
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setViewingVariable(null)}>
-                  Close
-                </Button>
+            <div className="p-6 overflow-y-auto max-h-[calc(85vh-180px)]">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-sm whitespace-pre-wrap break-words">
+                {viewingVariable.content || '(Empty)'}
               </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between gap-2 sticky bottom-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(viewingVariable.content)
+                }}
+                className="bg-transparent"
+              >
+                <Copy className="h-3.5 w-3.5 mr-1.5" />
+                Copy Content
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setViewingVariable(null)}>
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}

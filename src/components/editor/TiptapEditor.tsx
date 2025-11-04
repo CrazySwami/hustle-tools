@@ -989,16 +989,25 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       setActiveTool(toolId);
     };
 
+    // Handler for toggling documents panel from navigation
+    const handleToggleDocumentsPanel = () => {
+      console.log('📂 [TIPTAP] Toggling documents panel from:', isDocumentsPanelOpen, 'to:', !isDocumentsPanelOpen);
+      setIsDocumentsPanelOpen(!isDocumentsPanelOpen);
+      onToggleSidebar?.();
+    };
+
     window.addEventListener('doc-set-panel', handleSetPanel as EventListener);
     window.addEventListener('doc-comments-filter', handleCommentsFilter as EventListener);
     window.addEventListener('doc-open-tool', handleOpenTool as EventListener);
+    window.addEventListener('toggle-documents-panel', handleToggleDocumentsPanel);
 
     return () => {
       window.removeEventListener('doc-set-panel', handleSetPanel as EventListener);
       window.removeEventListener('doc-comments-filter', handleCommentsFilter as EventListener);
       window.removeEventListener('doc-open-tool', handleOpenTool as EventListener);
+      window.removeEventListener('toggle-documents-panel', handleToggleDocumentsPanel);
     };
-  }, [isCommentsPanelOpen, panelTab]);
+  }, [isCommentsPanelOpen, panelTab, isDocumentsPanelOpen]);
 
   // Notify parent component about panel state changes
   useEffect(() => {

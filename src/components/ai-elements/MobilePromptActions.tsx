@@ -1,124 +1,126 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { MenuIcon, GlobeIcon, FileCodeIcon, ImageIcon, XIcon } from 'lucide-react';
+import { useState, useEffect, useRef, ReactNode, forwardRef } from 'react';
+import { PromptInputButton } from '@/components/ai-elements/prompt-input';
+import { MoreHorizontal, Check } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export interface PromptAction {
   id: string;
   label: string;
-  icon: React.ReactNode;
-  type: 'toggle' | 'button';
-  active?: boolean;
+  icon: ReactNode;
+  isActive: boolean;
   onClick: () => void;
-  disabled?: boolean;
+  title?: string;
 }
 
 interface MobilePromptActionsProps {
   actions: PromptAction[];
+  /** Breakpoint in pixels - below this, show dropdown. Default: 600px (matches NavigationBar compact breakpoint) */
+  breakpoint?: number;
+  /** Optional container width from parent - if not provided, will measure window width */
+  containerWidth?: number;
+  className?: string;
 }
 
-export function MobilePromptActions({ actions }: MobilePromptActionsProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+/**
+ * Responsive action buttons that collapse into a dropdown menu on narrow containers.
+ * Uses container width (from parent) or window width to determine layout.
+ *
+ * When container is wide: Shows all buttons horizontally
+ * When container is narrow: Collapses into a single dropdown menu button
+ */
+export function MobilePromptActions({
+  actions,
+  breakpoint = 600,
+  containerWidth,
+  className,
+}: MobilePromptActionsProps) {
+  const [windowWidth, setWindowWidth] = useState<number>(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close menu when clicking outside
+  // Measure window width if containerWidth not provided
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+    if (containerWidth !== undefined) return;
+
+    const updateWidth = () => {
+      setWindowWidth(window.innerWidth);
     };
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, [containerWidth]);
 
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen]);
+  // Use provided containerWidth or fall back to window width
+  const effectiveWidth = containerWidth !== undefined && containerWidth > 0 ? containerWidth : windowWidth;
 
-  const handleActionClick = (action: PromptAction) => {
-    if (!action.disabled) {
-      action.onClick();
-      // Only close menu for button actions, keep open for toggles
-      if (action.type === 'button') {
-        setIsOpen(false);
-      }
-    }
-  };
+  // Determine if we should show dropdown (narrow container)
+  const isNarrow = effectiveWidth > 0 && effectiveWidth < breakpoint;
 
-  return (
-    <div ref={menuRef} className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors"
-        style={{
-          background: isOpen ? 'var(--muted)' : 'transparent',
-          color: 'var(--foreground)',
-        }}
-        aria-label="Prompt actions menu"
-      >
-        <MenuIcon size={18} />
-      </button>
-
-      {/* Dropdown Menu */}
-      {isOpen && (
-        <div
-          className="fixed bottom-20 left-4 bg-card rounded-xl shadow-xl border border-border min-w-[240px] max-w-[90vw] overflow-hidden"
-          style={{
-            animation: 'slideUp 0.2s ease-out',
-            zIndex: 99999,
-          }}
-        >
-          {actions.map((action, index) => (
-            <button
-              key={action.id}
-              onClick={() => handleActionClick(action)}
-              disabled={action.disabled}
-              className="w-full px-4 py-3 flex items-center gap-3 text-left transition-colors hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                fontSize: '14px',
-                fontWeight: 500,
-                borderBottom: index < actions.length - 1 ? '1px solid var(--border)' : 'none',
-              }}
+  // Dropdown Menu View (for narrow containers)
+  if (isNarrow) {
+    return (
+      <div ref={containerRef} className={cn('flex items-center gap-1', className)}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 rounded-lg text-muted-foreground"
+              title="Toggle actions menu"
             >
-              <span className="flex-shrink-0" style={{ color: 'var(--foreground)', opacity: 0.7 }}>
-                {action.icon}
-              </span>
-              <span className="flex-1">{action.label}</span>
-              {action.type === 'toggle' && (
-                <div
-                  className="flex-shrink-0 w-10 h-5 rounded-full transition-colors relative"
-                  style={{
-                    background: action.active ? 'var(--primary)' : 'var(--muted)',
+              <MoreHorizontal size={16} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            {actions.map((action, index) => (
+              <div key={action.id}>
+                {index > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    action.onClick();
                   }}
+                  className="flex items-center justify-between gap-2 cursor-pointer"
                 >
-                  <div
-                    className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
-                    style={{
-                      left: action.active ? 'calc(100% - 18px)' : '2px',
-                    }}
-                  />
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+                  <div className="flex items-center gap-2">
+                    {action.icon}
+                    <span>{action.label}</span>
+                  </div>
+                  {action.isActive && (
+                    <Check size={16} className="text-primary" />
+                  )}
+                </DropdownMenuItem>
+              </div>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  }
 
-      <style jsx global>{`
-        @keyframes slideUp {
-          from {
-            transform: translateY(10px);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
-      `}</style>
+  // Standard Button View (for wide containers)
+  return (
+    <div ref={containerRef} className={cn('flex items-center gap-1', className)}>
+      {actions.map((action) => (
+        <PromptInputButton
+          key={action.id}
+          variant={action.isActive ? 'default' : 'ghost'}
+          onClick={action.onClick}
+          title={action.title || action.label}
+        >
+          {action.icon}
+        </PromptInputButton>
+      ))}
     </div>
   );
 }

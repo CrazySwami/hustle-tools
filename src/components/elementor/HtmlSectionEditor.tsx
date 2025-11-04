@@ -54,6 +54,9 @@ interface HtmlSectionEditorProps {
     context: string;
   }) => void;
   onSendChatMessage?: (message: string) => void;
+  hotReloadEnabled?: boolean; // Hot reload toggle state from parent
+  currentProject?: any; // Current project from file groups
+  fileGroups?: ReturnType<typeof useFileGroups>; // Shared file groups state from parent
 }
 
 export function HtmlSectionEditor({
@@ -74,9 +77,13 @@ export function HtmlSectionEditor({
   isTabVisible = true,
   onEditElementInChat,
   onSendChatMessage,
+  hotReloadEnabled = false,
+  currentProject,
+  fileGroups: parentFileGroups,
 }: HtmlSectionEditorProps) {
-  // File Groups Management
-  const fileGroups = useFileGroups();
+  // File Groups Management - use parent's instance if provided, otherwise create local instance
+  const localFileGroups = useFileGroups();
+  const fileGroups = parentFileGroups || localFileGroups;
   const [showNewGroupDialog, setShowNewGroupDialog] = useState(false);
   const [showHtmlSplitter, setShowHtmlSplitter] = useState(false);
   const [showBatchConverter, setShowBatchConverter] = useState(false);
@@ -103,6 +110,9 @@ export function HtmlSectionEditor({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFileTree, setShowFileTree] = useState(true); // Show by default on desktop
   const [inspectMode, setInspectMode] = useState(false); // Track inspect mode
+  const [inspectSplitView, setInspectSplitView] = useState(false); // Track if inspect mode shows split view (default: full view)
+  const [previewSplitWidth, setPreviewSplitWidth] = useState(50); // Code panel percentage for HTML preview
+  const [previewDragging, setPreviewDragging] = useState(false);
   const [inspectedElement, setInspectedElement] = useState<{
     html: string;
     selector: string;
@@ -138,7 +148,8 @@ export function HtmlSectionEditor({
 
   // Deploy widget to WordPress Playground
   const handleDeployWidget = async () => {
-    if (!section.php || !section.php.trim()) {
+    // Check editorPhp instead of section.php (which is legacy)
+    if (!editorPhp || !editorPhp.trim()) {
       alert('⚠️ No widget PHP code to deploy. Generate a widget first using "Generate Widget" button.');
       return;
     }
@@ -157,8 +168,8 @@ export function HtmlSectionEditor({
       // Small delay to let the tab switch complete
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Deploy widget and create preview page
-      const result = await window.deployAndPreviewWidget(section.php, editorCss, editorJs);
+      // Deploy widget and create preview page - use editorPhp instead of section.php
+      const result = await window.deployAndPreviewWidget(editorPhp, editorCss, editorJs);
 
       console.log('✅ Deploy and preview complete:', result);
 
@@ -184,19 +195,13 @@ export function HtmlSectionEditor({
   const [showGeneratorDialog, setShowGeneratorDialog] = useState(false);
   const { designSystemSummary } = useGlobalStylesheet();
 
-  // Hot reload state
-  const [hotReloadEnabled, setHotReloadEnabled] = useState(true);
-  const [lastDeployedPhp, setLastDeployedPhp] = useState('');
-  const [lastDeployedCss, setLastDeployedCss] = useState('');
-  const lastChangeTimeRef = useRef<number>(0);
-
   const handleConvertToWidget = async () => {
     if (!editorHtml.trim()) {
       alert('⚠️ No HTML content to convert. Please add HTML code first.');
       return;
     }
 
-    if (section.php) {
+    if (editorPhp) {
       alert('⚠️ Already in widget mode! Use "Deploy to Playground" to test this widget.');
       return;
     }
@@ -305,7 +310,7 @@ export function HtmlSectionEditor({
       return;
     }
 
-    if (section.php) {
+    if (editorPhp) {
       alert('⚠️ Already in widget mode! Use "Deploy to Playground" to test this widget.');
       return;
     }
@@ -580,12 +585,12 @@ export function HtmlSectionEditor({
 
   // Download widget PHP file
   const handleDownloadWidgetPhp = () => {
-    if (!section.php || !section.php.trim()) {
+    if (!editorPhp || !editorPhp.trim()) {
       alert('⚠️ No PHP widget code to download. Generate a widget first.');
       return;
     }
 
-    const blob = new Blob([section.php], { type: 'text/plain' });
+    const blob = new Blob([editorPhp], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -647,6 +652,59 @@ export function HtmlSectionEditor({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Hot reload handler - triggered on Cmd+S / Ctrl+S
+  useEffect(() => {
+    const handleSave = async (e: KeyboardEvent) => {
+      // Check if Cmd+S (Mac) or Ctrl+S (Windows/Linux)
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+
+        // Only trigger hot reload if:
+        // 1. Hot reload is enabled
+        // 2. Current project is a PHP project
+        // 3. Project has been deployed to WordPress
+        if (
+          hotReloadEnabled &&
+          currentProject?.type === 'php' &&
+          currentProject?.wordpressDeployment?.isDeployed
+        ) {
+          console.log('🔥 Hot reload triggered (Cmd+S)');
+
+          try {
+            // Call the updateWidgetAndRefresh function
+            const deploymentType = currentProject.wordpressDeployment.lastDeploymentType || 'live-page';
+            const pageSlug = deploymentType === 'live-page'
+              ? currentProject.wordpressDeployment.livePageSlug
+              : currentProject.wordpressDeployment.elementorPageSlug;
+
+            if (typeof window !== 'undefined' && (window as any).updateWidgetAndRefresh) {
+              await (window as any).updateWidgetAndRefresh(
+                editorPhp,
+                editorCss,
+                editorJs,
+                currentProject.wordpressDeployment.pluginSlug,
+                pageSlug,
+                deploymentType
+              );
+              console.log('✅ Hot reload completed');
+            } else {
+              console.warn('⚠️ updateWidgetAndRefresh function not available');
+            }
+          } catch (error: any) {
+            console.error('❌ Hot reload failed:', error);
+            alert(`Hot reload failed: ${error.message}`);
+          }
+        } else {
+          // Just a regular save without hot reload
+          console.log('💾 Save triggered (Cmd+S) - hot reload not applicable');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleSave);
+    return () => window.removeEventListener('keydown', handleSave);
+  }, [hotReloadEnabled, currentProject, editorPhp, editorCss, editorJs]);
+
   // Event handlers for dropdown actions (defined with useCallback for stable references)
   const handleGenerateProject = useCallback(() => {
     setGenerateModalConversionMode(false);
@@ -680,6 +738,27 @@ export function HtmlSectionEditor({
     });
   }, []);
 
+  const handleSplitHtml = useCallback(() => {
+    console.log('🎯 Split HTML triggered from dropdown');
+    setShowHtmlSplitter(true);
+  }, []);
+
+  const handleCreateNewProject = useCallback(() => {
+    console.log('🎯 Create New Project triggered from dropdown');
+    setShowNewGroupDialog(true);
+  }, []);
+
+  const handleToggleProjectPanel = useCallback(() => {
+    console.log('🎯 Toggle Project Panel triggered from dropdown');
+    setShowProjectSidebar(prev => !prev);
+  }, []);
+
+  const handleToggleFilesPanel = useCallback(() => {
+    console.log('🎯 Toggle Files Panel triggered from dropdown');
+    // Files panel is the same as project panel in this context
+    setShowProjectSidebar(prev => !prev);
+  }, []);
+
   // Listen for tab dropdown actions (from parent page tab bar)
   useEffect(() => {
     window.addEventListener('trigger-generate-project', handleGenerateProject);
@@ -687,6 +766,10 @@ export function HtmlSectionEditor({
     window.addEventListener('trigger-convert-widget', handleConvertWidget);
     window.addEventListener('trigger-preview-html', handlePreviewHtml);
     window.addEventListener('trigger-preview-hubl', handlePreviewHubl);
+    window.addEventListener('split-html', handleSplitHtml);
+    window.addEventListener('create-new-project', handleCreateNewProject);
+    window.addEventListener('toggle-project-panel', handleToggleProjectPanel);
+    window.addEventListener('toggle-files-panel', handleToggleFilesPanel);
 
     return () => {
       window.removeEventListener('trigger-generate-project', handleGenerateProject);
@@ -694,8 +777,12 @@ export function HtmlSectionEditor({
       window.removeEventListener('trigger-convert-widget', handleConvertWidget);
       window.removeEventListener('trigger-preview-html', handlePreviewHtml);
       window.removeEventListener('trigger-preview-hubl', handlePreviewHubl);
+      window.removeEventListener('split-html', handleSplitHtml);
+      window.removeEventListener('create-new-project', handleCreateNewProject);
+      window.removeEventListener('toggle-project-panel', handleToggleProjectPanel);
+      window.removeEventListener('toggle-files-panel', handleToggleFilesPanel);
     };
-  }, [handleGenerateProject, handleSaveLibrary, handleConvertWidget, handlePreviewHtml, handlePreviewHubl]);
+  }, [handleGenerateProject, handleSaveLibrary, handleConvertWidget, handlePreviewHtml, handlePreviewHubl, handleSplitHtml, handleCreateNewProject, handleToggleProjectPanel, handleToggleFilesPanel]);
 
   // Close menu on click outside
   useEffect(() => {
@@ -807,8 +894,19 @@ export function HtmlSectionEditor({
     setSection(updatedSection);
     onSectionChange?.(updatedSection);
 
-    // Sync code changes to global state for chat access
+    // Sync code changes to BOTH global state (for chat) AND file groups (for persistence)
     if ('html' in updates || 'css' in updates || 'js' in updates || 'php' in updates || 'hubl' in updates) {
+      const activeGroupId = fileGroups.activeGroup?.id;
+      if (activeGroupId) {
+        // Persist to file groups (localStorage)
+        if ('html' in updates) fileGroups.updateGroupFile(activeGroupId, 'html', updates.html || '');
+        if ('css' in updates) fileGroups.updateGroupFile(activeGroupId, 'css', updates.css || '');
+        if ('js' in updates) fileGroups.updateGroupFile(activeGroupId, 'js', updates.js || '');
+        if ('php' in updates) fileGroups.updateGroupFile(activeGroupId, 'php', updates.php || '');
+        if ('hubl' in updates) fileGroups.updateGroupFile(activeGroupId, 'hubl', updates.hubl || '');
+      }
+
+      // Also update global editor content (for chat access)
       if ('html' in updates) updateContent('html', updates.html || '');
       if ('css' in updates) updateContent('css', updates.css || '');
       if ('js' in updates) updateContent('js', updates.js || '');
@@ -857,6 +955,14 @@ export function HtmlSectionEditor({
 
   // Sync active file group with editor content
   useEffect(() => {
+    console.log('🔄 useEffect [activeGroupId] triggered:', {
+      activeGroupId: fileGroups.activeGroupId,
+      activeGroupName: fileGroups.activeGroup?.name,
+      activeGroupType: fileGroups.activeGroup?.type,
+      currentSectionId: section.id,
+      currentSectionName: section.name,
+    });
+
     if (fileGroups.activeGroup) {
       // Load active group content into editor
       console.log('📂 Loading active group:', fileGroups.activeGroup.name);
@@ -953,15 +1059,20 @@ export function HtmlSectionEditor({
   useEffect(() => {
     const handleSelectProject = (event: CustomEvent) => {
       const { projectId } = event.detail;
-      console.log('📂 Received select-project event:', projectId);
+      console.log('📂 HtmlSectionEditor: Received select-project event:', projectId);
+
+      // Update localStorage
       fileGroups.selectGroup(projectId);
+
+      // Immediately notify parent with the new project ID
+      window.dispatchEvent(new CustomEvent('project-selected', {
+        detail: { projectId }
+      }));
+      console.log('📢 HtmlSectionEditor: Dispatched project-selected event:', projectId);
     };
 
     window.addEventListener('select-project' as any, handleSelectProject);
-
-    return () => {
-      window.removeEventListener('select-project' as any, handleSelectProject);
-    };
+    return () => window.removeEventListener('select-project' as any, handleSelectProject);
   }, [fileGroups]);
 
   // Iframe Inspector Mode - react-grab style element selection
@@ -1168,6 +1279,38 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
     };
   }, [inspectMode, showPreview, onEditElementInChat]);
 
+  // HTML Preview resizable divider handlers
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!previewDragging) return;
+      const container = document.getElementById('html-preview-split-container');
+      if (!container) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      // Clamp between 30% and 70%
+      setPreviewSplitWidth(Math.min(Math.max(newWidth, 30), 70));
+    };
+
+    const handleMouseUp = () => {
+      setPreviewDragging(false);
+    };
+
+    if (previewDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [previewDragging]);
+
   // Generate preview HTML with all styles and scripts (uses global state for latest content)
   const generatePreviewHTML = (): string => {
     const inlineStyles = sectionSettingsToCSS(section.settings);
@@ -1363,7 +1506,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
             )}
 
             {/* Deploy to Playground - Only show in PHP/Widget mode */}
-            {section.php && !isMobile && (
+            {editorPhp && !isMobile && (
               <button
                 onClick={handleDeployWidget}
                 style={{
@@ -2432,16 +2575,19 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
           </div>
         </div>
 
-        {/* Preview Panel - Full Screen */}
+        {/* Preview Panel - Resizable Split View (Code | Preview) */}
         {showPreview && !showHublPreview && (
           <div
+            id="html-preview-split-container"
             style={{
               width: "100%",
               display: "flex",
               flexDirection: "column",
               background: "var(--background)",
+              height: "100%",
             }}
           >
+            {/* Header */}
             <div
               style={{
                 padding: "8px 12px",
@@ -2455,28 +2601,47 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 alignItems: "center",
               }}
             >
-              <span>Live Preview</span>
+              <span>HTML Preview {inspectSplitView ? '(Split View)' : '(Full View)'}</span>
               <div style={{ display: "flex", gap: "8px" }}>
                 {onEditElementInChat && (
-                  <button
-                    onClick={() => {
-                      const newMode = !inspectMode;
-                      console.log('🔘 Inspect button clicked! New mode:', newMode);
-                      setInspectMode(newMode);
-                    }}
-                    style={{
-                      padding: "4px 12px",
-                      background: inspectMode ? "#3b82f6" : "#6b7280",
-                      color: "#ffffff",
-                      border: "none",
-                      borderRadius: "4px",
-                      fontSize: "12px",
-                      cursor: "pointer",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {inspectMode ? "🔍 Inspecting..." : "🔍 Inspect"}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        const newMode = !inspectMode;
+                        console.log('🔘 Inspect button clicked! New mode:', newMode);
+                        setInspectMode(newMode);
+                      }}
+                      style={{
+                        padding: "4px 12px",
+                        background: inspectMode ? "#3b82f6" : "#6b7280",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "4px",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {inspectMode ? "🔍 Inspecting..." : "🔍 Inspect"}
+                    </button>
+                    {inspectMode && (
+                      <button
+                        onClick={() => setInspectSplitView(!inspectSplitView)}
+                        style={{
+                          padding: "4px 12px",
+                          background: inspectSplitView ? "#10b981" : "#6b7280",
+                          color: "#ffffff",
+                          border: "none",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {inspectSplitView ? "⊞ Split View" : "▢ Full View"}
+                      </button>
+                    )}
+                  </>
                 )}
                 <button
                   onClick={() => setShowPreview(false)}
@@ -2496,21 +2661,187 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
               </div>
             </div>
 
-            <iframe
-              ref={previewIframeRef}
-              srcDoc={generatePreviewHTML()}
-              style={{
-                flex: 1,
-                border: "none",
-                width: "100%",
-              }}
-              sandbox="allow-scripts allow-same-origin"
-              title="Section Preview"
-              onLoad={() => {
-                console.log('🔍 Preview iframe loaded, ready for inspection');
-              }}
-            />
+            {/* Panel Content - Split View or Full View */}
+            {inspectSplitView ? (
+              // Split View Mode (Code | Preview)
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "row",
+                  overflow: "hidden",
+                }}
+              >
+                {/* Left Panel - Code Editor */}
+                <div
+                  style={{
+                    width: `${previewSplitWidth}%`,
+                    display: "flex",
+                    flexDirection: "column",
+                    background: "var(--background)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Code Tab Selector */}
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "4px",
+                      padding: "8px",
+                      background: "var(--muted)",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    {["html", "css", "js"].map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => handleCodeTabChange(tab as "html" | "css" | "js")}
+                        style={{
+                          padding: "4px 12px",
+                          background: activeCodeTab === tab ? "var(--primary)" : "transparent",
+                          color: activeCodeTab === tab ? "#ffffff" : "var(--foreground)",
+                          border: "none",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {tab.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
 
+                  {/* Monaco Editor */}
+                  <div style={{ flex: 1, overflow: "hidden" }}>
+                    <Editor
+                      key={activeCodeTab}
+                      defaultLanguage={activeCodeTab === "js" ? "javascript" : activeCodeTab}
+                      value={
+                        activeCodeTab === "html"
+                          ? editorHtml
+                          : activeCodeTab === "css"
+                          ? editorCss
+                          : editorJs
+                      }
+                      onChange={(value) => {
+                        const newValue = value || "";
+                        if (activeCodeTab === "html") {
+                          setEditorHtml(newValue);
+                        } else if (activeCodeTab === "css") {
+                          setEditorCss(newValue);
+                        } else if (activeCodeTab === "js") {
+                          setEditorJs(newValue);
+                        }
+                      }}
+                      theme="vs-dark"
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        lineNumbers: "on",
+                        scrollBeyondLastLine: false,
+                        wordWrap: "on",
+                        automaticLayout: true,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Resizable Divider */}
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setPreviewDragging(true);
+                  }}
+                  style={{
+                    width: "4px",
+                    background: "var(--border)",
+                    cursor: "ew-resize",
+                    flexShrink: 0,
+                    position: "relative",
+                    transition: previewDragging ? "none" : "background 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!previewDragging) {
+                      e.currentTarget.style.background = "var(--primary)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!previewDragging) {
+                      e.currentTarget.style.background = "var(--border)";
+                    }
+                  }}
+                >
+                  {/* Visual handle indicator */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%, -50%)",
+                      width: "3px",
+                      height: "40px",
+                      background: previewDragging ? "var(--primary)" : "var(--muted-foreground)",
+                      borderRadius: "2px",
+                      opacity: 0.5,
+                      transition: "opacity 0.2s",
+                    }}
+                  />
+                </div>
+
+                {/* Right Panel - Live Preview */}
+                <div
+                  style={{
+                    width: `${100 - previewSplitWidth}%`,
+                    display: "flex",
+                    flexDirection: "column",
+                    background: "#ffffff",
+                    overflow: "hidden",
+                  }}
+                >
+                  <iframe
+                    ref={previewIframeRef}
+                    srcDoc={generatePreviewHTML()}
+                    style={{
+                      flex: 1,
+                      border: "none",
+                      width: "100%",
+                    }}
+                    sandbox="allow-scripts allow-same-origin"
+                    title="Section Preview"
+                    onLoad={() => {
+                      console.log('🔍 Preview iframe loaded, ready for inspection');
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              // Full View Mode (Preview only)
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  background: "#ffffff",
+                  overflow: "hidden",
+                }}
+              >
+                <iframe
+                  ref={previewIframeRef}
+                  srcDoc={generatePreviewHTML()}
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    width: "100%",
+                  }}
+                  sandbox="allow-scripts allow-same-origin"
+                  title="Section Preview"
+                  onLoad={() => {
+                    console.log('🔍 Preview iframe loaded, ready for inspection');
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -2673,7 +3004,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   onClick={async () => {
                     setShowCompletionModal(false);
                     try {
-                      const result = await window.deployElementorWidget(section.php || '', editorCss, editorJs);
+                      const result = await window.deployElementorWidget(editorPhp || '', editorCss, editorJs);
                       // Switch to Playground tab
                       if (onSwitchToPlayground) {
                         onSwitchToPlayground();
@@ -2841,15 +3172,15 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     }
 
                     // Save to file groups library (project library)
-                    const projectType = section.php ? 'php' : 'html';
+                    const projectType = editorPhp ? 'php' : 'html';
                     const newGroup = fileGroups.createNewGroup(section.name, projectType);
 
                     // Update the group with current content
                     fileGroups.updateGroupFile(newGroup.id, 'html', editorHtml);
                     fileGroups.updateGroupFile(newGroup.id, 'css', editorCss);
                     fileGroups.updateGroupFile(newGroup.id, 'js', editorJs);
-                    if (section.php) {
-                      fileGroups.updateGroupFile(newGroup.id, 'php', section.php);
+                    if (editorPhp) {
+                      fileGroups.updateGroupFile(newGroup.id, 'php', editorPhp);
                     }
 
                     alert(`✅ Project "${section.name}" saved to library!`);

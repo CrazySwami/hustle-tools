@@ -4,7 +4,7 @@ import { useUsageTracking } from '@/hooks/useUsageTracking';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, BarChart3, DollarSign, Zap, TrendingUp } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 interface UsageTrackingTabProps {
   chatVisible?: boolean;
@@ -103,6 +103,27 @@ export function UsageTrackingTab({
       clearHistory();
     }
   };
+
+  // Listen for navigation dropdown events
+  useEffect(() => {
+    const handleExportEvent = () => {
+      console.log('🎯 Export Data triggered from dropdown');
+      handleExport();
+    };
+
+    const handleClearEvent = () => {
+      console.log('🎯 Clear History triggered from dropdown');
+      handleClear();
+    };
+
+    window.addEventListener('export-usage-data', handleExportEvent);
+    window.addEventListener('clear-usage-history', handleClearEvent);
+
+    return () => {
+      window.removeEventListener('export-usage-data', handleExportEvent);
+      window.removeEventListener('clear-usage-history', handleClearEvent);
+    };
+  }, []);
 
   return (
     <div

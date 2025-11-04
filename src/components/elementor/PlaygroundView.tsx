@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { RefreshCwIcon, ExternalLinkIcon, EyeIcon, DownloadIcon, PackageIcon } from 'lucide-react';
+import { RefreshCwIcon, ExternalLinkIcon, EyeIcon, DownloadIcon, PackageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BottomNav } from '@/components/ui/BottomNav';
+import { Button } from '@/components/ui/button';
 
 interface PlaygroundViewProps {
   json: any;
@@ -21,6 +22,7 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
   const [playgroundReady, setPlaygroundReady] = useState(false);
   const [status, setStatus] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [activePlaygroundTab, setActivePlaygroundTab] = useState<'live' | 'editor'>('live');
   const hasLaunchedRef = useRef(false);
 
   // Mobile detection
@@ -209,8 +211,149 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
     }
   };
 
+  const goBack = async () => {
+    if (!playgroundReady || !(window as any).playgroundClient) return;
+
+    try {
+      const playgroundClient = (window as any).playgroundClient;
+
+      // Use the WordPress Playground client to execute JavaScript in the iframe
+      await playgroundClient.run({
+        code: `<?php
+          // Inject JavaScript to go back in history
+          echo '<script>window.history.back();</script>';
+        ?>`
+      });
+    } catch (error) {
+      console.error('Failed to go back:', error);
+    }
+  };
+
+  const goForward = async () => {
+    if (!playgroundReady || !(window as any).playgroundClient) return;
+
+    try {
+      const playgroundClient = (window as any).playgroundClient;
+
+      // Use the WordPress Playground client to execute JavaScript in the iframe
+      await playgroundClient.run({
+        code: `<?php
+          // Inject JavaScript to go forward in history
+          echo '<script>window.history.forward();</script>';
+        ?>`
+      });
+    } catch (error) {
+      console.error('Failed to go forward:', error);
+    }
+  };
+
+  const switchToLivePage = async () => {
+    if (!playgroundReady || !(window as any).playgroundClient) return;
+
+    try {
+      const playgroundClient = (window as any).playgroundClient;
+      const currentPageId = (window as any).currentPageId;
+
+      if (currentPageId) {
+        // Navigate to the live page with cache-busting
+        const timestamp = Date.now();
+        await playgroundClient.goTo(`/?page_id=${currentPageId}&v=${timestamp}`);
+        console.log('📄 Navigated to live page');
+      } else {
+        // Default to home page if no page ID
+        await playgroundClient.goTo('/');
+        console.log('🏠 Navigated to home page');
+      }
+
+      setActivePlaygroundTab('live');
+    } catch (error) {
+      console.error('Failed to switch to live page:', error);
+    }
+  };
+
+  const switchToEditor = async () => {
+    if (!playgroundReady || !(window as any).playgroundClient) return;
+
+    try {
+      const playgroundClient = (window as any).playgroundClient;
+      const currentPageId = (window as any).currentPageId;
+
+      if (currentPageId) {
+        // Navigate to the Elementor editor
+        await playgroundClient.goTo(`/wp-admin/post.php?post=${currentPageId}&action=elementor`);
+        console.log('🎨 Navigated to Elementor editor');
+      } else {
+        // Default to wp-admin if no page ID
+        await playgroundClient.goTo('/wp-admin/');
+        console.log('⚙️ Navigated to wp-admin');
+      }
+
+      setActivePlaygroundTab('editor');
+    } catch (error) {
+      console.error('Failed to switch to editor:', error);
+    }
+  };
+
   return (
-    <div className="playground-container" id="playgroundContainer" style={{ position: 'relative', height: '100%' }}>
+    <div className="playground-container" id="playgroundContainer" style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}>
+
+      {/* Navigation Bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '8px 12px',
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--background)',
+        zIndex: 100,
+      }}>
+        {/* Back/Forward Buttons */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={goBack}
+          disabled={!playgroundReady}
+          title="Go back"
+          className="h-8 w-8 p-0"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={goForward}
+          disabled={!playgroundReady}
+          title="Go forward"
+          className="h-8 w-8 p-0"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        {/* Divider */}
+        <div style={{ width: '1px', height: '20px', background: 'var(--border)', margin: '0 4px' }} />
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '4px', flex: 1 }}>
+          <Button
+            variant={activePlaygroundTab === 'live' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={switchToLivePage}
+            disabled={!playgroundReady}
+            className="h-8 px-3 text-xs"
+          >
+            Live Page
+          </Button>
+          <Button
+            variant={activePlaygroundTab === 'editor' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={switchToEditor}
+            disabled={!playgroundReady}
+            className="h-8 px-3 text-xs"
+          >
+            Editor
+          </Button>
+        </div>
+      </div>
 
       {/* Floating Status Messages - All Screen Sizes */}
       {status && (
@@ -256,6 +399,7 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
         id="playgroundIframe"
         className="playground-iframe"
         title="WordPress Playground"
+        style={{ flex: 1, border: 'none' }}
       />
 
     </div>

@@ -52,14 +52,32 @@ export function useFileGroups(): UseFileGroupsReturn {
   const [state, setState] = useState<EditorState>(() => {
     // Try to migrate from old format on first load
     migrateFromOldFormat();
-    return loadEditorState();
+    const initialState = loadEditorState();
+    console.log('🏗️ useFileGroups: Initial state loaded:', {
+      activeGroupId: initialState.activeGroupId,
+      groupCount: initialState.groups.length,
+    });
+    return initialState;
+  });
+
+  // Log every time state changes
+  console.log('🔄 useFileGroups: State render:', {
+    activeGroupId: state.activeGroupId,
+    activeGroupName: state.groups.find(g => g.id === state.activeGroupId)?.name,
+    timestamp: new Date().toISOString(),
   });
 
   // Sync with localStorage changes from other tabs/windows
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'elementor-editor-groups') {
-        setState(loadEditorState());
+        const newState = loadEditorState();
+        console.log('🔄 [STORAGE_EVENT] setState() triggered:', {
+          newActiveId: newState.activeGroupId,
+          newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+          timestamp: new Date().toISOString(),
+        });
+        setState(newState);
       }
     };
 
@@ -69,7 +87,13 @@ export function useFileGroups(): UseFileGroupsReturn {
 
   // Refresh state from localStorage
   const refresh = useCallback(() => {
-    setState(loadEditorState());
+    const newState = loadEditorState();
+    console.log('🔄 [REFRESH] setState() triggered:', {
+      newActiveId: newState.activeGroupId,
+      newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
   }, []);
 
   // Create new group
@@ -80,14 +104,36 @@ export function useFileGroups(): UseFileGroupsReturn {
   ): FileGroup => {
     const group = createGroup(name, type, template as any);
     addGroup(group);
-    setState(loadEditorState());
+    const newState = loadEditorState();
+    console.log('🔄 [CREATE_GROUP] setState() triggered:', {
+      newActiveId: newState.activeGroupId,
+      newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
     return group;
   }, []);
 
   // Select active group
   const selectGroup = useCallback((id: string) => {
+    console.log('🎯 useFileGroups.selectGroup() called:', {
+      requestedId: id,
+      timestamp: new Date().toISOString(),
+    });
     setActiveGroupManager(id);
-    setState(loadEditorState());
+    const newState = loadEditorState();
+    console.log('📊 useFileGroups.selectGroup() after setActiveGroupManager:', {
+      newActiveId: newState.activeGroupId,
+      wasSuccessful: newState.activeGroupId === id,
+    });
+
+    // Update state IMMEDIATELY - this triggers re-render in all components using this hook
+    console.log('🔄 [SELECT_GROUP] setState() triggered:', {
+      newActiveId: newState.activeGroupId,
+      newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
   }, []);
 
   // Update file content
@@ -97,20 +143,42 @@ export function useFileGroups(): UseFileGroupsReturn {
     content: string
   ) => {
     updateGroupContent(id, file, content);
-    setState(loadEditorState());
+    const newState = loadEditorState();
+    console.log('🔄 [UPDATE_FILE] setState() triggered:', {
+      groupId: id,
+      fileType: file,
+      newActiveId: newState.activeGroupId,
+      newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
   }, []);
 
   // Rename group
   const renameGroupAction = useCallback((id: string, name: string) => {
     renameGroup(id, name);
-    setState(loadEditorState());
+    const newState = loadEditorState();
+    console.log('🔄 [RENAME_GROUP] setState() triggered:', {
+      groupId: id,
+      newActiveId: newState.activeGroupId,
+      newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
   }, []);
 
   // Duplicate group
   const duplicateGroupAction = useCallback((id: string): FileGroup | null => {
     const duplicate = duplicateGroup(id);
     if (duplicate) {
-      setState(loadEditorState());
+      const newState = loadEditorState();
+      console.log('🔄 [DUPLICATE_GROUP] setState() triggered:', {
+        groupId: id,
+        newActiveId: newState.activeGroupId,
+        newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+        timestamp: new Date().toISOString(),
+      });
+      setState(newState);
     }
     return duplicate;
   }, []);
@@ -118,7 +186,14 @@ export function useFileGroups(): UseFileGroupsReturn {
   // Delete group
   const deleteGroupAction = useCallback((id: string) => {
     deleteGroup(id);
-    setState(loadEditorState());
+    const newState = loadEditorState();
+    console.log('🔄 [DELETE_GROUP] setState() triggered:', {
+      deletedGroupId: id,
+      newActiveId: newState.activeGroupId,
+      newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
   }, []);
 
   // Save to library
@@ -133,7 +208,14 @@ export function useFileGroups(): UseFileGroupsReturn {
   const loadFromLibraryAction = useCallback((libraryId: string): FileGroup | null => {
     const group = loadGroupFromLibrary(libraryId);
     if (group) {
-      setState(loadEditorState());
+      const newState = loadEditorState();
+      console.log('🔄 [LOAD_FROM_LIBRARY] setState() triggered:', {
+        libraryId,
+        newActiveId: newState.activeGroupId,
+        newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+        timestamp: new Date().toISOString(),
+      });
+      setState(newState);
     }
     return group;
   }, []);

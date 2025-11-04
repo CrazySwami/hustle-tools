@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Elementor PHP to JSON Converter</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 16px;
+    }
+
+    .step {
+      background: #f8f9fa;
+      border-left: 4px solid #0073aa;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .step h3 {
+      color: #0073aa;
+      margin-bottom: 10px;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 15px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 200px;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #0073aa;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #0073aa;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #005a87;
+    }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+
+    .result {
+      margin-top: 20px;
+      padding: 20px;
+      background: #e7f4e7;
+      border: 2px solid #4caf50;
+      border-radius: 4px;
+      display: none;
+    }
+
+    .result.success {
+      display: block;
+    }
+
+    .result h3 {
+      color: #2e7d32;
+      margin-bottom: 10px;
+    }
+
+    .error {
+      margin-top: 20px;
+      padding: 20px;
+      background: #ffebee;
+      border: 2px solid #f44336;
+      border-radius: 4px;
+      display: none;
+    }
+
+    .error.show {
+      display: block;
+    }
+
+    .error h3 {
+      color: #c62828;
+      margin-bottom: 10px;
+    }
+
+    pre {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      max-height: 300px;
+      font-size: 12px;
+    }
+
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .info-box strong {
+      color: #1976d2;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔄 Elementor PHP to JSON Converter</h1>
+    <p class="subtitle">Convert Elementor's PHP serialized data to clean JSON format</p>
+
+    <div class="info-box">
+      <strong>📋 What this does:</strong> Takes the JSON file from Elementor's export (which contains PHP serialized data in the "data" field) and converts it to proper JSON format that the Style Kit Editor can use.
+    </div>
+
+    <div class="step">
+      <h3>Step 1: Paste Your Elementor Export</h3>
+      <p style="margin-bottom: 10px;">Paste the entire content of your exported JSON file below:</p>
+      <textarea id="input" placeholder='{"title":"Your Kit","data":"a:255:{...}"}'></textarea>
+    </div>
+
+    <div class="button-group">
+      <button class="btn-primary" onclick="convert()">🔄 Convert to Clean JSON</button>
+      <button class="btn-secondary" onclick="clearAll()">🗑️ Clear</button>
+    </div>
+
+    <div id="error" class="error">
+      <h3>⚠️ Error</h3>
+      <p id="errorMessage"></p>
+    </div>
+
+    <div id="result" class="result">
+      <h3>✅ Conversion Successful!</h3>
+      <p style="margin-bottom: 10px;">Your converted JSON is ready:</p>
+      <div class="button-group">
+        <button class="btn-primary" onclick="downloadJSON()">📥 Download JSON File</button>
+        <button class="btn-secondary" onclick="copyToClipboard()">📋 Copy to Clipboard</button>
+      </div>
+      <details style="margin-top: 15px;">
+        <summary style="cursor: pointer; color: #0073aa; font-weight: 500;">📄 Preview Converted JSON</summary>
+        <pre id="output"></pre>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    let convertedData = null;
+
+    // Simple PHP unserialize implementation for browser
+    function unserialize(data) {
+      // This is a simplified PHP unserialize parser
+      // It handles the most common Elementor data structures
+      
+      let offset = 0;
+      
+      function error(msg) {
+        throw new Error(msg + ' at position ' + offset);
+      }
+      
+      function readUntil(char) {
+        const start = offset;
+        while (offset < data.length && data[offset] !== char) {
+          offset++;
+        }
+        return data.substring(start, offset);
+      }
+      
+      function parseValue() {
+        const type = data[offset++];
+        
+        if (data[offset++] !== ':') {
+          error('Expected ":"');
+        }
+        
+        switch (type) {
+          case 's': // string
+            const strLen = parseInt(readUntil(':'));
+            offset++; // skip ':'
+            if (data[offset++] !== '"') error('Expected opening quote');
+            const str = data.substr(offset, strLen);
+            offset += strLen;
+            if (data[offset++] !== '"') error('Expected closing quote');
+            offset++; // skip ';'
+            return str;
+            
+          case 'i': // integer
+            const intStr = readUntil(';');
+            offset++; // skip ';'
+            return parseInt(intStr);
+            
+          case 'd': // double/float
+            const floatStr = readUntil(';');
+            offset++; // skip ';'
+            return parseFloat(floatStr);
+            
+          case 'b': // boolean
+            const boolVal = data[offset];
+            offset += 2; // skip value and ';'
+            return boolVal === '1';
+            
+          case 'N': // null
+            offset++; // skip ';'
+            return null;
+            
+          case 'a': // array
+            const arrLen = parseInt(readUntil(':'));
+            offset++; // skip ':'
+            if (data[offset++] !== '{') error('Expected "{"');
+            
+            const result = {};
+            let isNumericArray = true;
+            
+            for (let i = 0; i < arrLen; i++) {
+              const key = parseValue();
+              const value = parseValue();
+              result[key] = value;
+              
+              if (typeof key !== 'number' || key !== i) {
+                isNumericArray = false;
+              }
+            }
+            
+            if (data[offset++] !== '}') error('Expected "}"');
+            
+            // Convert to array if all keys are sequential numbers
+            if (isNumericArray && arrLen > 0) {
+              return Object.values(result);
+            }
+            
+            return result;
+            
+          default:
+            error('Unknown type: ' + type);
+        }
+      }
+      
+      try {
+        return parseValue();
+      } catch (e) {
+        console.error('Unserialize error:', e);
+        throw e;
+      }
+    }
+
+    function convert() {
+      const input = document.getElementById('input').value.trim();
+      const errorDiv = document.getElementById('error');
+      const errorMsg = document.getElementById('errorMessage');
+      const resultDiv = document.getElementById('result');
+      
+      // Hide previous messages
+      errorDiv.classList.remove('show');
+      resultDiv.classList.remove('success');
+      
+      if (!input) {
+        errorMsg.textContent = 'Please paste your Elementor export JSON first.';
+        errorDiv.classList.add('show');
+        return;
+      }
+      
+      try {
+        // Parse the JSON
+        const parsed = JSON.parse(input);
+        
+        // Check if it has a "data" field with serialized PHP
+        if (!parsed.data || typeof parsed.data !== 'string') {
+          errorMsg.textContent = 'This JSON doesn\'t have a "data" field with serialized PHP data. It might already be in the correct format, or it\'s not an Elementor export.';
+          errorDiv.classList.add('show');
+          return;
+        }
+        
+        if (!parsed.data.startsWith('a:')) {
+          errorMsg.textContent = 'The "data" field doesn\'t contain PHP serialized data (should start with "a:"). Already in correct format?';
+          errorDiv.classList.add('show');
+          return;
+        }
+        
+        // Unserialize the PHP data
+        console.log('Unserializing PHP data...');
+        const unserialized = unserialize(parsed.data);
+        
+        // Create the proper structure
+        convertedData = {
+          title: parsed.title || 'Converted Kit',
+          type: 'kit',
+          version: '0.4',
+          page_settings: unserialized,
+          content: []
+        };
+        
+        // Fix: Convert empty objects to arrays for custom_colors and custom_typography
+        if (!Array.isArray(convertedData.page_settings.custom_colors)) {
+          convertedData.page_settings.custom_colors = [];
+        }
+        
+        if (!Array.isArray(convertedData.page_settings.custom_typography)) {
+          convertedData.page_settings.custom_typography = [];
+        }
+        
+        // Extract colors from ang_global_* arrays if they exist
+        let extractedColors = [];
+        const angColorArrays = [
+          'ang_global_background_colors',
+          'ang_global_accent_colors', 
+          'ang_global_text_colors',
+          'ang_global_extra_colors'
+        ];
+        
+        angColorArrays.forEach(arrayName => {
+          if (Array.isArray(convertedData.page_settings[arrayName])) {
+            convertedData.page_settings[arrayName].forEach(colorObj => {
+              if (colorObj.color) {
+                extractedColors.push({
+                  _id: colorObj._id || generateHashId(),
+                  title: colorObj.title || 'Custom Color',
+                  color: colorObj.color
+                });
+              }
+            });
+          }
+        });
+        
+        // Add extracted colors to custom_colors
+        if (extractedColors.length > 0) {
+          convertedData.page_settings.custom_colors = extractedColors;
+        }
+        
+        // Ensure system_colors exists and is an array
+        if (!Array.isArray(convertedData.page_settings.system_colors)) {
+          convertedData.page_settings.system_colors = [
+            { _id: 'primary', title: 'Primary', color: '#000000' },
+            { _id: 'secondary', title: 'Secondary', color: '#c3acd0' },
+            { _id: 'text', title: 'Text', color: '#333333' },
+            { _id: 'accent', title: 'Accent', color: '#7743db' }
+          ];
+        } else {
+          // Add default colors if missing, or try to use extracted colors
+          const defaultColors = {
+            'primary': extractedColors[0]?.color || '#000000',
+            'secondary': extractedColors[1]?.color || '#c3acd0',
+            'text': extractedColors[2]?.color || '#333333',
+            'accent': extractedColors[3]?.color || '#7743db'
+          };
+          
+          convertedData.page_settings.system_colors = convertedData.page_settings.system_colors.map(color => {
+            if (!color.color) {
+              return {
+                ...color,
+                color: defaultColors[color._id] || '#000000'
+              };
+            }
+            return color;
+          });
+        }
+        
+        // Extract typography from ang_global_title_fonts and ang_global_text_fonts
+        let extractedTypography = [];
+        const angTypoArrays = ['ang_global_title_fonts', 'ang_global_text_fonts'];
+        
+        angTypoArrays.forEach(arrayName => {
+          if (Array.isArray(convertedData.page_settings[arrayName])) {
+            convertedData.page_settings[arrayName].forEach(typoObj => {
+              extractedTypography.push({
+                _id: typoObj._id || generateHashId(),
+                title: typoObj.title || 'Custom Typography',
+                typography_font_family: typoObj.typography_font_family || 'Roboto',
+                typography_font_weight: typoObj.typography_font_weight || '400',
+                typography_font_size: typoObj.typography_font_size,
+                typography_line_height: typoObj.typography_line_height,
+                typography_text_transform: typoObj.typography_text_transform,
+                typography_letter_spacing: typoObj.typography_letter_spacing
+              });
+            });
+          }
+        });
+        
+        // Add extracted typography to custom_typography
+        if (extractedTypography.length > 0) {
+          convertedData.page_settings.custom_typography = extractedTypography;
+        }
+        
+        if (!Array.isArray(convertedData.page_settings.system_typography)) {
+          convertedData.page_settings.system_typography = [
+            { _id: 'primary', title: 'Primary', typography_font_family: 'Roboto', typography_font_weight: '600' },
+            { _id: 'secondary', title: 'Secondary', typography_font_family: 'Roboto', typography_font_weight: '500' },
+            { _id: 'text', title: 'Text', typography_font_family: 'Roboto', typography_font_weight: '400' },
+            { _id: 'accent', title: 'Accent', typography_font_family: 'Roboto', typography_font_weight: '600' }
+          ];
+        } else {
+          // Add default font properties if missing
+          convertedData.page_settings.system_typography = convertedData.page_settings.system_typography.map(typo => {
+            return {
+              typography_font_family: 'Roboto',
+              typography_font_weight: '400',
+              ...typo
+            };
+          });
+        }
+        
+        // Helper function for hash ID generation (defined inline)
+        function generateHashId() {
+          return Math.random().toString(36).substring(2, 9);
+        }
+        
+        // Display result
+        const outputJSON = JSON.stringify(convertedData, null, 2);
+        document.getElementById('output').textContent = outputJSON;
+        resultDiv.classList.add('success');
+        
+        console.log('✅ Conversion successful!');
+        
+      } catch (e) {
+        console.error('Conversion error:', e);
+        errorMsg.innerHTML = `Failed to convert: ${e.message}<br><br>Make sure you pasted the complete JSON from Elementor's export.`;
+        errorDiv.classList.add('show');
+      }
+    }
+
+    function downloadJSON() {
+      if (!convertedData) return;
+      
+      const json = JSON.stringify(convertedData, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (convertedData.title || 'converted-kit').toLowerCase().replace(/\s+/g, '-') + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function copyToClipboard() {
+      if (!convertedData) return;
+      
+      const json = JSON.stringify(convertedData, null, 2);
+      navigator.clipboard.writeText(json).then(() => {
+        alert('✅ Copied to clipboard!');
+      }).catch(err => {
+        alert('Failed to copy: ' + err);
+      });
+    }
+
+    function clearAll() {
+      document.getElementById('input').value = '';
+      document.getElementById('error').classList.remove('show');
+      document.getElementById('result').classList.remove('success');
+      convertedData = null;
+    }
+
+    // Allow paste event
+    document.getElementById('input').addEventListener('paste', function() {
+      setTimeout(() => {
+        document.getElementById('error').classList.remove('show');
+        document.getElementById('result').classList.remove('success');
+      }, 100);
+    });
+  </script>
+</body>
+</html>

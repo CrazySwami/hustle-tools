@@ -31,6 +31,7 @@ export interface SystemPromptViewerProps {
     documentTitle?: string;
     projectName?: string;
     wordCount?: number;
+    characterCount?: number;
     fileStats?: {
       html?: number;
       css?: number;
@@ -54,6 +55,13 @@ export interface SystemPromptViewerProps {
     php?: string;
     hubl?: string;
     documentContent?: string;
+  };
+  /** Optional: Attached images with URL and filename */
+  attachedImages?: Array<{ url: string; filename: string }>;
+  /** Optional: Model pricing for cost estimation */
+  modelPricing?: {
+    input: number;  // Cost per 1M input tokens
+    output: number; // Cost per 1M output tokens
   };
 }
 
@@ -85,11 +93,16 @@ export function SystemPromptViewer({
   metadata,
   contextToggles,
   fileContents,
+  attachedImages,
+  modelPricing,
 }: SystemPromptViewerProps) {
   const [showModal, setShowModal] = useState(false);
-  const [modalTab, setModalTab] = useState<'system-prompt' | 'token-breakdown'>('system-prompt');
+  const [modalTab, setModalTab] = useState<'system-prompt' | 'token-breakdown' | 'current-context'>('system-prompt');
 
   const percentUsed = (totalTokens / contextLimit) * 100;
+
+  // Debug logging for attachedImages
+  console.log('SystemPromptViewer - attachedImages:', attachedImages);
 
   return (
     <>
@@ -141,6 +154,16 @@ export function SystemPromptViewer({
                 >
                   Token Breakdown
                 </button>
+                <button
+                  onClick={() => setModalTab('current-context')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    modalTab === 'current-context'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted'
+                  }`}
+                >
+                  Current Context
+                </button>
               </div>
             </div>
 
@@ -163,9 +186,21 @@ export function SystemPromptViewer({
                             <span className="font-medium">Project:</span> {metadata.projectName}
                           </div>
                         )}
-                        {metadata.wordCount !== undefined && (
+                        {(metadata.wordCount !== undefined || metadata.characterCount !== undefined) && (
                           <div className="text-sm">
-                            <span className="font-medium">Word Count:</span> {metadata.wordCount.toLocaleString()}
+                            {metadata.wordCount !== undefined && (
+                              <>
+                                <span className="font-medium">Word Count:</span> {metadata.wordCount.toLocaleString()}
+                              </>
+                            )}
+                            {metadata.wordCount !== undefined && metadata.characterCount !== undefined && (
+                              <span className="text-muted-foreground mx-2">•</span>
+                            )}
+                            {metadata.characterCount !== undefined && (
+                              <>
+                                <span className="font-medium">Character Count:</span> {metadata.characterCount.toLocaleString()}
+                              </>
+                            )}
                           </div>
                         )}
                       </>
@@ -307,7 +342,7 @@ export function SystemPromptViewer({
                     </div>
                   )}
                 </>
-              ) : (
+              ) : modalTab === 'token-breakdown' ? (
                 <>
                   {/* Token Breakdown Tab Content */}
                   <div className="space-y-6">
@@ -404,6 +439,137 @@ export function SystemPromptViewer({
                         </div>
                       </div>
                     </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Current Context Tab Content - Shows complete context being sent to AI */}
+                  <div className="space-y-6">
+                    {/* Overall Summary */}
+                    <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
+                      <h3 className="font-semibold mb-3 text-primary">Complete Context Overview</h3>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        This shows everything being sent to the AI model, including system prompt, user message, and any attached images.
+                      </p>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Total Tokens:</span>
+                          <span className="font-mono font-semibold">
+                            {(totalTokens + (attachedImages ? attachedImages.length * 765 : 0)).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Total Characters:</span>
+                          <span className="font-mono font-semibold">
+                            {(systemPrompt.length + input.length).toLocaleString()}
+                          </span>
+                        </div>
+                        {modelPricing && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Estimated Cost (Input):</span>
+                            <span className="font-mono font-semibold text-green-600 dark:text-green-400">
+                              ${(((totalTokens + (attachedImages ? attachedImages.length * 765 : 0)) / 1000000) * modelPricing.input).toFixed(4)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* System Prompt Section */}
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      <h3 className="font-semibold mb-2">1. System Prompt</h3>
+                      <div className="text-sm text-muted-foreground mb-2">
+                        Instructions and context sent to the AI before every message
+                      </div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span>Tokens:</span>
+                        <span className="font-mono">{systemTokens.toLocaleString()}</span>
+                      </div>
+                      <pre className="bg-background p-4 rounded-lg text-xs border border-border overflow-auto max-h-40 whitespace-pre-wrap">
+                        {systemPrompt}
+                      </pre>
+                    </div>
+
+                    {/* User Message Section */}
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      <h3 className="font-semibold mb-2">2. Your Message</h3>
+                      <div className="text-sm text-muted-foreground mb-2">
+                        The text you're about to send
+                      </div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span>Characters:</span>
+                        <span className="font-mono">{input.length.toLocaleString()}</span>
+                      </div>
+                      {input ? (
+                        <pre className="bg-background p-4 rounded-lg text-xs border border-border overflow-auto max-h-40 whitespace-pre-wrap">
+                          {input}
+                        </pre>
+                      ) : (
+                        <div className="bg-background p-4 rounded-lg text-xs border border-border text-muted-foreground italic">
+                          No message text entered yet
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Attached Images Section */}
+                    {attachedImages && attachedImages.length > 0 && (
+                      <div className="p-4 bg-muted/50 rounded-lg">
+                        <h3 className="font-semibold mb-2">3. Attached Images</h3>
+                        <div className="text-sm text-muted-foreground mb-2">
+                          Vision inputs sent as multimodal content
+                        </div>
+                        <div className="flex justify-between text-sm mb-3">
+                          <span>Image Count:</span>
+                          <span className="font-mono">{attachedImages.length}</span>
+                        </div>
+                        <div className="flex justify-between text-sm mb-3">
+                          <span>Vision Tokens:</span>
+                          <span className="font-mono">≈{(attachedImages.length * 765).toLocaleString()}</span>
+                        </div>
+                        {modelPricing && (
+                          <div className="flex justify-between text-sm mb-3">
+                            <span>Vision Cost:</span>
+                            <span className="font-mono text-green-600 dark:text-green-400">
+                              ${((attachedImages.length * 765 / 1000000) * modelPricing.input).toFixed(4)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-3 gap-3">
+                          {attachedImages.map((img, idx) => (
+                            <div key={idx} className="space-y-1">
+                              <div className="aspect-square rounded-lg overflow-hidden border border-border bg-muted">
+                                <img
+                                  src={img.url}
+                                  alt={img.filename}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate" title={img.filename}>
+                                {img.filename}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Context Usage Warning */}
+                    {percentUsed >= 70 && (
+                      <div className={cn(
+                        'p-4 rounded-lg border',
+                        percentUsed >= 90 ? 'bg-red-500/10 border-red-500/30' :
+                        'bg-yellow-500/10 border-yellow-500/30'
+                      )}>
+                        <h3 className="font-semibold mb-2">
+                          {percentUsed >= 90 ? '⚠️ Critical: Token limit approaching' :
+                           '⚠️ Warning: High token usage'}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {percentUsed >= 90 ? 'Consider shortening your message or starting a new conversation.' :
+                           'Monitor your context usage to avoid hitting the limit.'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </>
               )}

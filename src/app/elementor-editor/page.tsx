@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { useEditorContent } from '@/hooks/useEditorContent';
 import { useUsageTracking } from '@/hooks/useUsageTracking';
+import { useFileGroups } from '@/hooks/useFileGroups';
 import '../elementor-editor.css';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +35,17 @@ import { BottomNav } from '@/components/ui/BottomNav';
 import { NavigationBar } from '@/components/ai-elements/inner-navigation-bar';
 import { TwoPanelChatLayout } from '@/components/layouts/TwoPanelChatLayout';
 import { GenerateProjectModal } from '@/components/elementor/GenerateProjectModal';
+import { ResizableSplitPanel } from '@/components/layouts/ResizableSplitPanel';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 
 const SAMPLE_JSON = {
   widgetType: "custom_html_section",
@@ -85,7 +97,8 @@ export default function ElementorEditorPage() {
   const [tabBarVisible, setTabBarVisible] = useState(true);
   const [streamedCode, setStreamedCode] = useState<{ html: string; css: string; js: string }>({ html: '', css: '', js: '' });
   const [activeCodeTab, setActiveCodeTab] = useState<'html' | 'css' | 'js'>('html');
-  const [currentSection, setCurrentSection] = useState<Section | null>(createSection());
+  // REMOVED: currentSection state - now derived from fileGroups.activeGroup
+  // This fixes the race condition where onSectionChange would overwrite project selection
   const [loadedSection, setLoadedSection] = useState<Section | null>(null);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -94,7 +107,102 @@ export default function ElementorEditorPage() {
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
   const [projectPanelOpen, setProjectPanelOpen] = useState(true);
   const [filesPanelOpen, setFilesPanelOpen] = useState(true);
+  const [splitViewEnabled, setSplitViewEnabled] = useState(false);
+  const [topPanelTab, setTopPanelTab] = useState('json');
+  const [bottomPanelTab, setBottomPanelTab] = useState('sections');
+  const [splitRatio, setSplitRatio] = useState(50); // Percentage for top panel
+  const [splitViewConfigOpen, setSplitViewConfigOpen] = useState(false);
   const toast = useToast();
+
+  // File Groups - reload from localStorage when project changes
+  const fileGroups = useFileGroups();
+  const currentProject = fileGroups.activeGroup;
+  const refreshRef = useRef(fileGroups.refresh);
+  refreshRef.current = fileGroups.refresh;
+
+  // DEBUG: Log when activeGroupId changes (NOT entire fileGroups object to avoid infinite re-renders)
+  useEffect(() => {
+    console.log('🔍 activeGroupId changed:', {
+      activeGroupId: fileGroups.activeGroupId,
+      currentProjectId: currentProject?.id,
+      currentProjectName: currentProject?.name,
+      timestamp: new Date().toISOString(),
+    });
+  }, [fileGroups.activeGroupId, currentProject?.id]);
+
+  // Derive currentSection from activeGroup (single source of truth)
+  // This prevents race conditions where onSectionChange overwrites project selection
+  // Use useMemo with STABLE dependencies (activeGroupId, NOT entire currentProject object)
+  const currentSection: Section | null = useMemo(() => {
+    const section = currentProject ? {
+      id: currentProject.id,
+      name: currentProject.name,
+      type: currentProject.type,
+      html: currentProject.html || '',
+      css: currentProject.css || '',
+      js: currentProject.js || '',
+      php: currentProject.php || '',
+      createdAt: currentProject.createdAt,
+      updatedAt: currentProject.updatedAt,
+    } : null;
+
+    console.log('🔄 currentSection recomputed:', {
+      activeGroupId: fileGroups.activeGroupId,
+      projectId: currentProject?.id,
+      projectName: currentProject?.name,
+      sectionId: section?.id,
+      sectionName: section?.name,
+      htmlLength: section?.html?.length || 0,
+      timestamp: new Date().toISOString(),
+    });
+
+    return section;
+  }, [fileGroups.activeGroupId, fileGroups.groups, currentProject?.id]);
+
+  // Chat panel width tracking for responsive NavigationBar
+  const [chatPanelWidth, setChatPanelWidth] = useState<number>(0);
+  const chatPanelRef = useRef<HTMLDivElement>(null);
+
+  // Measure chat panel width for responsive NavigationBar
+  useEffect(() => {
+    if (!chatPanelRef.current) return;
+
+    const updatePanelWidth = () => {
+      if (chatPanelRef.current) {
+        const width = chatPanelRef.current.offsetWidth;
+        setChatPanelWidth(width);
+      }
+    };
+
+    // Initial measurement
+    updatePanelWidth();
+
+    // Set up ResizeObserver to track panel width changes
+    const observer = new ResizeObserver(updatePanelWidth);
+    observer.observe(chatPanelRef.current);
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Log when currentProject changes (for debugging)
+  useEffect(() => {
+    console.log('🔄 page.tsx: currentProject changed:', {
+      id: currentProject?.id,
+      name: currentProject?.name,
+      type: currentProject?.type,
+      timestamp: new Date().toISOString(),
+    });
+  }, [currentProject]);
+
+  // Hot reload state
+  const [hotReloadEnabled, setHotReloadEnabled] = useState(() => {
+    // Load from localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('hot-reload-enabled');
+      return saved ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
 
   // Toast listener
   useEffect(() => {
@@ -138,9 +246,9 @@ export default function ElementorEditorPage() {
   console.log('🔧 ELEMENTOR PAGE: useChat configured with api:', '/api/chat-elementor');
   const { messages, sendMessage, isLoading, setMessages, reload, status } = useChat({
     api: '/api/chat-elementor',
-    // Initial body - will be merged with additional data in sendMessage calls
+    // Initial body - DO NOT include currentSection here as it captures stale value at mount
+    // currentSection MUST be passed in sendMessage options to get fresh value
     body: {
-      currentSection: currentSection || null,
       model: selectedModel,
     },
     // Override fetch to force the correct endpoint
@@ -225,15 +333,27 @@ export default function ElementorEditorPage() {
   }, [messages, selectedModel, recordUsage]);
 
   // Navigation dropdown handler
-  const handleNavigationDropdownClick = (tabId: string, item: string) => {
+  const handleNavigationDropdownClick = async (tabId: string, item: string) => {
     // Skip separator items
-    if (item === '---') return;
+    if (item === 'separator') return;
 
     // Options tab actions
     if (tabId === 'options') {
       if (item === 'Hide Chat' || item === 'Show Chat') {
         setChatVisible(!chatVisible);
+        return;
       }
+
+      if (item === 'Enable Split View' || item === 'Disable Split View') {
+        setSplitViewEnabled(!splitViewEnabled);
+        return;
+      }
+
+      if (item === 'Configure Split View') {
+        setSplitViewConfigOpen(true);
+        return;
+      }
+
       return;
     }
 
@@ -283,17 +403,132 @@ export default function ElementorEditorPage() {
     // WordPress Playground tab actions
     if (tabId === 'wordpress-playground') {
       setActiveTab('playground');
+
       if (item === 'Launch Playground' || item === 'Refresh Playground') {
         // Playground component will handle the launch/refresh internally
-      } else if (item === 'Import to Template Library') {
-        // Trigger import to template library action
-        if (typeof window !== 'undefined' && (window as any).saveSectionToTemplateLibrary && currentSection) {
-          (window as any).saveSectionToTemplateLibrary(currentSection.html, currentSection.css, currentSection.js, currentSection.name);
-          toast.success('Imported to Template Library!');
-        } else {
-          toast.error('WordPress Playground not ready');
-        }
+        return;
       }
+
+      // Hot reload toggle
+      if (item.startsWith('⚡ Hot Reload')) {
+        const newValue = !hotReloadEnabled;
+        setHotReloadEnabled(newValue);
+        localStorage.setItem('hot-reload-enabled', JSON.stringify(newValue));
+        toast.success(`Hot Reload ${newValue ? 'enabled' : 'disabled'}`);
+        return;
+      }
+
+      // Deploy New section headers (not clickable)
+      if (item === '🚀 Deploy New' || item === '🔄 Update & View') {
+        return;
+      }
+
+      // Deploy to Live Page
+      if (item === 'Deploy to Live Page') {
+        // Call playground function to deploy widget to live page
+        if (typeof window !== 'undefined' && (window as any).deployAndPreviewWidget && currentProject) {
+          try {
+            const result = await (window as any).deployAndPreviewWidget(currentProject.php, currentProject.css, currentProject.js, 'live-page');
+
+            // Save deployment metadata to FileGroup
+            if (result.success && currentProject.id) {
+              const { updateGroup } = await import('@/lib/file-group-manager');
+              updateGroup(currentProject.id, {
+                wordpressDeployment: {
+                  isDeployed: true,
+                  livePageId: parseInt(result.pageId),
+                  livePageSlug: result.pageSlug,
+                  pluginSlug: result.pluginSlug,
+                  deployedAt: Date.now(),
+                  lastDeploymentType: 'live-page',
+                },
+              });
+              fileGroups.refresh(); // Refresh file groups state
+            }
+
+            toast.success(result.message || 'Deployed to live page!');
+          } catch (error: any) {
+            toast.error(`Deployment failed: ${error.message}`);
+          }
+        } else {
+          toast.error('WordPress Playground not ready or no PHP project selected');
+        }
+        return;
+      }
+
+      // Deploy to Elementor Editor
+      if (item === 'Deploy to Elementor Editor') {
+        // Call playground function to deploy widget to Elementor editor
+        if (typeof window !== 'undefined' && (window as any).deployAndPreviewWidget && currentProject) {
+          try {
+            const result = await (window as any).deployAndPreviewWidget(currentProject.php, currentProject.css, currentProject.js, 'elementor-editor');
+
+            // Save deployment metadata to FileGroup
+            if (result.success && currentProject.id) {
+              const { updateGroup } = await import('@/lib/file-group-manager');
+              updateGroup(currentProject.id, {
+                wordpressDeployment: {
+                  isDeployed: true,
+                  elementorPageId: parseInt(result.pageId),
+                  elementorPageSlug: result.pageSlug,
+                  livePageId: parseInt(result.pageId), // Same page, just different view
+                  livePageSlug: result.pageSlug,
+                  pluginSlug: result.pluginSlug,
+                  deployedAt: Date.now(),
+                  lastDeploymentType: 'elementor-editor',
+                },
+              });
+              fileGroups.refresh(); // Refresh file groups state
+            }
+
+            toast.success(result.message || 'Deployed to Elementor editor!');
+          } catch (error: any) {
+            toast.error(`Deployment failed: ${error.message}`);
+          }
+        } else {
+          toast.error('WordPress Playground not ready or no PHP project selected');
+        }
+        return;
+      }
+
+      // Update & View Live Page
+      if (item === 'Update & View Live Page') {
+        // Call playground function to update and view live page
+        if (typeof window !== 'undefined' && (window as any).updateWidgetAndRefresh && currentProject) {
+          (window as any).updateWidgetAndRefresh(
+            currentProject.php,
+            currentProject.css,
+            currentProject.js,
+            currentProject.wordpressDeployment?.pluginSlug,
+            currentProject.wordpressDeployment?.livePageSlug,
+            'live-page'
+          );
+          toast.success('Updating live page...');
+        } else {
+          toast.error('WordPress Playground not ready or widget not deployed');
+        }
+        return;
+      }
+
+      // Update & View Elementor
+      if (item === 'Update & View Elementor') {
+        // Call playground function to update and view Elementor editor
+        if (typeof window !== 'undefined' && (window as any).updateWidgetAndRefresh && currentProject) {
+          (window as any).updateWidgetAndRefresh(
+            currentProject.php,
+            currentProject.css,
+            currentProject.js,
+            currentProject.wordpressDeployment?.pluginSlug,
+            currentProject.wordpressDeployment?.elementorPageSlug,
+            'elementor-editor'
+          );
+          toast.success('Updating Elementor editor...');
+        } else {
+          toast.error('WordPress Playground not ready or widget not deployed');
+        }
+        return;
+      }
+
       return;
     }
 
@@ -306,9 +541,18 @@ export default function ElementorEditorPage() {
       } else if (item === 'Brandfetch Import') {
         // Open Brandfetch import dialog
         window.dispatchEvent(new CustomEvent('open-brandfetch-import'));
+      } else if (item === 'StyleKit JSON Converter') {
+        // Open StyleKit JSON Converter (same as 'PHP Converter')
+        window.dispatchEvent(new CustomEvent('open-php-converter'));
       } else if (item === 'Page Extract') {
         // Open page extract dialog
         window.dispatchEvent(new CustomEvent('open-page-extract'));
+      } else if (item === 'PHP Converter') {
+        // Open PHP to JSON converter
+        window.dispatchEvent(new CustomEvent('open-php-converter'));
+      } else if (item === 'Advanced Editor') {
+        // Open advanced style kit editor
+        window.dispatchEvent(new CustomEvent('open-advanced-editor'));
       }
       return;
     }
@@ -455,29 +699,44 @@ export default function ElementorEditorPage() {
     }
   ]);
 
-  // Navigation tabs configuration
+  // Available tabs for split view selection
+  const availableTabs = [
+    { id: 'json', label: 'Code' },
+    { id: 'sections', label: 'Project' },
+    { id: 'playground', label: 'WordPress' },
+    { id: 'style-guide', label: 'Style' },
+    { id: 'usage', label: 'Usage' },
+  ];
+
+  // Navigation tabs configuration - dynamic based on current project type
   const navigationTabs: any[] = [
     {
       id: 'options',
       label: 'Options',
       icon: null,
-      dropdownItems: [chatVisible ? 'Hide Chat' : 'Show Chat'],
+      dropdownItems: [
+        chatVisible ? 'Hide Chat' : 'Show Chat',
+        'separator',
+        splitViewEnabled ? 'Disable Split View' : 'Enable Split View',
+        ...(splitViewEnabled ? [
+          'Configure Split View',
+        ] : []),
+      ],
     },
     {
       id: 'code-editor',
-      label: 'Code Editor',
+      label: 'Code',
       icon: null,
       dropdownItems: [
         'Generate Code',
         'Preview HTML',
         'Preview HubL',
-        'Deploy to WordPress',
         'Split HTML',
       ],
     },
     {
       id: 'project-library',
-      label: 'Project Library',
+      label: 'Project',
       icon: null,
       dropdownItems: ['Grid View', 'List View'],
     },
@@ -485,13 +744,26 @@ export default function ElementorEditorPage() {
       id: 'wordpress-playground',
       label: 'WordPress',
       icon: null,
-      dropdownItems: ['Launch Playground', 'Refresh Playground', 'Import to Template Library'],
+      dropdownItems: [
+        'Launch Playground',
+        'Refresh Playground',
+        'separator',
+        '🚀 Deploy New',
+        'Deploy to Live Page',
+        'Deploy to Elementor Editor',
+        'separator',
+        '🔄 Update & View',
+        'Update & View Live Page',
+        'Update & View Elementor',
+        'separator',
+        hotReloadEnabled ? '⚡ Hot Reload: ON' : '⚡ Hot Reload: OFF',
+      ],
     },
     {
       id: 'style-guide',
-      label: 'Style Kit',
+      label: 'Style',
       icon: null,
-      dropdownItems: ['Style Kit Editor', 'Brandfetch Import', 'Page Extract'],
+      dropdownItems: ['Advanced Editor', 'Brandfetch Import', 'StyleKit JSON Converter'],
     },
     {
       id: 'usage',
@@ -1064,6 +1336,110 @@ export default function ElementorEditorPage() {
     }, 500);
   };
 
+  // Helper function to render tab content
+  const renderTabPanel = (tabId: string) => {
+    switch (tabId) {
+      case 'json':
+        return (
+          <HtmlSectionEditor
+            key={loadedSection?.id || 'default'}
+            initialSection={loadedSection || undefined}
+            streamedHtml={streamedCode.html}
+            streamedCss={streamedCode.css}
+            streamedJs={streamedCode.js}
+            activeCodeTab={activeCodeTab}
+            onCodeTabChange={setActiveCodeTab}
+            isTabVisible={true}
+            onSendChatMessage={(message) => {
+              sendMessage(
+                { content: message, role: 'user' },
+                { body: { currentSection: currentSection || null, model: selectedModel } }
+              );
+            }}
+            onSectionChange={(section) => {
+              // NO-OP: Section changes are now handled by HtmlSectionEditor directly updating file groups
+              // This prevents race conditions where onSectionChange overwrites project selection
+            }}
+            onSwitchToVisualEditor={() => setActiveTab('visual')}
+            onSwitchToPlayground={() => setActiveTab('playground')}
+            chatVisible={chatVisible}
+            setChatVisible={setChatVisible}
+            tabBarVisible={tabBarVisible}
+            setTabBarVisible={setTabBarVisible}
+            onEditElementInChat={(elementData) => {
+              if (!chatVisible && !isMobile) {
+                setChatVisible(true);
+              }
+              if (isMobile) {
+                setChatDrawerOpen(true);
+              }
+              const message = `Edit this element:\n\nSelector: ${elementData.selector}\nClasses: ${elementData.classList.join(', ')}\n\nHTML:\n\`\`\`html\n${elementData.html}\n\`\`\`\n\nContext:\n\`\`\`html\n${elementData.context.substring(0, 500)}${elementData.context.length > 500 ? '...' : ''}\n\`\`\``;
+              handleSendMessage(message);
+            }}
+          />
+        );
+
+      case 'sections':
+        return (
+          <ProjectLibrary
+            isTabVisible={true}
+            chatVisible={chatVisible}
+            setChatVisible={setChatVisible}
+            tabBarVisible={tabBarVisible}
+            setTabBarVisible={setTabBarVisible}
+            onOpenProject={(projectId) => {
+              setActiveTab('json');
+              window.dispatchEvent(new CustomEvent('select-project', { detail: { projectId } }));
+              // fileGroups.refresh() will be called when 'project-selection-complete' event fires
+            }}
+          />
+        );
+
+      case 'playground':
+        return (
+          <PlaygroundView
+            json={currentJson}
+            isActive={true}
+            isTabVisible={true}
+            chatVisible={chatVisible}
+            setChatVisible={setChatVisible}
+            tabBarVisible={tabBarVisible}
+            setTabBarVisible={setTabBarVisible}
+            onJsonUpdate={(updatedJson) => {
+              setCurrentJson(updatedJson);
+            }}
+            onPlaygroundReady={() => {
+              setPlaygroundReady(true);
+            }}
+          />
+        );
+
+      case 'style-guide':
+        return (
+          <StyleGuideUnified
+            isTabVisible={true}
+            chatVisible={chatVisible}
+            setChatVisible={setChatVisible}
+            tabBarVisible={tabBarVisible}
+            setTabBarVisible={setTabBarVisible}
+          />
+        );
+
+      case 'usage':
+        return (
+          <UsageTrackingTab
+            chatVisible={chatVisible}
+            setChatVisible={setChatVisible}
+            tabBarVisible={tabBarVisible}
+            setTabBarVisible={setTabBarVisible}
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <GlobalStylesheetProvider>
       <>
@@ -1088,15 +1464,18 @@ export default function ElementorEditorPage() {
         {!isMobile && chatVisible && (
           <TwoPanelChatLayout
             leftPanel={
-              <div style={{
-                padding: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-                width: '100%',
-                maxWidth: '100%',
-                boxSizing: 'border-box'
-              }}>
+              <div
+                ref={chatPanelRef}
+                style={{
+                  padding: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box'
+                }}
+              >
                 <div className="rounded-lg bg-background" style={{
                   flex: 1,
                   display: 'flex',
@@ -1108,6 +1487,18 @@ export default function ElementorEditorPage() {
                   <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
                     <NavigationBar
                       tabs={navigationTabs}
+                      activeTab={(() => {
+                        // Map internal activeTab to navigation tab ID
+                        const reverseMap: Record<string, string> = {
+                          'json': 'code-editor',
+                          'sections': 'project-library',
+                          'playground': 'wordpress-playground',
+                          'site-content': 'site-content',
+                          'style-guide': 'style-guide',
+                          'usage': 'usage',
+                        };
+                        return reverseMap[activeTab] || activeTab;
+                      })()}
                       onTabChange={(tabId) => {
                         const tabMap: Record<string, string> = {
                           'code-editor': 'json',
@@ -1122,6 +1513,7 @@ export default function ElementorEditorPage() {
                       onDropdownItemClick={handleNavigationDropdownClick}
                       showOnDesktop={true}
                       showOnMobile={false}
+                      containerWidth={chatPanelWidth}
                     />
                   </div>
                   <ElementorChat
@@ -1139,11 +1531,16 @@ export default function ElementorEditorPage() {
                     onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
                     onSwitchTab={(tab) => setActiveTab(tab)}
                     onUpdateSection={(updates) => {
-                      if (currentSection) {
-                        setCurrentSection({ ...currentSection, ...updates });
+                      // Update file group directly instead of local state
+                      if (currentSection?.id) {
+                        if (updates.html !== undefined) fileGroups.updateGroupFile(currentSection.id, 'html', updates.html);
+                        if (updates.css !== undefined) fileGroups.updateGroupFile(currentSection.id, 'css', updates.css);
+                        if (updates.js !== undefined) fileGroups.updateGroupFile(currentSection.id, 'js', updates.js);
+                        if (updates.php !== undefined) fileGroups.updateGroupFile(currentSection.id, 'php', updates.php);
                       }
                     }}
                     currentSection={currentSection}
+                    containerWidth={chatPanelWidth}
                   />
                 </div>
               </div>
@@ -1163,8 +1560,19 @@ export default function ElementorEditorPage() {
                   flexDirection: 'column',
                   overflow: 'hidden'
                 }}>
-              {/* Tab Content - Keep all tabs mounted, just hide inactive ones */}
+              {/* Tab Content - Split View or Regular View */}
               <div className="tab-content" style={{ flex: '1', overflow: 'hidden' }}>
+                {splitViewEnabled ? (
+                  // Split View Mode
+                  <ResizableSplitPanel
+                    topPanel={renderTabPanel(topPanelTab)}
+                    bottomPanel={renderTabPanel(bottomPanelTab)}
+                    initialSplitRatio={splitRatio}
+                    onSplitRatioChange={setSplitRatio}
+                  />
+                ) : (
+                  // Regular View Mode - Keep all tabs mounted, just hide inactive ones
+                  <>
                 <div className={`tab-panel ${activeTab === 'json' ? 'active' : ''}`} id="jsonPanel" style={{ display: activeTab === 'json' ? 'flex' : 'none' }}>
                   <HtmlSectionEditor
                 key={loadedSection?.id || 'default'} // Force remount when loading new section
@@ -1177,10 +1585,15 @@ export default function ElementorEditorPage() {
                 isTabVisible={activeTab === 'json'}
                 onSendChatMessage={(message) => {
                   // Send message to chat from validation modal
-                  sendMessage({ content: message, role: 'user' });
+                  sendMessage(
+                    { content: message, role: 'user' },
+                    { body: { currentSection: currentSection || null, model: selectedModel } }
+                  );
                 }}
                 onSectionChange={(section) => {
-                  console.log('📝 HtmlSectionEditor: Section changed:', {
+                  // NO-OP: Section changes are now handled by HtmlSectionEditor directly updating file groups
+                  // This prevents race conditions where onSectionChange overwrites project selection
+                  console.log('📝 page.tsx: onSectionChange called (no-op):', {
                     id: section.id,
                     name: section.name,
                     htmlLength: section.html?.length || 0,
@@ -1188,8 +1601,6 @@ export default function ElementorEditorPage() {
                     jsLength: section.js?.length || 0,
                     phpLength: section.php?.length || 0
                   });
-                  setCurrentSection(section);
-                  console.log('✅ Parent: currentSection state updated');
                 }}
                 onSwitchToVisualEditor={() => setActiveTab('visual')}
                 onSwitchToPlayground={() => setActiveTab('playground')}
@@ -1197,6 +1608,8 @@ export default function ElementorEditorPage() {
                 setChatVisible={setChatVisible}
                 tabBarVisible={tabBarVisible}
                 setTabBarVisible={setTabBarVisible}
+                hotReloadEnabled={hotReloadEnabled}
+                currentProject={currentProject}
                 onEditElementInChat={(elementData) => {
                   // Show chat if hidden
                   if (!chatVisible && !isMobile) {
@@ -1219,12 +1632,13 @@ export default function ElementorEditorPage() {
                   <VisualSectionEditor
                     initialSection={currentSection || undefined}
                     onSectionChange={(section) => {
-                      console.log('🎨 Visual editor section updated:', {
+                      // NO-OP: Visual Editor updates are now handled directly by updating file groups
+                      // This prevents race conditions where onSectionChange overwrites project selection
+                      console.log('🎨 page.tsx: Visual editor onSectionChange (no-op):', {
                         name: section.name,
                         htmlLength: section.html?.length || 0,
                         cssLength: section.css?.length || 0,
                       });
-                      setCurrentSection(section);
                     }}
                     onSwitchToCodeEditor={() => setActiveTab('json')}
                   />
@@ -1233,8 +1647,8 @@ export default function ElementorEditorPage() {
                 <div className={`tab-panel ${activeTab === 'playground' ? 'active' : ''}`} id="playgroundPanel" style={{ display: activeTab === 'playground' ? 'flex' : 'none' }}>
                   <PlaygroundView
                     json={currentJson}
-                    isActive={activeTab === 'playground'}
-                    isTabVisible={activeTab === 'playground'}
+                    isActive={true} // Always active so playground initializes immediately on page load
+                    isTabVisible={true} // Always visible so playground can initialize
                     chatVisible={chatVisible}
                     setChatVisible={setChatVisible}
                     tabBarVisible={tabBarVisible}
@@ -1258,11 +1672,18 @@ export default function ElementorEditorPage() {
                     tabBarVisible={tabBarVisible}
                     setTabBarVisible={setTabBarVisible}
                     onOpenProject={(projectId) => {
-                      console.log('📝 Opening project in editor:', projectId);
+                      console.log('📝 page.tsx: Opening project in editor:', {
+                        projectId,
+                        currentActiveId: fileGroups.activeGroupId,
+                        timestamp: new Date().toISOString(),
+                      });
                       // Switch to Code Editor tab
                       setActiveTab('json');
                       // Trigger project selection via custom event
+                      console.log('📡 page.tsx: Dispatching select-project event for:', projectId);
                       window.dispatchEvent(new CustomEvent('select-project', { detail: { projectId } }));
+                      console.log('✅ page.tsx: Event dispatched');
+                      // fileGroups.refresh() will be called when 'project-selection-complete' event fires
                     }}
                   />
                 </div>
@@ -1313,6 +1734,8 @@ export default function ElementorEditorPage() {
                     setTabBarVisible={setTabBarVisible}
                   />
                 </div>
+                  </>
+                )}
               </div>
                 </div>
               </div>
@@ -1325,6 +1748,17 @@ export default function ElementorEditorPage() {
           <div style={{ flex: '1', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <NavigationBar
               tabs={navigationTabs}
+              activeTab={(() => {
+                const reverseMap: Record<string, string> = {
+                  'json': 'code-editor',
+                  'sections': 'project-library',
+                  'playground': 'wordpress-playground',
+                  'site-content': 'site-content',
+                  'style-guide': 'style-guide',
+                  'usage': 'usage',
+                };
+                return reverseMap[activeTab] || activeTab;
+              })()}
               onTabChange={(tabId) => {
                 const tabMap: Record<string, string> = {
                   'code-editor': 'json',
@@ -1341,7 +1775,18 @@ export default function ElementorEditorPage() {
               showOnMobile={false}
             />
             <div className="tab-content" style={{ flex: '1', overflow: 'hidden' }}>
-              {/* Tab panels - same as before */}
+              {/* Tab panels - Split View or Regular View */}
+              {splitViewEnabled ? (
+                // Split View Mode
+                <ResizableSplitPanel
+                  topPanel={renderTabPanel(topPanelTab)}
+                  bottomPanel={renderTabPanel(bottomPanelTab)}
+                  initialSplitRatio={splitRatio}
+                  onSplitRatioChange={setSplitRatio}
+                />
+              ) : (
+                // Regular View Mode
+                <>
               <div className={`tab-panel ${activeTab === 'json' ? 'active' : ''}`} id="jsonPanel" style={{ display: activeTab === 'json' ? 'flex' : 'none' }}>
                 <HtmlSectionEditor
                   key={loadedSection?.id || 'default'}
@@ -1353,7 +1798,10 @@ export default function ElementorEditorPage() {
                   onCodeTabChange={setActiveCodeTab}
                   isTabVisible={activeTab === 'json'}
                   onSendChatMessage={(message) => {
-                    sendMessage({ content: message, role: 'user' });
+                    sendMessage(
+                      { content: message, role: 'user' },
+                      { body: { currentSection: currentSection || null, model: selectedModel } }
+                    );
                   }}
                   onSectionChange={(section) => {
                     console.log('📝 HtmlSectionEditor: Section changed:', {
@@ -1373,6 +1821,9 @@ export default function ElementorEditorPage() {
                   setChatVisible={setChatVisible}
                   tabBarVisible={true}
                   setTabBarVisible={() => {}}
+                  hotReloadEnabled={hotReloadEnabled}
+                  currentProject={currentProject}
+                  fileGroups={fileGroups}
                   onEditElementInChat={(elementData) => {
                     if (!chatVisible && !isMobile) {
                       setChatVisible(true);
@@ -1404,8 +1855,8 @@ export default function ElementorEditorPage() {
               <div className={`tab-panel ${activeTab === 'playground' ? 'active' : ''}`} id="playgroundPanel" style={{ display: activeTab === 'playground' ? 'flex' : 'none' }}>
                 <PlaygroundView
                   json={currentJson}
-                  isActive={activeTab === 'playground'}
-                  isTabVisible={activeTab === 'playground'}
+                  isActive={true} // Always active so playground initializes immediately on page load
+                  isTabVisible={true} // Always visible so playground can initialize
                   chatVisible={chatVisible}
                   setChatVisible={setChatVisible}
                   tabBarVisible={true}
@@ -1432,6 +1883,7 @@ export default function ElementorEditorPage() {
                     console.log('📝 Opening project in editor:', projectId);
                     setActiveTab('json');
                     window.dispatchEvent(new CustomEvent('select-project', { detail: { projectId } }));
+                    // fileGroups.refresh() will be called when 'project-selection-complete' event fires
                   }}
                 />
               </div>
@@ -1482,6 +1934,8 @@ export default function ElementorEditorPage() {
                   setTabBarVisible={() => {}}
                 />
               </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1501,6 +1955,17 @@ export default function ElementorEditorPage() {
             }}>
               <NavigationBar
                 tabs={navigationTabs}
+                activeTab={(() => {
+                  const reverseMap: Record<string, string> = {
+                    'json': 'code-editor',
+                    'sections': 'project-library',
+                    'playground': 'wordpress-playground',
+                    'site-content': 'site-content',
+                    'style-guide': 'style-guide',
+                    'usage': 'usage',
+                  };
+                  return reverseMap[activeTab] || activeTab;
+                })()}
                 onTabChange={(tabId) => {
                   const tabMap: Record<string, string> = {
                     'code-editor': 'json',
@@ -1515,6 +1980,7 @@ export default function ElementorEditorPage() {
                 onDropdownItemClick={handleNavigationDropdownClick}
                 showOnDesktop={false}
                 showOnMobile={true}
+                dimmed={chatDrawerOpen}
               />
             </div>
 
@@ -1538,10 +2004,14 @@ export default function ElementorEditorPage() {
                     onCodeTabChange={setActiveCodeTab}
                     isTabVisible={activeTab === 'json'}
                     onSendChatMessage={(message) => {
-                      sendMessage({ content: message, role: 'user' });
+                      sendMessage(
+                        { content: message, role: 'user' },
+                        { body: { currentSection: currentSection || null, model: selectedModel } }
+                      );
                     }}
                     onSectionChange={(section) => {
-                      setCurrentSection(section);
+                      // NO-OP: Section changes are now handled by HtmlSectionEditor directly updating file groups
+                      // This prevents race conditions where onSectionChange overwrites project selection
                     }}
                     onSwitchToVisualEditor={() => setActiveTab('visual')}
                     onSwitchToPlayground={() => setActiveTab('playground')}
@@ -1549,6 +2019,9 @@ export default function ElementorEditorPage() {
                     setChatVisible={setChatVisible}
                     tabBarVisible={false}
                     setTabBarVisible={() => {}}
+                    hotReloadEnabled={hotReloadEnabled}
+                    currentProject={currentProject}
+                    fileGroups={fileGroups}
                     onEditElementInChat={(elementData) => {
                       setChatDrawerOpen(true);
                       const message = `Edit this element:\n\nSelector: ${elementData.selector}\nClasses: ${elementData.classList.join(', ')}\n\nHTML:\n\`\`\`html\n${elementData.html}\n\`\`\`\n\nContext:\n\`\`\`html\n${elementData.context.substring(0, 500)}${elementData.context.length > 500 ? '...' : ''}\n\`\`\``;
@@ -1560,8 +2033,8 @@ export default function ElementorEditorPage() {
                 <div className={`tab-panel ${activeTab === 'playground' ? 'active' : ''}`} style={{ display: activeTab === 'playground' ? 'flex' : 'none' }}>
                   <PlaygroundView
                     json={currentJson}
-                    isActive={activeTab === 'playground'}
-                    isTabVisible={activeTab === 'playground'}
+                    isActive={true} // Always active so playground initializes immediately on page load
+                    isTabVisible={true} // Always visible so playground can initialize
                     chatVisible={false}
                     setChatVisible={setChatVisible}
                     tabBarVisible={false}
@@ -1585,6 +2058,7 @@ export default function ElementorEditorPage() {
                     onOpenProject={(projectId) => {
                       setActiveTab('json');
                       window.dispatchEvent(new CustomEvent('select-project', { detail: { projectId } }));
+                      // fileGroups.refresh() will be called when 'project-selection-complete' event fires
                     }}
                   />
                 </div>
@@ -1728,11 +2202,16 @@ export default function ElementorEditorPage() {
                     onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
                     onSwitchTab={(tab) => setActiveTab(tab)}
                     onUpdateSection={(updates) => {
-                      if (currentSection) {
-                        setCurrentSection({ ...currentSection, ...updates });
+                      // Update file group directly instead of local state
+                      if (currentSection?.id) {
+                        if (updates.html !== undefined) fileGroups.updateGroupFile(currentSection.id, 'html', updates.html);
+                        if (updates.css !== undefined) fileGroups.updateGroupFile(currentSection.id, 'css', updates.css);
+                        if (updates.js !== undefined) fileGroups.updateGroupFile(currentSection.id, 'js', updates.js);
+                        if (updates.php !== undefined) fileGroups.updateGroupFile(currentSection.id, 'php', updates.php);
                       }
                     }}
                     currentSection={currentSection}
+                    containerWidth={chatPanelWidth}
                   />
                 </div>
               )}
@@ -1765,15 +2244,12 @@ export default function ElementorEditorPage() {
         isOpen={generateDialogOpen}
         onClose={() => setGenerateDialogOpen(false)}
         onGenerate={(code) => {
-          // Update the current section with generated code
-          if (currentSection) {
-            setCurrentSection({
-              ...currentSection,
-              html: code.html || '',
-              css: code.css || '',
-              js: code.js || '',
-              php: code.php || '',
-            });
+          // Update the file group with generated code
+          if (currentSection?.id) {
+            if (code.html) fileGroups.updateGroupFile(currentSection.id, 'html', code.html);
+            if (code.css) fileGroups.updateGroupFile(currentSection.id, 'css', code.css);
+            if (code.js) fileGroups.updateGroupFile(currentSection.id, 'js', code.js);
+            if (code.php) fileGroups.updateGroupFile(currentSection.id, 'php', code.php);
           }
           // Set streamed code to trigger display in editor
           setStreamedCode({
@@ -1787,6 +2263,91 @@ export default function ElementorEditorPage() {
         }}
         defaultModel={selectedModel}
       />
+
+      {/* Split View Configuration Modal */}
+      <Dialog open={splitViewConfigOpen} onOpenChange={setSplitViewConfigOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Configure Split View</DialogTitle>
+            <DialogDescription>
+              Select which panels to display in the top and bottom sections. Both panels cannot show the same content.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-6 py-4">
+            {/* Top Panel Selection */}
+            <div className="grid gap-3">
+              <Label htmlFor="top-panel" className="text-base font-semibold">
+                Top Panel
+              </Label>
+              <select
+                id="top-panel"
+                value={topPanelTab}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  // If user selects what's currently in bottom panel, swap them
+                  if (newValue === bottomPanelTab) {
+                    setBottomPanelTab(topPanelTab);
+                  }
+                  setTopPanelTab(newValue);
+                }}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                {availableTabs.map((tab) => (
+                  <option key={tab.id} value={tab.id}>
+                    {tab.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Bottom Panel Selection */}
+            <div className="grid gap-3">
+              <Label htmlFor="bottom-panel" className="text-base font-semibold">
+                Bottom Panel
+              </Label>
+              <select
+                id="bottom-panel"
+                value={bottomPanelTab}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  // If user selects what's currently in top panel, swap them
+                  if (newValue === topPanelTab) {
+                    setTopPanelTab(bottomPanelTab);
+                  }
+                  setBottomPanelTab(newValue);
+                }}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                {availableTabs.map((tab) => (
+                  <option key={tab.id} value={tab.id}>
+                    {tab.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSplitViewConfigOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setSplitViewConfigOpen(false);
+                toast.success('Split view configuration updated');
+              }}
+            >
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bottom Navigation - Mobile Only */}
       <BottomNav />

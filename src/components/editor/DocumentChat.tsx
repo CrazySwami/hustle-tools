@@ -263,6 +263,9 @@ export function DocumentChat({
   });
   const markdownContent = documentContent ? turndownService.turndown(documentContent) : '';
 
+  // Calculate document character count (from HTML content)
+  const documentCharacterCount = documentContent ? documentContent.length : 0;
+
   // Generate actual system prompt (same as API uses) for accurate token counting
   // This recalculates whenever includeContext changes
   const actualSystemPrompt = generateDocSystemPrompt({
@@ -580,14 +583,47 @@ export function DocumentChat({
                               );
                             }
 
-                            // Otherwise render as tool-call (input phase)
+                            // Otherwise render loading state (input phase) - similar to DocumentMorphWidget
+                            const toolLabels: Record<string, { icon: string; label: string; description: string }> = {
+                              editDocumentWithMorph: { icon: '✨', label: 'AI Document Edit', description: 'Analyzing and applying changes...' },
+                              getTextStats: { icon: '📊', label: 'Text Statistics', description: 'Analyzing document...' },
+                              findString: { icon: '🔍', label: 'Find Text', description: 'Searching document...' },
+                              analyzeReadability: { icon: '📖', label: 'Readability Analysis', description: 'Analyzing readability...' },
+                              extractHeadings: { icon: '📑', label: 'Extract Headings', description: 'Extracting structure...' },
+                              findAndReplace: { icon: '🔄', label: 'Find & Replace', description: 'Processing replacements...' },
+                              generateTOC: { icon: '📋', label: 'Generate TOC', description: 'Creating table of contents...' },
+                              findDuplicates: { icon: '👯', label: 'Find Duplicates', description: 'Scanning for duplicates...' },
+                            };
+
+                            const toolConfig = toolLabels[toolName] || { icon: '⚡', label: toolName, description: 'Processing...' };
+
                             return (
-                              <Tool key={i} defaultOpen>
-                                <ToolHeader type={toolName} state="input-available" />
-                                <ToolContent>
-                                  <ToolInput input={part.input ?? part.args ?? {}} />
-                                </ToolContent>
-                              </Tool>
+                              <div key={i} className="my-3 rounded-lg border border-purple-500/20 transition-all duration-200">
+                                <div className="p-4 space-y-3">
+                                  {/* Header with loading animation */}
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex gap-1">
+                                      <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                      <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                      <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-bounce"></span>
+                                    </div>
+                                    <span className="text-sm font-semibold">{toolConfig.icon} {toolConfig.label}</span>
+                                  </div>
+
+                                  {/* Description */}
+                                  <div className="text-sm text-muted-foreground">
+                                    {toolConfig.description}
+                                  </div>
+
+                                  {/* Loading indicator */}
+                                  <div className="flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400">
+                                    <div className="h-1 flex-1 bg-muted rounded-full overflow-hidden">
+                                      <div className="h-full bg-purple-500 rounded-full animate-pulse" style={{ width: '60%' }} />
+                                    </div>
+                                    <span>Processing...</span>
+                                  </div>
+                                </div>
+                              </div>
                             );
                           }
 
@@ -697,8 +733,7 @@ export function DocumentChat({
 
       <PromptInput
         onSubmit={handleSubmit}
-        style={{ flexShrink: 0, margin: '0 0 10px 0px', padding: '0 8px' }}
-
+        style={{ flexShrink: 0, margin: '0 auto 10px auto', width: '97%' }}
         promptValue={input}
         systemPrompt={actualSystemPrompt}
         contextLimit={contextLimit}
@@ -846,6 +881,7 @@ export function DocumentChat({
                 documentTitle: currentDocument?.title,
                 projectName: currentProject?.name,
                 wordCount,
+                characterCount: documentCharacterCount,
               }}
               contextToggles={{
                 includeContext,
@@ -856,7 +892,7 @@ export function DocumentChat({
               }}
             />
             <PromptInputModelSelect onValueChange={onModelChange} value={selectedModel}>
-              <PromptInputModelSelectTrigger>
+              <PromptInputModelSelectTrigger title="Select AI model">
                 <PromptInputModelSelectValue />
               </PromptInputModelSelectTrigger>
               <PromptInputModelSelectContent>
@@ -875,7 +911,17 @@ export function DocumentChat({
               </PromptInputModelSelectContent>
             </PromptInputModelSelect>
           </PromptInputTools>
-          <PromptInputSubmit disabled={isLoading || !input.trim() || sendDisabled} status={status}>
+          <PromptInputSubmit
+            disabled={isLoading || !input.trim() || sendDisabled}
+            status={status}
+            title={
+              status === 'streaming' ? 'Stop generation' :
+              isLoading ? 'Sending...' :
+              sendDisabled ? 'Token limit exceeded' :
+              !input.trim() ? 'Type a message first' :
+              'Send message (Enter)'
+            }
+          >
             <SendIcon size={16} />
           </PromptInputSubmit>
         </PromptInputToolbar>

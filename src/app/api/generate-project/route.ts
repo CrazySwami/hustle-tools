@@ -28,11 +28,14 @@ export async function POST(req: Request) {
     });
 
     // Build prompt based on project type
-    const isElementor = projectType === 'elementor';
+    const isElementor = projectType === 'elementor' || projectType === 'convert-to-elementor';
     const isHubSpot = projectType === 'hubspot';
 
     const systemPrompt = isElementor
       ? `You are an expert Elementor widget developer. Generate a COMPLETE, PRODUCTION-READY PHP widget class.
+
+**🎯 HIGHEST PRIORITY - USER INSTRUCTIONS:**
+The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. These instructions come from the project owner and decision-maker. If the user's instructions conflict with any guidelines below, ALWAYS follow the user's instructions. Their requirements override everything else.
 
 **CRITICAL REQUIREMENTS:**
 
@@ -86,6 +89,9 @@ export async function POST(req: Request) {
 
 **MODULE TYPE: EMAIL (Strict Compatibility Mode)**
 
+**🎯 HIGHEST PRIORITY - USER INSTRUCTIONS:**
+The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. These instructions come from the project owner and decision-maker. If the user's instructions conflict with any guidelines below, ALWAYS follow the user's instructions. Their requirements override everything else.
+
 **CRITICAL EMAIL CONSTRAINTS:**
 
 1. **HTML Structure**:
@@ -137,6 +143,9 @@ export async function POST(req: Request) {
           : `You are an expert HubSpot page module developer. Generate production-ready HTML with modern CSS for HubSpot CMS pages.
 
 **MODULE TYPE: PAGE (Modern Web Standards)**
+
+**🎯 HIGHEST PRIORITY - USER INSTRUCTIONS:**
+The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. These instructions come from the project owner and decision-maker. If the user's instructions conflict with any guidelines below, ALWAYS follow the user's instructions. Their requirements override everything else.
 
 **PAGE MODULE CAPABILITIES:**
 
@@ -196,6 +205,9 @@ export async function POST(req: Request) {
 **IMPORTANT**: Page modules support modern web standards. Use flexbox, grid, and interactive features freely.`
         : `You are an expert frontend developer. Generate complete, production-ready HTML/CSS/JS code for a web section based on the user's description.
 
+**🎯 HIGHEST PRIORITY - USER INSTRUCTIONS:**
+The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. These instructions come from the project owner and decision-maker. If the user's instructions conflict with any guidelines below, ALWAYS follow the user's instructions. Their requirements override everything else.
+
 **CRITICAL RULES:**
 1. **HTML**: Section-level markup only (NO DOCTYPE, html, head, body tags). Use semantic HTML5.
 2. **CSS**: Complete styles including responsive design, modern layout (flexbox/grid), transitions/animations.
@@ -207,6 +219,7 @@ export async function POST(req: Request) {
 **IMPORTANT**: Create standalone, copy-paste ready code that works immediately in any modern browser.`;
 
     // Build existing code context if provided
+    const isConvertMode = projectType === 'convert-to-elementor';
     const existingCodeContext = existingCode ? `
 **📋 EXISTING CODE TO CONVERT:**
 
@@ -225,7 +238,7 @@ ${existingCode.css || '(empty)'}
 ${existingCode.js || '(empty)'}
 \`\`\`
 
-**CRITICAL**: Use this EXACT code as the foundation. Convert it to an Elementor widget while preserving all functionality, styles, and behavior. Do NOT create something new - convert what's here.
+**CRITICAL**: ${isConvertMode ? 'You are converting an existing HTML project to an Elementor widget. Your goal is to maintain the EXACT look, structure, and styling of the original code while adapting it to the Elementor widget format. Preserve all visual design, element hierarchy, and functionality.' : 'Use this EXACT code as the foundation. Convert it to an Elementor widget while preserving all functionality, styles, and behavior. Do NOT create something new - convert what is here.'}
 
 ` : '';
 

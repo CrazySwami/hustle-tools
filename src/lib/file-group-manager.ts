@@ -31,6 +31,18 @@ export interface FileGroup {
   // Metadata
   description?: string;          // Optional description
   tags?: string[];               // Optional tags for organization
+
+  // WordPress deployment tracking
+  wordpressDeployment?: {
+    isDeployed: boolean;           // Quick check if deployed
+    livePageId?: number;           // WordPress page ID (live preview)
+    livePageSlug?: string;         // Page slug for live preview
+    elementorPageId?: number;      // Elementor editor page ID
+    elementorPageSlug?: string;    // Page slug for Elementor editor
+    pluginSlug: string;            // Plugin folder name
+    deployedAt: number;            // Last deployment timestamp
+    lastDeploymentType?: 'live-page' | 'elementor-editor'; // Track which deployment method was last used
+  };
 }
 
 export interface EditorState {
@@ -596,14 +608,37 @@ export function deleteGroup(id: string): void {
 export function setActiveGroup(id: string | null): void {
   const state = loadEditorState();
 
+  console.log('🔧 setActiveGroup() called:', {
+    requestedId: id,
+    requestedIdType: typeof id,
+    currentActiveId: state.activeGroupId,
+    currentActiveIdType: typeof state.activeGroupId,
+    groupExists: id !== null ? !!state.groups.find(g => g.id === id) : 'null',
+    allGroupIds: state.groups.map(g => ({ id: g.id, name: g.name, type: g.type })),
+    timestamp: new Date().toISOString(),
+  });
+
   // Validate ID exists
-  if (id !== null && !state.groups.find(g => g.id === id)) {
-    console.warn(`Group ${id} not found`);
+  const matchingGroup = id !== null ? state.groups.find(g => g.id === id) : null;
+  if (id !== null && !matchingGroup) {
+    console.warn(`❌ Group ${id} not found in state. Available groups:`, state.groups.map(g => g.id));
     return;
   }
 
+  const oldActiveId = state.activeGroupId;
   state.activeGroupId = id;
   saveEditorState(state);
+
+  // Verify it was saved correctly
+  const verifyState = loadEditorState();
+  console.log('✅ setActiveGroup() completed:', {
+    requestedId: id,
+    oldActiveId: oldActiveId,
+    newActiveId: state.activeGroupId,
+    verifiedActiveId: verifyState.activeGroupId,
+    wasSuccessful: state.activeGroupId === id,
+    wasPersistedCorrectly: verifyState.activeGroupId === id,
+  });
 }
 
 /**

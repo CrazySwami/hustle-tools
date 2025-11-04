@@ -87,6 +87,13 @@ export function BrandfetchImporter({ onImport, onClose, playgroundReady }: Brand
       return;
     }
 
+    // Clean domain: remove protocol, www, trailing slashes, and paths
+    const cleanDomain = domain
+      .trim()
+      .replace(/^https?:\/\//i, '') // Remove http:// or https://
+      .replace(/^www\./i, '') // Remove www.
+      .replace(/\/.*$/, ''); // Remove everything after first /
+
     setLoading(true);
     setError(null);
     setBrandData(null);
@@ -95,7 +102,7 @@ export function BrandfetchImporter({ onImport, onClose, playgroundReady }: Brand
       const response = await fetch("/api/brandfetch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain: domain.trim() }),
+        body: JSON.stringify({ domain: cleanDomain }),
       });
 
       if (!response.ok) {
@@ -414,10 +421,10 @@ export function BrandfetchImporter({ onImport, onClose, playgroundReady }: Brand
           <div>
             <label className="text-sm font-medium block mb-2">Company Domain</label>
             <input
-              type="url"
+              type="text"
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
-              placeholder="example.com or https://example.com"
+              placeholder="example.com (without http:// or https://)"
               className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
               onKeyDown={(e) => e.key === "Enter" && fetchBrandData()}
             />

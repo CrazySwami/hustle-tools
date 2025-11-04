@@ -163,14 +163,22 @@ export function Navbar({
   }, [menuOpen]);
 
   // Listen for custom event to toggle menu from external sources (e.g., mobile HT logo)
+  // Prevent rapid toggling (debounce)
+  const [isToggling, setIsToggling] = useState(false);
+
   useEffect(() => {
     const handleToggleNav = () => {
+      if (isToggling) return; // Prevent jitter
+
+      setIsToggling(true);
       setMenuOpen(prev => !prev);
+
+      setTimeout(() => setIsToggling(false), 300); // Match animation duration
     };
 
     window.addEventListener('toggle-nav-menu', handleToggleNav);
     return () => window.removeEventListener('toggle-nav-menu', handleToggleNav);
-  }, []);
+  }, [isToggling]);
 
   // Dragging handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -477,56 +485,9 @@ export function Navbar({
     );
   }
 
-  // FLOATING MODE - Original floating button
+  // FLOATING MODE - Don't render floating button, only slide-in menu
   return (
     <>
-      {/* Floating Draggable Button - always render but hide if needed */}
-      <div
-        ref={buttonRef}
-        style={{
-          position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          zIndex: 3250, // Above chat drawer handle (3200) so button is visible
-          cursor: isDragging ? 'grabbing' : 'grab',
-          transition: isDragging ? 'none' : 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
-          userSelect: 'none',
-          display: shouldHideButtonOnMobile ? 'none' : 'block', // Hide visually but keep in DOM
-        }}
-      >
-        <button
-          data-nav-trigger
-          data-nav-button="true"
-          onMouseDown={handleMouseDown}
-          className={cn(
-            "group relative flex items-center justify-center backdrop-blur-md border-2 overflow-hidden",
-            // Light mode: black bg, white text | Dark mode: white bg, black text
-            "bg-black dark:bg-white",
-            "text-white dark:text-black",
-            "border-black/20 dark:border-white/20",
-            "shadow-lg dark:shadow-[0_0_0_1px_rgba(0,0,0,0.1),0_4px_12px_rgba(0,0,0,0.2)]",
-            isMobile ? "w-14 h-14" : "gap-2 px-4 py-3"
-          )}
-          style={{
-            borderRadius: '9999px',
-            fontSize: isMobile ? '16px' : '14px',
-            fontWeight: 600,
-            letterSpacing: '-0.025em',
-            cursor: isDragging ? 'grabbing' : 'grab',
-            pointerEvents: 'auto',
-          }}
-        >
-          {/* Water-fill hover animation background */}
-          <div
-            className="absolute inset-0 bg-white dark:bg-black transition-all duration-500 ease-out translate-y-full group-hover:translate-y-0 rounded-full"
-          />
-
-          {/* Text with color inversion on hover */}
-          <span className="relative z-10 transition-colors duration-500 group-hover:text-black dark:group-hover:text-white">
-            {isMobile ? 'HT' : 'Hustle Tools'}
-          </span>
-        </button>
-      </div>
 
       {/* Desktop: Dropdown Menu */}
       {!isMobile && menuOpen && (
@@ -711,7 +672,7 @@ export function Navbar({
                     onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-accent transition-colors"
                   >
-                    <tool.icon className="h-5 w-5" />
+                    <tool.icon className="h-5 w-5 text-black dark:text-black" />
                     <div>
                       <div className="font-medium">{tool.title}</div>
                       <div className="text-sm text-muted-foreground">{tool.description}</div>
@@ -732,7 +693,7 @@ export function Navbar({
                     onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-accent transition-colors"
                   >
-                    <tool.icon className="h-5 w-5" />
+                    <tool.icon className="h-5 w-5 text-black dark:text-black" />
                     <div>
                       <div className="font-medium">{tool.title}</div>
                       <div className="text-sm text-muted-foreground">{tool.description}</div>
@@ -753,7 +714,7 @@ export function Navbar({
                     onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-accent transition-colors"
                   >
-                    <tool.icon className="h-5 w-5" />
+                    <tool.icon className="h-5 w-5 text-black dark:text-black" />
                     <div>
                       <div className="font-medium">{tool.title}</div>
                       <div className="text-sm text-muted-foreground">{tool.description}</div>
@@ -774,7 +735,7 @@ export function Navbar({
                     onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-accent transition-colors"
                   >
-                    <tool.icon className="h-5 w-5" />
+                    <tool.icon className="h-5 w-5 text-black dark:text-black" />
                     <div>
                       <div className="font-medium">{tool.title}</div>
                       <div className="text-sm text-muted-foreground">{tool.description}</div>

@@ -21,6 +21,7 @@ import {
   PromptInputButton,
   PromptInputSubmit,
 } from '@/components/ai-elements/prompt-input';
+import { MobilePromptActions, type PromptAction } from '@/components/ai-elements/MobilePromptActions';
 
 // Model configurations with token limits
 const MODEL_CONFIGS = {
@@ -170,6 +171,7 @@ interface ChatInterfaceProps {
   currentJson?: any; // Legacy - for backward compatibility
   currentSection?: any; // HTML/CSS/JS/PHP files
   globalCss?: string; // Global CSS from Style Kit
+  containerWidth?: number; // Container width for responsive prompt actions
 }
 
 export function ChatInterface({
@@ -183,6 +185,7 @@ export function ChatInterface({
   currentJson = {},
   currentSection = null,
   globalCss = '',
+  containerWidth,
 }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
@@ -739,53 +742,62 @@ export function ChatInterface({
             className="hidden"
           />
           <PromptInputToolbar>
-            <PromptInputTools>
-              <PromptInputButton
-                variant={webSearchEnabled ? 'default' : 'ghost'}
-                onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                title={webSearchEnabled ? 'Web search enabled' : 'Web search disabled'}
-              >
-                <GlobeIcon size={16} />
-              </PromptInputButton>
-              <PromptInputButton
-                variant={imagePreview ? 'default' : 'ghost'}
-                onClick={() => imageFileInputRef.current?.click()}
-                title="Attach image (PNG/JPEG, max 5MB)"
-              >
-                <ImageIcon size={16} />
-              </PromptInputButton>
-              <PromptInputButton
-                variant={detailedMode ? 'default' : 'ghost'}
-                onClick={() => setDetailedMode(!detailedMode)}
-                title={detailedMode ? 'Detailed mode: Full JSON context' : 'Smart mode: Optimized context'}
-              >
-                <FileIcon size={16} />
-              </PromptInputButton>
-              <PromptInputButton
-                variant={includeCss ? 'default' : 'ghost'}
-                onClick={() => setIncludeCss(!includeCss)}
-                title={includeCss ? 'CSS context enabled' : 'CSS context disabled'}
-              >
-                <span className="text-sm font-medium">CSS</span>
-              </PromptInputButton>
-              <PromptInputButton
-                variant="ghost"
-                onClick={async () => {
-                  setShowContextPreview(true);
-                  const preview = {
-                    detailedMode,
-                    currentJson,
-                    jsonSize: JSON.stringify(currentJson).length,
-                    estimatedTokens: Math.ceil(JSON.stringify(currentJson).length / 4),
-                    message: inputValue,
-                  };
-                  setContextPreview(preview);
-                }}
-                title="Preview context that will be sent"
-              >
-                👁️
-              </PromptInputButton>
-            </PromptInputTools>
+            <MobilePromptActions
+              breakpoint={450}
+              containerWidth={containerWidth}
+              actions={[
+                {
+                  id: 'web-search',
+                  label: 'Web Search',
+                  icon: <GlobeIcon size={16} />,
+                  isActive: webSearchEnabled,
+                  onClick: () => setWebSearchEnabled(!webSearchEnabled),
+                  title: webSearchEnabled ? 'Web search enabled' : 'Web search disabled',
+                },
+                {
+                  id: 'image',
+                  label: 'Attach Image',
+                  icon: <ImageIcon size={16} />,
+                  isActive: !!imagePreview,
+                  onClick: () => imageFileInputRef.current?.click(),
+                  title: 'Attach image (PNG/JPEG, max 5MB)',
+                },
+                {
+                  id: 'context',
+                  label: 'Context Mode',
+                  icon: <FileIcon size={16} />,
+                  isActive: detailedMode,
+                  onClick: () => setDetailedMode(!detailedMode),
+                  title: detailedMode ? 'Detailed mode: Full JSON context' : 'Smart mode: Optimized context',
+                },
+                {
+                  id: 'css',
+                  label: 'CSS Context',
+                  icon: <span className="text-sm font-medium">CSS</span>,
+                  isActive: includeCss,
+                  onClick: () => setIncludeCss(!includeCss),
+                  title: includeCss ? 'CSS context enabled' : 'CSS context disabled',
+                },
+                {
+                  id: 'preview',
+                  label: 'Preview Context',
+                  icon: <>👁️</>,
+                  isActive: false,
+                  onClick: async () => {
+                    setShowContextPreview(true);
+                    const preview = {
+                      detailedMode,
+                      currentJson,
+                      jsonSize: JSON.stringify(currentJson).length,
+                      estimatedTokens: Math.ceil(JSON.stringify(currentJson).length / 4),
+                      message: inputValue,
+                    };
+                    setContextPreview(preview);
+                  },
+                  title: 'Preview context that will be sent',
+                },
+              ]}
+            />
             <PromptInputSubmit disabled={isLoading || (currentInputTokens + contextTokens) > modelConfig.inputLimit}>
               <SendIcon size={16} />
             </PromptInputSubmit>

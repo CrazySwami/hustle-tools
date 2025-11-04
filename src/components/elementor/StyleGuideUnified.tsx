@@ -5,6 +5,8 @@ import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
 import { analyzeCSSWithAI, type DesignSystemSummary } from '@/lib/css-analyzer';
 import { PageExtractor } from '@/components/page-extractor/PageExtractor';
 import { CSSClassExplorer } from './CSSClassExplorer';
+import { StyleKitConverter } from './StyleKitConverter';
+import { StyleKitEditorAdvanced } from './StyleKitEditorAdvanced';
 import MonacoEditor from '@monaco-editor/react';
 import {
   isSupabaseConfigured,
@@ -13,7 +15,7 @@ import {
 import { generateCompleteStyleKit } from '@/lib/complete-stylekit-generator';
 import defaultStyleKitTemplate from '@/lib/default-stylekit-template.json';
 
-type Mode = 'stylekit' | 'brand' | 'page';
+type Mode = 'stylekit' | 'brand' | 'page' | 'converter' | 'advanced-editor';
 type StyleKitView = 'editor' | 'preview';
 type PageExtractMode = 'css-only' | 'full-page';
 
@@ -54,7 +56,7 @@ export function StyleGuideUnified({
   setTabBarVisible,
 }: StyleGuideUnifiedProps) {
   // Mode management
-  const [mode, setMode] = useState<Mode>('stylekit');
+  const [mode, setMode] = useState<Mode>('advanced-editor');
   const [styleKitView, setStyleKitView] = useState<StyleKitView>('editor');
   const [pageExtractMode, setPageExtractMode] = useState<PageExtractMode>('css-only');
 
@@ -129,6 +131,29 @@ export function StyleGuideUnified({
       document.querySelectorAll('link[data-brand-font]').forEach(el => el.remove());
     };
   }, [brandAnalysis]);
+
+  // Listen for navigation events from parent page dropdown
+  useEffect(() => {
+    const handleOpenStyleKitEditor = () => setMode('stylekit');
+    const handleOpenBrandfetchImport = () => setMode('brand');
+    const handleOpenPageExtract = () => setMode('page');
+    const handleOpenPhpConverter = () => setMode('converter');
+    const handleOpenAdvancedEditor = () => setMode('advanced-editor');
+
+    window.addEventListener('open-style-kit-editor', handleOpenStyleKitEditor);
+    window.addEventListener('open-brandfetch-import', handleOpenBrandfetchImport);
+    window.addEventListener('open-page-extract', handleOpenPageExtract);
+    window.addEventListener('open-php-converter', handleOpenPhpConverter);
+    window.addEventListener('open-advanced-editor', handleOpenAdvancedEditor);
+
+    return () => {
+      window.removeEventListener('open-style-kit-editor', handleOpenStyleKitEditor);
+      window.removeEventListener('open-brandfetch-import', handleOpenBrandfetchImport);
+      window.removeEventListener('open-page-extract', handleOpenPageExtract);
+      window.removeEventListener('open-php-converter', handleOpenPhpConverter);
+      window.removeEventListener('open-advanced-editor', handleOpenAdvancedEditor);
+    };
+  }, []);
 
   // Handle JSON editor changes
   const handleJsonChange = (value: string | undefined) => {
@@ -433,72 +458,74 @@ export function StyleGuideUnified({
     }}>
       {/* Mode Selector */}
       <div style={{
-        padding: '16px 24px',
+        padding: '8px 12px',
         borderBottom: '1px solid var(--border)',
-        backgroundColor: 'var(--card)',
+        backgroundColor: 'var(--background)',
       }}>
-        <h2 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: 600 }}>
-          Style Guide - Design System Manager
-        </h2>
         <div style={{
           display: 'flex',
-          gap: '8px',
+          gap: '4px',
           overflowX: 'auto',
           overflowY: 'hidden',
           scrollbarWidth: 'thin',
           WebkitOverflowScrolling: 'touch',
-          paddingBottom: '4px'
         }}>
           <button
-            onClick={() => setMode('stylekit')}
+            onClick={() => setMode('advanced-editor')}
             style={{
-              padding: '10px 20px',
-              fontSize: '14px',
+              padding: '6px 12px',
+              fontSize: '12px',
               fontWeight: 500,
-              backgroundColor: mode === 'stylekit' ? 'var(--primary)' : 'var(--muted)',
-              color: mode === 'stylekit' ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
-              border: 'none',
-              borderRadius: '6px',
+              backgroundColor: mode === 'advanced-editor' ? 'var(--primary)' : 'transparent',
+              color: mode === 'advanced-editor' ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+              border: mode === 'advanced-editor' ? 'none' : '1px solid var(--border)',
+              borderRadius: '4px',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               flexShrink: 0,
+              minHeight: '32px',
+              transition: 'all 0.2s',
             }}
           >
-            📊 Style Kit Editor
+            Advanced Editor
           </button>
           <button
             onClick={() => setMode('brand')}
             style={{
-              padding: '10px 20px',
-              fontSize: '14px',
+              padding: '6px 12px',
+              fontSize: '12px',
               fontWeight: 500,
-              backgroundColor: mode === 'brand' ? 'var(--primary)' : 'var(--muted)',
+              backgroundColor: mode === 'brand' ? 'var(--primary)' : 'transparent',
               color: mode === 'brand' ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
-              border: 'none',
-              borderRadius: '6px',
+              border: mode === 'brand' ? 'none' : '1px solid var(--border)',
+              borderRadius: '4px',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               flexShrink: 0,
+              minHeight: '32px',
+              transition: 'all 0.2s',
             }}
           >
-            🎨 Brand Extract
+            Brandfetch
           </button>
           <button
-            onClick={() => setMode('page')}
+            onClick={() => setMode('converter')}
             style={{
-              padding: '10px 20px',
-              fontSize: '14px',
+              padding: '6px 12px',
+              fontSize: '12px',
               fontWeight: 500,
-              backgroundColor: mode === 'page' ? 'var(--primary)' : 'var(--muted)',
-              color: mode === 'page' ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
-              border: 'none',
-              borderRadius: '6px',
+              backgroundColor: mode === 'converter' ? 'var(--primary)' : 'transparent',
+              color: mode === 'converter' ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+              border: mode === 'converter' ? 'none' : '1px solid var(--border)',
+              borderRadius: '4px',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               flexShrink: 0,
+              minHeight: '32px',
+              transition: 'all 0.2s',
             }}
           >
-            📄 Page Extract
+            StyleKit JSON Converter
           </button>
         </div>
       </div>
@@ -510,12 +537,13 @@ export function StyleGuideUnified({
             <div style={{
               marginTop: '16px',
               padding: '12px',
-              backgroundColor: '#10b981',
-              color: 'white',
+              backgroundColor: 'var(--primary)',
+              color: 'var(--primary-foreground)',
+              border: '1px solid var(--border)',
               borderRadius: '6px',
               fontSize: '14px',
             }}>
-              ✅ {success}
+              {success}
             </div>
           )}
           {(jsonError || brandError) && (
@@ -558,7 +586,7 @@ export function StyleGuideUnified({
                       cursor: loading ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {loading ? 'Loading...' : '📥 Load'}
+                    {loading ? 'Loading...' : 'Load'}
                   </button>
                   <button
                     onClick={handleApplyToPlayground}
@@ -574,7 +602,7 @@ export function StyleGuideUnified({
                       cursor: applying ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {applying ? 'Applying...' : '🚀 Apply'}
+                    {applying ? 'Applying...' : 'Apply'}
                   </button>
                   <button
                     onClick={handleCleanupWithAI}
@@ -590,7 +618,7 @@ export function StyleGuideUnified({
                       cursor: cleanupLoading ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {cleanupLoading ? '🤖 Cleaning...' : '🤖 Clean with AI'}
+                    {cleanupLoading ? 'Cleaning...' : 'Clean with AI'}
                   </button>
                   <button
                     onClick={handleLoadDefaultTemplate}
@@ -605,7 +633,7 @@ export function StyleGuideUnified({
                       cursor: 'pointer',
                     }}
                   >
-                    📋 Load Default
+                    Load Default
                   </button>
                   <label style={{
                     padding: '8px 16px',
@@ -618,7 +646,7 @@ export function StyleGuideUnified({
                     cursor: 'pointer',
                     display: 'inline-block',
                   }}>
-                    📤 Upload JSON
+                    Upload JSON
                     <input
                       type="file"
                       accept=".json"
@@ -935,7 +963,7 @@ export function StyleGuideUnified({
                         alignItems: 'center',
                       }}
                     >
-                      <span>📄 Global CSS ({globalCss.length} chars)</span>
+                      <span>Global CSS ({globalCss.length} chars)</span>
                       <span style={{ fontSize: '18px' }}>{showGlobalCss ? '▼' : '▶'}</span>
                     </button>
                     {showGlobalCss && (
@@ -992,7 +1020,7 @@ export function StyleGuideUnified({
                       cursor: 'pointer',
                     }}
                   >
-                    {styleKitView === 'editor' ? '👁️ View Preview' : '✏️ Edit JSON'}
+                    {styleKitView === 'editor' ? 'View Preview' : 'Edit JSON'}
                   </button>
                 </div>
                 {styleKitView === 'editor' ? (
@@ -1234,7 +1262,7 @@ export function StyleGuideUnified({
                   cursor: brandLoading ? 'not-allowed' : 'pointer',
                 }}
               >
-                {brandLoading ? 'Analyzing...' : '🔍 Analyze Brand'}
+                {brandLoading ? 'Analyzing...' : 'Analyze Brand'}
               </button>
             </div>
           </div>
@@ -1273,7 +1301,7 @@ export function StyleGuideUnified({
                       cursor: 'pointer',
                     }}
                   >
-                    🎨 Apply Basic
+                    Apply Basic
                   </button>
                   <button
                     onClick={handleGenerateCompleteStyleKit}
@@ -1288,7 +1316,7 @@ export function StyleGuideUnified({
                       cursor: 'pointer',
                     }}
                   >
-                    ✨ Generate Complete Style Kit →
+                    Generate Complete Style Kit
                   </button>
                 </div>
               </div>
@@ -1439,7 +1467,7 @@ export function StyleGuideUnified({
                   cursor: 'pointer',
                 }}
               >
-                📄 Extract CSS Only
+                Extract CSS Only
               </button>
               <button
                 onClick={() => setPageExtractMode('full-page')}
@@ -1454,7 +1482,7 @@ export function StyleGuideUnified({
                   cursor: 'pointer',
                 }}
               >
-                🌐 Extract Full Page
+                Extract Full Page
               </button>
             </div>
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted-foreground)' }}>
@@ -1480,7 +1508,7 @@ export function StyleGuideUnified({
                   marginBottom: '16px',
                 }}>
                   <h3 style={{ margin: '0 0 8px', fontSize: '14px', fontWeight: 600 }}>
-                    ✅ CSS Extracted & Analyzed
+                    CSS Extracted & Analyzed
                   </h3>
                   <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted-foreground)' }}>
                     {designSystemSummary.totalClasses} CSS classes found from {designSystemSummary.extractedFrom}
@@ -1501,7 +1529,7 @@ export function StyleGuideUnified({
                       cursor: 'pointer',
                     }}
                   >
-                    📚 Browse CSS Classes
+                    Browse CSS Classes
                   </button>
                   <button
                     onClick={handlePushCssToWordPress}
@@ -1517,7 +1545,7 @@ export function StyleGuideUnified({
                       cursor: pushingCss ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {pushingCss ? '⬆️ Pushing...' : '⬆️ Push to WordPress'}
+                    {pushingCss ? 'Pushing...' : 'Push to WordPress'}
                   </button>
                   <button
                     onClick={handleApplyCSSToStyleKit}
@@ -1532,7 +1560,7 @@ export function StyleGuideUnified({
                       cursor: 'pointer',
                     }}
                   >
-                    🎨 Apply to Style Kit →
+                    Apply to Style Kit
                   </button>
                 </div>
               </div>
@@ -1594,13 +1622,13 @@ export function StyleGuideUnified({
             overflowY: 'auto',
           }}>
             <h2 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: 600 }}>
-              🤖 AI Cleanup Complete
+              AI Cleanup Complete
             </h2>
 
             {cleanupChanges.length > 0 && (
               <div style={{ marginBottom: '16px' }}>
                 <h3 style={{ margin: '0 0 8px', fontSize: '14px', fontWeight: 600, color: 'var(--primary)' }}>
-                  ✅ Changes Applied ({cleanupChanges.length})
+                  Changes Applied ({cleanupChanges.length})
                 </h3>
                 <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px' }}>
                   {cleanupChanges.map((change, i) => (
@@ -1613,7 +1641,7 @@ export function StyleGuideUnified({
             {cleanupWarnings.length > 0 && (
               <div style={{ marginBottom: '16px' }}>
                 <h3 style={{ margin: '0 0 8px', fontSize: '14px', fontWeight: 600, color: 'var(--destructive)' }}>
-                  ⚠️ Warnings ({cleanupWarnings.length})
+                  Warnings ({cleanupWarnings.length})
                 </h3>
                 <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px' }}>
                   {cleanupWarnings.map((warning, i) => (
@@ -1647,6 +1675,25 @@ export function StyleGuideUnified({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* MODE 4: PHP to JSON Converter */}
+      {mode === 'converter' && (
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <StyleKitConverter />
+        </div>
+      )}
+
+      {/* MODE 5: Advanced Style Kit Editor */}
+      {mode === 'advanced-editor' && (
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <StyleKitEditorAdvanced
+            onStyleKitChange={(kit) => {
+              setStyleKit(kit);
+              setJsonValue(JSON.stringify(kit, null, 2));
+            }}
+          />
         </div>
       )}
 

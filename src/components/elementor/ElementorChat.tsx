@@ -37,6 +37,8 @@ import { SystemPromptViewer } from '@/components/ui/SystemPromptViewer';
 import { generateElementorSystemPrompt } from '@/lib/generate-elementor-system-prompt';
 import { MobilePromptActions } from '@/components/ai-elements/MobilePromptActions';
 import { ProjectContextBadge } from '@/components/ai-elements/project-context-badge';
+import { MODEL_PRICING } from '@/hooks/useUsageTracking';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface ElementorChatProps {
   messages: any[];
@@ -54,6 +56,7 @@ interface ElementorChatProps {
   currentSection?: any;
   globalCss?: string;
   navigationBar?: React.ReactNode;
+  containerWidth?: number; // Container width for responsive prompt actions
 }
 
 const modelGroups = [
@@ -111,7 +114,8 @@ export function ElementorChat({
   onUpdateSection,
   currentSection,
   globalCss = '',
-  navigationBar
+  navigationBar,
+  containerWidth
 }: ElementorChatProps) {
   const [input, setInput] = useState('');
   const [webSearch, setWebSearch] = useState(false);
@@ -515,7 +519,7 @@ export function ElementorChat({
 
       <PromptInput
         onSubmit={handleSubmit}
-        style={{ flexShrink: 0, margin: '0 0 10px 0px', padding: '0 8px' }}
+        style={{ flexShrink: 0, margin: '0 auto 10px auto', width: '97%' }}
       >
         <PromptInputTextarea
           onChange={(e) => setInput(e.target.value)}
@@ -546,100 +550,64 @@ export function ElementorChat({
         )}
         <PromptInputToolbar>
           <PromptInputTools>
-            {/* Mobile: Single dropdown menu for all actions */}
-            {isMobile ? (
-              <>
-                <MobilePromptActions
-                  actions={[
-                    {
-                      id: 'web-search',
-                      label: 'Web Search',
-                      icon: <GlobeIcon size={18} />,
-                      type: 'toggle',
-                      active: webSearch,
-                      onClick: () => setWebSearch(!webSearch),
-                    },
-                    {
-                      id: 'attach-image',
-                      label: 'Attach Image',
-                      icon: <ImageIcon size={18} />,
-                      type: 'button',
-                      onClick: () => fileInputRef.current?.click(),
-                    },
-                    {
-                      id: 'project-files',
-                      label: 'Project Files',
-                      icon: <FileCodeIcon size={18} />,
-                      type: 'toggle',
-                      active: includeContext,
-                      onClick: () => setIncludeContext(!includeContext),
-                    },
-                    {
-                      id: 'style-kit-css',
-                      label: 'Style Kit CSS',
-                      icon: <span className="text-sm font-medium">CSS</span>,
-                      type: 'toggle',
-                      active: includeCss,
-                      onClick: () => setIncludeCss(!includeCss),
-                    },
-                    {
-                      id: 'auto-close-chat',
-                      label: 'Auto-close Chat on Edit',
-                      icon: <span className="text-sm font-medium">⚡</span>,
-                      type: 'toggle',
-                      active: autoCloseChat,
-                      onClick: () => setAutoCloseChat(!autoCloseChat),
-                    },
-                  ]}
-                />
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                />
-              </>
-            ) : (
-              /* Desktop: Individual buttons */
-              <>
-                <PromptInputButton
-                  variant={webSearch ? 'default' : 'ghost'}
-                  onClick={() => setWebSearch(!webSearch)}
-                  title={webSearch ? 'Web search enabled' : 'Web search disabled'}
-                >
-                  <GlobeIcon size={16} />
-                </PromptInputButton>
-                <PromptInputButton
-                  variant={attachedImage ? 'default' : 'ghost'}
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Attach image (PNG/JPEG, max 5MB)"
-                >
-                  <ImageIcon size={16} />
-                </PromptInputButton>
-                <PromptInputButton
-                  variant={includeContext ? 'default' : 'ghost'}
-                  onClick={() => setIncludeContext(!includeContext)}
-                  title={includeContext ? 'Project files included in prompt' : 'Project files excluded from prompt'}
-                >
-                  <FileCodeIcon size={16} />
-                </PromptInputButton>
-                <PromptInputButton
-                  variant={includeCss ? 'default' : 'ghost'}
-                  onClick={() => setIncludeCss(!includeCss)}
-                  title={includeCss ? 'Style Kit CSS included in prompt' : 'Style Kit CSS excluded'}
-                >
-                  <span className="text-sm font-medium">CSS</span>
-                </PromptInputButton>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                />
-              </>
-            )}
+            {/* Responsive: Dropdown on narrow, buttons on wide */}
+            <MobilePromptActions
+              breakpoint={600}
+              containerWidth={containerWidth}
+              actions={[
+                {
+                  id: 'web-search',
+                  label: 'Web Search',
+                  icon: <GlobeIcon size={18} />,
+                  isActive: webSearch,
+                  onClick: () => setWebSearch(!webSearch),
+                  title: webSearch ? 'Web search enabled' : 'Web search disabled',
+                },
+                {
+                  id: 'attach-image',
+                  label: 'Attach Image',
+                  icon: <ImageIcon size={18} />,
+                  isActive: !!attachedImage,
+                  onClick: () => fileInputRef.current?.click(),
+                  title: 'Attach image (PNG/JPEG, max 5MB)',
+                },
+                {
+                  id: 'project-files',
+                  label: 'Project Files',
+                  icon: <FileCodeIcon size={18} />,
+                  isActive: includeContext,
+                  onClick: () => setIncludeContext(!includeContext),
+                  title: includeContext ? 'Project files included' : 'Project files excluded',
+                },
+                {
+                  id: 'style-kit-css',
+                  label: 'Style Kit CSS',
+                  icon: <span className="text-sm font-medium">CSS</span>,
+                  isActive: includeCss,
+                  onClick: () => setIncludeCss(!includeCss),
+                  title: includeCss ? 'CSS context enabled' : 'CSS context disabled',
+                },
+                // Only show auto-close on actual mobile devices (not just narrow panels)
+                ...(isMobile ? [{
+                  id: 'auto-close-chat',
+                  label: 'Auto-close Chat on Edit',
+                  icon: <span className="text-sm font-medium">⚡</span>,
+                  isActive: autoCloseChat,
+                  onClick: () => setAutoCloseChat(!autoCloseChat),
+                  title: autoCloseChat ? 'Auto-close enabled' : 'Auto-close disabled',
+                }] : []),
+              ]}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+            {/* Debug: Log attached image state */}
+            {console.log('ElementorChat - attachedImage:', attachedImage)}
+            {console.log('ElementorChat - passing to SystemPromptViewer:', attachedImage ? [{ url: attachedImage.preview, filename: attachedImage.file.name }] : undefined)}
             <SystemPromptViewer
               input={input}
               systemPrompt={systemPrompt}
@@ -650,23 +618,29 @@ export function ElementorChat({
               conversationTokens={conversationTokens}
               totalTokens={totalTokens}
               trigger={
-                <PromptInputButton
-                  variant="ghost"
-                  title={`Token Usage: ${totalTokens.toLocaleString()} / ${contextLimit.toLocaleString()} (${((totalTokens / contextLimit) * 100).toFixed(1)}%)`}
-                  className="gap-2"
-                >
-                  <PieChartIcon
-                    percentage={(totalTokens / contextLimit) * 100}
-                    size={16}
-                  />
-                  <span className="text-xs font-mono tabular-nums">
-                    {totalTokens.toLocaleString()}
-                  </span>
-                  <span className="text-xs text-muted-foreground">|</span>
-                  <span className="text-xs font-mono tabular-nums text-muted-foreground">
-                    {((totalTokens / contextLimit) * 100).toFixed(1)}%
-                  </span>
-                </PromptInputButton>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PromptInputButton
+                      variant="ghost"
+                      className="gap-2"
+                    >
+                      <PieChartIcon
+                        percentage={(totalTokens / contextLimit) * 100}
+                        size={16}
+                      />
+                      <span className="text-xs font-mono tabular-nums">
+                        {totalTokens.toLocaleString()}
+                      </span>
+                      <span className="text-xs text-muted-foreground">|</span>
+                      <span className="text-xs font-mono tabular-nums text-muted-foreground">
+                        {((totalTokens / contextLimit) * 100).toFixed(1)}%
+                      </span>
+                    </PromptInputButton>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Token Usage: {totalTokens.toLocaleString()} / {contextLimit.toLocaleString()} ({((totalTokens / contextLimit) * 100).toFixed(1)}%)
+                  </TooltipContent>
+                </Tooltip>
               }
               metadata={{
                 fileStats: {
@@ -690,11 +664,20 @@ export function ElementorChat({
                 php: currentSection?.php,
                 hubl: currentSection?.hubl,
               }}
+              attachedImages={attachedImage ? [{ url: attachedImage.preview, filename: attachedImage.file.name }] : undefined}
+              modelPricing={MODEL_PRICING[selectedModel as keyof typeof MODEL_PRICING]}
             />
             <PromptInputModelSelect onValueChange={onModelChange} value={selectedModel}>
-              <PromptInputModelSelectTrigger>
-                <PromptInputModelSelectValue />
-              </PromptInputModelSelectTrigger>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PromptInputModelSelectTrigger>
+                    <PromptInputModelSelectValue />
+                  </PromptInputModelSelectTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Select AI model
+                </TooltipContent>
+              </Tooltip>
               <PromptInputModelSelectContent>
                 {modelGroups.map((group) => (
                   <div key={group.provider}>
@@ -711,9 +694,22 @@ export function ElementorChat({
               </PromptInputModelSelectContent>
             </PromptInputModelSelect>
           </PromptInputTools>
-          <PromptInputSubmit disabled={isLoading || !input.trim()} status={status}>
-            <SendIcon size={16} />
-          </PromptInputSubmit>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PromptInputSubmit
+                disabled={isLoading || !input.trim()}
+                status={status as any}
+              >
+                <SendIcon size={16} />
+              </PromptInputSubmit>
+            </TooltipTrigger>
+            <TooltipContent>
+              {status === 'streaming' ? 'Stop generation' :
+               isLoading ? 'Sending...' :
+               !input.trim() ? 'Type a message first' :
+               'Send message (Enter)'}
+            </TooltipContent>
+          </Tooltip>
         </PromptInputToolbar>
       </PromptInput>
 

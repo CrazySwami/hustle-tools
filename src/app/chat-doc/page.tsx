@@ -47,14 +47,16 @@ const ChatBotDemo = () => {
     api: '/api/chat-doc', // 🎯 Specialized endpoint for document editing
   });
 
-  // Detect mobile on mount and close editor on mobile
+  // Detect mobile on mount and manage editor visibility
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      // Close editor on mobile (mobile uses full-screen editor with drawer)
+      // Close editor on mobile, open on desktop
       if (mobile) {
         setIsEditorVisible(false);
+      } else {
+        setIsEditorVisible(true); // Always show editor on desktop
       }
     };
     checkMobile();
@@ -366,6 +368,8 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
 
   // Navigation dropdown handler
   const handleNavigationDropdownClick = (tabId: string, item: string) => {
+    console.log('🎯 [DROPDOWN] tabId:', tabId, 'item:', item, 'isMobile:', isMobile, 'isSidebarVisible:', isSidebarVisible);
+
     // Options tab actions
     if (tabId === 'options') {
       if (item === 'Hide Chat' || item === 'Show Chat') {
@@ -377,17 +381,20 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
 
     // Documents tab actions
     if (tabId === 'documents') {
+      console.log('📂 [DOCUMENTS] Handling documents action:', item);
+
       // Handle Open/Close
       if (item === 'Open' || item === 'Close') {
+        console.log('🔄 [DOCUMENTS] Toggle action detected');
+
         if (isMobile) {
+          console.log('📱 [MOBILE] Setting isSidebarVisible to:', item === 'Open');
           // On mobile, control the overlay sidebar directly
           setIsSidebarVisible(item === 'Open');
         } else {
-          // On desktop, programmatically click TiptapEditor's sidebar toggle button
-          const sidebarToggle = document.querySelector('[data-sidebar-toggle]') as HTMLButtonElement;
-          if (sidebarToggle) {
-            sidebarToggle.click();
-          }
+          console.log('🖥️ [DESKTOP] Dispatching toggle-documents-panel event');
+          // On desktop, dispatch custom event that TipTap editor listens for
+          window.dispatchEvent(new CustomEvent('toggle-documents-panel'));
         }
         return;
       }
@@ -561,8 +568,8 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
     <div className="flex flex-col h-screen w-full max-w-full overflow-x-hidden" style={{
       paddingTop: isMobile ? '52px' : '0', // Space for fixed nav on mobile
     }}>
-      {/* Mobile: Fixed navigation bar at top */}
-      {isMobile && (
+        {/* Mobile: Fixed navigation bar at top */}
+        {isMobile && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -578,6 +585,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
             showOnDesktop={false}
             showOnMobile={true}
             hideLogoOnDesktop={true}
+            dimmed={chatDrawerOpen}
           />
         </div>
       )}
@@ -610,10 +618,6 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                       tabs={navigationTabs}
                       onTabChange={handleTabChange}
                       onDropdownItemClick={handleNavigationDropdownClick}
-                      logoMenuItems={['Toggle Theme']}
-                      onLogoMenuItemClick={(item) => {
-                        // Theme toggle is handled automatically by inner-navigation-bar
-                      }}
                       showOnDesktop={true}
                       showOnMobile={true}
                       hideLogoOnDesktop={false}
@@ -707,14 +711,14 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
             {/* Backdrop - only show when sidebar visible */}
             {isSidebarVisible && (
               <div
-                className="fixed inset-0 bg-black/50 z-[9998] transition-opacity duration-200"
+                className="absolute inset-0 bg-black/50 z-[10] transition-opacity duration-200"
                 onClick={() => setIsSidebarVisible(false)}
               />
             )}
 
             {/* Sidebar Panel - 80% width slide-over from left (mobile) */}
             <div
-              className="fixed left-0 top-0 bottom-0 w-[80%] max-w-sm bg-background border-r border-border z-[9999] shadow-2xl transition-transform duration-300 ease-out"
+              className="absolute left-0 top-0 bottom-0 w-[80%] max-w-sm bg-background border-r border-border z-[11] shadow-2xl transition-transform duration-300 ease-out"
               style={{
                 transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
               }}

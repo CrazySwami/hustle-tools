@@ -219,7 +219,7 @@ export function TwoPanelChatLayout({
             bottom: 0,
           }}
         />
-      />
+      </div>
 
       {/* Right Panel - Content (60% default) */}
       <div

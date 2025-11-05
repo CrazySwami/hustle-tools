@@ -37,10 +37,10 @@ export function Navbar({
   const { theme, setTheme } = useTheme();
 
   // Determine which mode to use based on current path
-  // If traditionalOnPaths is specified, use traditional mode UNLESS current path is in the array
+  // If traditionalOnPaths is specified, use traditional mode on those paths
   // Otherwise, use the mode prop (default: floating)
   const useTraditionalMode = traditionalOnPaths.length > 0
-    ? !traditionalOnPaths.includes(pathname)  // Traditional for all EXCEPT listed paths
+    ? traditionalOnPaths.includes(pathname)   // Traditional mode for listed paths
     : mode === 'traditional';                  // Otherwise use mode prop
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);

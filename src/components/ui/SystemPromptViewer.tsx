@@ -38,6 +38,7 @@ export interface SystemPromptViewerProps {
       js?: number;
       php?: number;
       hubl?: number;
+      readme?: number;
       globalCss?: number;
     };
   };
@@ -54,6 +55,7 @@ export interface SystemPromptViewerProps {
     js?: string;
     php?: string;
     hubl?: string;
+    readme?: string;
     documentContent?: string;
   };
   /** Optional: Attached images with URL and filename */
@@ -297,6 +299,9 @@ export function SystemPromptViewer({
                           {metadata.fileStats.hubl !== undefined && metadata.fileStats.hubl > 0 && (
                             <div>HubL: {metadata.fileStats.hubl.toLocaleString()} chars</div>
                           )}
+                          {metadata.fileStats.readme !== undefined && metadata.fileStats.readme > 0 && (
+                            <div>README: {metadata.fileStats.readme.toLocaleString()} chars</div>
+                          )}
                           {metadata.fileStats.globalCss !== undefined && metadata.fileStats.globalCss > 0 && (
                             <div className="col-span-2">
                               Global CSS: {metadata.fileStats.globalCss.toLocaleString()} chars
@@ -376,6 +381,14 @@ export function SystemPromptViewer({
                       <h3 className="font-medium mb-2">HubL File ({fileContents.hubl.length.toLocaleString()} chars):</h3>
                       <pre className="bg-background p-4 rounded-lg text-xs border border-border overflow-auto max-h-60 whitespace-pre-wrap font-mono">
                         {fileContents.hubl}
+                      </pre>
+                    </div>
+                  )}
+                  {fileContents?.readme && (
+                    <div className="mb-4">
+                      <h3 className="font-medium mb-2">README.md ({fileContents.readme.length.toLocaleString()} chars):</h3>
+                      <pre className="bg-background p-4 rounded-lg text-xs border border-border overflow-auto max-h-60 whitespace-pre-wrap font-mono">
+                        {fileContents.readme}
                       </pre>
                     </div>
                   )}

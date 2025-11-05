@@ -469,13 +469,49 @@ The editor is empty. You can write new code directly using the \`editCodeWithMor
       }, { status: 400 });
     }
 
+    // When web search is enabled, filter out tool messages from history
+    // This prevents errors when switching from tool-using models to Perplexity
+    if (webSearch) {
+      console.log('🔧 Filtering tool messages for web search mode');
+      const filteredMessages: any[] = [];
+      for (let i = 0; i < managedMessages.length; i++) {
+        const msg = managedMessages[i];
+
+        // Skip tool-result messages
+        if (msg.role === 'tool') {
+          console.log('⚠️ Skipping tool-result message');
+          continue;
+        }
+
+        // Skip assistant messages that only contain tool-calls
+        if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+          const hasOnlyToolCalls = msg.content.every((part: any) => part.type === 'tool-call');
+          if (hasOnlyToolCalls) {
+            console.log('⚠️ Skipping assistant message with only tool-calls');
+            continue;
+          }
+
+          // If message has both text and tool-calls, keep only the text
+          const hasToolCalls = msg.content.some((part: any) => part.type === 'tool-call');
+          if (hasToolCalls) {
+            console.log('⚠️ Filtering tool-calls from assistant message, keeping text');
+            msg.content = msg.content.filter((part: any) => part.type !== 'tool-call');
+          }
+        }
+
+        filteredMessages.push(msg);
+      }
+      managedMessages = filteredMessages;
+      console.log('✅ Filtered messages for web search:', managedMessages.length, 'messages remaining');
+    }
+
     const result = streamText({
       model: selectedModel,
       messages: managedMessages, // Use managed messages
       system: systemPrompt,
       providerOptions,
-      // Only include tools if enabled
-      ...(enableTools && {
+      // Disable tools when web search is enabled OR when explicitly disabled
+      ...((enableTools && !webSearch) && {
         tools: toolsWithDocumentContent,
         maxSteps: 10, // Allow up to 10 tool calls for complex workflows
         ...(toolChoice && { toolChoice }),

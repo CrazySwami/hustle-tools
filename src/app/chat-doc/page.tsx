@@ -59,6 +59,7 @@ const ChatBotDemo = () => {
 
   const { messages, sendMessage, isLoading, reload, status, error } = useChat({
     api: '/api/chat-doc', // 🎯 Specialized endpoint for document editing
+    experimental_throttle: 50, // Batch UI updates every 50ms for smoother rendering
   });
 
   // Measure chat panel width for responsive NavigationBar
@@ -236,12 +237,12 @@ const ChatBotDemo = () => {
     });
     const latestDocContent = turndownService.turndown(htmlContent);
 
-    // If web search is enabled but not using a Perplexity model, switch to Perplexity Sonar
+    // If web search is enabled, use Perplexity Sonar behind the scenes (UI keeps showing selected model)
     let modelToUse = selectedModel;
-    if (settings?.webSearchEnabled && !selectedModel.startsWith('perplexity/')) {
-      console.log('Switching to Perplexity model for web search');
+    if (settings?.webSearchEnabled) {
+      console.log('Web search enabled - using Perplexity Sonar (UI keeps showing', selectedModel, ')');
       modelToUse = 'perplexity/sonar';
-      setSelectedModel(modelToUse); // Update the UI model selector
+      // Don't update UI selector - keep showing the user's selected model
     }
 
     // Convert image to data URL if present

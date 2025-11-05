@@ -509,8 +509,8 @@ After using a tool, provide a brief explanation of what will happen next.`;
       model: model, // Just pass the model string (gateway is handled automatically)
       system: systemPrompt,
       messages: convertedMessages,
-      tools: toolsConfig,
-      maxSteps: 10, // Allow up to 10 tool calls for complex workflows
+      // Disable tools when web search is enabled
+      ...(!webSearch && { tools: toolsConfig, maxSteps: 10 }),
       onStepStart: ({ stepType, toolCalls }) => {
         // Log when a tool call step starts
         if (stepType === 'tool-call' && toolCalls) {
@@ -687,6 +687,44 @@ After using a tool, provide a brief explanation of what will happen next.`;
     // If prompt uses >90% of context, log warning
     if (validation.warning) {
       console.warn('⚠️ High token usage:', validation.warning);
+    }
+
+    // When web search is enabled, filter out tool messages from history
+    // This prevents errors when switching from tool-using models to Perplexity
+    if (webSearch) {
+      console.log('🔧 Filtering tool messages for web search mode (chat-elementor)');
+      const currentMessages = streamConfig.messages;
+      const filteredMessages: any[] = [];
+
+      for (let i = 0; i < currentMessages.length; i++) {
+        const msg = currentMessages[i];
+
+        // Skip tool-result messages
+        if (msg.role === 'tool') {
+          console.log('⚠️ Skipping tool-result message');
+          continue;
+        }
+
+        // Skip assistant messages that only contain tool-calls
+        if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+          const hasOnlyToolCalls = msg.content.every((part: any) => part.type === 'tool-call');
+          if (hasOnlyToolCalls) {
+            console.log('⚠️ Skipping assistant message with only tool-calls');
+            continue;
+          }
+
+          // If message has both text and tool-calls, keep only the text
+          const hasToolCalls = msg.content.some((part: any) => part.type === 'tool-call');
+          if (hasToolCalls) {
+            console.log('⚠️ Filtering tool-calls from assistant message, keeping text');
+            msg.content = msg.content.filter((part: any) => part.type !== 'tool-call');
+          }
+        }
+
+        filteredMessages.push(msg);
+      }
+      streamConfig.messages = filteredMessages;
+      console.log('✅ Filtered messages for web search (chat-elementor):', filteredMessages.length, 'messages remaining');
     }
 
     const result = streamText(streamConfig);

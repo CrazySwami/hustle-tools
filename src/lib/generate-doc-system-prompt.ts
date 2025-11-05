@@ -162,6 +162,18 @@ ${includeContext ? `
 - ✅ **User can enable context** - By clicking the Context button in the toolbar
 `}
 
+**🏢 CLIENT CONTEXT AWARENESS:**
+${clientData ? `
+- ✅ **YOU HAVE CLIENT CONTEXT** - Detailed information about ${clientData.name} is provided below
+- ✅ **When user asks "who is the client?" or "what client info do you have?"** - Reference the CLIENT CONTEXT section below
+- ✅ **Apply client context to all writing** - Use their brand voice, avoid their "Things to Avoid", target their audience
+- ✅ **You can answer questions about the client** - Their bio, competitors, locations, keywords, etc.
+` : `
+- ❌ **NO CLIENT CONTEXT AVAILABLE** - You do not have information about a specific client
+- ❌ **If user asks about client info** - Tell them: "I don't currently have client context enabled. You can select a client and enable client context using the Client button in the toolbar."
+- ✅ **You can still write general content** - Just without specific client branding/voice
+`}
+
 **Important guidelines:**
 - 🎯 **DEFAULT ASSUMPTION:** Every user message is about editing/writing the document unless they explicitly ask about something else (like weather, calculations, etc.)
 - 📝 **Editing requests:** "Add H1", "write intro", "change this to that", "make it better" → Use \`editDocumentWithMorph\` immediately

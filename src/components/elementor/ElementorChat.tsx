@@ -89,15 +89,6 @@ const modelGroups = [
       { name: 'Gemini 2.5 Flash', value: 'google/gemini-2.5-flash' },
       { name: 'Gemini 2.0 Flash Exp', value: 'google/gemini-2.0-flash-exp' },
     ]
-  },
-  {
-    provider: 'Perplexity',
-    models: [
-      { name: 'Sonar', value: 'perplexity/sonar' },
-      { name: 'Sonar Pro', value: 'perplexity/sonar-pro' },
-      { name: 'Sonar Reasoning', value: 'perplexity/sonar-reasoning' },
-      { name: 'Sonar Reasoning Pro', value: 'perplexity/sonar-reasoning-pro' },
-    ]
   }
 ];
 
@@ -284,13 +275,12 @@ export function ElementorChat({
   const totalTokens = systemTokens + conversationTokens + inputTokens;
 
   return (
-    <div style={{
+    <div className="chat-background" style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
       overflow: 'hidden',
       position: 'relative',
-      background: '#F2F2F2',
     }}>
       <Conversation className="flex-1 scrollbar-hide" style={{ overflow: 'hidden' }}>
         <ConversationContent className="scrollbar-hide px-3" style={{ flex: 1, overflow: 'auto' }}>
@@ -396,6 +386,7 @@ export function ElementorChat({
                                   onSwitchTab={onSwitchTab}
                                   model={selectedModel}
                                   designSystemSummary={designSystemSummary}
+                                  globalCSS={effectiveGlobalCss}
                                   onProjectCreate={onProjectCreate}
                                   onProjectUpdate={onProjectUpdate}
                                 />
@@ -453,6 +444,7 @@ export function ElementorChat({
                                   onSwitchTab={onSwitchTab}
                                   model={selectedModel}
                                   designSystemSummary={designSystemSummary}
+                                  globalCSS={effectiveGlobalCss}
                                   onProjectCreate={onProjectCreate}
                                   onProjectUpdate={onProjectUpdate}
                                 />
@@ -659,6 +651,7 @@ export function ElementorChat({
                   js: currentSection?.js?.length || 0,
                   php: currentSection?.php?.length || 0,
                   hubl: currentSection?.hubl?.length || 0,
+                  readme: currentSection?.projectManifest?.length || 0,
                   globalCss: includeCss ? effectiveGlobalCss?.length || 0 : 0,
                 },
               }}
@@ -673,6 +666,7 @@ export function ElementorChat({
                 js: currentSection?.js,
                 php: currentSection?.php,
                 hubl: currentSection?.hubl,
+                readme: currentSection?.projectManifest,
               }}
               attachedImages={attachedImage ? [{ url: attachedImage.preview, filename: attachedImage.file.name }] : undefined}
               modelPricing={MODEL_PRICING[selectedModel as keyof typeof MODEL_PRICING]}

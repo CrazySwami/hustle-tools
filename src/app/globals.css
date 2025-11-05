@@ -337,3 +337,17 @@
   border-color: #555;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
+
+/* Chat background - light and dark mode */
+.chat-background {
+  background: #F2F2F2;
+}
+
+.dark .chat-background {
+  background: #1E1E1E;
+}
+
+/* TipTap editor text color - white in dark mode */
+.dark .ProseMirror {
+  color: white;
+}

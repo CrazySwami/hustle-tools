@@ -148,6 +148,21 @@ export default function ElementorEditorPage() {
   const [splitViewConfigOpen, setSplitViewConfigOpen] = useState(false);
   const toast = useToast();
 
+  // Monaco editor refs for direct updates during streaming (bypasses React batching)
+  const [editorRefs, setEditorRefs] = useState<{
+    html: any | null;
+    css: any | null;
+    js: any | null;
+    php: any | null;
+    hubl: any | null;
+  }>({
+    html: null,
+    css: null,
+    js: null,
+    php: null,
+    hubl: null,
+  });
+
   // File Groups - reload from localStorage when project changes
   const fileGroups = useFileGroups();
 
@@ -816,11 +831,12 @@ export default function ElementorEditorPage() {
     if (!content.trim() || isLoading) return;
 
     try {
-      // If web search is enabled but not using a Perplexity model, switch to Perplexity Sonar (same as main chat)
+      // If web search is enabled, use Perplexity Sonar behind the scenes (UI keeps showing selected model)
       let modelToUse = selectedModel;
-      if (settings?.webSearchEnabled && !selectedModel.startsWith('perplexity/')) {
-        console.log('Switching to Perplexity model for web search');
+      if (settings?.webSearchEnabled) {
+        console.log('Web search enabled - using Perplexity Sonar (UI keeps showing', selectedModel, ')');
         modelToUse = 'perplexity/sonar';
+        // Don't update UI selector - keep showing the user's selected model
       }
 
       // Use AI SDK's sendMessage with currentSection
@@ -1418,6 +1434,16 @@ export default function ElementorEditorPage() {
               const message = `Edit this element:\n\nSelector: ${elementData.selector}\nClasses: ${elementData.classList.join(', ')}\n\nHTML:\n\`\`\`html\n${elementData.html}\n\`\`\`\n\nContext:\n\`\`\`html\n${elementData.context.substring(0, 500)}${elementData.context.length > 500 ? '...' : ''}\n\`\`\``;
               handleSendMessage(message);
             }}
+            onEditorReady={(refs) => {
+              console.log('📝 Monaco editor refs received:', {
+                html: !!refs.html,
+                css: !!refs.css,
+                js: !!refs.js,
+                php: !!refs.php,
+                hubl: !!refs.hubl,
+              });
+              setEditorRefs(refs);
+            }}
           />
         );
 
@@ -1594,7 +1620,58 @@ export default function ElementorEditorPage() {
                     onProjectUpdate={(projectId, file, content) => {
                       // Update project file with streaming content
                       fileGroups.updateGroupFile(projectId, file, content);
-                      console.log(`📝 Streaming ${file} to project ${projectId} (${content.length} chars)`);
+
+                      console.log(`📝 Streaming ${file} to project ${projectId} (${content.length} chars)`, {
+                        projectId,
+                        activeGroupId: fileGroups.activeGroupId,
+                        isActiveProject: projectId === fileGroups.activeGroupId,
+                      });
+
+                      // ALSO update Monaco editor directly if this is the active project
+                      // This bypasses React batching for smooth real-time streaming
+                      if (projectId === fileGroups.activeGroupId) {
+                        const editorRef = editorRefs[file as keyof typeof editorRefs];
+
+                        console.log(`🔍 Editor ref check:`, {
+                          file,
+                          hasRef: !!editorRef,
+                          allRefs: {
+                            html: !!editorRefs.html,
+                            css: !!editorRefs.css,
+                            js: !!editorRefs.js,
+                            php: !!editorRefs.php,
+                            hubl: !!editorRefs.hubl,
+                          }
+                        });
+
+                        if (editorRef) {
+                          // Use pushEditOperations for better streaming performance (preserves undo stack, no full re-highlight)
+                          const model = editorRef.getModel();
+                          if (model) {
+                            // Replace all content with new streamed content
+                            const fullRange = model.getFullModelRange();
+                            model.pushEditOperations(
+                              [],
+                              [{
+                                range: fullRange,
+                                text: content
+                              }],
+                              () => null
+                            );
+                            console.log(`✨ Direct Monaco update (pushEditOperations): ${file} (${content.length} chars)`);
+                          } else {
+                            // Fallback to setValue if model not available
+                            editorRef.setValue(content);
+                            console.log(`✨ Direct Monaco update (setValue fallback): ${file} (${content.length} chars)`);
+                          }
+                        } else {
+                          // Fallback to Zustand if editor ref not available yet
+                          editorContent.updateContent(file, content);
+                          console.log(`⚠️ Monaco ref not ready, using Zustand: ${file}`);
+                        }
+                      } else {
+                        console.log(`⚠️ SKIPPING Monaco update - project ${projectId} is NOT active (active: ${fileGroups.activeGroupId})`);
+                      }
                     }}
                     currentSection={currentSection}
                     containerWidth={chatPanelWidth}
@@ -2250,7 +2327,58 @@ export default function ElementorEditorPage() {
                     onProjectUpdate={(projectId, file, content) => {
                       // Update project file with streaming content
                       fileGroups.updateGroupFile(projectId, file, content);
-                      console.log(`📝 Streaming ${file} to project ${projectId} (${content.length} chars)`);
+
+                      console.log(`📝 Streaming ${file} to project ${projectId} (${content.length} chars)`, {
+                        projectId,
+                        activeGroupId: fileGroups.activeGroupId,
+                        isActiveProject: projectId === fileGroups.activeGroupId,
+                      });
+
+                      // ALSO update Monaco editor directly if this is the active project
+                      // This bypasses React batching for smooth real-time streaming
+                      if (projectId === fileGroups.activeGroupId) {
+                        const editorRef = editorRefs[file as keyof typeof editorRefs];
+
+                        console.log(`🔍 Editor ref check:`, {
+                          file,
+                          hasRef: !!editorRef,
+                          allRefs: {
+                            html: !!editorRefs.html,
+                            css: !!editorRefs.css,
+                            js: !!editorRefs.js,
+                            php: !!editorRefs.php,
+                            hubl: !!editorRefs.hubl,
+                          }
+                        });
+
+                        if (editorRef) {
+                          // Use pushEditOperations for better streaming performance (preserves undo stack, no full re-highlight)
+                          const model = editorRef.getModel();
+                          if (model) {
+                            // Replace all content with new streamed content
+                            const fullRange = model.getFullModelRange();
+                            model.pushEditOperations(
+                              [],
+                              [{
+                                range: fullRange,
+                                text: content
+                              }],
+                              () => null
+                            );
+                            console.log(`✨ Direct Monaco update (pushEditOperations): ${file} (${content.length} chars)`);
+                          } else {
+                            // Fallback to setValue if model not available
+                            editorRef.setValue(content);
+                            console.log(`✨ Direct Monaco update (setValue fallback): ${file} (${content.length} chars)`);
+                          }
+                        } else {
+                          // Fallback to Zustand if editor ref not available yet
+                          editorContent.updateContent(file, content);
+                          console.log(`⚠️ Monaco ref not ready, using Zustand: ${file}`);
+                        }
+                      } else {
+                        console.log(`⚠️ SKIPPING Monaco update - project ${projectId} is NOT active (active: ${fileGroups.activeGroupId})`);
+                      }
                     }}
                     currentSection={currentSection}
                     containerWidth={chatPanelWidth}
@@ -2286,23 +2414,65 @@ export default function ElementorEditorPage() {
         isOpen={generateDialogOpen}
         onClose={() => setGenerateDialogOpen(false)}
         onGenerate={(code) => {
-          // Update the file group with generated code
-          if (currentSection?.id) {
-            if (code.html) fileGroups.updateGroupFile(currentSection.id, 'html', code.html);
-            if (code.css) fileGroups.updateGroupFile(currentSection.id, 'css', code.css);
-            if (code.js) fileGroups.updateGroupFile(currentSection.id, 'js', code.js);
-            if (code.php) fileGroups.updateGroupFile(currentSection.id, 'php', code.php);
-          }
+          // Legacy callback for after generation completes
           // Set streamed code to trigger display in editor
           setStreamedCode({
             html: code.html || '',
             css: code.css || '',
             js: code.js || '',
           });
-          // Switch to code editor tab
-          setActiveTab('json');
+          // Switch to code editor tab if project already exists
+          if (currentSection?.id) {
+            setActiveTab('json');
+          }
           setGenerateDialogOpen(false);
         }}
+        onProjectCreate={(name, type) => {
+          // Create new project and return its ID
+          const newGroup = fileGroups.createNewGroup(name, type, 'empty');
+          fileGroups.selectGroup(newGroup.id);
+          console.log('📦 Project created via modal:', name, 'Type:', type, 'ID:', newGroup.id);
+          return newGroup.id;
+        }}
+        onProjectUpdate={(projectId, file, content) => {
+          // Update project file with streaming content (same logic as chat tool)
+          fileGroups.updateGroupFile(projectId, file, content);
+
+          // ALSO update Monaco editor directly if this is the active project
+          // This bypasses React batching for smooth real-time streaming
+          if (projectId === fileGroups.activeGroupId) {
+            const editorRef = editorRefs[file as keyof typeof editorRefs];
+
+            console.log(`🔍 Editor ref check (modal):`, {
+              file,
+              hasRef: !!editorRef,
+              projectId,
+              activeGroupId: fileGroups.activeGroupId,
+              isActive: projectId === fileGroups.activeGroupId,
+              allRefs: {
+                html: !!editorRefs.html,
+                css: !!editorRefs.css,
+                js: !!editorRefs.js,
+                php: !!editorRefs.php,
+                hubl: !!editorRefs.hubl,
+              }
+            });
+
+            if (editorRef) {
+              // Direct Monaco update - instant, no batching
+              editorRef.setValue(content);
+              console.log(`✨ Direct Monaco update (modal): ${file} (${content.length} chars)`);
+            } else {
+              // Fallback to Zustand if editor ref not available yet
+              editorContent.updateContent(file, content);
+              console.log(`⚠️ Monaco ref not ready (modal), using Zustand: ${file}`);
+            }
+          }
+
+          console.log(`📝 Streaming ${file} to project ${projectId} (${content.length} chars) [modal]`);
+        }}
+        onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
+        onSwitchTab={(tab) => setActiveTab(tab)}
         defaultModel={selectedModel}
       />
 

@@ -28,7 +28,7 @@ import {
 } from '@/components/ai-elements/source';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
 import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, PanelRightOpen, FileText, FileIcon, EyeIcon, File, ImageIcon, XIcon } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ConversationTokenData } from '@/components/ui/ConversationTokenIndicator';
 import { MODEL_CONTEXT_LIMITS } from '@/lib/token-validator';
@@ -108,7 +108,7 @@ function DocumentContextBadge({
   return (
     <div className="flex justify-center items-center gap-3 mb-4" style={{ background: 'transparent' }}>
       <div
-        className={`group relative inline-flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium tracking-tight shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] overflow-hidden rounded-full cursor-default
+        className={`group relative inline-flex items-center gap-2 px-4 py-2 bg-foreground text-background text-sm font-medium tracking-tight shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] overflow-hidden rounded-full cursor-default
           ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
           ${animationStage === 1 ? "opacity-100 translate-y-4" : ""}
           ${animationStage >= 2 ? "opacity-100 translate-y-0" : ""}
@@ -189,15 +189,6 @@ const modelGroups = [
       { name: 'Gemini 2.5 Flash', value: 'google/gemini-2.5-flash' },
       { name: 'Gemini 2.0 Flash Exp', value: 'google/gemini-2.0-flash-exp' },
     ]
-  },
-  {
-    provider: 'Perplexity',
-    models: [
-      { name: 'Sonar', value: 'perplexity/sonar' },
-      { name: 'Sonar Pro', value: 'perplexity/sonar-pro' },
-      { name: 'Sonar Reasoning', value: 'perplexity/sonar-reasoning' },
-      { name: 'Sonar Reasoning Pro', value: 'perplexity/sonar-reasoning-pro' },
-    ]
   }
 ];
 
@@ -272,29 +263,42 @@ export function DocumentChat({
   // Get context limit for selected model
   const contextLimit = MODEL_CONTEXT_LIMITS[selectedModel] || 128000;
 
-  // Convert HTML to markdown for system prompt
-  const turndownService = new TurndownService({
+  // Memoize TurndownService instance (expensive to create)
+  const turndownService = useMemo(() => new TurndownService({
     headingStyle: 'atx',
     codeBlockStyle: 'fenced',
-  });
-  const markdownContent = documentContent ? turndownService.turndown(documentContent) : '';
+  }), []);
+
+  // Memoize markdown conversion (expensive operation)
+  const markdownContent = useMemo(() =>
+    documentContent ? turndownService.turndown(documentContent) : '',
+    [documentContent, turndownService]
+  );
 
   // Calculate document character count (from HTML content)
   const documentCharacterCount = documentContent ? documentContent.length : 0;
 
-  // Generate actual system prompt (same as API uses) for accurate token counting
-  // This recalculates whenever includeContext changes
-  const actualSystemPrompt = generateDocSystemPrompt({
+  // Memoize system prompt generation
+  const actualSystemPrompt = useMemo(() => generateDocSystemPrompt({
     includeContext,
     documentContent: markdownContent,
     documentTitle: currentDocument?.title || '',
     projectName: currentProject?.name || '',
-  });
+    clientData: clientContextEnabled && selectedClient ? selectedClient : null,
+  }), [includeContext, markdownContent, currentDocument?.title, currentProject?.name, clientContextEnabled, selectedClient]);
 
-  // Calculate stats for system prompt viewer (uses proper tiktoken encoding to match prompt counter)
-  const encoding = encodingForModel('gpt-4o'); // cl100k_base encoding
-  const systemTokensForModal = encoding.encode(actualSystemPrompt).length;
-  const inputTokensForModal = input ? encoding.encode(input).length : 0;
+  // Memoize tiktoken encoding instance (expensive to create)
+  const encoding = useMemo(() => encodingForModel('gpt-4o'), []);
+
+  // Memoize token calculations (expensive encoding operations)
+  const systemTokensForModal = useMemo(() =>
+    encoding.encode(actualSystemPrompt).length,
+    [encoding, actualSystemPrompt]
+  );
+  const inputTokensForModal = useMemo(() =>
+    input ? encoding.encode(input).length : 0,
+    [encoding, input]
+  );
 
   // Get conversation tokens from the PromptTokenCounter state
   // (this will be extracted in the useEffect below)
@@ -405,13 +409,12 @@ export function DocumentChat({
   };
 
   return (
-    <div style={{
+    <div className="chat-background" style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
       overflow: 'hidden',
       position: 'relative',
-      background: '#F2F2F2',
     }}>
       <Conversation className="flex-1 scrollbar-hide" style={{ overflow: 'hidden' }}>
         <ConversationContent className="scrollbar-hide px-3" style={{ flex: 1, overflow: 'auto' }}>

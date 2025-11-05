@@ -556,17 +556,50 @@ After using a tool, provide a brief text response explaining what you did.`;
       console.warn('⚠️ High token usage:', validation.warning);
     }
 
+    // When web search is enabled, filter out tool messages from history
+    // This prevents errors when switching from tool-using models to Perplexity
+    if (webSearch) {
+      console.log('🔧 Filtering tool messages for web search mode (chat-doc)');
+      const filteredMessages: any[] = [];
+      for (let i = 0; i < managedMessages.length; i++) {
+        const msg = managedMessages[i];
+
+        // Skip tool-result messages
+        if (msg.role === 'tool') {
+          console.log('⚠️ Skipping tool-result message');
+          continue;
+        }
+
+        // Skip assistant messages that only contain tool-calls
+        if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+          const hasOnlyToolCalls = msg.content.every((part: any) => part.type === 'tool-call');
+          if (hasOnlyToolCalls) {
+            console.log('⚠️ Skipping assistant message with only tool-calls');
+            continue;
+          }
+
+          // If message has both text and tool-calls, keep only the text
+          const hasToolCalls = msg.content.some((part: any) => part.type === 'tool-call');
+          if (hasToolCalls) {
+            console.log('⚠️ Filtering tool-calls from assistant message, keeping text');
+            msg.content = msg.content.filter((part: any) => part.type !== 'tool-call');
+          }
+        }
+
+        filteredMessages.push(msg);
+      }
+      managedMessages = filteredMessages;
+      console.log('✅ Filtered messages for web search (chat-doc):', managedMessages.length, 'messages remaining');
+    }
+
     const streamConfig: any = {
       model: gateway(model, {
         apiKey: process.env.AI_GATEWAY_API_KEY!,
       }),
       system: systemPrompt,
       messages: managedMessages, // Use managed messages (may be truncated/summarized)
-      // Perplexity models don't support tools, so only include tools for non-Perplexity models
-      ...(model.startsWith('perplexity/') && webSearch
-        ? { } // No tools for Perplexity web search
-        : { tools: toolsConfig, maxSteps: 10 } // Tools + maxSteps for other models
-      ),
+      // Disable tools when web search is enabled
+      ...(!webSearch && { tools: toolsConfig, maxSteps: 10 }),
       ...(options ? options : {}), // Add search: true for Perplexity if needed
       onStepStart: ({ stepType, toolCalls }) => {
         // Log when a tool call step starts

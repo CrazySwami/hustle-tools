@@ -62,10 +62,13 @@ export function ProjectContextBadge({
       console.log('🏷️ ProjectContextBadge received section:', {
         name: currentSection.name,
         type: currentSection.type,
+        isPlugin: currentSection.isPlugin,
         hasHtml: !!currentSection.html,
         hasCss: !!currentSection.css,
         hasJs: !!currentSection.js,
         hasPhp: !!currentSection.php,
+        hasPluginMainFile: !!currentSection.pluginMainFile,
+        hasWidgetFiles: !!currentSection.widgetFiles,
         hasHubl: !!currentSection.hubl,
         hublLength: currentSection.hubl?.length || 0
       });
@@ -73,11 +76,12 @@ export function ProjectContextBadge({
   }, [currentSection]);
 
   if (projectType === 'php') {
-    // PHP widgets show: HTML, CSS, JS, PHP
+    // PHP widgets/plugins show: HTML, CSS, JS, PHP
     if (currentSection.html) tags.push("HTML")
     if (currentSection.css) tags.push("CSS")
     if (currentSection.js) tags.push("JS")
-    if (currentSection.php) tags.push("PHP")
+    // For plugins, check pluginMainFile; for regular PHP widgets, check php
+    if (currentSection.isPlugin ? currentSection.pluginMainFile : currentSection.php) tags.push("PHP")
   } else if (projectType === 'hubspot') {
     // HubSpot modules show: HTML, CSS, JS, HubL
     if (currentSection.html) tags.push("HTML")

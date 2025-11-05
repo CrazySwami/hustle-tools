@@ -27,7 +27,10 @@ import { WidgetValidationModal } from "./WidgetValidationModal";
 import { GenerateProjectModal } from "./GenerateProjectModal";
 import { ElementInspectorModal } from "./ElementInspectorModal";
 import { HublPreviewPanel } from "./HublPreviewPanel";
-import { AiFillHtml5 } from 'react-icons/ai';
+import { AddWidgetDialog } from "./AddWidgetDialog";
+import { PluginNamingDialog } from "./PluginNamingDialog";
+import { PluginDownloadModal } from "./PluginDownloadModal";
+import { AiFillHtml5, AiOutlinePlus, AiOutlineDownload } from 'react-icons/ai';
 import { DiCss3, DiJavascript1, DiPhp } from 'react-icons/di';
 import { SiHubspot } from 'react-icons/si';
 
@@ -102,6 +105,7 @@ export function HtmlSectionEditor({
   const [internalActiveCodeTab, setInternalActiveCodeTab] = useState<
     "html" | "css" | "js" | "php" | "hubl"
   >("html");
+  const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null); // Track which widget file is being edited
   const [showPreview, setShowPreview] = useState(false);
   const [showHublPreview, setShowHublPreview] = useState(false); // HubL interactive preview mode
   const [showSettings, setShowSettings] = useState(false);
@@ -143,13 +147,41 @@ export function HtmlSectionEditor({
   const [isSaving, setIsSaving] = useState(false);
   const lastSavedContentRef = useRef<{ html: string; css: string; js: string; php: string; hubl: string } | null>(null);
 
+  // Plugin dialogs state (NEW)
+  const [showAddWidgetDialog, setShowAddWidgetDialog] = useState(false);
+  const [showPluginNamingDialog, setShowPluginNamingDialog] = useState(false);
+  const [showPluginDownloadModal, setShowPluginDownloadModal] = useState(false);
+  const [pendingWidgetCode, setPendingWidgetCode] = useState<string | null>(null); // Store widget code until plugin is named
+
   const menuRef = useRef<HTMLDivElement>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
+  const monacoEditorRef = useRef<any>(null); // Store Monaco editor instance
   const { globalCss, cssVariables } = useGlobalStylesheet();
   const { theme } = useTheme();
 
   // Global editor content state (for chat access)
   const { updateContent, setAllContent, html: editorHtml, css: editorCss, js: editorJs, php: editorPhp, hubl: editorHubl } = useEditorContent();
+
+  // Use external activeCodeTab if provided, otherwise use internal
+  // IMPORTANT: This must be computed BEFORE any useEffect that uses it
+  const activeCodeTab = externalActiveCodeTab ?? internalActiveCodeTab;
+
+  // Force Monaco Editor to update when Zustand state changes
+  // This fixes the issue where Monaco doesn't auto-update from value prop changes
+  useEffect(() => {
+    if (monacoEditorRef.current && activeCodeTab === 'php') {
+      const currentValue = monacoEditorRef.current.getValue();
+      // Only update if the values are different to avoid cursor jumps
+      if (currentValue !== editorPhp) {
+        console.log('🔄 Force updating Monaco editor content:', {
+          from: currentValue?.substring(0, 100),
+          to: editorPhp?.substring(0, 100),
+          activeWidgetId
+        });
+        monacoEditorRef.current.setValue(editorPhp || '');
+      }
+    }
+  }, [editorPhp, activeCodeTab, activeWidgetId]);
 
   // Deploy widget to WordPress Playground
   const handleDeployWidget = async () => {
@@ -885,14 +917,55 @@ export function HtmlSectionEditor({
     };
   }, [showPreview]);
 
-  // Use external activeCodeTab if provided, otherwise use internal
-  const activeCodeTab = externalActiveCodeTab ?? internalActiveCodeTab;
+  const handleCodeTabChange = (tab: "html" | "css" | "js" | "php" | "hubl" | string) => {
+    console.log('🔄 Tab change requested:', tab);
 
-  const handleCodeTabChange = (tab: "html" | "css" | "js" | "php" | "hubl") => {
-    if (onCodeTabChange) {
-      onCodeTabChange(tab);
+    // Check if this is a widget file tab (format: "widget-{widgetId}")
+    if (typeof tab === 'string' && tab.startsWith('widget-')) {
+      const widgetId = tab.replace('widget-', '');
+      console.log('📦 Widget tab clicked:', { widgetId, activeGroup: fileGroups.activeGroup?.name });
+
+      setActiveWidgetId(widgetId);
+      setInternalActiveCodeTab('php'); // Widget files are PHP
+
+      // Load widget content into editor
+      if (fileGroups.activeGroup?.widgetFiles?.[widgetId]) {
+        const widget = fileGroups.activeGroup.widgetFiles[widgetId];
+        const widgetContent = widget.content;
+        console.log('📝 Loading widget content:', {
+          widgetName: widget.name,
+          contentLength: widgetContent?.length || 0,
+          contentPreview: widgetContent?.substring(0, 100)
+        });
+        updateContent('php', widgetContent);
+        console.log('✅ updateContent called for widget');
+      } else {
+        console.error('❌ Widget not found in activeGroup.widgetFiles:', {
+          widgetId,
+          availableWidgets: Object.keys(fileGroups.activeGroup?.widgetFiles || {})
+        });
+      }
     } else {
-      setInternalActiveCodeTab(tab);
+      // Regular file tab
+      console.log('📄 Regular file tab clicked:', tab);
+      setActiveWidgetId(null); // Clear widget selection
+
+      if (tab === 'php' && fileGroups.activeGroup?.isPlugin) {
+        // Load main plugin file
+        const mainFileContent = fileGroups.activeGroup.pluginMainFile || '';
+        console.log('📝 Loading main plugin file:', {
+          contentLength: mainFileContent.length,
+          contentPreview: mainFileContent.substring(0, 100)
+        });
+        updateContent('php', mainFileContent);
+        console.log('✅ updateContent called for main plugin file');
+      }
+
+      if (onCodeTabChange) {
+        onCodeTabChange(tab as "html" | "css" | "js" | "php" | "hubl");
+      } else {
+        setInternalActiveCodeTab(tab as "html" | "css" | "js" | "php" | "hubl");
+      }
     }
     // Mobile uses horizontal pills, so no need to close file tree
   };
@@ -957,7 +1030,14 @@ export function HtmlSectionEditor({
 
   // Sync section content to global state ONLY when section ID changes (loading from library)
   // DO NOT sync on content changes - that would overwrite Morph/tool edits!
+  // SKIP FOR PLUGINS: Plugins load content from pluginMainFile via the fileGroups useEffect below
   useEffect(() => {
+    // Skip for plugins - they load content from pluginMainFile, not section.php
+    if (fileGroups.activeGroup?.isPlugin) {
+      console.log('⏭️ Skipping section sync for plugin project');
+      return;
+    }
+
     setAllContent({
       html: section.html || '',
       css: section.css || '',
@@ -965,7 +1045,7 @@ export function HtmlSectionEditor({
       php: section.php || '',
       hubl: section.hubl || ''
     });
-  }, [section.id, setAllContent]);
+  }, [section.id, setAllContent, fileGroups.activeGroup?.isPlugin]);
 
 
   // Update section when streamed content changes
@@ -1006,11 +1086,28 @@ export function HtmlSectionEditor({
     if (fileGroups.activeGroup) {
       // Load active group content into editor
       console.log('📂 Loading active group:', fileGroups.activeGroup.name);
+
+      // For plugins, load the plugin main file into PHP editor
+      const phpContent = fileGroups.activeGroup.isPlugin
+        ? (fileGroups.activeGroup.pluginMainFile || '')
+        : (fileGroups.activeGroup.php || '');
+
+      console.log('📄 Loading content for group:', {
+        name: fileGroups.activeGroup.name,
+        isPlugin: fileGroups.activeGroup.isPlugin,
+        hasPluginMainFile: !!fileGroups.activeGroup.pluginMainFile,
+        pluginMainFileLength: fileGroups.activeGroup.pluginMainFile?.length || 0,
+        hasPhp: !!fileGroups.activeGroup.php,
+        phpLength: fileGroups.activeGroup.php?.length || 0,
+        phpContentLength: phpContent.length,
+        phpContentPreview: phpContent.substring(0, 100)
+      });
+
       setAllContent({
         html: fileGroups.activeGroup.html,
         css: fileGroups.activeGroup.css,
         js: fileGroups.activeGroup.js,
-        php: fileGroups.activeGroup.php || '',
+        php: phpContent,
         hubl: fileGroups.activeGroup.hubl || '',
       });
 
@@ -1022,7 +1119,7 @@ export function HtmlSectionEditor({
         html: fileGroups.activeGroup!.html,
         css: fileGroups.activeGroup!.css,
         js: fileGroups.activeGroup!.js,
-        php: fileGroups.activeGroup!.php,
+        php: phpContent, // Use calculated phpContent (includes pluginMainFile for plugins)
         hubl: fileGroups.activeGroup!.hubl,
         id: fileGroups.activeGroup!.id,
         updatedAt: Date.now(),
@@ -1062,8 +1159,10 @@ export function HtmlSectionEditor({
       }
 
       // Switch to appropriate tab based on group type
-      if (fileGroups.activeGroup.type === 'php' && fileGroups.activeGroup.php) {
+      if (fileGroups.activeGroup.type === 'php' && (fileGroups.activeGroup.php || fileGroups.activeGroup.pluginMainFile)) {
         handleCodeTabChange('php');
+      } else if (fileGroups.activeGroup.type === 'hubspot' && fileGroups.activeGroup.hubl) {
+        handleCodeTabChange('hubl');
       } else {
         handleCodeTabChange('html');
       }
@@ -1081,19 +1180,31 @@ export function HtmlSectionEditor({
 
     const timeoutId = setTimeout(() => {
       console.log('💾 Auto-saving active group:', fileGroups.activeGroup.name);
-      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'html', editorHtml);
-      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'css', editorCss);
-      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'js', editorJs);
-      if (editorPhp) {
-        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'php', editorPhp);
-      }
-      if (editorHubl) {
-        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'hubl', editorHubl);
+
+      // If editing a widget file, save to that widget
+      if (activeWidgetId && editorPhp) {
+        console.log(`💾 Saving widget file: ${activeWidgetId}`);
+        fileGroups.updateWidgetInPlugin(
+          fileGroups.activeGroup.id,
+          activeWidgetId,
+          editorPhp
+        );
+      } else {
+        // Regular file save
+        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'html', editorHtml);
+        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'css', editorCss);
+        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'js', editorJs);
+        if (editorPhp) {
+          fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'php', editorPhp);
+        }
+        if (editorHubl) {
+          fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'hubl', editorHubl);
+        }
       }
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [editorHtml, editorCss, editorJs, editorPhp, editorHubl, fileGroups.activeGroup?.id]);
+  }, [editorHtml, editorCss, editorJs, editorPhp, editorHubl, fileGroups.activeGroup?.id, activeWidgetId]);
 
   // Track unsaved changes for PHP widget projects
   useEffect(() => {
@@ -2243,8 +2354,11 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   gap: "6px"
                 }}>
                   {(() => {
+                    const isPlugin = fileGroups.activeGroup?.isPlugin;
                     const isPhpWidget = fileGroups.activeGroup?.type === 'php';
                     const isHubSpotModule = fileGroups.activeGroup?.type === 'hubspot';
+                    const pluginSlug = fileGroups.activeGroup?.pluginSlug || 'plugin';
+
                     if (activeCodeTab === 'html') return (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <AiFillHtml5 size={16} color="#E34F26" />
@@ -2265,8 +2379,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     );
                     if (activeCodeTab === 'php') return (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <DiPhp size={18} color="#777BB4" />
-                        widget.php
+                        <DiPhp size={18} color={isPlugin ? "#9B59B6" : "#777BB4"} />
+                        {isPlugin ? `${pluginSlug}.php` : 'widget.php'}
                       </span>
                     );
                     if (activeCodeTab === 'hubl') return (
@@ -2334,6 +2448,73 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                       {isSaving ? "Saving..." : hasUnsavedChanges ? "Unsaved" : "Saved"}
                     </span>
                   </button>
+                )}
+
+                {/* WordPress Plugin Actions - Only for plugin projects */}
+                {fileGroups.activeGroup?.isPlugin && (
+                  <>
+                    {/* Add Widget Button */}
+                    <button
+                      onClick={() => setShowAddWidgetDialog(true)}
+                      title="Add new widget to this plugin"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "4px 10px",
+                        background: "rgba(139, 92, 246, 0.15)",
+                        border: "1px solid rgba(139, 92, 246, 0.3)",
+                        borderRadius: "4px",
+                        color: "#a78bfa",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(139, 92, 246, 0.25)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(139, 92, 246, 0.15)";
+                      }}
+                    >
+                      <AiOutlinePlus size={14} />
+                      <span style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Add Widget
+                      </span>
+                    </button>
+
+                    {/* Download Plugin Button */}
+                    <button
+                      onClick={() => setShowPluginDownloadModal(true)}
+                      title="Download plugin files"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "4px 10px",
+                        background: "rgba(34, 197, 94, 0.15)",
+                        border: "1px solid rgba(34, 197, 94, 0.3)",
+                        borderRadius: "4px",
+                        color: "#4ade80",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(34, 197, 94, 0.25)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(34, 197, 94, 0.15)";
+                      }}
+                    >
+                      <AiOutlineDownload size={14} />
+                      <span style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Download
+                      </span>
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -2409,33 +2590,85 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   {/* File List */}
                   <div style={{ flex: 1, overflow: "auto" }}>
                     {(() => {
-                      const projectType = fileGroups.activeGroup?.type;
-                      const files = projectType === 'php' ? [
-                        { tab: 'php', icon: <DiPhp size={18} color="#777BB4" />, name: 'widget.php', lang: 'PHP' },
-                        { tab: 'css', icon: <DiCss3 size={18} color="#1572B6" />, name: 'widget.css', lang: 'CSS' },
-                        { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'widget.js', lang: 'JavaScript' }
-                      ] : projectType === 'hubspot' ? [
-                        { tab: 'html', icon: <AiFillHtml5 size={16} color="#E34F26" />, name: 'index.html', lang: 'HTML' },
-                        { tab: 'hubl', icon: <SiHubspot size={16} color="#FF7A59" />, name: 'template.hubl', lang: 'HubL' }
-                      ] : [
+                      const activeGroup = fileGroups.activeGroup;
+                      const isPlugin = activeGroup?.isPlugin;
+                      const projectType = activeGroup?.type;
+
+                      // For WordPress Plugins, show plugin main file + all widget files
+                      if (isPlugin) {
+                        const pluginSlug = activeGroup.pluginSlug || 'plugin';
+                        const files = [
+                          {
+                            tab: 'php',
+                            icon: <DiPhp size={18} color="#9B59B6" />,
+                            name: `${pluginSlug}.php`,
+                            lang: 'PHP',
+                            isMainFile: true
+                          }
+                        ];
+
+                        // Add all widget files
+                        if (activeGroup.widgetFiles) {
+                          Object.entries(activeGroup.widgetFiles).forEach(([widgetId, widget]) => {
+                            files.push({
+                              tab: `widget-${widgetId}`,
+                              icon: <DiPhp size={18} color="#777BB4" />,
+                              name: `${widget.slug}.php`,
+                              lang: 'PHP',
+                              isMainFile: false,
+                              widgetId,
+                              widgetName: widget.name
+                            });
+                          });
+                        }
+
+                        return files;
+                      }
+
+                      // For regular PHP widgets
+                      if (projectType === 'php') {
+                        return [
+                          { tab: 'php', icon: <DiPhp size={18} color="#777BB4" />, name: 'widget.php', lang: 'PHP' },
+                          { tab: 'css', icon: <DiCss3 size={18} color="#1572B6" />, name: 'widget.css', lang: 'CSS' },
+                          { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'widget.js', lang: 'JavaScript' }
+                        ];
+                      }
+
+                      // For HubSpot templates
+                      if (projectType === 'hubspot') {
+                        return [
+                          { tab: 'html', icon: <AiFillHtml5 size={16} color="#E34F26" />, name: 'index.html', lang: 'HTML' },
+                          { tab: 'hubl', icon: <SiHubspot size={16} color="#FF7A59" />, name: 'template.hubl', lang: 'HubL' }
+                        ];
+                      }
+
+                      // Default HTML projects
+                      return [
                         { tab: 'html', icon: <AiFillHtml5 size={16} color="#E34F26" />, name: 'index.html', lang: 'HTML' },
                         { tab: 'css', icon: <DiCss3 size={18} color="#1572B6" />, name: 'styles.css', lang: 'CSS' },
                         { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'script.js', lang: 'JavaScript' }
                       ];
-                      return files;
-                    })().map((file) => (
+                    })().map((file) => {
+                      // Check if this tab is active
+                      // For widget files, check if activeWidgetId matches
+                      // For regular files, check if activeCodeTab matches
+                      const isActive = file.tab.startsWith('widget-')
+                        ? (activeWidgetId === file.tab.replace('widget-', '') && activeCodeTab === 'php')
+                        : (activeCodeTab === file.tab);
+
+                      return (
                       <button
                         key={file.tab}
-                        onClick={() => handleCodeTabChange(file.tab as 'html' | 'css' | 'js' | 'php' | 'hubl')}
+                        onClick={() => handleCodeTabChange(file.tab)}
                         style={{
                           width: "100%",
                           padding: "8px 12px",
-                          background: activeCodeTab === file.tab ? "#2d2d2d" : "transparent",
+                          background: isActive ? "#2d2d2d" : "transparent",
                           border: "none",
-                          borderLeft: activeCodeTab === file.tab ? "2px solid #007acc" : "2px solid transparent",
-                          color: activeCodeTab === file.tab ? "#ffffff" : "#cccccc",
+                          borderLeft: isActive ? "2px solid #007acc" : "2px solid transparent",
+                          color: isActive ? "#ffffff" : "#cccccc",
                           fontSize: "13px",
-                          fontWeight: activeCodeTab === file.tab ? 500 : 400,
+                          fontWeight: isActive ? 500 : 400,
                           cursor: "pointer",
                           display: "flex",
                           alignItems: "center",
@@ -2444,12 +2677,12 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                           transition: "all 0.15s ease",
                         }}
                         onMouseEnter={(e) => {
-                          if (activeCodeTab !== file.tab) {
+                          if (!isActive) {
                             e.currentTarget.style.background = "#2a2d2e";
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (activeCodeTab !== file.tab) {
+                          if (!isActive) {
                             e.currentTarget.style.background = "transparent";
                           }
                         }}
@@ -2457,7 +2690,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                         <span style={{ display: "flex", alignItems: "center" }}>{file.icon}</span>
                         <span style={{ flex: 1 }}>{file.name}</span>
                       </button>
-                    ))}
+                      );
+                    })}
 
                     {/* Preview Buttons - After file list (Desktop & Mobile) */}
                     <div style={{
@@ -2622,6 +2856,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   />
                 ) : (
                   <Editor
+                key={`${activeCodeTab}-${activeWidgetId || 'main'}`} // Force remount when switching files
                 height="100%"
                 language={
                   activeCodeTab === "js"
@@ -2657,6 +2892,9 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   }
                 }}
                 onMount={(editor, monaco) => {
+                  // Store editor instance for programmatic updates
+                  monacoEditorRef.current = editor;
+
                   // Register CSS variable autocomplete (only for CSS tab)
                   if (activeCodeTab === "css") {
                     monaco.languages.registerCompletionItemProvider("css", {
@@ -3400,7 +3638,20 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
         <NewGroupDialog
           onClose={() => setShowNewGroupDialog(false)}
           onCreate={(name, type, template) => {
-            const newGroup = fileGroups.createNewGroup(name, type, template);
+            let newGroup;
+
+            if (type === 'plugin') {
+              // For plugin type, create a WordPress plugin instead of regular group
+              // Extract description from template parameter (we'll pass it specially)
+              const description = template !== 'empty' ? template : undefined;
+              newGroup = fileGroups.createNewPlugin(name, description);
+              console.log('🔌 Created WordPress Plugin:', name);
+            } else {
+              // For other types, use regular createNewGroup
+              newGroup = fileGroups.createNewGroup(name, type as 'html' | 'php' | 'hubspot', template);
+              console.log('📦 Created Project:', name, 'Type:', type);
+            }
+
             fileGroups.selectGroup(newGroup.id);
             setShowNewGroupDialog(false);
           }}
@@ -3624,6 +3875,127 @@ ${elementData.context}`;
           // Send to chat
           onSendChatMessage?.(message);
         }}
+      />
+
+      {/* Plugin Management Dialogs (NEW) */}
+      <AddWidgetDialog
+        open={showAddWidgetDialog}
+        onOpenChange={setShowAddWidgetDialog}
+        onSubmit={(widgetName, shouldGenerate) => {
+          console.log('🔧 Adding widget to plugin:', widgetName, 'Generate:', shouldGenerate);
+
+          if (!fileGroups.activeGroup?.id) {
+            alert('No active plugin found');
+            return;
+          }
+
+          // Close the dialog
+          setShowAddWidgetDialog(false);
+
+          if (shouldGenerate) {
+            // Open the Generate Widget modal to create the widget code with AI
+            setGenerateModalConversionMode(true);
+            setShowGenerateModal(true);
+
+            // Store the widget name for later use when widget is generated
+            (window as any).__pendingWidgetName = widgetName;
+            (window as any).__pendingPluginId = fileGroups.activeGroup.id;
+          } else {
+            // Create blank widget immediately
+            const className = widgetName.replace(/[^a-zA-Z0-9]+/g, '_');
+            const widgetSlug = widgetName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+            const blankWidgetCode = `<?php
+/**
+ * ${widgetName} Widget
+ */
+
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
+
+class ${className} extends \\Elementor\\Widget_Base {
+
+    public function get_name() {
+        return '${widgetSlug}';
+    }
+
+    public function get_title() {
+        return esc_html__('${widgetName}', 'text-domain');
+    }
+
+    public function get_icon() {
+        return 'eicon-code';
+    }
+
+    public function get_categories() {
+        return ['general'];
+    }
+
+    protected function register_controls() {
+        // Start controls section
+        $this->start_controls_section(
+            'content_section',
+            [
+                'label' => esc_html__('Content', 'text-domain'),
+                'tab' => \\Elementor\\Controls_Manager::TAB_CONTENT,
+            ]
+        );
+
+        // Add your controls here
+
+        $this->end_controls_section();
+    }
+
+    protected function render() {
+        $settings = $this->get_settings_for_display();
+        ?>
+        <div class="<?php echo esc_attr($this->get_name()); ?>">
+            <!-- Add your widget HTML here -->
+            <p><?php echo esc_html__('${widgetName}', 'text-domain'); ?></p>
+        </div>
+        <?php
+    }
+}`;
+
+            // Add blank widget to plugin
+            fileGroups.addWidgetToPlugin(
+              fileGroups.activeGroup.id,
+              widgetName,
+              blankWidgetCode
+            );
+
+            console.log('✅ Created blank widget:', widgetName);
+          }
+        }}
+        pluginName={fileGroups.activeGroup?.isPlugin ? fileGroups.activeGroup.pluginName : undefined}
+      />
+
+      <PluginNamingDialog
+        open={showPluginNamingDialog}
+        onOpenChange={setShowPluginNamingDialog}
+        onSubmit={(pluginName, description) => {
+          // Create new plugin and add pending widget if exists
+          const plugin = fileGroups.createNewPlugin(pluginName, description);
+
+          // If there's pending widget code, add it to the new plugin
+          if (pendingWidgetCode) {
+            const widgetName = prompt('Enter widget name:') || 'My Widget';
+            fileGroups.addWidgetToPlugin(plugin.id, widgetName, pendingWidgetCode);
+            setPendingWidgetCode(null);
+          }
+
+          // Select the new plugin
+          fileGroups.selectGroup(plugin.id);
+          console.log('✅ Created plugin:', pluginName);
+        }}
+        defaultName={fileGroups.activeGroup?.name || 'My Custom Widgets'}
+      />
+
+      <PluginDownloadModal
+        open={showPluginDownloadModal}
+        onOpenChange={setShowPluginDownloadModal}
+        plugin={fileGroups.activeGroup?.isPlugin ? fileGroups.activeGroup : null}
       />
     </div>
   );

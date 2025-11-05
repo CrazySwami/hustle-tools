@@ -95,9 +95,15 @@ export const useEditorContent = create<EditorState>((set, get) => ({
    * @param content - New content
    */
   updateContent: (file, content) => {
+    console.log('🔧 Zustand updateContent called:', {
+      file,
+      contentLength: content?.length || 0,
+      contentPreview: content?.substring(0, 100)
+    });
     set((state) => ({
       [file]: content
     }));
+    console.log('✅ Zustand state updated for:', file);
   },
 
   /**
@@ -105,6 +111,14 @@ export const useEditorContent = create<EditorState>((set, get) => ({
    * @param content - Complete editor content
    */
   setAllContent: (content) => {
+    console.log('📝 setAllContent called:', {
+      htmlLength: content.html?.length || 0,
+      cssLength: content.css?.length || 0,
+      jsLength: content.js?.length || 0,
+      phpLength: content.php?.length || 0,
+      hublLength: content.hubl?.length || 0,
+      phpPreview: content.php?.substring(0, 100) || 'NO PHP CONTENT'
+    });
     set({
       html: content.html,
       css: content.css,

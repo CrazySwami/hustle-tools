@@ -158,19 +158,10 @@ export default function ElementorEditorPage() {
     : null;
 
   // Derive currentSection from currentProject (single source of truth)
-  // Compute directly without memoization to ensure updates propagate immediately
+  // Pass full currentProject object to preserve ALL metadata (isPlugin, widgetFiles, etc.)
+  // CRITICAL: Don't cast to Section type - it strips away plugin metadata!
   // MUST be defined BEFORE useEffect that references it
-  const currentSection: Section | null = currentProject ? {
-    id: currentProject.id,
-    name: currentProject.name,
-    type: currentProject.type,
-    html: currentProject.html || '',
-    css: currentProject.css || '',
-    js: currentProject.js || '',
-    php: currentProject.php || '',
-    createdAt: currentProject.createdAt,
-    updatedAt: currentProject.updatedAt,
-  } : null;
+  const currentSection = currentProject;
 
   const refreshRef = useRef(fileGroups.refresh);
   refreshRef.current = fileGroups.refresh;

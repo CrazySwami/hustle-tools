@@ -3,11 +3,26 @@
  * This is shared between the API route and frontend to ensure accurate token counting
  */
 
+interface Client {
+  id: string;
+  name: string;
+  logo: string;
+  url: string;
+  bio: string;
+  thingsToAvoid: string;
+  competitors: { name: string; url: string }[];
+  ownUrls: { name: string; url: string }[];
+  locations: { title: string; address: string }[];
+  socialLinks: { label: string; url: string }[];
+  defaultFormValues: any;
+}
+
 interface GenerateDocSystemPromptOptions {
   includeContext: boolean;
   documentContent: string;
   documentTitle?: string;
   projectName?: string;
+  clientData?: Client | null;
 }
 
 export function generateDocSystemPrompt({
@@ -15,6 +30,7 @@ export function generateDocSystemPrompt({
   documentContent,
   documentTitle = '',
   projectName = '',
+  clientData = null,
 }: GenerateDocSystemPromptOptions): string {
   // Get current date for context
   const currentDate = new Date().toLocaleDateString('en-US', {
@@ -156,5 +172,43 @@ ${includeContext ? `
 - Use Markdown formatting in your responses
 - Be concise and helpful
 - When editing, make changes immediately - don't ask permission unless the request is ambiguous
-- Explain what you're doing AFTER you've done it (in the text response following the tool call)`;
+- Explain what you're doing AFTER you've done it (in the text response following the tool call)
+
+${clientData ? `
+**🏢 CLIENT CONTEXT:**
+
+You have been provided with detailed information about the client **${clientData.name}** to inform your writing:
+
+**Client:** ${clientData.name}
+**Website:** ${clientData.url}
+
+**About the Client:**
+${clientData.bio}
+
+**⚠️ Things to Avoid:**
+${clientData.thingsToAvoid}
+
+**🎯 Competitors:**
+${clientData.competitors.map(c => `- ${c.name} (${c.url})`).join('\n')}
+
+**📍 Locations:**
+${clientData.locations.map(l => `- ${l.title}: ${l.address}`).join('\n')}
+
+**🔗 Client's URLs:**
+${clientData.ownUrls.map(u => `- ${u.name}: ${u.url}`).join('\n')}
+
+**Target Audience:** ${clientData.defaultFormValues.targetAudience}
+**Niche:** ${clientData.defaultFormValues.niche}
+**Geo Locations:** ${clientData.defaultFormValues.geoLocations}
+**Keywords:** ${clientData.defaultFormValues.keywords.join(', ')}
+
+**CRITICAL INSTRUCTIONS FOR CLIENT CONTEXT:**
+- Keep ${clientData.name}'s brand voice, tone, and messaging consistent
+- Reference their bio, services, and unique value propositions naturally
+- AVOID the topics and phrases listed in "Things to Avoid"
+- Consider their target audience when writing
+- Use relevant keywords naturally (don't force them)
+- Differentiate from competitors without direct comparisons
+- Reference their locations when relevant (e.g., "serving the ${clientData.locations[0]?.title} area")
+` : ''}`;
 }

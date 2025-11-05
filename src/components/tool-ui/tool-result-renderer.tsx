@@ -53,6 +53,8 @@ interface ToolResultRendererProps {
   onSwitchTab?: (tab: string) => void;
   model?: string;
   designSystemSummary?: DesignSystemSummary | null;
+  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
+  onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
 }
 
 // Task widget component (inline since it's simpler)
@@ -121,8 +123,15 @@ function TaskWidget({ data }: { data: any }) {
   );
 }
 
-export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSectionEditor, onSwitchCodeTab, onSwitchTab, model, designSystemSummary }: ToolResultRendererProps) {
+export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSectionEditor, onSwitchCodeTab, onSwitchTab, model, designSystemSummary, onProjectCreate, onProjectUpdate }: ToolResultRendererProps) {
   const { toolName, result } = toolResult;
+
+  console.log('🔧 ToolResultRenderer received:', {
+    toolName,
+    resultType: typeof result,
+    hasOnProjectCreate: !!onProjectCreate,
+    hasOnProjectUpdate: !!onProjectUpdate
+  });
 
   // Handle different tool types
   switch (toolName) {
@@ -336,7 +345,12 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
       return <ReverseImageSearchWidget data={result} />;
 
     case 'generateProject':
-      return <GenerateProjectWidget toolResult={result} />;
+      console.log('🎯 ToolResultRenderer: generateProject case matched!', {
+        result,
+        hasOnProjectCreate: !!onProjectCreate,
+        hasOnProjectUpdate: !!onProjectUpdate
+      });
+      return <GenerateProjectWidget toolResult={result} onProjectCreate={onProjectCreate} onProjectUpdate={onProjectUpdate} onSwitchCodeTab={onSwitchCodeTab} />;
 
     default:
       // Fallback for unknown tool types, now stylized like AI Elements

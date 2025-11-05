@@ -40,6 +40,7 @@ export interface UseFileGroupsReturn {
   createNewGroup: (name: string, type: 'html' | 'php' | 'hubspot', template?: string) => FileGroup;
   selectGroup: (id: string) => void;
   updateGroupFile: (id: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  updateGroup: (id: string, updates: Partial<FileGroup>) => void;
   renameGroup: (id: string, name: string) => void;
   duplicateGroup: (id: string) => FileGroup | null;
   deleteGroup: (id: string) => void;
@@ -159,6 +160,20 @@ export function useFileGroups(): UseFileGroupsReturn {
     console.log('🔄 [UPDATE_FILE] setState() triggered:', {
       groupId: id,
       fileType: file,
+      newActiveId: newState.activeGroupId,
+      newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
+  }, []);
+
+  // Update group (generic - for updating any properties like projectManifest)
+  const updateGroupAction = useCallback((id: string, updates: Partial<FileGroup>) => {
+    updateGroup(id, updates);
+    const newState = loadEditorState();
+    console.log('🔄 [UPDATE_GROUP] setState() triggered:', {
+      groupId: id,
+      updates: Object.keys(updates),
       newActiveId: newState.activeGroupId,
       newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
       timestamp: new Date().toISOString(),
@@ -297,6 +312,7 @@ export function useFileGroups(): UseFileGroupsReturn {
     createNewGroup,
     selectGroup,
     updateGroupFile,
+    updateGroup: updateGroupAction,
     renameGroup: renameGroupAction,
     duplicateGroup: duplicateGroupAction,
     deleteGroup: deleteGroupAction,

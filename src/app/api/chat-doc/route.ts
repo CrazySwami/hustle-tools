@@ -59,6 +59,7 @@ export async function POST(req: Request) {
       comments = [],
       documentTitle = '',
       projectName = '',
+      clientData = null,
     }: {
       messages: UIMessage[];
       model: string;
@@ -68,6 +69,7 @@ export async function POST(req: Request) {
       comments: any[];
       documentTitle?: string;
       projectName?: string;
+      clientData?: any;
     } = await req.json();
 
     console.log('📨 Document Chat request:', {
@@ -77,6 +79,7 @@ export async function POST(req: Request) {
       webSearch,
       includeContext,
       commentsCount: comments.length,
+      clientName: clientData?.name || 'none',
     });
 
     // Convert messages with error handling
@@ -104,6 +107,7 @@ export async function POST(req: Request) {
       documentContent,
       documentTitle,
       projectName,
+      clientData,
     });
 
     // OLD INLINE GENERATION (kept for reference, now replaced by shared function):

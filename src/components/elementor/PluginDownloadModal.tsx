@@ -73,6 +73,11 @@ export function PluginDownloadModal({
         });
       }
 
+      // Add README.md if available
+      if (plugin.projectManifest && plugin.projectManifest.trim()) {
+        zip.file('README.md', plugin.projectManifest);
+      }
+
       // Generate ZIP
       const zipBlob = await zip.generateAsync({ type: 'blob' });
 
@@ -173,6 +178,31 @@ export function PluginDownloadModal({
                     </Button>
                   </div>
                 ))}
+
+              {/* README.md file */}
+              {plugin.projectManifest && plugin.projectManifest.trim() && (
+                <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileCode className="h-4 w-4 flex-shrink-0 text-green-500" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">README.md</p>
+                      <p className="text-xs text-muted-foreground">Project documentation</p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => downloadFile('README.md', plugin.projectManifest!)}
+                    disabled={downloading !== null}
+                  >
+                    {downloading === 'README.md' ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -195,6 +225,7 @@ export function PluginDownloadModal({
                 <p className="text-sm text-muted-foreground">
                   Includes main plugin file + all {widgetCount} widget
                   {widgetCount !== 1 ? 's' : ''} in /widgets/ folder
+                  {plugin.projectManifest && plugin.projectManifest.trim() ? ' + README.md' : ''}
                 </p>
               </div>
 

@@ -57,6 +57,8 @@ interface ElementorChatProps {
   globalCss?: string;
   navigationBar?: React.ReactNode;
   containerWidth?: number; // Container width for responsive prompt actions
+  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
+  onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
 }
 
 const modelGroups = [
@@ -115,7 +117,9 @@ export function ElementorChat({
   currentSection,
   globalCss = '',
   navigationBar,
-  containerWidth
+  containerWidth,
+  onProjectCreate,
+  onProjectUpdate
 }: ElementorChatProps) {
   const [input, setInput] = useState('');
   const [webSearch, setWebSearch] = useState(false);
@@ -366,16 +370,17 @@ export function ElementorChat({
                           case 'tool-updateSectionCss':
                           case 'tool-updateSectionJs':
                           case 'tool-updateSectionPhp':
-                          case 'tool-editCodeWithMorph': {  // ⭐ Morph Fast Apply (PRIMARY tool for all code writing)
+                          case 'tool-editCodeWithMorph': // ⭐ Morph Fast Apply (PRIMARY tool for all code writing)
+                          case 'tool-generateProject': {  // ⭐ Project generation tool
                             // Handle typed tool parts (AI SDK 5 pattern)
                             // Extract tool name from part type (e.g., 'tool-testPing' → 'testPing')
                             const toolName = part.type.replace('tool-', '');
-                            // console.log(`🎯 ${toolName} tool detected!`, part);
+                            console.log(`🎯 ${toolName} tool detected!`, part);
 
                             // If it has output/result, render as tool-result
                             if (part.output || part.result) {
                               const result = part.output ?? part.result;
-                              // console.log('✅ Tool has result, rendering widget:', result);
+                              console.log('✅ Tool has result, rendering widget:', result);
                               return (
                                 <ToolResultRenderer
                                   key={i}
@@ -391,6 +396,8 @@ export function ElementorChat({
                                   onSwitchTab={onSwitchTab}
                                   model={selectedModel}
                                   designSystemSummary={designSystemSummary}
+                                  onProjectCreate={onProjectCreate}
+                                  onProjectUpdate={onProjectUpdate}
                                 />
                               );
                             }
@@ -446,6 +453,8 @@ export function ElementorChat({
                                   onSwitchTab={onSwitchTab}
                                   model={selectedModel}
                                   designSystemSummary={designSystemSummary}
+                                  onProjectCreate={onProjectCreate}
+                                  onProjectUpdate={onProjectUpdate}
                                 />
                               );
                             }

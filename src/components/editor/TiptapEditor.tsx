@@ -70,7 +70,7 @@ import {
   PanelLeft,
   X,
   BookMarked,
-  FileDown
+  Download
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
@@ -88,7 +88,8 @@ import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { TableOfContents } from './TableOfContents'
-import { PageBreak } from './PageBreakExtension'
+import { MultiPageRenderer } from './MultiPageRenderer'
+import { ExportModal } from './ExportModal'
 
 // Constants extracted outside component for performance
 const TEXT_COLORS = [
@@ -904,6 +905,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   const [isInlineProcessing, setIsInlineProcessing] = useState(false)
   const [isDocumentsPanelOpen, setIsDocumentsPanelOpen] = useState(false)
   const [isTocOpen, setIsTocOpen] = useState(false)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
   // Get document content store for animations
   const { setEditor: registerEditor } = useDocumentContent()
@@ -999,7 +1001,6 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       Typography,
       HorizontalRule,
       HardBreak,
-      PageBreak,
       TaskList,
       TaskItem.configure({
         nested: true,
@@ -1523,6 +1524,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               >
                 <Redo className="h-4 w-4" />
               </MenuButton>
+
+              <MenuButton
+                onClick={() => setIsExportModalOpen(true)}
+                title="Export Document"
+              >
+                <Download className="h-4 w-4" />
+              </MenuButton>
             </div>
 
             {/* 2. Heading selector (Normal text) */}
@@ -1863,12 +1871,6 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 <BookMarked className="h-4 w-4" />
               </MenuButton>
 
-              <MenuButton
-                onClick={() => editor?.chain().focus().setPageBreak().run()}
-                title="Insert Page Break (Ctrl/Cmd+Enter)"
-              >
-                <FileDown className="h-4 w-4" />
-              </MenuButton>
 
               {/* View Mode Toggle */}
               <div className="relative ml-2 pl-2 border-l" data-dropdown="viewmode">
@@ -1930,15 +1932,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
           {/* Editor Content */}
           <div className={cn(
-            "p-4 h-full overflow-y-auto scrollbar-hide transition-all duration-300 ease-in-out",
+            "h-full transition-all duration-300 ease-in-out",
             isDocumentsPanelOpen && "md:pl-[17.5rem]",
             isCommentsPanelOpen && "md:pr-[21.5rem]",
-            viewMode === 'editor' ? "tiptap-page-view" : "bg-background"
+            viewMode !== 'editor' && "p-4 overflow-y-auto scrollbar-hide bg-background"
           )}>
             {viewMode === 'editor' ? (
-              <div className="tiptap-page">
-                <EditorContent editor={editor} className="w-full" />
-              </div>
+              <MultiPageRenderer editor={editor} />
             ) : (
               <div className="w-full h-full border rounded-md overflow-hidden">
                 <Editor
@@ -2228,6 +2228,14 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         editor={editor}
         isOpen={isTocOpen}
         onToggle={() => setIsTocOpen(!isTocOpen)}
+      />
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        editor={editor}
+        documentTitle={selectedDocumentId || 'document'}
       />
     </>
   )

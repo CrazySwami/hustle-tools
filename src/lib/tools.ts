@@ -670,6 +670,8 @@ export const generateProjectTool = tool({
     suggestedName: z.string().optional().describe('Optional: Suggested name for the project (will be auto-generated if not provided)'),
   }),
   execute: async ({ description, projectType, suggestedName }) => {
+    console.log('🔧 generateProject tool EXECUTE called!', { description, projectType, suggestedName });
+
     // Generate project name from description if not provided
     const generateProjectName = (desc: string): string => {
       // Convert description to snake_case project name
@@ -684,7 +686,7 @@ export const generateProjectTool = tool({
 
     const projectName = suggestedName || generateProjectName(description);
 
-    return {
+    const result = {
       status: 'generation_started',
       projectType,
       projectName,
@@ -692,6 +694,9 @@ export const generateProjectTool = tool({
       timestamp: new Date().toISOString(),
       message: `Starting generation of ${projectType === 'html' ? 'HTML section' : 'Elementor widget'}: "${projectName}"`,
     };
+
+    console.log('✅ generateProject tool returning:', result);
+    return result;
   },
 });
 

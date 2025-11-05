@@ -1581,6 +1581,21 @@ export default function ElementorEditorPage() {
                         if (updates.php !== undefined) fileGroups.updateGroupFile(currentSection.id, 'php', updates.php);
                       }
                     }}
+                    onProjectCreate={(name, type) => {
+                      // Create new project and return its ID
+                      const newGroup = fileGroups.createNewGroup(name, type, 'empty');
+                      fileGroups.selectGroup(newGroup.id);
+                      console.log('📦 Project created via generateProject tool:', name, 'Type:', type, 'ID:', newGroup.id);
+                      // Switch to Code Editor tab and appropriate file tab
+                      setActiveTab('json');
+                      setActiveCodeTab(type === 'php' ? 'php' : 'html');
+                      return newGroup.id;
+                    }}
+                    onProjectUpdate={(projectId, file, content) => {
+                      // Update project file with streaming content
+                      fileGroups.updateGroupFile(projectId, file, content);
+                      console.log(`📝 Streaming ${file} to project ${projectId} (${content.length} chars)`);
+                    }}
                     currentSection={currentSection}
                     containerWidth={chatPanelWidth}
                   />
@@ -2221,6 +2236,21 @@ export default function ElementorEditorPage() {
                         if (updates.js !== undefined) fileGroups.updateGroupFile(currentSection.id, 'js', updates.js);
                         if (updates.php !== undefined) fileGroups.updateGroupFile(currentSection.id, 'php', updates.php);
                       }
+                    }}
+                    onProjectCreate={(name, type) => {
+                      // Create new project and return its ID
+                      const newGroup = fileGroups.createNewGroup(name, type, 'empty');
+                      fileGroups.selectGroup(newGroup.id);
+                      console.log('📦 Project created via generateProject tool:', name, 'Type:', type, 'ID:', newGroup.id);
+                      // Switch to Code Editor tab and appropriate file tab
+                      setActiveTab('json');
+                      setActiveCodeTab(type === 'php' ? 'php' : 'html');
+                      return newGroup.id;
+                    }}
+                    onProjectUpdate={(projectId, file, content) => {
+                      // Update project file with streaming content
+                      fileGroups.updateGroupFile(projectId, file, content);
+                      console.log(`📝 Streaming ${file} to project ${projectId} (${content.length} chars)`);
                     }}
                     currentSection={currentSection}
                     containerWidth={chatPanelWidth}

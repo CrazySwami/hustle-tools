@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface GenerateProjectWidgetProps {
   toolResult: {
@@ -11,15 +11,45 @@ interface GenerateProjectWidgetProps {
     timestamp: string;
     message: string;
   };
+  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
+  onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  onSwitchCodeTab?: (tab: 'html' | 'css' | 'js') => void;
 }
 
-export function GenerateProjectWidget({ toolResult }: GenerateProjectWidgetProps) {
+export function GenerateProjectWidget({ toolResult, onProjectCreate, onProjectUpdate, onSwitchCodeTab }: GenerateProjectWidgetProps) {
+  console.log('🎨 GenerateProjectWidget mounted:', {
+    projectName: toolResult.projectName,
+    projectType: toolResult.projectType,
+    hasOnProjectCreate: !!onProjectCreate,
+    hasOnProjectUpdate: !!onProjectUpdate
+  });
+
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState('');
+  const [currentPhase, setCurrentPhase] = useState<'html' | 'css' | 'js' | null>(null);
+  const [hasStarted, setHasStarted] = useState(false);
 
-  const handleGenerate = async () => {
+  const handleGenerate = useCallback(async () => {
+    console.log('🚀 GenerateProjectWidget: handleGenerate called');
+    console.log('📋 Callbacks available:', {
+      hasProjectCreate: !!onProjectCreate,
+      hasProjectUpdate: !!onProjectUpdate,
+      hasSwitchCodeTab: !!onSwitchCodeTab
+    });
+
     setGenerating(true);
     setProgress('Starting project generation...');
+
+    // Check if callbacks are available
+    if (!onProjectCreate || !onProjectUpdate) {
+      console.error('❌ Missing callbacks!', {
+        onProjectCreate: !!onProjectCreate,
+        onProjectUpdate: !!onProjectUpdate
+      });
+      setProgress('❌ Error: Project creation callbacks not available');
+      setGenerating(false);
+      return;
+    }
 
     try {
       const response = await fetch('/api/generate-project', {
@@ -42,27 +72,79 @@ export function GenerateProjectWidget({ toolResult }: GenerateProjectWidgetProps
       let fullCode = '';
 
       if (reader) {
+        // Create project ONCE at the start
+        const displayName = toolResult.projectName
+          .split('_')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+
+        const projectId = onProjectCreate(
+          displayName,
+          toolResult.projectType === 'elementor' ? 'php' : 'html'
+        );
+
+        console.log('📦 Created project via GenerateProjectWidget:', displayName, 'ID:', projectId);
+
+        // Set initial phase
+        setCurrentPhase('html');
+        setProgress('Generating HTML...');
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           const chunk = decoder.decode(value);
           fullCode += chunk;
-          setProgress(`Generating... ${fullCode.length} characters`);
+
+          // Stream updates to project files in real-time
+          if (projectId && onProjectUpdate) {
+            // Use lenient regex that works during streaming (doesn't require closing ```)
+            const htmlMatch = fullCode.match(/```html\n([\s\S]*?)(?:```|$)/);
+            const cssMatch = fullCode.match(/```css\n([\s\S]*?)(?:```|$)/);
+            const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)(?:```|$)/);
+
+            if (htmlMatch) {
+              onProjectUpdate(projectId, 'html', htmlMatch[1].trim());
+            }
+            if (cssMatch) {
+              onProjectUpdate(projectId, 'css', cssMatch[1].trim());
+            }
+            if (jsMatch) {
+              onProjectUpdate(projectId, 'js', jsMatch[1].trim());
+            }
+
+            // Update progress based on content length (visual feedback)
+            if (fullCode.length > 500 && currentPhase === 'html') {
+              setCurrentPhase('css');
+              setProgress('Generating CSS...');
+              onSwitchCodeTab?.('css');
+            } else if (fullCode.length > 1500 && currentPhase === 'css') {
+              setCurrentPhase('js');
+              setProgress('Generating JavaScript...');
+              onSwitchCodeTab?.('js');
+            }
+          }
         }
+
+        setProgress(`✅ Generation complete! ${fullCode.length} characters`);
       }
-
-      setProgress(`✅ Generation complete! ${fullCode.length} characters`);
-
-      // TODO: Parse HTML/CSS/JS and update editor
-      // This will be handled by the parent component
 
     } catch (error: any) {
       setProgress(`❌ Error: ${error.message}`);
     } finally {
       setGenerating(false);
+      setCurrentPhase(null);
     }
-  };
+  }, [toolResult, onProjectCreate, onProjectUpdate, onSwitchCodeTab, currentPhase]);
+
+  // Auto-start generation when component mounts
+  useEffect(() => {
+    if (!hasStarted) {
+      console.log('🚀 GenerateProjectWidget: Auto-starting generation on mount');
+      setHasStarted(true);
+      handleGenerate(); // Call the generation function immediately
+    }
+  }, [hasStarted, handleGenerate]);
 
   return (
     <div style={{

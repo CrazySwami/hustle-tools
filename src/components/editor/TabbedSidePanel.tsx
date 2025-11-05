@@ -151,15 +151,15 @@ export function TabbedSidePanel({
   return (
     <div
       className={cn(
-        "absolute bg-background border border-border flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
+        "fixed bg-background border border-border flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
         // Mobile: full width, no margins, square corners
         "top-0 right-0 bottom-0 left-0 w-full rounded-none",
         // Desktop: right margin, fixed width, rounded corners (overrides mobile)
         "md:top-2 md:right-2 md:bottom-2 md:left-auto md:rounded-lg md:w-80",
         // Conditionally apply shadow only when open
-        isOpen ? "translate-x-0 shadow-sm" : "translate-x-full shadow-none"
+        isOpen ? "translate-x-0 shadow-lg" : "translate-x-full shadow-none"
       )}
-      style={{ zIndex: 10 }}
+      style={{ zIndex: 50 }}
     >
       {/* Header - no tabs, just title and close button */}
       <div className="flex-shrink-0 border-b">

@@ -215,6 +215,20 @@ ${currentSection ? `
 
 When using editCodeWithMorph or validateWidget tools, you are working with the "${currentSection.name || 'Untitled'}" project.
 ${hasPhpCode ? '\n⚠️ This is a PHP widget project. You can use the validateWidget tool to check code quality before deployment.' : ''}
+
+${currentSection.projectManifest ? `
+**📋 PROJECT DOCUMENTATION:**
+
+The following documentation explains what each file in this project does and how they work together:
+
+${currentSection.projectManifest}
+
+**Use this documentation to:**
+- Understand the purpose and structure of each file before making edits
+- Maintain consistency with the existing architecture
+- Know which file to edit when the user requests a specific change
+- Provide more contextual and accurate responses about the project
+` : ''}
 ` : ''}
 
 ${hasPhpCode ? `
@@ -361,19 +375,30 @@ ${Object.keys(currentJson).length > 0 ? 'Current page has: ' + JSON.stringify(cu
 
     // Add tool calling instructions
     systemPrompt += `\n\n**Available Tools:**
-- **generateProject**: 🚀 NEW PROJECT GENERATOR - Use this ONLY when user explicitly requests a NEW PROJECT (e.g., "create a new project", "generate a new widget", "start a new section"). Asks user to choose HTML Section or Elementor Widget, generates complete code (HTML/CSS/JS), auto-generates project name.
-- **editCodeWithMorph**: 🎯 PRIMARY TOOL - Use this for editing EXISTING code. Works on empty files AND existing code. Uses lazy edits (// ... existing code ...) for precision. 98% accurate, 10x faster than diffs.
+- **generateProject**: 🚀 NEW PROJECT GENERATOR - Creates a NEW project from scratch with complete code generation
+  - Use when: "generate a hero section", "create a pricing card", "build a contact form", "make a navigation menu"
+  - Triggers: "generate", "create", "build", "make" + description of what to build
+  - Automatically creates project AND streams HTML/CSS/JS code
+  - DO NOT use when editing existing files - use editCodeWithMorph instead
+- **editCodeWithMorph**: 🎯 PRIMARY TOOL - For editing EXISTING code or current project files
+  - Use when: "change button color", "add navbar", "fix CSS", "update heading"
+  - Works on empty files AND existing code
+  - Uses lazy edits (// ... existing code ...) for precision
+  - 98% accurate, 10x faster than diffs
 ${hasPhpCode ? '- **validateWidget**: ✅ Validate PHP widget code against Elementor best practices. Returns detailed report with scores and specific issues. Use BEFORE deployment or when user asks to "check" or "validate" the widget.\n' : ''}
 - **getWeather**: Get current weather information
 - **calculate**: Perform mathematical calculations
 - **generateCode**: Generate code snippets in various languages
 - **manageTask**: Create and manage tasks
 
-**CRITICAL INSTRUCTIONS:**
-- For NEW projects: Use **generateProject** tool when user says "create new project", "generate widget", "start new section"
-- For editing EXISTING code: Use **editCodeWithMorph** tool (e.g., "change button color", "add navbar", "fix CSS")
-${hasPhpCode ? '- For validation: Use **validateWidget** tool when user says "validate", "check", or "verify" the widget code\n' : ''}
-After using a tool, provide a helpful text response that explains what the tool will do or what results it returned.`;
+**CRITICAL DECISION TREE:**
+1. Is user asking to CREATE something NEW from scratch? → Use **generateProject**
+   - Examples: "generate a hero", "create pricing cards", "build a footer"
+2. Is user asking to EDIT/MODIFY existing code? → Use **editCodeWithMorph**
+   - Examples: "change the color", "add a class", "fix the layout"
+${hasPhpCode ? '3. Is user asking to VALIDATE PHP code? → Use **validateWidget**\n' : ''}
+
+After using a tool, provide a brief explanation of what will happen next.`;
 
     // Configure options based on model type
     const options = model.startsWith('perplexity/') && webSearch ? { search: true } : undefined;

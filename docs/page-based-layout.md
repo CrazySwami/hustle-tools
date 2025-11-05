@@ -216,12 +216,65 @@ When implementing multiple pages:
 - Add `aria-label="Page 1 of X"` for multi-page
 - Add page jump navigation for screen readers
 
-## Known Limitations
+## Multi-Page Pagination (Phase 4)
 
-1. **Single Page Only**: Currently renders all content in one page (no auto-pagination)
+### Overview
+The editor now includes **automatic page pagination** that calculates the number of pages based on content height and provides visual feedback about the current page position.
+
+### Features
+
+#### Automatic Page Calculation
+- Content height is measured in real-time
+- Page count calculated automatically: `Math.ceil(contentHeight / 864px)`
+- Updates dynamically as content changes
+- Debounced for performance (100ms delay)
+
+#### Page Indicator
+- Fixed position at bottom-right of screen
+- Shows format: "Page X of Y"
+- Only appears when document has multiple pages
+- Backdrop blur for modern appearance
+- Dark mode support
+
+#### Scroll Position Tracking
+- Automatically detects which page is in view
+- Updates current page indicator as user scrolls
+- Calculated based on viewport midpoint
+- Smooth tracking without performance impact
+
+### Implementation
+
+The multi-page system is implemented in [MultiPageRenderer.tsx](../src/components/editor/MultiPageRenderer.tsx):
+
+```typescript
+const CONTENT_HEIGHT = 864 // 9 inches (11 - 2 inch margins)
+
+const calculatePages = () => {
+  const totalHeight = proseMirror.scrollHeight
+  const pagesNeeded = Math.max(1, Math.ceil(totalHeight / CONTENT_HEIGHT))
+  setPageCount(pagesNeeded)
+}
+```
+
+**Observers**:
+- `ResizeObserver` - Detects content size changes
+- Tiptap `update` event - Triggered on content edits
+- Tiptap `transaction` event - Triggered on all document changes
+
+### User Experience
+
+As users type and add content:
+1. Content flows naturally within the page
+2. Page count automatically increases when height exceeds 864px per page
+3. Scroll position shows which page they're currently viewing
+4. Page breaks force content to start on a "new page" (increases page count)
+
+### Known Limitations
+
+1. **Visual Pages Only**: Currently calculates pages but renders as single scrolling document
 2. **Fixed Width**: Pages don't resize responsively (matches print dimensions)
-3. **No Print Styles**: Page layout doesn't yet translate to print media
-4. **No Page Breaks**: Manual page breaks not yet implemented
+3. **No Physical Splitting**: Content doesn't actually split across separate page containers (planned for export feature)
+4. **Approximate Calculation**: Page count is based on total height, not element-by-element flow
 
 ## Roadmap
 
@@ -231,21 +284,22 @@ When implementing multiple pages:
 - ✅ Page shadows and spacing
 - ✅ Infinite vertical scroll
 
-### Phase 3: Semantic Page Breaks (Next)
-- [ ] Manual page break insertion
-- [ ] Visual page break indicators
-- [ ] Page break toolbar button
+### Phase 3: Semantic Page Breaks - Completed ✅
+- ✅ Manual page break insertion
+- ✅ Visual page break indicators
+- ✅ Page break toolbar button
 
-### Phase 4: Export Features
+### Phase 4: Multi-Page Pagination - Completed ✅
+- ✅ Automatic page count calculation based on content height
+- ✅ Dynamic page indicator showing current page
+- ✅ Page break support for forcing new pages
+- ✅ Scroll position tracking across pages
+
+### Phase 5: Export Features (Next)
 - [ ] DOCX export with proper pagination
 - [ ] PDF export with page layout preserved
 - [ ] Print stylesheet for accurate printing
-
-### Phase 5: Auto-Pagination
-- [ ] Automatic content flow between pages
-- [ ] Dynamic page creation based on content height
-- [ ] Page overflow detection
-- [ ] Page number indicators
+- [ ] Physical page splitting for export
 
 ## Related Features
 

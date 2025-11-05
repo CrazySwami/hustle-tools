@@ -57,6 +57,9 @@ export interface FileGroup {
     deployedAt: number;            // Last deployment timestamp
     lastDeploymentType?: 'live-page' | 'elementor-editor'; // Track which deployment method was last used
   };
+
+  // Project documentation (AI-generated manifest)
+  projectManifest?: string;        // Markdown documentation explaining each file's purpose
 }
 
 export interface EditorState {
@@ -73,6 +76,185 @@ const CURRENT_VERSION = 1;
  */
 function generateId(): string {
   return `fg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * ============================================================
+ * PROJECT MANIFEST DEFAULTS
+ * ============================================================
+ */
+
+/**
+ * Get default project manifest for HTML projects
+ */
+function getHtmlManifest(): string {
+  return `# Project Documentation
+
+## Overview
+This is an HTML project consisting of HTML, CSS, and JavaScript files.
+
+## File Structure
+
+### index.html
+Contains the main HTML markup for the page or section. This file defines the structure and content of the page using semantic HTML5 elements.
+
+### styles.css
+Contains all CSS styling for the HTML content. This file controls the visual presentation, layout, colors, typography, and responsive design for the project.
+
+### script.js
+Contains JavaScript functionality for the page. This file adds interactivity, dynamic behavior, event handling, and any client-side logic needed for the project.
+
+## Usage
+This project can be used as a standalone HTML page or integrated into a larger website. The files work together to create a complete web component or page.
+
+---
+*Last updated: ${new Date().toLocaleDateString()}*
+*This documentation can be manually edited or regenerated using the "Update Project Docs" button.*`;
+}
+
+/**
+ * Get default project manifest for HubSpot projects
+ */
+function getHubSpotManifest(): string {
+  return `# Project Documentation
+
+## Overview
+This is a HubSpot CMS template project consisting of HTML, CSS, JavaScript, and HubL template files.
+
+## File Structure
+
+### template.html
+Contains the base HTML structure for the HubSpot template. This file defines the static HTML elements that form the foundation of the template.
+
+### styles.css
+Contains all CSS styling for the template. This file controls the visual presentation, layout, colors, typography, and responsive design. These styles are applied to the HubSpot CMS page.
+
+### script.js
+Contains JavaScript functionality for the template. This file adds interactivity, dynamic behavior, and client-side logic to enhance the user experience.
+
+### template.hubl
+Contains HubL template code for dynamic content. This file uses HubSpot's HubL templating language to insert dynamic content, create editable modules, access HubDB data, and implement conditional logic. HubL enables content editors to customize the template without touching code.
+
+**Key HubL Features:**
+- Dynamic content insertion using \`{{ module.field_name }}\`
+- Conditional rendering with \`{% if %}\` statements
+- Loops for repeating content with \`{% for %}\`
+- Access to HubSpot data (contacts, companies, custom objects)
+- Integration with HubSpot design manager
+
+## Usage
+This template is designed for HubSpot CMS. Upload to HubSpot Design Manager and use it to create pages, landing pages, or email templates with editable modules and dynamic content.
+
+---
+*Last updated: ${new Date().toLocaleDateString()}*
+*This documentation can be manually edited or regenerated using the "Update Project Docs" button.*`;
+}
+
+/**
+ * Get default project manifest for WordPress widget projects
+ */
+function getPhpWidgetManifest(): string {
+  return `# Project Documentation
+
+## Overview
+This is a WordPress Elementor widget project consisting of HTML, CSS, JavaScript, and PHP files.
+
+## File Structure
+
+### widget.html
+Contains the HTML markup template for the Elementor widget. This file defines the structure and content that will be rendered when the widget is used on a page.
+
+### widget.css
+Contains CSS styling for the widget. This file controls the visual presentation and layout. Styles should use \`{{WRAPPER}}\` prefix for proper scoping within Elementor.
+
+**Example:**
+\`\`\`css
+{{WRAPPER}} .my-class {
+  color: blue;
+}
+\`\`\`
+
+### widget.js
+Contains JavaScript functionality for the widget. This file adds interactivity, dynamic behavior, and client-side logic specific to this widget.
+
+### widget.php
+Contains the Elementor widget class definition. This file:
+- Defines widget metadata (name, title, icon, category)
+- Registers Elementor controls (text fields, color pickers, etc.)
+- Implements the \`render()\` method to output HTML
+- Implements the \`content_template()\` method for Elementor's live editor
+
+**Key Methods:**
+- \`get_name()\` - Unique widget identifier
+- \`get_title()\` - Widget display name in Elementor panel
+- \`get_icon()\` - Widget icon class
+- \`register_controls()\` - Define editable fields
+- \`render()\` - Output HTML for frontend
+- \`content_template()\` - JavaScript template for live preview
+
+## Usage
+This widget can be registered in WordPress and will appear in the Elementor editor panel. Users can drag and drop it onto pages and customize it using the controls you've defined.
+
+---
+*Last updated: ${new Date().toLocaleDateString()}*
+*This documentation can be manually edited or regenerated using the "Update Project Docs" button.*`;
+}
+
+/**
+ * Get default project manifest for WordPress plugin projects
+ */
+function getPhpPluginManifest(): string {
+  return `# Project Documentation
+
+## Overview
+This is a WordPress Elementor plugin project that can contain multiple custom widgets.
+
+## File Structure
+
+### Main Plugin File
+The main PHP file contains:
+- Plugin header with metadata (name, description, version, author)
+- Custom Elementor category registration
+- Auto-registration system for all widgets in the \`widgets/\` folder
+
+**Key Functions:**
+- \`[plugin-slug]_add_elementor_category()\` - Registers custom widget category
+- \`[plugin-slug]_register_widgets()\` - Auto-discovers and registers all widget files
+
+### Widget Files
+Each widget in this plugin is stored in the \`widgetFiles\` map with:
+- **name**: Display name of the widget
+- **slug**: URL-friendly identifier (e.g., \`hero-widget\`)
+- **content**: Complete PHP widget class code
+- **className**: PHP class name (e.g., \`Hero_Widget\`)
+
+All widgets are automatically registered in the main plugin file using the \`[WIDGETS_PLACEHOLDER]\` system.
+
+## Widget Class Structure
+Each widget should extend \`\\Elementor\\Widget_Base\` and implement:
+- \`get_name()\` - Returns unique widget ID
+- \`get_title()\` - Returns widget display name
+- \`get_icon()\` - Returns icon class name
+- \`get_categories()\` - Returns array of categories
+- \`register_controls()\` - Defines Elementor control panel fields
+- \`render()\` - Outputs frontend HTML
+- \`content_template()\` - Outputs Backbone.js template for live editor
+
+## How Auto-Registration Works
+1. Main plugin file includes all PHP files from \`widgets/\` folder
+2. Each widget class is instantiated using \`new Widget_Class_Name()\`
+3. Elementor's \`register()\` method adds the widget to the editor
+4. Widgets appear in the custom category in Elementor's panel
+
+## Usage
+1. Export this plugin as a ZIP file
+2. Install in WordPress via Plugins → Add New → Upload Plugin
+3. Activate the plugin
+4. All widgets will automatically appear in Elementor editor
+
+---
+*Last updated: ${new Date().toLocaleDateString()}*
+*This documentation can be manually edited or regenerated using the "Update Project Docs" button.*`;
 }
 
 /**
@@ -170,6 +352,10 @@ export function createGroup(
     js: '',
     php: type === 'php' ? '' : undefined,
     hubl: type === 'hubspot' ? '' : undefined,
+    // Add default project manifest based on type
+    projectManifest: type === 'html' ? getHtmlManifest()
+      : type === 'hubspot' ? getHubSpotManifest()
+      : getPhpWidgetManifest(),
   };
 
   // Apply template
@@ -1139,6 +1325,8 @@ export function createPlugin(name: string, description?: string): FileGroup {
     css: '',
     js: '',
     description,
+    // Add default plugin manifest
+    projectManifest: getPhpPluginManifest(),
   };
 
   console.log('✅ Plugin created with demo widget:', {

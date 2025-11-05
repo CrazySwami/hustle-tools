@@ -33,6 +33,7 @@ import { PluginDownloadModal } from "./PluginDownloadModal";
 import { AiFillHtml5, AiOutlinePlus, AiOutlineDownload } from 'react-icons/ai';
 import { DiCss3, DiJavascript1, DiPhp } from 'react-icons/di';
 import { SiHubspot } from 'react-icons/si';
+import { FileText, RefreshCw } from 'lucide-react';
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -41,8 +42,8 @@ interface HtmlSectionEditorProps {
   streamedHtml?: string;
   streamedCss?: string;
   streamedJs?: string;
-  activeCodeTab?: "html" | "css" | "js" | "php" | "hubl";
-  onCodeTabChange?: (tab: "html" | "css" | "js" | "php" | "hubl") => void;
+  activeCodeTab?: "html" | "css" | "js" | "php" | "hubl" | "docs";
+  onCodeTabChange?: (tab: "html" | "css" | "js" | "php" | "hubl" | "docs") => void;
   onSwitchToVisualEditor?: () => void;
   onSwitchToPlayground?: () => void;
   chatVisible?: boolean;
@@ -152,6 +153,7 @@ export function HtmlSectionEditor({
   const [showPluginNamingDialog, setShowPluginNamingDialog] = useState(false);
   const [showPluginDownloadModal, setShowPluginDownloadModal] = useState(false);
   const [pendingWidgetCode, setPendingWidgetCode] = useState<string | null>(null); // Store widget code until plugin is named
+  const [isRegeneratingDocs, setIsRegeneratingDocs] = useState(false); // Track README.md regeneration
 
   const menuRef = useRef<HTMLDivElement>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
@@ -672,6 +674,69 @@ export function HtmlSectionEditor({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // Download README.md file
+  const handleDownloadReadme = () => {
+    const manifest = fileGroups.activeGroup?.projectManifest || '';
+    if (!manifest.trim()) {
+      alert('⚠️ No project documentation to download. Generate docs first.');
+      return;
+    }
+
+    const blob = new Blob([manifest], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'README.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Regenerate README.md with AI
+  const handleRegenerateDocs = async () => {
+    if (!fileGroups.activeGroup) {
+      alert('⚠️ No active project. Please select or create a project first.');
+      return;
+    }
+
+    setIsRegeneratingDocs(true);
+    try {
+      const response = await fetch('/api/analyze-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: fileGroups.activeGroup.id,
+          projectName: fileGroups.activeGroup.name,
+          projectType: fileGroups.activeGroup.type,
+          isPlugin: fileGroups.activeGroup.isPlugin,
+          files: {
+            html: fileGroups.activeGroup.html,
+            css: fileGroups.activeGroup.css,
+            js: fileGroups.activeGroup.js,
+            php: fileGroups.activeGroup.php,
+            hubl: fileGroups.activeGroup.hubl,
+            pluginMainFile: fileGroups.activeGroup.pluginMainFile,
+            widgetFiles: fileGroups.activeGroup.widgetFiles,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to regenerate documentation');
+      }
+
+      const data = await response.json();
+      fileGroups.updateGroup(fileGroups.activeGroup.id, { projectManifest: data.manifest });
+      console.log('✅ README.md regenerated successfully');
+    } catch (error: any) {
+      console.error('❌ Failed to regenerate documentation:', error);
+      alert(`Failed to regenerate documentation: ${error.message}`);
+    } finally {
+      setIsRegeneratingDocs(false);
+    }
   };
 
   // Track if this is a loaded section (has initial content)
@@ -2389,9 +2454,59 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                         template.hubl
                       </span>
                     );
+                    if (activeCodeTab === 'docs') return (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <FileText size={16} color="#4CAF50" />
+                        README.md
+                      </span>
+                    );
                     return '';
                   })()}
                 </span>
+
+                {/* Regenerate Docs Button - Only when viewing docs tab */}
+                {activeCodeTab === 'docs' && (
+                  <button
+                    onClick={handleRegenerateDocs}
+                    disabled={isRegeneratingDocs}
+                    title={isRegeneratingDocs ? "Analyzing project files..." : "Regenerate documentation with AI"}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "4px 10px",
+                      background: isRegeneratingDocs ? "rgba(59, 130, 246, 0.15)" : "rgba(76, 175, 80, 0.15)",
+                      border: `1px solid ${isRegeneratingDocs ? "rgba(59, 130, 246, 0.3)" : "rgba(76, 175, 80, 0.3)"}`,
+                      borderRadius: "4px",
+                      color: isRegeneratingDocs ? "#60a5fa" : "#4CAF50",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      cursor: isRegeneratingDocs ? "not-allowed" : "pointer",
+                      transition: "all 0.2s",
+                      opacity: isRegeneratingDocs ? 0.7 : 1,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isRegeneratingDocs) {
+                        e.currentTarget.style.background = "rgba(76, 175, 80, 0.25)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isRegeneratingDocs) {
+                        e.currentTarget.style.background = "rgba(76, 175, 80, 0.15)";
+                      }
+                    }}
+                  >
+                    <RefreshCw
+                      size={14}
+                      style={{
+                        animation: isRegeneratingDocs ? 'spin 1s linear infinite' : 'none'
+                      }}
+                    />
+                    <span style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      {isRegeneratingDocs ? "Analyzing..." : "Regenerate Docs"}
+                    </span>
+                  </button>
+                )}
 
                 {/* Save Indicator - Only for PHP widget projects */}
                 {fileGroups.activeGroup?.type === 'php' && (
@@ -2622,6 +2737,15 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                           });
                         }
 
+                        // Add Project Docs tab
+                        files.push({
+                          tab: 'docs',
+                          icon: <FileText size={16} color="#4CAF50" />,
+                          name: 'README.md',
+                          lang: 'Markdown',
+                          isMainFile: false
+                        });
+
                         return files;
                       }
 
@@ -2630,7 +2754,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                         return [
                           { tab: 'php', icon: <DiPhp size={18} color="#777BB4" />, name: 'widget.php', lang: 'PHP' },
                           { tab: 'css', icon: <DiCss3 size={18} color="#1572B6" />, name: 'widget.css', lang: 'CSS' },
-                          { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'widget.js', lang: 'JavaScript' }
+                          { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'widget.js', lang: 'JavaScript' },
+                          { tab: 'docs', icon: <FileText size={16} color="#4CAF50" />, name: 'README.md', lang: 'Markdown' }
                         ];
                       }
 
@@ -2638,7 +2763,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                       if (projectType === 'hubspot') {
                         return [
                           { tab: 'html', icon: <AiFillHtml5 size={16} color="#E34F26" />, name: 'index.html', lang: 'HTML' },
-                          { tab: 'hubl', icon: <SiHubspot size={16} color="#FF7A59" />, name: 'template.hubl', lang: 'HubL' }
+                          { tab: 'hubl', icon: <SiHubspot size={16} color="#FF7A59" />, name: 'template.hubl', lang: 'HubL' },
+                          { tab: 'docs', icon: <FileText size={16} color="#4CAF50" />, name: 'README.md', lang: 'Markdown' }
                         ];
                       }
 
@@ -2646,7 +2772,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                       return [
                         { tab: 'html', icon: <AiFillHtml5 size={16} color="#E34F26" />, name: 'index.html', lang: 'HTML' },
                         { tab: 'css', icon: <DiCss3 size={18} color="#1572B6" />, name: 'styles.css', lang: 'CSS' },
-                        { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'script.js', lang: 'JavaScript' }
+                        { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'script.js', lang: 'JavaScript' },
+                        { tab: 'docs', icon: <FileText size={16} color="#4CAF50" />, name: 'README.md', lang: 'Markdown' }
                       ];
                     })().map((file) => {
                       // Check if this tab is active
@@ -2821,6 +2948,42 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   </div>
                 )}
 
+                {/* File Path Header */}
+                {!showDiffPreview && (
+                  <div style={{
+                    padding: '8px 16px',
+                    background: '#1e1e1e',
+                    borderBottom: '1px solid #3e3e3e',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '13px',
+                    color: '#cccccc',
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
+                  }}>
+                    <span style={{ opacity: 0.7 }}>
+                      {activeCodeTab === 'html' && 'index.html'}
+                      {activeCodeTab === 'css' && 'styles.css'}
+                      {activeCodeTab === 'js' && 'script.js'}
+                      {activeCodeTab === 'php' && (
+                        activeWidgetId
+                          ? fileGroups.activeGroup?.widgetFiles?.[activeWidgetId]?.slug + '.php'
+                          : 'widget.php'
+                      )}
+                      {activeCodeTab === 'hubl' && 'template.hubl'}
+                      {activeCodeTab === 'docs' && 'README.md'}
+                    </span>
+                    <span style={{ fontSize: '11px', opacity: 0.5 }}>
+                      {activeCodeTab === 'html' && 'HTML'}
+                      {activeCodeTab === 'css' && 'CSS'}
+                      {activeCodeTab === 'js' && 'JavaScript'}
+                      {activeCodeTab === 'php' && 'PHP'}
+                      {activeCodeTab === 'hubl' && 'HubL Template'}
+                      {activeCodeTab === 'docs' && 'Markdown'}
+                    </span>
+                  </div>
+                )}
+
                 {/* Debug: Log editor value */}
                 {console.log(
                   `📝 Editor rendering - ${activeCodeTab}:`,
@@ -2852,6 +3015,28 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                       automaticLayout: true,
                       renderSideBySide: !isMobile, // Inline diff on mobile
                       readOnly: true,
+                    }}
+                  />
+                ) : activeCodeTab === "docs" ? (
+                  // Project Manifest (Markdown) - Uses Monaco Editor
+                  <Editor
+                    key={`docs-${fileGroups.activeGroup?.id}`}
+                    height="100%"
+                    language="markdown"
+                    theme="vs-dark"
+                    value={fileGroups.activeGroup?.projectManifest || ''}
+                    onChange={(value) => {
+                      if (fileGroups.activeGroup && value !== undefined) {
+                        fileGroups.updateGroup(fileGroups.activeGroup.id, { projectManifest: value });
+                      }
+                    }}
+                    options={{
+                      fontSize: isMobile ? 16 : 14,
+                      minimap: { enabled: !isMobile },
+                      lineNumbers: isMobile ? "off" : "on",
+                      scrollBeyondLastLine: false,
+                      wordWrap: "on",
+                      automaticLayout: true,
                     }}
                   />
                 ) : (

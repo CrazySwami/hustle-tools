@@ -242,6 +242,39 @@
   user-select: none;
 }
 
+/* Print/Export styles for proper page breaks */
+@media print {
+  .tiptap-page {
+    page-break-after: always;
+    break-after: page;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+
+  .tiptap-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  /* Hide page indicator when printing */
+  .fixed.bottom-4.right-4 {
+    display: none !important;
+  }
+
+  /* Hide all modals/dialogs when printing */
+  [role="dialog"],
+  [data-radix-dialog-overlay],
+  [data-radix-dialog-content] {
+    display: none !important;
+  }
+
+  /* Ensure page breaks are respected */
+  [data-type="page-break"] {
+    page-break-after: always;
+    break-after: page;
+  }
+}
+
 /* Page break indicator */
 .page-break-wrapper {
   margin: 32px 0;

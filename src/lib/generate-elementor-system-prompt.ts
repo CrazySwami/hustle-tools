@@ -419,9 +419,16 @@ ${globalCss.length > 3000 ? '\n...(CSS continues - total ' + globalCss.length + 
 ` : ''}
 
 **Tool Usage Rules:**
-1. ✅ **USE editCodeWithMorph** - For all code writing/editing (HTML, CSS, JS, PHP)
-2. ${hasPhpCode ? '✅ **USE validateWidget** - Check PHP widget code quality before deployment' : ''}
-3. ❌ **DO NOT write code in chat** - Always use tools, never write code directly in responses
+1. ✅ **USE generateProject** - When user wants to create a NEW project from scratch (e.g., "generate a hero section", "create a pricing card", "build a contact form")
+   - This tool creates a new project AND generates all the code (HTML/CSS/JS)
+   - Use this for phrases like: "generate", "create new", "build from scratch", "make a new"
+   - The tool will handle project creation and code streaming automatically
+2. ✅ **USE editCodeWithMorph** - For editing EXISTING files or working with current project
+   - Use this when modifying code that's already in the editor
+   - Works with empty AND existing files
+   - Handles all file types: HTML, CSS, JS, PHP
+3. ${hasPhpCode ? '✅ **USE validateWidget** - Check PHP widget code quality before deployment' : ''}
+4. ❌ **DO NOT write code in chat** - Always use tools, never write code directly in responses
 
 **Response Style:**
 - Keep explanations brief (2-3 sentences max)

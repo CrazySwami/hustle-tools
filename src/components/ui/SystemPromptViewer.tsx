@@ -63,6 +63,34 @@ export interface SystemPromptViewerProps {
     input: number;  // Cost per 1M input tokens
     output: number; // Cost per 1M output tokens
   };
+  /** Optional: Client context data */
+  clientData?: {
+    id: string;
+    name: string;
+    logo: string;
+    bio: string;
+    url: string;
+    thingsToAvoid: string;
+    competitors: Array<{ name: string; url: string }>;
+    locations: Array<{ title: string; address: string }>;
+    ownUrls: Array<{ name: string; url: string }>;
+    socialLinks: Array<{ label: string; url: string }>;
+    defaultFormValues: {
+      currentUrl: string;
+      businessName: string;
+      niche: string;
+      intendedResult: string;
+      targetAudience: string;
+      geoLocations: string;
+      keywords: string[];
+      additionalInstructions: string;
+      competitors: string[];
+      includeKeyPoints: boolean;
+      contentPreference: "create" | "enhance";
+    };
+  };
+  /** Optional: Client context enabled state */
+  clientContextEnabled?: boolean;
 }
 
 /**
@@ -95,6 +123,8 @@ export function SystemPromptViewer({
   fileContents,
   attachedImages,
   modelPricing,
+  clientData,
+  clientContextEnabled,
 }: SystemPromptViewerProps) {
   const [showModal, setShowModal] = useState(false);
   const [modalTab, setModalTab] = useState<'system-prompt' | 'token-breakdown' | 'current-context'>('system-prompt');
@@ -235,6 +265,14 @@ export function SystemPromptViewer({
                             {' | Web Search: '}
                             <span className={contextToggles.webSearch ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                               {contextToggles.webSearch ? '✓ Enabled' : '✗ Disabled'}
+                            </span>
+                          </>
+                        )}
+                        {clientData && (
+                          <>
+                            {' | Client Context: '}
+                            <span className={clientContextEnabled ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                              {clientContextEnabled ? `✓ ${clientData.name}` : '✗ Disabled'}
                             </span>
                           </>
                         )}
@@ -449,7 +487,7 @@ export function SystemPromptViewer({
                     <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
                       <h3 className="font-semibold mb-3 text-primary">Complete Context Overview</h3>
                       <p className="text-sm text-muted-foreground mb-3">
-                        This shows everything being sent to the AI model, including system prompt, user message, and any attached images.
+                        This shows everything being sent to the AI model, including system prompt, user message{clientData && clientContextEnabled ? ', client context,' : ''} and any attached images.
                       </p>
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
@@ -511,10 +549,84 @@ export function SystemPromptViewer({
                       )}
                     </div>
 
+                    {/* Client Context Section */}
+                    {clientData && clientContextEnabled && (
+                      <div className="p-4 bg-muted/50 rounded-lg">
+                        <h3 className="font-semibold mb-2">3. Client Context</h3>
+                        <div className="text-sm text-muted-foreground mb-2">
+                          Client information included in the system prompt
+                        </div>
+                        <div className="bg-background p-4 rounded-lg border border-border space-y-3">
+                          <div className="flex items-center gap-2">
+                            {clientData.logo && <span className="text-2xl">{clientData.logo}</span>}
+                            <div>
+                              <div className="font-semibold">{clientData.name}</div>
+                              <a href={clientData.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                                {clientData.url}
+                              </a>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs font-semibold text-muted-foreground mb-1">Bio</div>
+                            <div className="text-xs leading-relaxed">{clientData.bio}</div>
+                          </div>
+
+                          {clientData.thingsToAvoid && (
+                            <div>
+                              <div className="text-xs font-semibold text-muted-foreground mb-1">Things to Avoid</div>
+                              <div className="text-xs leading-relaxed">{clientData.thingsToAvoid}</div>
+                            </div>
+                          )}
+
+                          {clientData.competitors && clientData.competitors.length > 0 && (
+                            <div>
+                              <div className="text-xs font-semibold text-muted-foreground mb-1">Competitors</div>
+                              <div className="text-xs space-y-1">
+                                {clientData.competitors.map((comp, idx) => (
+                                  <div key={idx}>
+                                    {comp.name} - <a href={comp.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{comp.url}</a>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {clientData.locations && clientData.locations.length > 0 && (
+                            <div>
+                              <div className="text-xs font-semibold text-muted-foreground mb-1">Locations</div>
+                              <div className="text-xs space-y-1">
+                                {clientData.locations.map((loc, idx) => (
+                                  <div key={idx}>{loc.title}: {loc.address}</div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                            <div>
+                              <div className="text-xs font-semibold text-muted-foreground">Target Audience</div>
+                              <div className="text-xs">{clientData.defaultFormValues.targetAudience}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs font-semibold text-muted-foreground">Niche</div>
+                              <div className="text-xs">{clientData.defaultFormValues.niche}</div>
+                            </div>
+                            {clientData.defaultFormValues.keywords && clientData.defaultFormValues.keywords.length > 0 && (
+                              <div className="col-span-2">
+                                <div className="text-xs font-semibold text-muted-foreground">Keywords</div>
+                                <div className="text-xs">{clientData.defaultFormValues.keywords.join(', ')}</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Attached Images Section */}
                     {attachedImages && attachedImages.length > 0 && (
                       <div className="p-4 bg-muted/50 rounded-lg">
-                        <h3 className="font-semibold mb-2">3. Attached Images</h3>
+                        <h3 className="font-semibold mb-2">{clientData && clientContextEnabled ? '4' : '3'}. Attached Images</h3>
                         <div className="text-sm text-muted-foreground mb-2">
                           Vision inputs sent as multimodal content
                         </div>

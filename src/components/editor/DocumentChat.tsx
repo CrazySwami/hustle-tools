@@ -40,6 +40,9 @@ import { SystemPromptViewer } from '@/components/ui/SystemPromptViewer';
 import Image from 'next/image';
 import { MobilePromptActions } from '@/components/ai-elements/MobilePromptActions';
 import { ProjectContextBadge } from '@/components/ai-elements/project-context-badge';
+import { ClientSelectorButton } from '@/components/client/ClientSelectorButton';
+import { ClientModal } from '@/components/client/ClientModal';
+import { Client } from '@/components/client/ClientTypes';
 
 interface DocumentChatProps {
   messages: any[];
@@ -64,6 +67,11 @@ interface DocumentChatProps {
   navigationBar?: React.ReactNode;
   // Responsive UI
   containerWidth?: number;
+  // Client context props
+  selectedClient?: Client | null;
+  clientContextEnabled?: boolean;
+  onClientChange?: (clientId: string) => void;
+  onClientContextToggle?: () => void;
 }
 
 // Document Context Badge Component
@@ -212,7 +220,11 @@ export function DocumentChat({
   systemPrompt = '',
   documentContent = '',
   navigationBar,
-  containerWidth = 0
+  containerWidth = 0,
+  selectedClient = null,
+  clientContextEnabled = false,
+  onClientChange,
+  onClientContextToggle,
 }: DocumentChatProps) {
   const [input, setInput] = useState('');
   const [includeContext, setIncludeContext] = useState(true);
@@ -220,6 +232,7 @@ export function DocumentChat({
   const [sendDisabled, setSendDisabled] = useState(false);
   const [showTokenWarning, setShowTokenWarning] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [clientModalOpen, setClientModalOpen] = useState(false);
   const [autoCloseChat, setAutoCloseChat] = useState(() => {
     // Read from localStorage, default to true
     if (typeof window !== 'undefined') {
@@ -822,6 +835,12 @@ export function DocumentChat({
               onChange={handleImageSelect}
               className="hidden"
             />
+            <ClientSelectorButton
+              selectedClient={selectedClient}
+              clientContextEnabled={clientContextEnabled}
+              onToggleContext={() => onClientContextToggle?.()}
+              onSelectClient={() => setClientModalOpen(true)}
+            />
             <SystemPromptViewer
               input={input}
               systemPrompt={actualSystemPrompt}
@@ -863,6 +882,8 @@ export function DocumentChat({
               fileContents={{
                 documentContent,
               }}
+              clientData={selectedClient || undefined}
+              clientContextEnabled={clientContextEnabled}
             />
             <PromptInputModelSelect onValueChange={onModelChange} value={selectedModel}>
               <PromptInputModelSelectTrigger title="Select AI model">
@@ -900,6 +921,15 @@ export function DocumentChat({
         </PromptInputToolbar>
       </PromptInput>
 
+      {/* Client Modal */}
+      <ClientModal
+        isOpen={clientModalOpen}
+        onClose={() => setClientModalOpen(false)}
+        selectedClientId={selectedClient?.id || null}
+        onSelectClient={(clientId) => {
+          onClientChange?.(clientId);
+        }}
+      />
     </div>
   );
 }

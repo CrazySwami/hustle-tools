@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { useDocumentContent } from '@/hooks/useDocumentContent';
 import TiptapEditor from '@/components/editor/TiptapEditor';
@@ -14,11 +14,20 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { TwoPanelChatLayout } from '@/components/layouts/TwoPanelChatLayout';
 import { NavigationBar } from '@/components/ai-elements/inner-navigation-bar';
 import { CreateItemModal } from '@/components/modals/CreateItemModal';
+import { useSelectedClient } from '@/components/client/ClientStorage';
 
 
 const ChatBotDemo = () => {
   const [selectedModel, setSelectedModel] = useState('anthropic/claude-haiku-4-5-20251001');
   const [isMobile, setIsMobile] = useState(false);
+
+  // Client context state
+  const {
+    selectedClient,
+    setSelectedClientId,
+    clientContextEnabled,
+    setClientContextEnabled,
+  } = useSelectedClient();
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const [isEditorVisible, setIsEditorVisible] = useState(true); // Open by default on desktop
   const [isChatVisible, setIsChatVisible] = useState(true); // Chat panel visibility on desktop
@@ -279,6 +288,8 @@ const ChatBotDemo = () => {
           comments,
           documentTitle: currentDocument?.title || '',
           projectName: currentProject?.name || '',
+          // Client context
+          clientData: clientContextEnabled && selectedClient ? selectedClient : null,
         },
       },
     );
@@ -385,12 +396,15 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
   }, [documentContent, wordCount, markdownContent]);
 
   // Generate actual system prompt (same as API uses) for accurate token counting
-  const actualSystemPrompt = generateDocSystemPrompt({
-    includeContext,
-    documentContent: markdownContent,
-    documentTitle: currentDocument?.title || '',
-    projectName: currentProject?.name || '',
-  });
+  const actualSystemPrompt = useMemo(() => {
+    return generateDocSystemPrompt({
+      includeContext,
+      documentContent: markdownContent,
+      documentTitle: currentDocument?.title || '',
+      projectName: currentProject?.name || '',
+      clientData: clientContextEnabled && selectedClient ? selectedClient : null,
+    });
+  }, [includeContext, markdownContent, currentDocument?.title, currentProject?.name, clientContextEnabled, selectedClient]);
 
   // Navigation dropdown handler
   const handleNavigationDropdownClick = (tabId: string, item: string) => {
@@ -672,6 +686,10 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                     systemPrompt={actualSystemPrompt}
                     documentContent={documentContent}
                     containerWidth={chatPanelWidth}
+                    selectedClient={selectedClient}
+                    clientContextEnabled={clientContextEnabled}
+                    onClientChange={setSelectedClientId}
+                    onClientContextToggle={() => setClientContextEnabled(!clientContextEnabled)}
                   />
                 </div>
               </div>
@@ -775,6 +793,10 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
               systemPrompt={actualSystemPrompt}
               documentContent={documentContent}
               containerWidth={typeof window !== 'undefined' ? window.innerWidth : 0}
+              selectedClient={selectedClient}
+              clientContextEnabled={clientContextEnabled}
+              onClientChange={setSelectedClientId}
+              onClientContextToggle={() => setClientContextEnabled(!clientContextEnabled)}
             />
           </div>
         )}
@@ -914,6 +936,10 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                   systemPrompt={actualSystemPrompt}
                   documentContent={documentContent}
                   containerWidth={typeof window !== 'undefined' ? window.innerWidth : 0}
+                  selectedClient={selectedClient}
+                  clientContextEnabled={clientContextEnabled}
+                  onClientChange={setSelectedClientId}
+                  onClientContextToggle={() => setClientContextEnabled(!clientContextEnabled)}
                 />
               </div>
             )}

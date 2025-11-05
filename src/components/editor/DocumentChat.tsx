@@ -829,6 +829,17 @@ export function DocumentChat({
                   onClick: () => fileInputRef.current?.click(),
                   title: 'Attach image (PNG/JPEG, max 5MB)',
                 },
+                // Client selector - only in dropdown on very narrow screens (< 450px)
+                ...(containerWidth < 450 ? [{
+                  id: 'select-client',
+                  label: selectedClient ? selectedClient.name : 'Client',
+                  icon: <Building2 size={18} />,
+                  isActive: clientContextEnabled,
+                  onClick: () => setClientModalOpen(true),
+                  title: selectedClient
+                    ? `${selectedClient.name} - Context ${clientContextEnabled ? 'ON' : 'OFF'}`
+                    : 'Select client and manage context',
+                }] : []),
               ]}
             />
             <input
@@ -838,13 +849,15 @@ export function DocumentChat({
               onChange={handleImageSelect}
               className="hidden"
             />
-            {/* Client selector button - always visible */}
-            <ClientSelectorButton
-              selectedClient={selectedClient}
-              clientContextEnabled={clientContextEnabled}
-              onToggleContext={() => onClientContextToggle?.()}
-              onSelectClient={() => setClientModalOpen(true)}
-            />
+            {/* Client selector button - hide on very narrow screens (< 450px) */}
+            {containerWidth >= 450 && (
+              <ClientSelectorButton
+                selectedClient={selectedClient}
+                clientContextEnabled={clientContextEnabled}
+                onToggleContext={() => onClientContextToggle?.()}
+                onSelectClient={() => setClientModalOpen(true)}
+              />
+            )}
             <SystemPromptViewer
               input={input}
               systemPrompt={actualSystemPrompt}

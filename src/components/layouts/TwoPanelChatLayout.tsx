@@ -64,8 +64,12 @@ export function TwoPanelChatLayout({
     return () => observer.disconnect();
   }, [leftPanelWidth]);
 
-  // Resize handlers for desktop divider
+  // Resize handlers for desktop divider (mouse and touch)
   const handleMouseDown = useCallback(() => {
+    setIsResizing(true);
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
     setIsResizing(true);
   }, []);
 
@@ -90,7 +94,33 @@ export function TwoPanelChatLayout({
     [isResizing, minLeftPercent, maxLeftPercent]
   );
 
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (!isResizing) return;
+
+      const container = document.getElementById('two-panel-container');
+      if (!container) return;
+
+      const touch = e.touches[0];
+      const containerRect = container.getBoundingClientRect();
+      const newWidthPercent = ((touch.clientX - containerRect.left) / containerRect.width) * 100;
+
+      // Constrain within min/max bounds
+      const constrainedWidth = Math.max(
+        minLeftPercent,
+        Math.min(maxLeftPercent, newWidthPercent)
+      );
+
+      setLeftPanelWidth(constrainedWidth);
+    },
+    [isResizing, minLeftPercent, maxLeftPercent]
+  );
+
   const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
     setIsResizing(false);
   }, []);
 
@@ -98,12 +128,16 @@ export function TwoPanelChatLayout({
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleTouchMove);
+      document.addEventListener('touchend', handleTouchEnd);
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
       };
     }
-  }, [isResizing, handleMouseMove, handleMouseUp]);
+  }, [isResizing, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
 
   // Mobile layout: Content main view, chat drawer from bottom
   if (isMobile) {
@@ -156,57 +190,53 @@ export function TwoPanelChatLayout({
       {/* Divider - Light gray line with grabbable handle */}
       <div
         onMouseDown={handleMouseDown}
-        className="flex-shrink-0 cursor-col-resize relative group"
+        onTouchStart={handleTouchStart}
+        className="flex-shrink-0 cursor-col-resize relative"
         style={{
-          width: '1px',
-          background: isResizing ? 'var(--primary)' : 'rgba(150, 150, 150, 0.2)',
+          width: '2px',
+          background: isResizing ? 'var(--primary)' : 'rgba(150, 150, 150, 0.25)',
           transition: isResizing ? 'none' : 'background 0.2s',
         }}
       >
-        {/* Grabbable handle in the middle */}
+        {/* Grabbable handle - always visible */}
         <div
           style={{
             position: 'absolute',
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            width: '20px',
-            height: '60px',
-            background: isResizing ? 'var(--primary)' : 'rgba(150, 150, 150, 0.3)',
-            borderRadius: '10px',
+            width: '16px',
+            height: '40px',
+            background: isResizing ? 'var(--primary)' : 'rgba(150, 150, 150, 0.25)',
+            borderRadius: '8px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '4px',
-            padding: '8px 0',
-            transition: 'all 0.2s',
-            opacity: isResizing ? 1 : 0,
+            gap: '3px',
+            padding: '6px 0',
+            transition: 'background 0.2s',
             pointerEvents: 'none',
           }}
-          className="group-hover:opacity-100"
         >
-          {/* Three horizontal dots to indicate grabbable */}
+          {/* Three dots to indicate grabbable */}
           <div style={{
-            width: '3px',
-            height: '3px',
-            background: 'currentColor',
+            width: '2px',
+            height: '2px',
+            background: 'rgba(100, 100, 100, 0.6)',
             borderRadius: '50%',
-            opacity: 0.7,
           }} />
           <div style={{
-            width: '3px',
-            height: '3px',
-            background: 'currentColor',
+            width: '2px',
+            height: '2px',
+            background: 'rgba(100, 100, 100, 0.6)',
             borderRadius: '50%',
-            opacity: 0.7,
           }} />
           <div style={{
-            width: '3px',
-            height: '3px',
-            background: 'currentColor',
+            width: '2px',
+            height: '2px',
+            background: 'rgba(100, 100, 100, 0.6)',
             borderRadius: '50%',
-            opacity: 0.7,
           }} />
         </div>
         {/* Wider invisible hit area for easier grabbing */}
@@ -214,8 +244,8 @@ export function TwoPanelChatLayout({
           style={{
             position: 'absolute',
             top: 0,
-            left: '-4px',
-            right: '-4px',
+            left: '-6px',
+            right: '-6px',
             bottom: 0,
           }}
         />

@@ -7,18 +7,21 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Client } from './ClientTypes'
 import { useClients } from './ClientStorage'
-import { Check, ChevronRight, X, Plus } from 'lucide-react'
+import { Check, ChevronRight, X, Plus, ToggleLeft, ToggleRight } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Switch } from '@/components/ui/switch'
 
 interface ClientModalProps {
   isOpen: boolean
   onClose: () => void
   selectedClientId: string | null
   onSelectClient: (clientId: string) => void
+  clientContextEnabled?: boolean
+  onToggleContext?: () => void
 }
 
-export function ClientModal({ isOpen, onClose, selectedClientId, onSelectClient }: ClientModalProps) {
+export function ClientModal({ isOpen, onClose, selectedClientId, onSelectClient, clientContextEnabled = false, onToggleContext }: ClientModalProps) {
   const { clients } = useClients()
   const [viewingClientId, setViewingClientId] = useState<string | null>(null) // Always start at list view
   const [editedClient, setEditedClient] = useState<Client | null>(null)
@@ -120,6 +123,29 @@ export function ClientModal({ isOpen, onClose, selectedClientId, onSelectClient 
               : 'View and edit client details.'}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Client Context Toggle - Only show in list view */}
+        {!viewingClient && selectedClientId && onToggleContext && (
+          <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
+            <div className="flex items-center gap-3">
+              {clientContextEnabled ? (
+                <ToggleRight className="h-5 w-5 text-primary" />
+              ) : (
+                <ToggleLeft className="h-5 w-5 text-muted-foreground" />
+              )}
+              <div>
+                <div className="font-semibold text-sm">Client Context</div>
+                <div className="text-xs text-muted-foreground">
+                  {clientContextEnabled ? 'Context is enabled' : 'Context is disabled'}
+                </div>
+              </div>
+            </div>
+            <Switch
+              checked={clientContextEnabled}
+              onCheckedChange={onToggleContext}
+            />
+          </div>
+        )}
 
         <ScrollArea className="flex-1 pr-4">
           {!viewingClient ? (

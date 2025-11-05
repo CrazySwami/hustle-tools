@@ -829,24 +829,17 @@ export function DocumentChat({
                   onClick: () => fileInputRef.current?.click(),
                   title: 'Attach image (PNG/JPEG, max 5MB)',
                 },
-                // Client actions - only show when we have client functionality
+                // Client selector - opens modal for client selection and context toggle
                 {
                   id: 'select-client',
-                  label: selectedClient ? `${selectedClient.name}` : 'Select Client',
+                  label: selectedClient ? `${selectedClient.name}` : 'Client',
                   icon: <Building2 size={18} />,
-                  isActive: false,
+                  isActive: clientContextEnabled, // Show as active when context is enabled
                   onClick: () => setClientModalOpen(true),
-                  title: 'Select or change client',
+                  title: selectedClient
+                    ? `${selectedClient.name} - Context ${clientContextEnabled ? 'ON' : 'OFF'}`
+                    : 'Select client and manage context',
                 },
-                // Only show context toggle if a client is selected
-                ...(selectedClient ? [{
-                  id: 'client-context',
-                  label: 'Client Context',
-                  icon: <Building2 size={18} />,
-                  isActive: clientContextEnabled,
-                  onClick: () => onClientContextToggle?.(),
-                  title: clientContextEnabled ? 'Client context enabled' : 'Client context disabled',
-                }] : []),
               ]}
             />
             <input
@@ -953,6 +946,8 @@ export function DocumentChat({
         onSelectClient={(clientId) => {
           onClientChange?.(clientId);
         }}
+        clientContextEnabled={clientContextEnabled}
+        onToggleContext={() => onClientContextToggle?.()}
       />
     </div>
   );

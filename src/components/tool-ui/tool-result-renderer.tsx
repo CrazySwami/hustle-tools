@@ -53,8 +53,10 @@ interface ToolResultRendererProps {
   onSwitchTab?: (tab: string) => void;
   model?: string;
   designSystemSummary?: DesignSystemSummary | null;
+  globalCSS?: string;
   onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
   onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  isEditorReady?: (fileType: string) => boolean; // Check if editor is mounted and ready
 }
 
 // Task widget component (inline since it's simpler)
@@ -123,7 +125,7 @@ function TaskWidget({ data }: { data: any }) {
   );
 }
 
-export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSectionEditor, onSwitchCodeTab, onSwitchTab, model, designSystemSummary, onProjectCreate, onProjectUpdate }: ToolResultRendererProps) {
+export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSectionEditor, onSwitchCodeTab, onSwitchTab, model, designSystemSummary, globalCSS, onProjectCreate, onProjectUpdate, isEditorReady }: ToolResultRendererProps) {
   const { toolName, result } = toolResult;
 
   console.log('🔧 ToolResultRenderer received:', {
@@ -348,9 +350,11 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
       console.log('🎯 ToolResultRenderer: generateProject case matched!', {
         result,
         hasOnProjectCreate: !!onProjectCreate,
-        hasOnProjectUpdate: !!onProjectUpdate
+        hasOnProjectUpdate: !!onProjectUpdate,
+        hasGlobalCSS: !!globalCSS,
+        globalCSSLength: globalCSS?.length || 0
       });
-      return <GenerateProjectWidget toolResult={result} onProjectCreate={onProjectCreate} onProjectUpdate={onProjectUpdate} onSwitchCodeTab={onSwitchCodeTab} />;
+      return <GenerateProjectWidget toolResult={result} globalCSS={globalCSS} defaultModel={model} onProjectCreate={onProjectCreate} onProjectUpdate={onProjectUpdate} onSwitchCodeTab={onSwitchCodeTab} onSwitchTab={onSwitchTab} isEditorReady={isEditorReady} />;
 
     default:
       // Fallback for unknown tool types, now stylized like AI Elements

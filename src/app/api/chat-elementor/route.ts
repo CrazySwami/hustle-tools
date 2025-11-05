@@ -93,18 +93,24 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get current date for context
-    const currentDate = new Date().toLocaleDateString('en-US', {
+    // Get current date and time for context
+    const now = new Date();
+    const currentDate = now.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
+    const currentTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
 
     // Build system prompt for Elementor section editing
     let systemPrompt = `You are an expert HTML/CSS/JS/PHP code writing assistant. You help users create and edit web sections for WordPress Elementor pages.
 
-**Current date:** ${currentDate}
+**Current Date & Time:** ${currentDate}, ${currentTime}
 
 **CRITICAL INSTRUCTIONS:**
 
@@ -364,7 +370,7 @@ When generating or modifying HTML/CSS, try to align with these global styles (fo
       console.log('Web search enabled with Perplexity model:', model);
       systemPrompt = `You are an expert Elementor JSON editor assistant. ALWAYS USE SEARCH to provide accurate and up-to-date information with sources. Keep responses concise and focused.
 
-**Current date:** ${currentDate}
+**Current Date & Time:** ${currentDate}, ${currentTime}
 
 **Current Elementor JSON context:**
 ${Object.keys(currentJson).length > 0 ? 'Current page has: ' + JSON.stringify(currentJson, null, 2).substring(0, 1000) + '...' : 'No current JSON loaded'}`;

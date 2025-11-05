@@ -59,6 +59,7 @@ interface ElementorChatProps {
   containerWidth?: number; // Container width for responsive prompt actions
   onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
   onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  isEditorReady?: (fileType: string) => boolean; // Check if editor is mounted and ready
 }
 
 const modelGroups = [
@@ -110,7 +111,8 @@ export function ElementorChat({
   navigationBar,
   containerWidth,
   onProjectCreate,
-  onProjectUpdate
+  onProjectUpdate,
+  isEditorReady
 }: ElementorChatProps) {
   const [input, setInput] = useState('');
   const [webSearch, setWebSearch] = useState(false);
@@ -389,6 +391,7 @@ export function ElementorChat({
                                   globalCSS={effectiveGlobalCss}
                                   onProjectCreate={onProjectCreate}
                                   onProjectUpdate={onProjectUpdate}
+                                  isEditorReady={isEditorReady}
                                 />
                               );
                             }
@@ -447,6 +450,7 @@ export function ElementorChat({
                                   globalCSS={effectiveGlobalCss}
                                   onProjectCreate={onProjectCreate}
                                   onProjectUpdate={onProjectUpdate}
+                                  isEditorReady={isEditorReady}
                                 />
                               );
                             }
@@ -511,13 +515,20 @@ export function ElementorChat({
       </Conversation>
 
       {/* Project Context Badge */}
-      {currentSection && (
-        <ProjectContextBadge
-          key={currentSection.id}
-          currentSection={currentSection}
-          includeContext={includeContext}
-        />
-      )}
+      {currentSection && (() => {
+        // Detect dark mode
+        const isDarkMode = typeof window !== 'undefined' &&
+          document.documentElement.classList.contains('dark');
+
+        return (
+          <ProjectContextBadge
+            key={currentSection.id}
+            currentSection={currentSection}
+            includeContext={includeContext}
+            isDark={isDarkMode}
+          />
+        );
+      })()}
 
       <PromptInput
         onSubmit={handleSubmit}

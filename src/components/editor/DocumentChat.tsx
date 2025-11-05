@@ -735,13 +735,18 @@ export function DocumentChat({
 
       {/* Project Context Badge - using same component as Elementor editor */}
       {currentDocument && (() => {
+        // Detect dark mode
+        const isDarkMode = typeof window !== 'undefined' &&
+          document.documentElement.classList.contains('dark');
+
         console.log('📄 DocumentChat passing to ProjectContextBadge:', {
           documentTitle: currentDocument.title,
           hasDocumentContent: !!documentContent,
           documentContentLength: documentContent?.length || 0,
           hasMarkdownContent: !!markdownContent,
           markdownContentLength: markdownContent?.length || 0,
-          markdownPreview: markdownContent?.substring(0, 100)
+          markdownPreview: markdownContent?.substring(0, 100),
+          isDarkMode
         });
         return (
           <ProjectContextBadge
@@ -757,6 +762,7 @@ export function DocumentChat({
               hubl: undefined,
             }}
             includeContext={includeContext}
+            isDark={isDarkMode}
           />
         );
       })()}
@@ -802,7 +808,7 @@ export function DocumentChat({
           <PromptInputTools>
             {/* Responsive: Dropdown on narrow, buttons on wide */}
             <MobilePromptActions
-              breakpoint={500}
+              breakpoint={550}
               containerWidth={containerWidth}
               actions={[
                 {
@@ -829,8 +835,8 @@ export function DocumentChat({
                   onClick: () => fileInputRef.current?.click(),
                   title: 'Attach image (PNG/JPEG, max 5MB)',
                 },
-                // Client selector - only in dropdown on mobile (< 500px, same as dropdown breakpoint)
-                ...(containerWidth < 500 ? [{
+                // Client selector - only in dropdown on mobile (< 550px, same as dropdown breakpoint)
+                ...(containerWidth < 550 ? [{
                   id: 'select-client',
                   label: selectedClient ? selectedClient.name : 'Client',
                   icon: <Building2 size={18} />,
@@ -849,8 +855,8 @@ export function DocumentChat({
               onChange={handleImageSelect}
               className="hidden"
             />
-            {/* Client selector button - hide on mobile (< 500px, same as dropdown breakpoint) */}
-            {containerWidth >= 500 && (
+            {/* Client selector button - hide on mobile (< 550px, same as dropdown breakpoint) */}
+            {containerWidth >= 550 && (
               <ClientSelectorButton
                 selectedClient={selectedClient}
                 clientContextEnabled={clientContextEnabled}

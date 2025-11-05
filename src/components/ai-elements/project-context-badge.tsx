@@ -37,6 +37,8 @@ export function ProjectContextBadge({
 }) {
   const [animationStage, setAnimationStage] = useState(0)
   const [isOverflowing, setIsOverflowing] = useState(false)
+  const [visibleBadgeIndex, setVisibleBadgeIndex] = useState(0)
+  const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
     const stages = [
@@ -50,6 +52,14 @@ export function ProjectContextBadge({
     stages.forEach(({ delay, stage }) => {
       setTimeout(() => setAnimationStage(stage), delay)
     })
+  }, [])
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
   // Get project tags based on what files actually exist
@@ -124,6 +134,21 @@ export function ProjectContextBadge({
       metricsCalculated: !!metrics
     })
   }, [projectType, currentSection?.content, metrics])
+
+  // Auto-scroll badges on mobile (show 2 at a time, cycle through all)
+  useEffect(() => {
+    if (!isMobile || !tags.length || tags.length <= 2) return
+
+    const interval = setInterval(() => {
+      setVisibleBadgeIndex((prev) => {
+        // If we're showing the last pair, go back to start
+        if (prev + 2 >= tags.length) return 0
+        return prev + 1
+      })
+    }, 3000) // Change every 3 seconds
+
+    return () => clearInterval(interval)
+  }, [isMobile, tags.length])
 
   // Determine icon based on project type
   const ProjectIcon = projectType === 'hubspot' ? SiHubspot
@@ -200,21 +225,21 @@ export function ProjectContextBadge({
                 // Show metrics for documents
                 <>
                   <span
-                    className="text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300 animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0"
+                    className="text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-800 dark:bg-blue-500/20 dark:text-blue-100 animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0"
                     style={{ animationDelay: '400ms' }}
                     title="Word count"
                   >
                     {metrics.wordCount.toLocaleString()}w
                   </span>
                   <span
-                    className="text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded bg-green-500/30 text-green-800 dark:bg-green-500/20 dark:text-green-300 animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0"
+                    className="text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded bg-green-500/30 text-green-800 dark:bg-green-500/20 dark:text-green-100 animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0"
                     style={{ animationDelay: '500ms' }}
                     title="Character count"
                   >
                     {metrics.charCount.toLocaleString()}c
                   </span>
                   <span
-                    className="text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300 animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0"
+                    className="text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-800 dark:bg-purple-500/20 dark:text-purple-100 animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0"
                     style={{ animationDelay: '600ms' }}
                     title="Estimated token count"
                   >
@@ -223,15 +248,20 @@ export function ProjectContextBadge({
                 </>
               ) : (
                 // Show file type tags for code projects
-                tags.map((tag, i) => (
-                  <span
-                    key={tag}
-                    className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0 ${getExtensionColor(tag, isDark)}`}
-                    style={{ animationDelay: `${400 + i * 100}ms` }}
-                  >
-                    {tag}
-                  </span>
-                ))
+                // On mobile: show max 2 badges at a time with auto-scroll
+                // On desktop: show all badges
+                (isMobile ? tags.slice(visibleBadgeIndex, visibleBadgeIndex + 2) : tags).map((tag, i) => {
+                  const originalIndex = isMobile ? visibleBadgeIndex + i : i
+                  return (
+                    <span
+                      key={`${tag}-${originalIndex}`}
+                      className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0 ${getExtensionColor(tag, isDark)}`}
+                      style={{ animationDelay: `${400 + i * 100}ms` }}
+                    >
+                      {tag}
+                    </span>
+                  )
+                })
               )}
             </div>
           </>

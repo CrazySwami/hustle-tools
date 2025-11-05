@@ -123,7 +123,16 @@ function buildAnalysisPrompt(
     ? 'HubSpot CMS template with HTML, CSS, JavaScript, and HubL'
     : 'WordPress Elementor widget with HTML, CSS, JavaScript, and PHP';
 
+  // Get current date for footer
+  const currentDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
   return `You are a technical documentation expert. Analyze the following project files and generate a comprehensive Markdown manifest.
+
+**Current Date:** ${currentDate}
 
 **Project Name:** ${projectName}
 **Project Type:** ${projectTypeDescription}
@@ -139,7 +148,7 @@ function buildAnalysisPrompt(
    - Any important technical details (classes, functions, patterns used)
 5. ${isPlugin ? 'Explain how the plugin auto-registration system works' : 'Explain how the files work together'}
 6. Include a "Usage" section explaining how to use this project
-7. End with a footer note that includes today's date and mentions that this documentation can be manually edited or regenerated
+7. End with a footer note that includes today's date (${currentDate}) and mentions that this documentation can be manually edited or regenerated
 
 **Files to Analyze:**
 

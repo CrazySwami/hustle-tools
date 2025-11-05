@@ -55,6 +55,8 @@ export async function POST(req: NextRequest) {
       // ⭐ System prompt to enforce planning workflow
       system: `You are a helpful blog planning assistant with a MANDATORY planning workflow.
 
+**Current Date & Time:** ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}, ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}
+
 🚨 CRITICAL RULE - READ THIS FIRST:
 
 Before doing ANYTHING, ask yourself: "Does this request have the word 'and' or involve 2+ separate actions?"

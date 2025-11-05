@@ -31,8 +31,24 @@ export async function POST(req: Request) {
     const isElementor = projectType === 'elementor' || projectType === 'convert-to-elementor';
     const isHubSpot = projectType === 'hubspot';
 
+    // Get current date and time
+    const now = new Date();
+    const currentDate = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const currentTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+
     const systemPrompt = isElementor
       ? `You are an expert Elementor widget developer. Generate a COMPLETE, PRODUCTION-READY PHP widget class.
+
+**Current Date & Time:** ${currentDate}, ${currentTime}
 
 **🎯 HIGHEST PRIORITY - USER INSTRUCTIONS:**
 The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. These instructions come from the project owner and decision-maker. If the user's instructions conflict with any guidelines below, ALWAYS follow the user's instructions. Their requirements override everything else.
@@ -86,6 +102,8 @@ The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. 
       : isHubSpot
         ? hubspotModuleType === 'email'
           ? `You are an expert HubSpot email module developer. Generate production-ready HTML with inline CSS optimized for email clients.
+
+**Current Date & Time:** ${currentDate}, ${currentTime}
 
 **MODULE TYPE: EMAIL (Strict Compatibility Mode)**
 
@@ -141,6 +159,8 @@ The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. 
 
 **IMPORTANT**: Email compatibility is CRITICAL. Always use tables with inline styles. Test across Gmail, Outlook, Apple Mail.`
           : `You are an expert HubSpot page module developer. Generate production-ready HTML with modern CSS for HubSpot CMS pages.
+
+**Current Date & Time:** ${currentDate}, ${currentTime}
 
 **MODULE TYPE: PAGE (Modern Web Standards)**
 
@@ -205,6 +225,8 @@ The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. 
 **IMPORTANT**: Page modules support modern web standards. Use flexbox, grid, and interactive features freely.`
         : `You are an expert frontend developer. Generate complete, production-ready HTML/CSS/JS code for a web section based on the user's description.
 
+**Current Date & Time:** ${currentDate}, ${currentTime}
+
 **🎯 HIGHEST PRIORITY - USER INSTRUCTIONS:**
 The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. These instructions come from the project owner and decision-maker. If the user's instructions conflict with any guidelines below, ALWAYS follow the user's instructions. Their requirements override everything else.
 
@@ -254,71 +276,86 @@ ${globalCSS && !existingCode ? `**Global CSS Reference** (for consistent styling
 **Widget ID**: ${projectName}
 **Title**: ${projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
 
-Generate THREE files in order:
+Generate a **SINGLE PHP FILE** with everything inline:
 
----
+**PHP Widget Class with Inline CSS/JS**
 
-**1. PHP Widget Class (widget.php)**
+The widget class MUST include:
 
-Must include:
-- Complete class extending \\Elementor\\Widget_Base
-- All 7 required methods: get_name, get_title, get_icon, get_categories, get_keywords, register_controls, render
-- **CRITICAL**: register_controls() must create controls for EVERY SINGLE visual element (text, color, size, spacing, etc.)
-- Organize controls into logical sections (Content tab and Style tab)
-- Use proper control types:
-  - TEXT, TEXTAREA for text content
-  - URL for links
-  - MEDIA for images
-  - COLOR for colors
-  - TYPOGRAPHY for font styling
-  - DIMENSIONS for spacing/padding/margin
-  - SLIDER for numeric values
-  - CHOOSE for alignment/position
-  - SELECT for dropdown options
-- Add 'selector' to style controls so they apply to the correct HTML element
-- Add 'description' to explain each control's purpose
-- render() method: Use $settings = $this->get_settings_for_display() and output HTML with proper escaping
+1. **Widget Class Structure**:
+   - Complete class extending \\Elementor\\Widget_Base
+   - All 7 required methods: get_name, get_title, get_icon, get_categories, get_keywords, register_controls, render
+   - **CRITICAL**: register_controls() must create controls for EVERY SINGLE visual element (text, color, size, spacing, etc.)
+
+2. **Control Organization**:
+   - Organize controls into logical sections (Content tab and Style tab)
+   - Use proper control types:
+     - TEXT, TEXTAREA for text content
+     - URL for links
+     - MEDIA for images
+     - COLOR for colors
+     - TYPOGRAPHY for font styling
+     - DIMENSIONS for spacing/padding/margin
+     - SLIDER for numeric values
+     - CHOOSE for alignment/position
+     - SELECT for dropdown options
+   - Add 'selector' to style controls so they apply to the correct HTML element
+   - Add 'description' to explain each control's purpose
+
+3. **render() Method**:
+   - Use $settings = $this->get_settings_for_display()
+   - Output HTML with proper escaping (esc_html, esc_attr, esc_url)
+   - Include inline <style> tag with {{WRAPPER}}-scoped CSS
+   - Include inline <script> tag if JavaScript is needed (or omit if not needed)
+
+4. **CSS Scoping Rules** (inside render() method):
+   - ALL styles must use {{WRAPPER}} prefix for widget-specific selectors
+   - ✅ USE {{WRAPPER}}: .my-element, .heading, .button, etc.
+   - ❌ NEVER use {{WRAPPER}} on: body, html, *, :root, @font-face, @keyframes, @media
+   - Responsive design (mobile-first)
+   - Include hover states, transitions, animations
+
+5. **JavaScript** (inside render() method, if needed):
+   - Wrap in IIFE: (function($) { ... })(jQuery);
+   - Use jQuery (Elementor includes it)
+   - Target elements with widget-specific classes
+   - If no JS needed, don't include <script> tag
 
 **MAKE EVERYTHING EDITABLE** - Users should NEVER need to touch code. Every text, color, size, spacing, image, link, etc. must have a control.
-
----
-
-**2. Widget CSS (widget.css)**
-
-- Include ALL styles with {{WRAPPER}} scoping
-- Rules:
-  - ✅ USE {{WRAPPER}}: .my-element, .heading, .button, etc.
-  - ❌ NEVER use {{WRAPPER}} on: body, html, *, :root, @font-face, @keyframes, @media
-- Responsive design (mobile-first)
-- Include hover states, transitions, animations
-- Well-organized and commented
-
----
-
-**3. Widget JavaScript (widget.js)**
-
-- If the widget needs interactivity, include JavaScript
-- Wrap in IIFE: (function($) { ... })(jQuery);
-- Use jQuery (Elementor includes it)
-- Target elements with widget-specific classes
-- If no JS needed, output: // No JavaScript needed for this widget
-
----
 
 **Output Format:**
 \`\`\`php
 <?php
-// Complete widget class code here
+if (!defined('ABSPATH')) exit;
+
+class Elementor_Widget_Name extends \\Elementor\\Widget_Base {
+    // ... all methods here ...
+
+    protected function render() {
+        $settings = $this->get_settings_for_display();
+        ?>
+        <style>
+        {{WRAPPER}} .my-class {
+            /* All CSS here with {{WRAPPER}} scoping */
+        }
+        </style>
+
+        <div class="my-widget">
+            <!-- HTML output here -->
+        </div>
+
+        <script>
+        (function($) {
+            // JavaScript here if needed
+        })(jQuery);
+        </script>
+        <?php
+    }
+}
 ?>
 \`\`\`
 
-\`\`\`css
-/* Complete widget styles here */
-\`\`\`
-
-\`\`\`javascript
-// Complete widget JavaScript here (or comment if not needed)
-\`\`\`
+**CRITICAL**: Generate ONLY ONE PHP file with CSS and JS inline in the render() method. Do NOT generate separate CSS or JS files.
 
 Be comprehensive - this widget should be production-ready and fully customizable through Elementor's interface.`
       : isHubSpot

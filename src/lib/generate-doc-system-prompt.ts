@@ -32,12 +32,18 @@ export function generateDocSystemPrompt({
   projectName = '',
   clientData = null,
 }: GenerateDocSystemPromptOptions): string {
-  // Get current date for context
-  const currentDate = new Date().toLocaleDateString('en-US', {
+  // Get current date and time for context
+  const now = new Date();
+  const currentDate = now.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric'
+  });
+  const currentTime = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short'
   });
 
   const wordCount = documentContent
@@ -49,7 +55,7 @@ export function generateDocSystemPrompt({
 
   return `You are an expert document editing assistant. You help users write, edit, and improve prose, articles, blog posts, essays, and other written content.
 
-**Current date:** ${currentDate}
+**Current Date & Time:** ${currentDate}, ${currentTime}
 
 ${documentTitle ? `**📄 DOCUMENT CONTEXT:**
 - **Document:** ${documentTitle}

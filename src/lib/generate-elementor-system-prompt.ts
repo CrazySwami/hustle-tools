@@ -20,12 +20,18 @@ export function generateElementorSystemPrompt({
   currentSection,
   globalCss = '',
 }: GenerateElementorSystemPromptOptions): string {
-  // Get current date for context
-  const currentDate = new Date().toLocaleDateString('en-US', {
+  // Get current date and time for context
+  const now = new Date();
+  const currentDate = now.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric'
+  });
+  const currentTime = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short'
   });
 
   // Detect project type
@@ -36,7 +42,7 @@ export function generateElementorSystemPrompt({
   // Build system prompt
   let systemPrompt = `You are an expert HTML/CSS/JS/PHP code writing assistant. You help users create and edit web sections for WordPress Elementor pages.
 
-**Current date:** ${currentDate}
+**Current Date & Time:** ${currentDate}, ${currentTime}
 
 **CRITICAL INSTRUCTIONS:**
 
@@ -115,12 +121,19 @@ ${currentSection.hubl?.substring(0, 5000) || '(empty file)'}
 ${currentSection.hubl?.length > 5000 ? '\n...(file continues - total ' + currentSection.hubl.length + ' chars. You can see first 5000 chars)' : ''}
 \`\`\`
 
+**📖 README.md (Project Documentation) (${currentSection.projectManifest?.length || 0} characters):**
+\`\`\`markdown
+${currentSection.projectManifest?.substring(0, 3000) || '(no README)'}
+${currentSection.projectManifest?.length > 3000 ? '\n...(file continues - total ' + currentSection.projectManifest.length + ' chars. You can see first 3000 chars)' : ''}
+\`\`\`
+
 **IMPORTANT:**
 - You CAN see the code above (first 3000-5000 characters of each file)
 - Each file is labeled with its full length
 - When user asks to edit specific text, search within the visible portion first
 - If text isn't visible, ask user to provide surrounding context or use file search
 - Use \`editCodeWithMorph\` with lazy markers to edit any visible portion
+- The README provides project documentation and context (if available)
 ` : `
 ❌ NO - No section currently loaded in the editor.
 

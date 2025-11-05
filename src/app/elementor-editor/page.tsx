@@ -163,6 +163,21 @@ export default function ElementorEditorPage() {
     hubl: null,
   });
 
+  // Editor ready state tracking (for streaming synchronization)
+  const [editorsReady, setEditorsReady] = useState({
+    html: false,
+    css: false,
+    js: false,
+    php: false,
+    hubl: false,
+    docs: false
+  });
+
+  // Function to check if editor is ready
+  const isEditorReady = (fileType: string) => {
+    return editorsReady[fileType as keyof typeof editorsReady] || false;
+  };
+
   // File Groups - reload from localStorage when project changes
   const fileGroups = useFileGroups();
 
@@ -1592,6 +1607,7 @@ export default function ElementorEditorPage() {
                     selectedModel={selectedModel}
                     onModelChange={setSelectedModel}
                     onReload={reload}
+                    isEditorReady={isEditorReady}
                     onStreamUpdate={(type, content) => {
                       setStreamedCode(prev => ({ ...prev, [type]: content }));
                     }}
@@ -2107,6 +2123,7 @@ export default function ElementorEditorPage() {
                     activeCodeTab={activeCodeTab}
                     onCodeTabChange={setActiveCodeTab}
                     isTabVisible={activeTab === 'json'}
+                    onEditorReadyStateChange={setEditorsReady}
                     onSendChatMessage={(message) => {
                       sendMessage(
                         { content: message, role: 'user' },
@@ -2299,6 +2316,7 @@ export default function ElementorEditorPage() {
                     selectedModel={selectedModel}
                     onModelChange={setSelectedModel}
                     onReload={reload}
+                    isEditorReady={isEditorReady}
                     onStreamUpdate={(type, content) => {
                       setStreamedCode(prev => ({ ...prev, [type]: content }));
                     }}

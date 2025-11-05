@@ -160,18 +160,32 @@ export async function POST(req: Request) {
       );
     }
 
+    // Get current date and time for context
+    const now = new Date();
+    const currentDate = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const currentTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+
     // Configure the model based on selection and web search preference
     let selectedModel = model;
-    let systemPrompt = 'You are a helpful assistant that can answer questions and help with tasks';
+    let systemPrompt = `You are a helpful assistant that can answer questions and help with tasks.\n\n**Current Date & Time:** ${currentDate}, ${currentTime}`;
     
     // Enable web search for Perplexity models
     if (webSearch && model.startsWith('perplexity/')) {
       console.log('Web search enabled with Perplexity model:', model);
       // Perplexity models have built-in web search capabilities
-      systemPrompt = 'You are a helpful assistant. ALWAYS USE SEARCH to provide accurate and up-to-date information with sources. Keep responses concise and focused.';
+      systemPrompt = `You are a helpful assistant. ALWAYS USE SEARCH to provide accurate and up-to-date information with sources. Keep responses concise and focused.\n\n**Current Date & Time:** ${currentDate}, ${currentTime}`;
     } else if (webSearch) {
       console.log('Web search requested but not available for non-Perplexity model:', model);
-      systemPrompt = 'You are a helpful assistant that can answer questions and help with tasks. Note: Web search was requested but is only available with Perplexity models.';
+      systemPrompt = `You are a helpful assistant that can answer questions and help with tasks. Note: Web search was requested but is only available with Perplexity models.\n\n**Current Date & Time:** ${currentDate}, ${currentTime}`;
     }
 
     // Add tool calling instructions to system prompt if tools are enabled

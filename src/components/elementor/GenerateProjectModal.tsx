@@ -29,6 +29,11 @@ interface GenerateProjectModalProps {
   onGenerate: (code: { html: string; css: string; js: string; php?: string; hubl?: string; projectName?: string }) => void;
   onProjectCreate?: (projectName: string, projectType: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
   onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  onSwitchCodeTab?: (tab: 'html' | 'css' | 'js' | 'php' | 'hubl') => void;
+  onSwitchTab?: (tab: string) => void; // Switch main tab (e.g., to 'json')
+  onGenerationStart?: () => void; // NEW: Notify when generation starts
+  onGenerationEnd?: () => void; // NEW: Notify when generation ends
+  isEditorReady?: (fileType: string) => boolean; // Check if editor is mounted and ready
   defaultModel?: string;
   // Optional existing code for conversion mode or context
   existingCode?: {
@@ -40,7 +45,7 @@ interface GenerateProjectModalProps {
   globalCSS?: string;
 }
 
-export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCreate, onProjectUpdate, defaultModel, existingCode, globalCSS }: GenerateProjectModalProps) {
+export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCreate, onProjectUpdate, onSwitchCodeTab, onSwitchTab, onGenerationStart, onGenerationEnd, isEditorReady, defaultModel, existingCode, globalCSS }: GenerateProjectModalProps) {
   // If existingCode is provided, we're in conversion mode - skip type selection and go straight to elementor
   const isConversionMode = !!existingCode;
   const [step, setStep] = useState<'type' | 'description' | 'generating'>(isConversionMode ? 'description' : 'type');
@@ -489,11 +494,61 @@ Type: ${projectType}`;
   };
 
   const startGeneration = async () => {
-    setStep('generating');
+    const generatedName = projectName || generateProjectName(description);
+
+    // Create project FIRST
+    const displayName = generatedName
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+
+    const projectId = onProjectCreate?.(
+      displayName,
+      (projectType === 'elementor' || projectType === 'convert-to-elementor') ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html'
+    );
+
+    if (projectId) {
+      setCreatedProjectId(projectId);
+      console.log('📦 Created project via modal:', displayName, 'ID:', projectId);
+    }
+
+    // Switch to Code Editor tab to show the streaming
+    if (onSwitchTab) {
+      onSwitchTab('json');
+      console.log('📑 Switched to Code Editor tab via modal');
+    }
+
+    // Switch to appropriate file tab based on project type
+    if (onSwitchCodeTab) {
+      if (projectType === 'elementor' || projectType === 'convert-to-elementor') {
+        onSwitchCodeTab('php');
+        console.log('📄 Switched to PHP tab via modal');
+      } else if (projectType === 'hubspot') {
+        onSwitchCodeTab('html');
+        console.log('📄 Switched to HTML tab via modal');
+      } else {
+        onSwitchCodeTab('html');
+        console.log('📄 Switched to HTML tab via modal');
+      }
+    }
+
+    // Wait for Monaco editor to mount before closing modal and starting generation
+    // This ensures editor refs are ready for streaming
+    console.log('⏳ Waiting 300ms for Monaco editor to mount...');
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Close modal so user sees the code editor
+    console.log('👋 Closing modal, Monaco editor should be visible now');
+    onClose();
+
+    // Notify parent that generation is starting
+    if (onGenerationStart) {
+      onGenerationStart();
+      console.log('📢 Notified parent: generation started');
+    }
+
     setGenerating(true);
     setProgress('Initializing generation...');
-
-    const generatedName = projectName || generateProjectName(description);
 
     try {
       // For convert-to-elementor mode, get the selected HTML project data
@@ -533,21 +588,6 @@ Type: ${projectType}`;
       let fullCode = '';
 
       if (reader) {
-        // Create project ONCE at the start
-        const displayName = generatedName
-          .split('_')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' ');
-
-        const projectId = onProjectCreate?.(
-          displayName,
-          (projectType === 'elementor' || projectType === 'convert-to-elementor') ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html'
-        );
-        if (projectId) {
-          setCreatedProjectId(projectId);
-          console.log('📦 Created project:', displayName, 'ID:', projectId);
-        }
-
         // Set initial phase based on project type
         if (projectType === 'elementor' || projectType === 'convert-to-elementor') {
           setCurrentPhase('php');
@@ -559,11 +599,6 @@ Type: ${projectType}`;
           setCurrentPhase('html');
           setProgress('Generating HTML...');
         }
-
-        // Close modal after a short delay so user can see the streaming in the editor
-        setTimeout(() => {
-          onClose();
-        }, 500);
 
         while (true) {
           const { done, value} = await reader.read();
@@ -616,19 +651,22 @@ Type: ${projectType}`;
             }
           }
 
-          // Update progress based on content length (visual feedback only)
+          // Update progress based on content length and switch file tabs automatically
           if (projectType === 'html') {
             if (fullCode.length > 500 && currentPhase === 'html') {
               setCurrentPhase('css');
               setProgress('Generating CSS...');
+              onSwitchCodeTab?.('css');
             } else if (fullCode.length > 1500 && currentPhase === 'css') {
               setCurrentPhase('js');
               setProgress('Generating JavaScript...');
+              onSwitchCodeTab?.('js');
             }
           } else if (projectType === 'hubspot') {
             if (fullCode.length > 500 && currentPhase === 'html') {
               setCurrentPhase('hubl');
               setProgress('Generating HubL...');
+              onSwitchCodeTab?.('html'); // HubL content shows in html tab for HubSpot
             }
           }
           // For Elementor, keep showing PHP generation
@@ -715,12 +753,24 @@ Type: ${projectType}`;
 
         setProgress('✅ Generation complete!');
         setGenerating(false);
+
+        // Notify parent that generation ended
+        if (onGenerationEnd) {
+          onGenerationEnd();
+          console.log('📢 Notified parent: generation ended');
+        }
         // Don't auto-close - let user view stats and close manually
 
       }
     } catch (error: any) {
       setProgress(`❌ Error: ${error.message}`);
       setGenerating(false);
+
+      // Notify parent that generation ended (even on error)
+      if (onGenerationEnd) {
+        onGenerationEnd();
+        console.log('📢 Notified parent: generation ended (error)');
+      }
     }
   };
 

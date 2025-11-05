@@ -61,6 +61,21 @@ interface HtmlSectionEditorProps {
   hotReloadEnabled?: boolean; // Hot reload toggle state from parent
   currentProject?: any; // Current project from file groups
   fileGroups?: ReturnType<typeof useFileGroups>; // Shared file groups state from parent
+  onEditorReady?: (editorRefs: {
+    html: any | null;
+    css: any | null;
+    js: any | null;
+    php: any | null;
+    hubl: any | null;
+  }) => void; // Callback to expose Monaco editor refs to parent
+  onEditorReadyStateChange?: (readyState: {
+    html: boolean;
+    css: boolean;
+    js: boolean;
+    php: boolean;
+    hubl: boolean;
+    docs: boolean;
+  }) => void; // Callback to notify when editor ready state changes
 }
 
 export function HtmlSectionEditor({
@@ -84,6 +99,8 @@ export function HtmlSectionEditor({
   hotReloadEnabled = false,
   currentProject,
   fileGroups: parentFileGroups,
+  onEditorReady,
+  onEditorReadyStateChange,
 }: HtmlSectionEditorProps) {
   // File Groups Management - use parent's instance if provided, otherwise create local instance
   const localFileGroups = useFileGroups();
@@ -132,6 +149,20 @@ export function HtmlSectionEditor({
   const [isGenerating, setIsGenerating] = useState(false); // Track if generation is in progress
   const [generatingPhase, setGeneratingPhase] = useState<'html' | 'css' | 'js' | 'php' | null>(null);
   const [generatingTokens, setGeneratingTokens] = useState(0); // Track current file token count
+  const [showGenerationComplete, setShowGenerationComplete] = useState(false); // Show completion notification
+
+  // Editor ready state tracking (for streaming synchronization)
+  const [editorsReady, setEditorsReady] = useState({
+    html: false,
+    css: false,
+    js: false,
+    php: false,
+    hubl: false,
+    docs: false
+  });
+
+  // DEBUG: Log state changes
+  console.log('🔍 HtmlSectionEditor render - isGenerating:', isGenerating, 'phase:', generatingPhase, 'tokens:', generatingTokens);
 
   // Diff preview state
   const [showDiffPreview, setShowDiffPreview] = useState(false);
@@ -157,9 +188,33 @@ export function HtmlSectionEditor({
 
   const menuRef = useRef<HTMLDivElement>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
-  const monacoEditorRef = useRef<any>(null); // Store Monaco editor instance
+
+  // Store Monaco editor instances for all file types
+  const htmlEditorRef = useRef<any>(null);
+  const cssEditorRef = useRef<any>(null);
+  const jsEditorRef = useRef<any>(null);
+  const phpEditorRef = useRef<any>(null);
+  const hublEditorRef = useRef<any>(null);
+  const docsEditorRef = useRef<any>(null); // For README.md
+
   const { globalCss, cssVariables } = useGlobalStylesheet();
   const { theme } = useTheme();
+
+  // Notify parent when editor ready state changes
+  useEffect(() => {
+    if (onEditorReady) {
+      onEditorReady({
+        html: htmlEditorRef.current,
+        css: cssEditorRef.current,
+        js: jsEditorRef.current,
+        php: phpEditorRef.current,
+        hubl: hublEditorRef.current
+      });
+    }
+    if (onEditorReadyStateChange) {
+      onEditorReadyStateChange(editorsReady);
+    }
+  }, [editorsReady, onEditorReady, onEditorReadyStateChange]);
 
   // Global editor content state (for chat access)
   const { updateContent, setAllContent, html: editorHtml, css: editorCss, js: editorJs, php: editorPhp, hubl: editorHubl } = useEditorContent();
@@ -171,8 +226,8 @@ export function HtmlSectionEditor({
   // Force Monaco Editor to update when Zustand state changes
   // This fixes the issue where Monaco doesn't auto-update from value prop changes
   useEffect(() => {
-    if (monacoEditorRef.current && activeCodeTab === 'php') {
-      const currentValue = monacoEditorRef.current.getValue();
+    if (phpEditorRef.current && activeCodeTab === 'php') {
+      const currentValue = phpEditorRef.current.getValue();
       // Only update if the values are different to avoid cursor jumps
       if (currentValue !== editorPhp) {
         console.log('🔄 Force updating Monaco editor content:', {
@@ -180,7 +235,7 @@ export function HtmlSectionEditor({
           to: editorPhp?.substring(0, 100),
           activeWidgetId
         });
-        monacoEditorRef.current.setValue(editorPhp || '');
+        phpEditorRef.current.setValue(editorPhp || '');
       }
     }
   }, [editorPhp, activeCodeTab, activeWidgetId]);
@@ -482,6 +537,11 @@ export function HtmlSectionEditor({
       // Auto-deploy to WordPress Playground
       setConversionProgress('🚀 Deploying to WordPress Playground...');
 
+      // Validate widget PHP before deployment
+      if (!cleanWidgetPhp || cleanWidgetPhp.trim() === '') {
+        throw new Error('Generated widget PHP is empty. Cannot deploy to WordPress.');
+      }
+
       try {
         // Call the global deployElementorWidget function from playground.js
         if (typeof window !== 'undefined' && (window as any).deployElementorWidget) {
@@ -728,8 +788,45 @@ export function HtmlSectionEditor({
         throw new Error('Failed to regenerate documentation');
       }
 
-      const data = await response.json();
-      fileGroups.updateGroup(fileGroups.activeGroup.id, { projectManifest: data.manifest });
+      // Stream the markdown response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullMarkdown = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          fullMarkdown += chunk;
+
+          // Stream into Monaco editor in real-time if on docs tab
+          if (activeCodeTab === 'docs' && docsEditorRef.current) {
+            const model = docsEditorRef.current.getModel();
+            if (model) {
+              // Replace all content with accumulated markdown
+              const fullRange = model.getFullModelRange();
+              model.pushEditOperations(
+                [],
+                [{
+                  range: fullRange,
+                  text: fullMarkdown
+                }],
+                () => null
+              );
+              console.log(`📝 Streamed ${fullMarkdown.length} chars to docs editor`);
+            } else {
+              console.warn('⚠️ Docs editor model not available');
+            }
+          } else if (activeCodeTab === 'docs') {
+            console.warn('⚠️ Docs editor ref not available');
+          }
+        }
+      }
+
+      // Save the complete markdown to the project
+      fileGroups.updateGroup(fileGroups.activeGroup.id, { projectManifest: fullMarkdown });
       console.log('✅ README.md regenerated successfully');
     } catch (error: any) {
       console.error('❌ Failed to regenerate documentation:', error);
@@ -3023,12 +3120,17 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     key={`docs-${fileGroups.activeGroup?.id}`}
                     height="100%"
                     language="markdown"
-                    theme="vs-dark"
+                    theme={theme === "dark" ? "vs-dark" : "light"}
                     value={fileGroups.activeGroup?.projectManifest || ''}
                     onChange={(value) => {
                       if (fileGroups.activeGroup && value !== undefined) {
                         fileGroups.updateGroup(fileGroups.activeGroup.id, { projectManifest: value });
                       }
+                    }}
+                    onMount={(editor) => {
+                      docsEditorRef.current = editor;
+                      setEditorsReady(prev => ({ ...prev, docs: true }));
+                      console.log('✅ Docs editor mounted and ready');
                     }}
                     options={{
                       fontSize: isMobile ? 16 : 14,
@@ -3077,8 +3179,39 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   }
                 }}
                 onMount={(editor, monaco) => {
-                  // Store editor instance for programmatic updates
-                  monacoEditorRef.current = editor;
+                  // Store editor instance in appropriate ref based on active tab
+                  if (activeCodeTab === 'html') {
+                    htmlEditorRef.current = editor;
+                    setEditorsReady(prev => ({ ...prev, html: true }));
+                    console.log('✅ HTML editor mounted and ready');
+                  } else if (activeCodeTab === 'css') {
+                    cssEditorRef.current = editor;
+                    setEditorsReady(prev => ({ ...prev, css: true }));
+                    console.log('✅ CSS editor mounted and ready');
+                  } else if (activeCodeTab === 'js') {
+                    jsEditorRef.current = editor;
+                    setEditorsReady(prev => ({ ...prev, js: true }));
+                    console.log('✅ JS editor mounted and ready');
+                  } else if (activeCodeTab === 'php') {
+                    phpEditorRef.current = editor;
+                    setEditorsReady(prev => ({ ...prev, php: true }));
+                    console.log('✅ PHP editor mounted and ready');
+                  } else if (activeCodeTab === 'hubl') {
+                    hublEditorRef.current = editor;
+                    setEditorsReady(prev => ({ ...prev, hubl: true }));
+                    console.log('✅ HubL editor mounted and ready');
+                  }
+
+                  // Notify parent that editors are ready
+                  if (onEditorReady) {
+                    onEditorReady({
+                      html: htmlEditorRef.current,
+                      css: cssEditorRef.current,
+                      js: jsEditorRef.current,
+                      php: phpEditorRef.current,
+                      hubl: hublEditorRef.current,
+                    });
+                  }
 
                   // Register CSS variable autocomplete (only for CSS tab)
                   if (activeCodeTab === "css") {
@@ -3614,8 +3747,15 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 <button
                   onClick={async () => {
                     setShowCompletionModal(false);
+
+                    // Validate PHP code exists before deployment
+                    if (!editorPhp || editorPhp.trim() === '') {
+                      alert('❌ No PHP widget code found. Please generate a widget first.');
+                      return;
+                    }
+
                     try {
-                      const result = await window.deployElementorWidget(editorPhp || '', editorCss, editorJs);
+                      const result = await window.deployElementorWidget(editorPhp, editorCss, editorJs);
                       // Switch to Playground tab
                       if (onSwitchToPlayground) {
                         onSwitchToPlayground();
@@ -3957,6 +4097,25 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           setShowGenerateModal(false);
           setGenerateModalConversionMode(false);
         }}
+        onGenerationStart={() => {
+          // Modal will close and generation will start
+          // Set generating state so indicator shows
+          setIsGenerating(true);
+          setGeneratingPhase('html'); // Default to HTML phase
+          console.log('🎬 Generation starting from modal');
+        }}
+        onGenerationEnd={() => {
+          // Generation finished
+          setIsGenerating(false);
+          setGeneratingPhase(null);
+          setShowGenerationComplete(true);
+          console.log('🏁 Generation ended from modal');
+
+          // Auto-hide completion notification after 3 seconds
+          setTimeout(() => {
+            setShowGenerationComplete(false);
+          }, 3000);
+        }}
         defaultModel={undefined}
         globalCSS={globalCss} // Pass global CSS for context
         existingCode={generateModalConversionMode ? {
@@ -3964,6 +4123,10 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           css: editorCss,
           js: editorJs,
         } : undefined}
+        isEditorReady={(fileType) => {
+          // Check if specific editor is mounted and ready
+          return editorsReady[fileType as keyof typeof editorsReady] || false;
+        }}
         onProjectCreate={(name, type) => {
           // Create new project and return its ID
           const newGroup = fileGroups.createNewGroup(name, type, 'empty');
@@ -3973,6 +4136,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           // Start generating state
           setIsGenerating(true);
           setGeneratingPhase(type === 'php' ? 'php' : 'html');
+          console.log('🚀 Generation started! isGenerating=true, phase=', type === 'php' ? 'php' : 'html');
 
           // Auto-switch to the first tab
           if (type === 'php') {
@@ -4002,8 +4166,36 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
               }
             }
 
-            // Update editor content immediately for visibility
-            updateContent(file, content);
+            // Stream into Monaco editor in real-time using pushEditOperations
+            // This provides smooth streaming like README regeneration
+            const editorRef = file === 'html' ? htmlEditorRef :
+                             file === 'css' ? cssEditorRef :
+                             file === 'js' ? jsEditorRef :
+                             file === 'php' ? phpEditorRef :
+                             file === 'hubl' ? hublEditorRef : null;
+
+            if (editorRef?.current) {
+              const model = editorRef.current.getModel();
+              if (model) {
+                // Replace all content with new streamed content
+                const fullRange = model.getFullModelRange();
+                model.pushEditOperations(
+                  [],
+                  [{
+                    range: fullRange,
+                    text: content
+                  }],
+                  () => null
+                );
+                console.log(`✨ Streamed ${content.length} chars to ${file} editor via pushEditOperations`);
+              } else {
+                console.warn(`⚠️ ${file} editor model not available, falling back to updateContent`);
+                updateContent(file, content);
+              }
+            } else {
+              console.warn(`⚠️ ${file} editor ref not available, falling back to updateContent`);
+              updateContent(file, content);
+            }
           }
         }}
         onGenerate={(code) => {
@@ -4017,6 +4209,14 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           // End generating state
           setIsGenerating(false);
           setGeneratingPhase(null);
+
+          // Show completion notification
+          setShowGenerationComplete(true);
+
+          // Auto-hide after 3 seconds
+          setTimeout(() => {
+            setShowGenerationComplete(false);
+          }, 3000);
 
           if (isElementorWidget) {
             // Switch to PHP tab to show generated widget
@@ -4182,6 +4382,83 @@ class ${className} extends \\Elementor\\Widget_Base {
         onOpenChange={setShowPluginDownloadModal}
         plugin={fileGroups.activeGroup?.isPlugin ? fileGroups.activeGroup : null}
       />
+
+      {/* Generation Status Indicator - Bottom Right */}
+      {isGenerating && generatingPhase && (
+        <div style={{
+          position: 'fixed',
+          bottom: '16px',
+          right: '16px',
+          background: 'rgba(0, 0, 0, 0.9)',
+          color: '#fff',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          fontSize: '14px',
+          fontWeight: 500,
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          zIndex: 9999,
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          backdropFilter: 'blur(10px)',
+        }}>
+          <div style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: '#10b981',
+            animation: 'pulse 1.5s ease-in-out infinite',
+          }} />
+          <span>
+            Generating {generatingPhase.toUpperCase()}...
+            {generatingTokens > 0 && ` (${generatingTokens.toLocaleString()} tokens)`}
+          </span>
+          <style>{`
+            @keyframes pulse {
+              0%, 100% { opacity: 1; transform: scale(1); }
+              50% { opacity: 0.5; transform: scale(1.2); }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* Generation Complete Notification - Bottom Right */}
+      {showGenerationComplete && (
+        <div style={{
+          position: 'fixed',
+          bottom: '16px',
+          right: '16px',
+          background: 'rgba(16, 185, 129, 0.95)',
+          color: '#fff',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          fontSize: '14px',
+          fontWeight: 500,
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          zIndex: 9999,
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          backdropFilter: 'blur(10px)',
+          animation: 'slideIn 0.3s ease-out',
+        }}>
+          <div style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: '#fff',
+          }} />
+          <span>✓ Generation complete!</span>
+          <style>{`
+            @keyframes slideIn {
+              from { transform: translateX(100%); opacity: 0; }
+              to { transform: translateX(0); opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
     </div>
   );
 }

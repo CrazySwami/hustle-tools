@@ -239,12 +239,26 @@ ${includeContext ? `
 - "Change the title" → Use editDocumentWithMorph to modify title
 - "Fix the grammar" → Use editDocumentWithMorph to correct text`; */
 
+    // Get current date and time for web search section
+    const now = new Date();
+    const currentDate = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const currentTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+
     // Enable web search for Perplexity models
     if (webSearch && model.startsWith('perplexity/')) {
       console.log('Web search enabled with Perplexity model:', model);
       systemPrompt = `You are an expert document editing assistant with web search capabilities. Use search to provide accurate and up-to-date information with sources.
 
-**Current date:** ${currentDate}
+**Current Date & Time:** ${currentDate}, ${currentTime}
 
 **📄 CURRENT DOCUMENT CONTENT:**
 ${includeContext ? (documentContent ? `

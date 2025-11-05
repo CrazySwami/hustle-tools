@@ -2044,6 +2044,11 @@ window.deployElementorWidget = async function(widgetPhp, widgetCss = '', widgetJ
     try {
         updatePlaygroundStatus('🔧 Deploying Elementor widget...');
 
+        // Validate widgetPhp parameter
+        if (!widgetPhp || typeof widgetPhp !== 'string') {
+            throw new Error('Invalid widget PHP code. Please provide valid PHP code.');
+        }
+
         // Extract widget class name from PHP code
         const classMatch = widgetPhp.match(/class\s+(\w+)/);
         const widgetClassName = classMatch ? classMatch[1] : 'Elementor_Custom_Widget';

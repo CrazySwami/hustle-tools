@@ -173,11 +173,9 @@ export function NavigationBar({
     }
     checkSize()
 
-    // Only add resize listener if using window width
-    if (containerWidth === undefined || containerWidth === 0) {
-      window.addEventListener("resize", checkSize)
-      return () => window.removeEventListener("resize", checkSize)
-    }
+    // Always add window resize listener to ensure responsiveness
+    window.addEventListener("resize", checkSize)
+    return () => window.removeEventListener("resize", checkSize)
   }, [containerWidth, mobileBreakpoint, compactBreakpoint])
 
   // Keyboard shortcuts (only when tabs exist)

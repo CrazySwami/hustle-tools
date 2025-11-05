@@ -802,7 +802,7 @@ export function DocumentChat({
           <PromptInputTools>
             {/* Responsive: Dropdown on narrow, buttons on wide */}
             <MobilePromptActions
-              breakpoint={600}
+              breakpoint={500}
               containerWidth={containerWidth}
               actions={[
                 {
@@ -829,17 +829,6 @@ export function DocumentChat({
                   onClick: () => fileInputRef.current?.click(),
                   title: 'Attach image (PNG/JPEG, max 5MB)',
                 },
-                // Client selector - opens modal for client selection and context toggle
-                {
-                  id: 'select-client',
-                  label: selectedClient ? `${selectedClient.name}` : 'Client',
-                  icon: <Building2 size={18} />,
-                  isActive: clientContextEnabled, // Show as active when context is enabled
-                  onClick: () => setClientModalOpen(true),
-                  title: selectedClient
-                    ? `${selectedClient.name} - Context ${clientContextEnabled ? 'ON' : 'OFF'}`
-                    : 'Select client and manage context',
-                },
               ]}
             />
             <input
@@ -849,15 +838,13 @@ export function DocumentChat({
               onChange={handleImageSelect}
               className="hidden"
             />
-            {/* Only show ClientSelectorButton on wide screens (above 600px) */}
-            {containerWidth >= 600 && (
-              <ClientSelectorButton
-                selectedClient={selectedClient}
-                clientContextEnabled={clientContextEnabled}
-                onToggleContext={() => onClientContextToggle?.()}
-                onSelectClient={() => setClientModalOpen(true)}
-              />
-            )}
+            {/* Client selector button - always visible */}
+            <ClientSelectorButton
+              selectedClient={selectedClient}
+              clientContextEnabled={clientContextEnabled}
+              onToggleContext={() => onClientContextToggle?.()}
+              onSelectClient={() => setClientModalOpen(true)}
+            />
             <SystemPromptViewer
               input={input}
               systemPrompt={actualSystemPrompt}

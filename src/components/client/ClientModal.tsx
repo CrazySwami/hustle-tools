@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Client } from './ClientTypes'
 import { useClients } from './ClientStorage'
-import { Check, ChevronRight, X, Plus, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Check, ChevronRight, X, Plus, ToggleLeft, ToggleRight, Circle } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
@@ -152,24 +152,42 @@ export function ClientModal({ isOpen, onClose, selectedClientId, onSelectClient,
             // Client List View
             <div className="space-y-2">
               {clients.map((client) => (
-                <button
+                <div
                   key={client.id}
-                  onClick={() => {
-                    handleSelectClient(client.id)
-                    setViewingClientId(client.id)
-                  }}
-                  className={`w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-all flex items-center gap-3 ${
+                  className={`w-full p-4 border rounded-lg hover:bg-muted/50 transition-all flex items-center gap-3 ${
                     client.id === selectedClientId ? 'border-primary bg-primary/5' : 'border-border'
                   }`}
                 >
-                  <span className="text-2xl">{client.logo}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-base">{client.name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{client.url}</div>
-                  </div>
-                  {client.id === selectedClientId && <Check className="h-5 w-5 text-primary shrink-0" />}
-                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                </button>
+                  {/* Radio button to select active client */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSelectClient(client.id)
+                    }}
+                    className="shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center hover:border-primary transition-colors"
+                    style={{
+                      borderColor: client.id === selectedClientId ? 'var(--primary)' : 'var(--border)',
+                      backgroundColor: client.id === selectedClientId ? 'var(--primary)' : 'transparent'
+                    }}
+                  >
+                    {client.id === selectedClientId && (
+                      <Circle className="h-2 w-2 fill-primary-foreground text-primary-foreground" />
+                    )}
+                  </button>
+
+                  {/* Clickable card area to view details */}
+                  <button
+                    onClick={() => setViewingClientId(client.id)}
+                    className="flex-1 flex items-center gap-3 text-left min-w-0"
+                  >
+                    <span className="text-2xl">{client.logo}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-base">{client.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{client.url}</div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                  </button>
+                </div>
               ))}
             </div>
           ) : editedClient ? (

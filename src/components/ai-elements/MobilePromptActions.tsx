@@ -47,10 +47,8 @@ export function MobilePromptActions({
   const [windowWidth, setWindowWidth] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Measure window width if containerWidth not provided
+  // Always measure window width to ensure responsiveness
   useEffect(() => {
-    if (containerWidth !== undefined) return;
-
     const updateWidth = () => {
       setWindowWidth(window.innerWidth);
     };
@@ -58,7 +56,7 @@ export function MobilePromptActions({
     updateWidth();
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
-  }, [containerWidth]);
+  }, []);
 
   // Use provided containerWidth or fall back to window width
   const effectiveWidth = containerWidth !== undefined && containerWidth > 0 ? containerWidth : windowWidth;

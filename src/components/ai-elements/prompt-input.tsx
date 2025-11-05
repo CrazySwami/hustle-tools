@@ -48,7 +48,8 @@ export const PromptInput = ({
   return (
     <form
       className={cn(
-        'w-full divide-y overflow-hidden rounded-xl border bg-background shadow-sm',
+        'w-full divide-y overflow-hidden rounded-xl border shadow-sm',
+        'bg-[#EBEBEB] dark:bg-[#2C2C2C]',
         className,
       )}
       {...props}

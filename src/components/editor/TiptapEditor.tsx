@@ -1505,7 +1505,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     <>
       <div className="h-full flex flex-col w-full overflow-x-hidden overflow-y-hidden" style={{ position: 'relative', isolation: 'isolate' }}>
           {/* Toolbar - Google Docs style order */}
-          <div className="flex items-center gap-1 p-2 pl-3 bg-muted/20 border-b overflow-x-auto overflow-y-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}>
+          <div className="flex items-center gap-1 p-2 pl-3 bg-[#EBEBEB] dark:bg-[#2C2C2C] border-b overflow-x-auto overflow-y-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}>
 
             {/* 1. Undo/Redo - FIRST */}
             <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">

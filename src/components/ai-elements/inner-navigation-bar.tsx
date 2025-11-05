@@ -429,7 +429,8 @@ export function NavigationBar({
         <>
           <div
             className={cn(
-              "flex items-center border-b border-border bg-background px-4 py-3 transition-opacity duration-200",
+              "flex items-center border-b border-border px-4 py-3 transition-opacity duration-200",
+              "bg-[#EBEBEB] dark:bg-[#2C2C2C]",
               dimmed && "opacity-30"
             )}
           >
@@ -452,7 +453,8 @@ export function NavigationBar({
       <>
         <div
           className={cn(
-            "flex items-center justify-between border-b border-border bg-background px-3 py-2 transition-opacity duration-200",
+            "flex items-center justify-between border-b border-border px-3 py-2 transition-opacity duration-200",
+            "bg-[#EBEBEB] dark:bg-[#2C2C2C]",
             dimmed && "opacity-30"
           )}
         >
@@ -558,7 +560,7 @@ export function NavigationBar({
       }
       return (
         <>
-          <div className="flex items-center border-b border-border bg-muted px-4 py-2 rounded-t-lg">
+          <div className="flex items-center border-b border-border bg-[#EBEBEB] dark:bg-[#2C2C2C] px-4 py-2 rounded-t-lg">
             <button
               onClick={handleLogoClick}
               className="text-xl font-bold hover:opacity-70 transition-opacity"
@@ -574,7 +576,7 @@ export function NavigationBar({
     // With tabs - show compact layout (HT logo, tab dropdown, hamburger menu)
     return (
       <>
-        <div className="flex items-center justify-between border-b border-border bg-muted px-3 py-2 rounded-t-lg">
+        <div className="flex items-center justify-between border-b border-border bg-[#EBEBEB] dark:bg-[#2C2C2C] px-3 py-2 rounded-t-lg">
           {/* HT Logo on the left */}
           {!hideLogoOnDesktop && (
             <button
@@ -673,7 +675,7 @@ export function NavigationBar({
     }
     return (
       <>
-        <div className="flex items-center border-b border-border bg-muted px-4 py-2 rounded-t-lg">
+        <div className="flex items-center border-b border-border bg-[#EBEBEB] dark:bg-[#2C2C2C] px-4 py-2 rounded-t-lg">
           <button
             onClick={handleLogoClick}
             className="text-xl font-bold hover:opacity-70 transition-opacity"
@@ -691,7 +693,7 @@ export function NavigationBar({
   // With tabs - show full desktop navigation with hover-to-open dropdowns (NO horizontal scroll)
   return (
     <>
-      <div className="flex items-center border-b border-border bg-muted rounded-t-lg overflow-hidden">
+      <div className="flex items-center border-b border-border bg-[#EBEBEB] dark:bg-[#2C2C2C] rounded-t-lg overflow-hidden">
         {/* Fixed HT logo - doesn't scroll, positioned absolutely or with flex-shrink-0 */}
         {!hideLogoOnDesktop && (
           <div className="flex-shrink-0 border-r border-border">

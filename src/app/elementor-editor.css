@@ -675,10 +675,14 @@
 .tab-bar {
     display: flex;
     border-bottom: 1px solid var(--border);
-    background: var(--muted);
+    background: #EBEBEB;
     padding: 8px 20px;
     gap: 8px;
     overflow: visible;
+}
+
+.dark .tab-bar {
+    background: #2C2C2C;
 }
 
 .tab {

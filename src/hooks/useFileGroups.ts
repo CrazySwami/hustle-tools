@@ -5,7 +5,7 @@
  * Provides state management and actions for file groups.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   FileGroup,
   EditorState,
@@ -220,17 +220,14 @@ export function useFileGroups(): UseFileGroupsReturn {
     return group;
   }, []);
 
-  // Get active group - memoized to prevent unnecessary re-renders
-  const activeGroup = useMemo(() =>
-    state.activeGroupId
-      ? state.groups.find(g => g.id === state.activeGroupId) || null
-      : null,
-    [state.activeGroupId, state.groups]
-  );
+  // Get active group - compute directly (no memoization to prevent stale references)
+  const activeGroup = state.activeGroupId
+    ? state.groups.find(g => g.id === state.activeGroupId) || null
+    : null;
 
-  // Memoize return object to provide stable reference
-  // This prevents consuming components from re-rendering when nothing changed
-  return useMemo(() => ({
+  // Return object directly (no memoization to ensure fresh reference on state changes)
+  // This ensures components re-render immediately when state changes
+  return {
     groups: state.groups,
     activeGroup,
     activeGroupId: state.activeGroupId,
@@ -243,18 +240,5 @@ export function useFileGroups(): UseFileGroupsReturn {
     saveToLibrary: saveToLibraryAction,
     loadFromLibrary: loadFromLibraryAction,
     refresh,
-  }), [
-    state.groups,
-    activeGroup,
-    state.activeGroupId,
-    createNewGroup,
-    selectGroup,
-    updateGroupFile,
-    renameGroupAction,
-    duplicateGroupAction,
-    deleteGroupAction,
-    saveToLibraryAction,
-    loadFromLibraryAction,
-    refresh,
-  ]);
+  };
 }

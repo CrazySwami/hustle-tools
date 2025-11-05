@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { RefreshCwIcon, ExternalLinkIcon, EyeIcon, DownloadIcon, PackageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCwIcon, ExternalLinkIcon, EyeIcon, DownloadIcon, PackageIcon, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { Button } from '@/components/ui/button';
 
@@ -23,6 +23,9 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
   const [status, setStatus] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [activePlaygroundTab, setActivePlaygroundTab] = useState<'live' | 'editor'>('live');
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [logs, setLogs] = useState('');
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const hasLaunchedRef = useRef(false);
 
   // Mobile detection
@@ -215,15 +218,20 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
     if (!playgroundReady || !(window as any).playgroundClient) return;
 
     try {
+      // Use PlaygroundClient API instead of direct iframe access
       const playgroundClient = (window as any).playgroundClient;
 
-      // Use the WordPress Playground client to execute JavaScript in the iframe
-      await playgroundClient.run({
-        code: `<?php
-          // Inject JavaScript to go back in history
-          echo '<script>window.history.back();</script>';
-        ?>`
+      // Get current URL
+      const currentUrl = await playgroundClient.run({
+        code: `<?php echo $_SERVER['REQUEST_URI']; ?>`
       });
+
+      console.log('⬅️ Back button clicked (current URL:', currentUrl.text, ')');
+      console.warn('⚠️ Back/forward navigation not fully supported in WordPress Playground');
+
+      // For now, just go to home page as fallback
+      // TODO: Implement proper history tracking
+      await playgroundClient.goTo('/');
     } catch (error) {
       console.error('Failed to go back:', error);
     }
@@ -233,15 +241,8 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
     if (!playgroundReady || !(window as any).playgroundClient) return;
 
     try {
-      const playgroundClient = (window as any).playgroundClient;
-
-      // Use the WordPress Playground client to execute JavaScript in the iframe
-      await playgroundClient.run({
-        code: `<?php
-          // Inject JavaScript to go forward in history
-          echo '<script>window.history.forward();</script>';
-        ?>`
-      });
+      console.log('➡️ Forward button clicked');
+      console.warn('⚠️ Back/forward navigation not fully supported in WordPress Playground');
     } catch (error) {
       console.error('Failed to go forward:', error);
     }
@@ -353,6 +354,30 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
             Editor
           </Button>
         </div>
+
+        {/* View Logs Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={async () => {
+            setShowLogsModal(true);
+            setLoadingLogs(true);
+            try {
+              const logsText = await (window as any).getWordPressLogs();
+              setLogs(logsText);
+            } catch (error: any) {
+              setLogs('Error fetching logs: ' + error.message);
+            } finally {
+              setLoadingLogs(false);
+            }
+          }}
+          disabled={!playgroundReady}
+          title="View WordPress logs"
+          className="h-8 px-3 text-xs"
+        >
+          <FileText className="h-4 w-4 mr-1" />
+          View Logs
+        </Button>
       </div>
 
       {/* Floating Status Messages - All Screen Sizes */}
@@ -401,6 +426,117 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
         title="WordPress Playground"
         style={{ flex: 1, border: 'none' }}
       />
+
+      {/* Logs Modal */}
+      {showLogsModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          }}
+          onClick={() => setShowLogsModal(false)}
+        >
+          <div
+            style={{
+              background: 'var(--background)',
+              borderRadius: '12px',
+              width: '100%',
+              maxWidth: '800px',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              border: '1px solid var(--border)',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>WordPress Logs</h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(logs);
+                      alert('Logs copied to clipboard!');
+                    } catch (error) {
+                      alert('Failed to copy logs');
+                    }
+                  }}
+                  disabled={loadingLogs}
+                >
+                  Copy
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (confirm('Are you sure you want to clear all logs?')) {
+                      setLoadingLogs(true);
+                      try {
+                        await (window as any).clearWordPressLogs();
+                        const logsText = await (window as any).getWordPressLogs();
+                        setLogs(logsText);
+                      } catch (error: any) {
+                        setLogs('Error clearing logs: ' + error.message);
+                      } finally {
+                        setLoadingLogs(false);
+                      }
+                    }
+                  }}
+                  disabled={loadingLogs}
+                >
+                  Clear
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowLogsModal(false)}
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{
+              flex: 1,
+              overflow: 'auto',
+              padding: '20px',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              whiteSpace: 'pre-wrap',
+              background: 'var(--muted)',
+              color: 'var(--foreground)',
+            }}>
+              {loadingLogs ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  Loading logs...
+                </div>
+              ) : (
+                logs
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

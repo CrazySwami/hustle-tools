@@ -47,6 +47,13 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState('');
+  const [preSelectedStage, setPreSelectedStage] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
+  const [currentGeneratingStage, setCurrentGeneratingStage] = useState<1 | 2 | 3 | 4 | null>(null);
+
+  // Debug modal state
+  const [showDebugModal, setShowDebugModal] = useState(false);
+  const [debugData, setDebugData] = useState<any>(null);
+  const [debugSectionName, setDebugSectionName] = useState('');
 
   // Mobile detection
   useEffect(() => {
@@ -59,7 +66,8 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   // Notify parent when kit changes
   useEffect(() => {
     if (onStyleKitChange) {
-      onStyleKitChange(kit.page_settings);
+      console.log('📢 Notifying parent of kit change:', kit);
+      onStyleKitChange(kit); // Pass the full kit object, not just page_settings
     }
   }, [kit, onStyleKitChange]);
 
@@ -137,6 +145,101 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     reader.readAsText(file);
   };
 
+  const openDialogForStage = (stage: 1 | 2 | 3 | 4) => {
+    console.log('🎯 openDialogForStage called with stage:', stage);
+    setPreSelectedStage(stage);
+    setShowAIDialog(true);
+    console.log('📊 Dialog state updated:', { preSelectedStage: stage, showAIDialog: true });
+  };
+
+  const getStageName = (stage: 1 | 2 | 3 | 4) => {
+    const names = {
+      1: 'Colors',
+      2: 'Fonts',
+      3: 'Headings',
+      4: 'Components'
+    };
+    return names[stage];
+  };
+
+  const viewSectionData = (section: 'colors' | 'fonts' | 'headings' | 'components') => {
+    const s = kit.page_settings || {};
+    let data: any = {};
+    let sectionName = '';
+
+    switch (section) {
+      case 'colors':
+        sectionName = 'Colors';
+        data = {
+          system_colors: s.system_colors || [],
+          custom_colors: s.custom_colors || []
+        };
+        break;
+      case 'fonts':
+        sectionName = 'Fonts';
+        data = {
+          system_typography: s.system_typography || [],
+          custom_typography: s.custom_typography || []
+        };
+        break;
+      case 'headings':
+        sectionName = 'Headings & Body';
+        data = {
+          h1_typography: s.h1_typography || {},
+          h2_typography: s.h2_typography || {},
+          h3_typography: s.h3_typography || {},
+          h4_typography: s.h4_typography || {},
+          h5_typography: s.h5_typography || {},
+          h6_typography: s.h6_typography || {},
+          body_typography: s.body_typography || {},
+          body_color: s.body_color || '',
+          link_normal_color: s.link_normal_color || ''
+        };
+        break;
+      case 'components':
+        sectionName = 'Components (Buttons & Forms)';
+        data = {
+          button_typography: s.button_typography || {},
+          button_text_color: s.button_text_color || '',
+          button_background_color: s.button_background_color || '',
+          button_border_radius: s.button_border_radius || {},
+          button_border_width: s.button_border_width || {},
+          form_field_typography: s.form_field_typography || {},
+          form_field_text_color: s.form_field_text_color || '',
+          form_field_background_color: s.form_field_background_color || '',
+          form_field_border_color: s.form_field_border_color || '',
+          form_field_border_radius: s.form_field_border_radius || {},
+          form_field_border_width: s.form_field_border_width || {},
+          container_width: s.container_width || {},
+          space_between_widgets: s.space_between_widgets || {},
+          viewport_md: s.viewport_md || 768,
+          viewport_lg: s.viewport_lg || 1025
+        };
+        break;
+    }
+
+    setDebugData(data);
+    setDebugSectionName(sectionName);
+    setShowDebugModal(true);
+  };
+
+  const copyDebugData = () => {
+    const formatted = JSON.stringify(debugData, null, 2);
+    navigator.clipboard.writeText(formatted);
+    alert('✅ Data copied to clipboard!');
+  };
+
+  const downloadDebugData = () => {
+    const formatted = JSON.stringify(debugData, null, 2);
+    const dataBlob = new Blob([formatted], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `stylekit-${debugSectionName.toLowerCase().replace(/\s+/g, '-')}-debug.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleAIGenerate = async (config: {
     model: 'gemini-2.5-flash' | 'claude-haiku-4.5' | 'gpt-5';
     brandfetchData?: {
@@ -148,11 +251,44 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     stylePreferences?: string;
     industry?: string;
     images?: Array<{ url: string; filename: string; description?: string }>;
+    stage?: 1 | 2 | 3 | 4;
   }) => {
+    console.log('🎯 handleAIGenerate called with config:', {
+      model: config.model,
+      hasBrandfetchData: !!config.brandfetchData,
+      hasStylePreferences: !!config.stylePreferences,
+      hasIndustry: !!config.industry,
+      imageCount: config.images?.length || 0,
+      stage: config.stage
+    });
+
     setIsGenerating(true);
-    setGenerationProgress('Initializing AI generation...');
+    setCurrentGeneratingStage(config.stage || null);
+    setGenerationProgress(config.stage ? `Generating Stage ${config.stage}...` : 'Initializing AI generation...');
+
+    console.log('📊 Generation state updated:', {
+      isGenerating: true,
+      currentGeneratingStage: config.stage || null,
+      generationProgress: config.stage ? `Generating Stage ${config.stage}...` : 'Initializing AI generation...'
+    });
+
+    // Auto-close dialog when generation starts (if opened via section button)
+    if (config.stage) {
+      console.log('🚪 Auto-closing dialog (stage generation)');
+      setShowAIDialog(false);
+      setPreSelectedStage(undefined);
+    }
 
     try {
+      console.log('📡 Fetching /api/generate-stylekit with payload:', {
+        model: config.model,
+        hasBrandfetchData: !!config.brandfetchData,
+        hasStylePreferences: !!config.stylePreferences,
+        hasIndustry: !!config.industry,
+        imageCount: config.images?.length || 0,
+        stage: config.stage
+      });
+
       const response = await fetch('/api/generate-stylekit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,52 +298,99 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
           stylePreferences: config.stylePreferences,
           industry: config.industry,
           images: config.images,
+          stage: config.stage,
         }),
+      });
+
+      console.log('📡 API response received:', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ API error:', errorData);
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-      setGenerationProgress('Stage 1/4: Generating brand colors...');
+      // Read the streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let generatedKit: any = null;
 
-      // Wait a moment to show progress (API is running all stages)
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setGenerationProgress('Stage 2/4: Generating typography...');
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setGenerationProgress('Stage 3/4: Generating heading styles...');
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
 
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setGenerationProgress('Stage 4/4: Generating component styles...');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
 
-      // API now returns a complete Style Kit JSON (non-streaming)
-      const generatedKit = await response.json();
+                if (data.error) {
+                  throw new Error(data.error);
+                }
 
-      setGenerationProgress('Merging all fields into Style Kit...');
+                if (data.stage && data.message) {
+                  // Update progress based on stage
+                  console.log(`📊 Stage ${data.stage}: ${data.message}`);
+                  setGenerationProgress(`Stage ${data.stage}/4: ${data.message}`);
+                }
 
-      // Update the kit with the complete Style Kit
-      setKit(generatedKit);
+                if (data.styleKit) {
+                  // Final result received
+                  console.log('✅ StyleKit data received from API:', data.styleKit);
+                  console.log('📋 StyleKit structure:', {
+                    hasType: !!data.styleKit.type,
+                    hasVersion: !!data.styleKit.version,
+                    hasPageSettings: !!data.styleKit.page_settings,
+                    systemColorsCount: data.styleKit.page_settings?.system_colors?.length || 0,
+                    systemTypographyCount: data.styleKit.page_settings?.system_typography?.length || 0,
+                  });
+                  generatedKit = data.styleKit;
+                }
+              } catch (e) {
+                console.error('Failed to parse SSE data:', e);
+              }
+            }
+          }
+        }
+      }
 
-      setGenerationProgress('Style Kit generated successfully!');
+      if (generatedKit) {
+        console.log('🎯 About to call setKit with:', generatedKit);
+        setGenerationProgress('Style Kit generated successfully!');
+        setKit(generatedKit);
+        console.log('✨ setKit called successfully');
 
-      setTimeout(() => {
-        setShowAIDialog(false);
-        setIsGenerating(false);
-        setGenerationProgress('');
-      }, 1500);
+        setTimeout(() => {
+          setShowAIDialog(false);
+          setIsGenerating(false);
+          setGenerationProgress('');
+          setCurrentGeneratingStage(null);
+        }, 1500);
+      } else {
+        throw new Error('No Style Kit data received from API');
+      }
 
     } catch (error: any) {
       console.error('AI generation error:', error);
       setGenerationProgress(`❌ Error: ${error.message}`);
-      setIsGenerating(false);
+      setTimeout(() => {
+        setIsGenerating(false);
+        setCurrentGeneratingStage(null);
+      }, 3000);
     }
   };
 
   // Preview style generators
   const getHeadingStyle = (level: string) => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     const prefix = level;
     return {
       fontFamily: s[`${prefix}_typography_font_family`] || 'Inter',
@@ -221,7 +404,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const getBodyStyle = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     return {
       fontFamily: s.body_typography_font_family || 'Inter',
       fontWeight: s.body_typography_font_weight || '400',
@@ -233,7 +416,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const getLinkStyle = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     return {
       color: s.link_normal_color || '#0073aa',
       textDecoration: s.link_typography_text_decoration || 'none',
@@ -241,7 +424,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const getButtonStyle = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     const shadow =
       s.button_box_shadow_box_shadow_type === 'yes' && s.button_box_shadow_box_shadow
         ? `${s.button_box_shadow_box_shadow.horizontal}px ${s.button_box_shadow_box_shadow.vertical}px ${s.button_box_shadow_box_shadow.blur}px ${s.button_box_shadow_box_shadow.spread}px ${s.button_box_shadow_box_shadow.color}`
@@ -267,7 +450,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const getButtonHoverStyle = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     return {
       color: s.button_hover_color || '#ffffff',
       backgroundColor: s.button_hover_background_color || '#005a87',
@@ -276,7 +459,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const getFormLabelStyle = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     return {
       color: s.form_label_color || '#000000',
       fontWeight: s.form_label_typography_font_weight || '500',
@@ -285,7 +468,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const getFormInputStyle = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     return {
       color: s.form_field_text_color || '#333333',
       backgroundColor: s.form_field_background_color || '#ffffff',
@@ -299,7 +482,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const getFormInputFocusStyle = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     return {
       borderColor: s.form_field_focus_border_color || '#0073aa',
       outline: 'none',
@@ -307,7 +490,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const getImageStyle = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     const filters = `blur(${s.image_css_filters_blur?.size || 0}px) brightness(${s.image_css_filters_brightness?.size || 100}%) contrast(${s.image_css_filters_contrast?.size || 100}%) saturate(${s.image_css_filters_saturation?.size || 100}%)`;
 
     return {
@@ -319,7 +502,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const getImageHoverStyle = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     return {
       opacity: s.image_hover_opacity?.size || 0.9,
     };
@@ -327,7 +510,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
 
   // Render functions
   const renderGlobalColors = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
 
     if (activeSubTab === 'system') {
       return (
@@ -474,7 +657,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const renderGlobalTypography = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
 
     if (activeSubTab === 'system') {
       return (
@@ -570,7 +753,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
 
   const renderThemeTypography = () => {
     const headings = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
     const prefix = activeHeading;
 
     return (
@@ -690,7 +873,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const renderButtons = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
 
     return (
       <div style={{ padding: '20px' }}>
@@ -812,7 +995,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const renderForms = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
 
     return (
       <div style={{ padding: '20px' }}>
@@ -954,7 +1137,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   const renderImages = () => {
-    const s = kit.page_settings;
+    const s = kit.page_settings || {};
 
     return (
       <div style={{ padding: '20px' }}>
@@ -1356,7 +1539,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
               These are the system colors defined in your style kit:
             </p>
             <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
-              {kit.page_settings.system_colors.map((color: any, index: number) => (
+              {(kit.page_settings?.system_colors || []).map((color: any, index: number) => (
                 <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{
                     width: '100%',
@@ -1429,7 +1612,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--background)', color: 'var(--foreground)', position: 'relative' }}>
       {/* Header */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--card)', flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
@@ -1448,8 +1631,13 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
               Import
               <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
             </label>
-            <button onClick={handleExport} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 500, backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              Export
+            <button onClick={handleExport} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 500, backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Download JSON
             </button>
           </div>
         </div>
@@ -1547,13 +1735,74 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
             }}>
                 {/* Colors Section */}
                 <div ref={colorsRef} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Colors</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Colors</h3>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => viewSectionData('colors')}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      <button
+                        onClick={() => openDialogForStage(1)}
+                        disabled={isGenerating}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: currentGeneratingStage === 1 ? 'var(--primary)' : 'var(--accent)',
+                          color: currentGeneratingStage === 1 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: isGenerating ? 'not-allowed' : 'pointer',
+                          opacity: isGenerating && currentGeneratingStage !== 1 ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        {currentGeneratingStage === 1 ? '⏳' : '🔄'} Regenerate
+                      </button>
+                    </div>
+                  </div>
                   {renderGlobalColors()}
                 </div>
 
                 {/* Global Fonts Section */}
                 <div ref={globalFontsRef} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Global Fonts</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Global Fonts</h3>
+                    <button
+                      onClick={() => openDialogForStage(2)}
+                      disabled={isGenerating}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        backgroundColor: currentGeneratingStage === 2 ? 'var(--primary)' : 'var(--accent)',
+                        color: currentGeneratingStage === 2 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: isGenerating ? 'not-allowed' : 'pointer',
+                        opacity: isGenerating && currentGeneratingStage !== 2 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      {currentGeneratingStage === 2 ? '⏳' : '🔄'} Regenerate
+                    </button>
+                  </div>
                   <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Base font selections used throughout the site</p>
                   {/* TODO: Add global fonts editor */}
                   <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '4px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
@@ -1563,26 +1812,186 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
 
                 {/* Typography Presets Section */}
                 <div ref={typographyRef} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Typography Presets</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Typography Presets</h3>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => viewSectionData('fonts')}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      <button
+                        onClick={() => openDialogForStage(2)}
+                        disabled={isGenerating}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: currentGeneratingStage === 2 ? 'var(--primary)' : 'var(--accent)',
+                          color: currentGeneratingStage === 2 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: isGenerating ? 'not-allowed' : 'pointer',
+                          opacity: isGenerating && currentGeneratingStage !== 2 ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        {currentGeneratingStage === 2 ? '⏳' : '🔄'} Regenerate
+                      </button>
+                    </div>
+                  </div>
                   <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Global typography styles (Primary, Secondary, Text, Accent)</p>
                   {renderGlobalTypography()}
                 </div>
 
                 {/* Headings & Body Section */}
                 <div ref={headingsRef} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Headings & Body</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Headings & Body</h3>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => viewSectionData('headings')}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      <button
+                        onClick={() => openDialogForStage(3)}
+                        disabled={isGenerating}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: currentGeneratingStage === 3 ? 'var(--primary)' : 'var(--accent)',
+                          color: currentGeneratingStage === 3 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: isGenerating ? 'not-allowed' : 'pointer',
+                          opacity: isGenerating && currentGeneratingStage !== 3 ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        {currentGeneratingStage === 3 ? '⏳' : '🔄'} Regenerate
+                      </button>
+                    </div>
+                  </div>
                   {renderThemeTypography()}
                 </div>
 
                 {/* Buttons Section */}
                 <div ref={buttonsRef} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Buttons</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Buttons</h3>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => viewSectionData('components')}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      <button
+                        onClick={() => openDialogForStage(4)}
+                        disabled={isGenerating}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: currentGeneratingStage === 4 ? 'var(--primary)' : 'var(--accent)',
+                          color: currentGeneratingStage === 4 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: isGenerating ? 'not-allowed' : 'pointer',
+                          opacity: isGenerating && currentGeneratingStage !== 4 ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        {currentGeneratingStage === 4 ? '⏳' : '🔄'} Regenerate
+                      </button>
+                    </div>
+                  </div>
                   {renderButtons()}
                 </div>
 
                 {/* Forms Section */}
                 <div ref={formsRef} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Forms</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Forms</h3>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => viewSectionData('components')}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      <button
+                        onClick={() => openDialogForStage(4)}
+                        disabled={isGenerating}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: currentGeneratingStage === 4 ? 'var(--primary)' : 'var(--accent)',
+                          color: currentGeneratingStage === 4 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: isGenerating ? 'not-allowed' : 'pointer',
+                          opacity: isGenerating && currentGeneratingStage !== 4 ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        {currentGeneratingStage === 4 ? '⏳' : '🔄'} Regenerate
+                      </button>
+                    </div>
+                  </div>
                   {renderForms()}
                 </div>
 
@@ -1610,49 +2019,189 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
       {showAIDialog && (
         <StyleKitGeneratorDialog
           onGenerate={handleAIGenerate}
-          onClose={() => setShowAIDialog(false)}
+          onClose={() => {
+            setShowAIDialog(false);
+            setPreSelectedStage(undefined);
+          }}
+          preSelectedStage={preSelectedStage}
         />
       )}
 
-      {/* Generation Progress Overlay */}
-      {isGenerating && generationProgress && (
+      {/* Debug Data Modal */}
+      {showDebugModal && (
         <div style={{
           position: 'fixed',
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 10000,
+          zIndex: 10001,
+          padding: '20px',
         }}>
           <div style={{
             backgroundColor: 'var(--card)',
             borderRadius: '12px',
-            padding: '32px',
-            maxWidth: '500px',
-            width: '90%',
-            textAlign: 'center',
+            padding: '24px',
+            maxWidth: '800px',
+            width: '100%',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
           }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              border: '4px solid var(--muted)',
-              borderTopColor: 'var(--primary)',
-              borderRadius: '50%',
-              margin: '0 auto 24px',
-              animation: 'spin 1s linear infinite',
-            }} />
-            <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px' }}>
-              {generationProgress}
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
+                {debugSectionName} - Generated Data
+              </h3>
+              <button
+                onClick={() => setShowDebugModal(false)}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  backgroundColor: 'transparent',
+                  color: 'var(--foreground)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                ✕ Close
+              </button>
             </div>
-            <div style={{ fontSize: '14px', color: 'var(--muted-foreground)' }}>
-              This may take 10-60 seconds...
+
+            {/* JSON Data Display */}
+            <div style={{
+              flex: 1,
+              overflow: 'auto',
+              backgroundColor: 'var(--muted)',
+              borderRadius: '8px',
+              padding: '16px',
+              fontFamily: 'monospace',
+              fontSize: '13px',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+            }}>
+              {JSON.stringify(debugData, null, 2)}
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={copyDebugData}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: '14px',
+                  backgroundColor: 'var(--muted)',
+                  color: 'var(--foreground)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                📋 Copy to Clipboard
+              </button>
+              <button
+                onClick={downloadDebugData}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: '14px',
+                  backgroundColor: 'var(--primary)',
+                  color: 'var(--primary-foreground)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                💾 Download JSON
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Generation Progress Indicator */}
+      {isGenerating && generationProgress && (
+        currentGeneratingStage ? (
+          // In-page progress bar for individual stage generation (scoped to StyleKit panel)
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: 'var(--primary)',
+            color: 'var(--primary-foreground)',
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            zIndex: 100,
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          }}>
+            <div style={{
+              width: '16px',
+              height: '16px',
+              border: '2px solid var(--primary-foreground)',
+              borderTopColor: 'transparent',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <span style={{ fontSize: '14px', fontWeight: 500 }}>
+              {generationProgress}
+            </span>
+          </div>
+        ) : (
+          // Full overlay for complete generation
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+          }}>
+            <div style={{
+              backgroundColor: 'var(--card)',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '90%',
+              textAlign: 'center',
+            }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                border: '4px solid var(--muted)',
+                borderTopColor: 'var(--primary)',
+                borderRadius: '50%',
+                margin: '0 auto 24px',
+                animation: 'spin 1s linear infinite',
+              }} />
+              <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px' }}>
+                {generationProgress}
+              </div>
+              <div style={{ fontSize: '14px', color: 'var(--muted-foreground)' }}>
+                This may take 10-60 seconds...
+              </div>
+            </div>
+          </div>
+        )
       )}
     </div>
   );

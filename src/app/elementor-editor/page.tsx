@@ -8,6 +8,41 @@ import { useFileGroups } from '@/hooks/useFileGroups';
 import '../elementor-editor.css';
 
 export const dynamic = 'force-dynamic';
+
+// 🔍 DIAGNOSTIC: Global function to trace state updates
+if (typeof window !== 'undefined') {
+  // Comparison function - shows localStorage vs React state
+  (window as any).__compareStates = () => {
+    const localState = JSON.parse(localStorage.getItem('elementor-editor-groups') || '{}');
+    const reactState = (window as any).__elementorReactState;
+
+    console.clear(); // Clear console first
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: cyan; font-weight: bold');
+    console.log('%c🔍 STATE COMPARISON', 'color: cyan; font-weight: bold; font-size: 16px');
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: cyan; font-weight: bold');
+
+    console.log('%c📦 LOCALSTORAGE:', 'color: orange; font-weight: bold');
+    console.log('   activeGroupId:', localState.activeGroupId);
+    console.log('   Active project:', localState.groups?.find((g: any) => g.id === localState.activeGroupId)?.name || 'none');
+
+    console.log('%c⚛️  REACT STATE:', 'color: blue; font-weight: bold');
+    console.log('   activeGroupId:', reactState?.activeGroupId);
+    console.log('   currentProjectName:', reactState?.currentProjectName);
+
+    console.log('%c🔴 SYNC STATUS:', 'color: red; font-weight: bold');
+    const inSync = localState.activeGroupId === reactState?.activeGroupId;
+    console.log('   In Sync?', inSync ? '✅ YES' : '❌ NO');
+
+    if (!inSync) {
+      console.log('%c⚠️  MISMATCH:', 'color: red; font-weight: bold; font-size: 14px');
+      console.log('   localStorage:', localState.activeGroupId);
+      console.log('   React:', reactState?.activeGroupId);
+    }
+
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: cyan; font-weight: bold');
+    return { localState, reactState, inSync };
+  };
+}
 import { ElementorChat } from '@/components/elementor/ElementorChat';
 import { JsonEditor } from '@/components/elementor/JsonEditor';
 import { PlaygroundView } from '@/components/elementor/PlaygroundView';
@@ -16,7 +51,6 @@ import { SiteContentManager } from '@/components/elementor/SiteContentManager';
 import { StyleKitEditorNew } from '@/components/elementor/StyleKitEditorNew';
 import { StyleGuideUnified } from '@/components/elementor/StyleGuideUnified';
 import { HtmlSectionEditor } from '@/components/elementor/HtmlSectionEditor';
-import { VisualSectionEditor } from '@/components/elementor/VisualSectionEditor';
 import { ProjectLibrary } from '@/components/elementor/ProjectLibrary';
 import { PageSplitter } from '@/components/elementor/PageSplitter';
 import { UsageTrackingTab } from '@/components/elementor/UsageTrackingTab';
@@ -116,23 +150,16 @@ export default function ElementorEditorPage() {
 
   // File Groups - reload from localStorage when project changes
   const fileGroups = useFileGroups();
-  const currentProject = fileGroups.activeGroup;
-  const refreshRef = useRef(fileGroups.refresh);
-  refreshRef.current = fileGroups.refresh;
 
-  // DEBUG: Log when activeGroupId changes (NOT entire fileGroups object to avoid infinite re-renders)
-  useEffect(() => {
-    console.log('🔍 activeGroupId changed:', {
-      activeGroupId: fileGroups.activeGroupId,
-      currentProjectId: currentProject?.id,
-      currentProjectName: currentProject?.name,
-      currentProjectReference: currentProject, // Log full object to see if reference changes
-      timestamp: new Date().toISOString(),
-    });
-  }, [fileGroups.activeGroupId, currentProject]);
+  // CRITICAL: Compute currentProject directly from primitives (activeGroupId + groups array)
+  // This ensures we get fresh data on every render without reference issues
+  const currentProject = fileGroups.activeGroupId
+    ? fileGroups.groups.find(g => g.id === fileGroups.activeGroupId) || null
+    : null;
 
-  // Derive currentSection from activeGroup (single source of truth)
+  // Derive currentSection from currentProject (single source of truth)
   // Compute directly without memoization to ensure updates propagate immediately
+  // MUST be defined BEFORE useEffect that references it
   const currentSection: Section | null = currentProject ? {
     id: currentProject.id,
     name: currentProject.name,
@@ -144,6 +171,36 @@ export default function ElementorEditorPage() {
     createdAt: currentProject.createdAt,
     updatedAt: currentProject.updatedAt,
   } : null;
+
+  const refreshRef = useRef(fileGroups.refresh);
+  refreshRef.current = fileGroups.refresh;
+
+  // DEBUG: Log when activeGroupId changes
+  useEffect(() => {
+    console.log('🔍 activeGroupId changed:', {
+      activeGroupId: fileGroups.activeGroupId,
+      currentProjectId: currentProject?.id,
+      currentProjectName: currentProject?.name,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Expose to window for debugging
+    if (typeof window !== 'undefined') {
+      (window as any).__elementorReactState = {
+        activeGroupId: fileGroups.activeGroupId,
+        currentProjectId: currentProject?.id,
+        currentProjectName: currentProject?.name,
+        currentSectionId: currentSection?.id,
+        currentSectionName: currentSection?.name,
+        groupsCount: fileGroups.groups.length,
+        groups: fileGroups.groups.map(g => ({
+          id: g.id,
+          name: g.name,
+          type: g.type
+        }))
+      };
+    }
+  }, [fileGroups.activeGroupId, currentProject?.id, currentSection?.id, currentSection?.name, fileGroups.groups]);
 
   console.log('🔄 currentSection computed:', {
     activeGroupId: fileGroups.activeGroupId,
@@ -452,8 +509,8 @@ export default function ElementorEditorPage() {
         return;
       }
 
-      // Deploy to Elementor Editor
-      if (item === 'Deploy to Elementor Editor') {
+      // Deploy to Elementor
+      if (item === 'Deploy to Elementor') {
         // Call playground function to deploy widget to Elementor editor
         if (typeof window !== 'undefined' && (window as any).deployAndPreviewWidget && currentProject) {
           try {
@@ -744,13 +801,8 @@ export default function ElementorEditorPage() {
         'Launch Playground',
         'Refresh Playground',
         'separator',
-        '🚀 Deploy New',
         'Deploy to Live Page',
-        'Deploy to Elementor Editor',
-        'separator',
-        '🔄 Update & View',
-        'Update & View Live Page',
-        'Update & View Elementor',
+        'Deploy to Elementor',
         'separator',
         hotReloadEnabled ? '⚡ Hot Reload: ON' : '⚡ Hot Reload: OFF',
       ],
@@ -1624,22 +1676,6 @@ export default function ElementorEditorPage() {
                   />
                 </div>
 
-                <div className={`tab-panel ${activeTab === 'visual' ? 'active' : ''}`} id="visualPanel" style={{ display: activeTab === 'visual' ? 'flex' : 'none', height: '100%', width: '100%', overflow: 'hidden', position: activeTab === 'visual' ? 'relative' : 'absolute', visibility: activeTab === 'visual' ? 'visible' : 'hidden' }}>
-                  <VisualSectionEditor
-                    initialSection={currentSection || undefined}
-                    onSectionChange={(section) => {
-                      // NO-OP: Visual Editor updates are now handled directly by updating file groups
-                      // This prevents race conditions where onSectionChange overwrites project selection
-                      console.log('🎨 page.tsx: Visual editor onSectionChange (no-op):', {
-                        name: section.name,
-                        htmlLength: section.html?.length || 0,
-                        cssLength: section.css?.length || 0,
-                      });
-                    }}
-                    onSwitchToCodeEditor={() => setActiveTab('json')}
-                  />
-                </div>
-
                 <div className={`tab-panel ${activeTab === 'playground' ? 'active' : ''}`} id="playgroundPanel" style={{ display: activeTab === 'playground' ? 'flex' : 'none', height: '100%', width: '100%', overflow: 'hidden', position: activeTab === 'playground' ? 'relative' : 'absolute', visibility: activeTab === 'playground' ? 'visible' : 'hidden', pointerEvents: activeTab === 'playground' ? 'auto' : 'none' }}>
                   <PlaygroundView
                     json={currentJson}
@@ -1830,21 +1866,6 @@ export default function ElementorEditorPage() {
                     const message = `Edit this element:\n\nSelector: ${elementData.selector}\nClasses: ${elementData.classList.join(', ')}\n\nHTML:\n\`\`\`html\n${elementData.html}\n\`\`\`\n\nContext:\n\`\`\`html\n${elementData.context.substring(0, 500)}${elementData.context.length > 500 ? '...' : ''}\n\`\`\``;
                     handleSendMessage(message);
                   }}
-                />
-              </div>
-
-              <div className={`tab-panel ${activeTab === 'visual' ? 'active' : ''}`} id="visualPanel" style={{ display: activeTab === 'visual' ? 'flex' : 'none' }}>
-                <VisualSectionEditor
-                  initialSection={currentSection || undefined}
-                  onSectionChange={(section) => {
-                    console.log('🎨 Visual editor section updated:', {
-                      name: section.name,
-                      htmlLength: section.html?.length || 0,
-                      cssLength: section.css?.length || 0,
-                    });
-                    setCurrentSection(section);
-                  }}
-                  onSwitchToCodeEditor={() => setActiveTab('json')}
                 />
               </div>
 

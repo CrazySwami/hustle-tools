@@ -1823,6 +1823,827 @@ When creating a tool that updates global state:
 
 ---
 
+## Document & Project-Based State Management
+
+**CRITICAL PATTERN:** When building chat interfaces that work with documents or projects (like the Document Editor or Elementor Editor), you need ID-based state management with localStorage persistence. This pattern is used throughout the application for managing collections of items that users can switch between.
+
+### Overview: Two Implementations
+
+This application has **two working examples** of ID-based state management:
+
+1. **Document Editor** (`/chat-doc`) - Manages documents and projects
+2. **Elementor Editor** (`/elementor-editor`) - Manages file groups (HTML/HubSpot/PHP projects)
+
+Both use the same fundamental pattern but with different terminology:
+
+| Concept | Document Editor | Elementor Editor |
+|---------|----------------|------------------|
+| **Container** | Project | N/A (flat structure) |
+| **Item** | Document | File Group |
+| **Storage Key** | `doc-editor-documents` | `elementor-editor-groups` |
+| **Active Item ID** | `selectedDocumentId` | `activeGroupId` |
+| **Custom Hook** | `useDocumentStorage` | `useFileGroups` |
+
+### Core Architecture Pattern
+
+**The pattern has 4 layers:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Layer 1: localStorage (Single Source of Truth)        │
+│  - Stores all items as JSON                            │
+│  - Stores active item ID                               │
+└─────────────────────────────────────────────────────────┘
+                         ↕
+┌─────────────────────────────────────────────────────────┐
+│  Layer 2: Manager Module (Pure Functions)              │
+│  - loadEditorState() / loadDocuments()                 │
+│  - saveEditorState() / saveDocuments()                 │
+│  - createGroup() / createDocument()                    │
+│  - setActiveGroup() / selectDocument()                 │
+└─────────────────────────────────────────────────────────┘
+                         ↕
+┌─────────────────────────────────────────────────────────┐
+│  Layer 3: React Hook (State Management)                │
+│  - useFileGroups() / useDocumentStorage()              │
+│  - Exposes: items[], activeItem, activeItemId          │
+│  - Provides: selectItem(), createItem(), etc.          │
+└─────────────────────────────────────────────────────────┘
+                         ↕
+┌─────────────────────────────────────────────────────────┐
+│  Layer 4: UI Components                                │
+│  - Sidebar: Lists all items, highlights active         │
+│  - Main Panel: Shows active item content               │
+│  - Chat: Uses active item as context                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Layer 1: localStorage Schema
+
+**Elementor Editor Example:**
+
+```typescript
+// Key: 'elementor-editor-groups'
+{
+  "groups": [
+    {
+      "id": "group_abc123",           // Unique identifier
+      "name": "Hero Section",         // User-facing name
+      "type": "html",                 // html | php | hubspot
+      "html": "<div>...</div>",       // File content
+      "css": "body { ... }",
+      "js": "console.log('...')",
+      "php": "<?php ... ?>",          // For PHP projects
+      "hubl": "{% ... %}",            // For HubSpot projects
+      "createdAt": "2025-01-15T...",
+      "updatedAt": "2025-01-15T..."
+    },
+    // ... more groups
+  ],
+  "activeGroupId": "group_abc123"     // Currently selected item
+}
+```
+
+**Document Editor Example:**
+
+```typescript
+// Key: 'doc-editor-documents'
+{
+  "documents": [
+    {
+      "id": "doc_xyz789",
+      "title": "Marketing Plan",
+      "content": "# Marketing Strategy\n\n...",
+      "projectId": "proj_123",        // Parent container
+      "createdAt": "2025-01-15T...",
+      "updatedAt": "2025-01-15T..."
+    },
+    // ... more documents
+  ],
+  "selectedDocumentId": "doc_xyz789"
+}
+
+// Key: 'doc-editor-projects'
+{
+  "projects": [
+    {
+      "id": "proj_123",
+      "name": "Q1 Planning",
+      "createdAt": "2025-01-15T..."
+    }
+  ]
+}
+```
+
+**Key Differences:**
+- **Elementor**: Flat structure (file groups only)
+- **Documents**: Nested structure (projects contain documents)
+
+### Layer 2: Manager Module Pattern
+
+**Location**: `src/lib/file-group-manager.ts` or `src/lib/document-storage.ts`
+
+**Purpose**: Pure functions that handle all localStorage operations. No React dependencies.
+
+```typescript
+// src/lib/file-group-manager.ts
+const STORAGE_KEY = 'elementor-editor-groups';
+
+interface EditorState {
+  groups: FileGroup[];
+  activeGroupId: string | null;
+}
+
+/**
+ * Load state from localStorage
+ * CRITICAL: Creates NEW objects every call (JSON.parse)
+ */
+export function loadEditorState(): EditorState {
+  if (typeof window === 'undefined') {
+    return { groups: [], activeGroupId: null };
+  }
+
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) {
+    return { groups: [], activeGroupId: null };
+  }
+
+  return JSON.parse(saved); // ← NEW objects every time
+}
+
+/**
+ * Save state to localStorage
+ */
+export function saveEditorState(state: EditorState): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+/**
+ * Set active group by ID
+ * CRITICAL: This is the ONLY way to change active item
+ */
+export function setActiveGroup(id: string | null): void {
+  const state = loadEditorState();
+
+  // Validate ID exists
+  if (id !== null && !state.groups.find(g => g.id === id)) {
+    console.warn(`Group ${id} not found`);
+    return;
+  }
+
+  state.activeGroupId = id;
+  saveEditorState(state);
+
+  console.log('✅ setActiveGroup() completed:', {
+    newActiveId: id,
+    wasSuccessful: state.activeGroupId === id
+  });
+}
+
+/**
+ * Create new group
+ */
+export function createGroup(name: string, type: 'html' | 'php' | 'hubspot'): FileGroup {
+  return {
+    id: `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name,
+    type,
+    html: '',
+    css: '',
+    js: '',
+    php: type === 'php' ? '<?php\n\n?>' : undefined,
+    hubl: type === 'hubspot' ? '{% %}' : undefined,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Add group to state and set as active
+ */
+export function addGroup(group: FileGroup): void {
+  const state = loadEditorState();
+  state.groups.push(group);
+  state.activeGroupId = group.id; // Auto-select new group
+  saveEditorState(state);
+}
+
+/**
+ * Update group content
+ */
+export function updateGroupContent(
+  id: string,
+  file: 'html' | 'css' | 'js' | 'php' | 'hubl',
+  content: string
+): void {
+  const state = loadEditorState();
+  const group = state.groups.find(g => g.id === id);
+
+  if (!group) {
+    console.warn(`Group ${id} not found`);
+    return;
+  }
+
+  group[file] = content;
+  group.updatedAt = new Date().toISOString();
+  saveEditorState(state);
+}
+
+/**
+ * Delete group
+ */
+export function deleteGroup(id: string): void {
+  const state = loadEditorState();
+  state.groups = state.groups.filter(g => g.id !== id);
+
+  // If deleted group was active, select another
+  if (state.activeGroupId === id) {
+    state.activeGroupId = state.groups.length > 0 ? state.groups[0].id : null;
+  }
+
+  saveEditorState(state);
+}
+```
+
+**Critical Implementation Details:**
+
+1. **ID Generation**: Use timestamp + random string for uniqueness
+   ```typescript
+   id: `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+   ```
+
+2. **Validation**: Always check if ID exists before operations
+   ```typescript
+   if (id && !state.groups.find(g => g.id === id)) {
+     console.warn(`Group ${id} not found`);
+     return;
+   }
+   ```
+
+3. **Auto-Selection**: When creating/deleting, manage `activeGroupId` logically
+   - Create: Set new item as active
+   - Delete active item: Select first remaining item or null
+
+4. **Console Logging**: Add logs for debugging state changes
+   ```typescript
+   console.log('✅ setActiveGroup() completed:', {
+     requestedId: id,
+     newActiveId: state.activeGroupId,
+     wasSuccessful: state.activeGroupId === id
+   });
+   ```
+
+### Layer 3: React Hook Pattern
+
+**Location**: `src/hooks/useFileGroups.ts` or `src/hooks/useDocumentStorage.ts`
+
+**Purpose**: React hook that provides state and actions to components. Uses manager functions internally.
+
+```typescript
+// src/hooks/useFileGroups.ts
+import { useState, useEffect, useCallback } from 'react';
+import {
+  loadEditorState,
+  setActiveGroup as setActiveGroupManager,
+  createGroup,
+  addGroup,
+  deleteGroup,
+  updateGroupContent,
+} from '@/lib/file-group-manager';
+
+export function useFileGroups() {
+  // Load initial state from localStorage
+  const [state, setState] = useState(() => loadEditorState());
+
+  // Sync with localStorage changes from other tabs
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'elementor-editor-groups') {
+        setState(loadEditorState());
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Select active group
+  const selectGroup = useCallback((id: string) => {
+    console.log('🎯 useFileGroups.selectGroup() called:', { requestedId: id });
+
+    setActiveGroupManager(id);         // Update localStorage
+    setState(loadEditorState());       // Reload React state
+  }, []);
+
+  // Create new group
+  const createNewGroup = useCallback((name: string, type: 'html' | 'php' | 'hubspot') => {
+    const group = createGroup(name, type);
+    addGroup(group);
+    setState(loadEditorState());
+    return group;
+  }, []);
+
+  // Delete group
+  const deleteGroupAction = useCallback((id: string) => {
+    deleteGroup(id);
+    setState(loadEditorState());
+  }, []);
+
+  // Update file content
+  const updateGroupFile = useCallback((
+    id: string,
+    file: 'html' | 'css' | 'js' | 'php' | 'hubl',
+    content: string
+  ) => {
+    updateGroupContent(id, file, content);
+    setState(loadEditorState());
+  }, []);
+
+  // Compute active group (NO memoization)
+  const activeGroup = state.activeGroupId
+    ? state.groups.find(g => g.id === state.activeGroupId) || null
+    : null;
+
+  // Return API (NO memoization on return object)
+  return {
+    groups: state.groups,
+    activeGroup,
+    activeGroupId: state.activeGroupId,
+    selectGroup,
+    createNewGroup,
+    deleteGroup: deleteGroupAction,
+    updateGroupFile,
+  };
+}
+```
+
+**Critical Hook Patterns:**
+
+1. **No Memoization**: Don't use `useMemo` on activeGroup or return object
+   ```typescript
+   // ❌ WRONG - Causes stale references
+   const activeGroup = useMemo(() =>
+     state.groups.find(g => g.id === state.activeGroupId),
+     [state.activeGroupId, state.groups]
+   );
+
+   // ✅ CORRECT - Recomputes on every render
+   const activeGroup = state.activeGroupId
+     ? state.groups.find(g => g.id === state.activeGroupId) || null
+     : null;
+   ```
+
+2. **Reload Pattern**: After every manager function call, reload state
+   ```typescript
+   setActiveGroupManager(id);    // Update localStorage
+   setState(loadEditorState());  // Reload React state
+   ```
+
+3. **Storage Event Listener**: Sync changes from other tabs/windows
+   ```typescript
+   useEffect(() => {
+     const handleStorageChange = (e: StorageEvent) => {
+       if (e.key === 'elementor-editor-groups') {
+         setState(loadEditorState());
+       }
+     };
+     window.addEventListener('storage', handleStorageChange);
+     return () => window.removeEventListener('storage', handleStorageChange);
+   }, []);
+   ```
+
+### Layer 4: UI Component Integration
+
+**Page Component Pattern:**
+
+```typescript
+// src/app/elementor-editor/page.tsx
+export default function ElementorEditorPage() {
+  const fileGroups = useFileGroups();
+
+  // Compute currentProject from primitives (activeGroupId + groups array)
+  // CRITICAL: Use .find() with primitives, NOT pre-computed activeGroup
+  const currentProject = fileGroups.activeGroupId
+    ? fileGroups.groups.find(g => g.id === fileGroups.activeGroupId) || null
+    : null;
+
+  // Derive currentSection from currentProject
+  const currentSection = currentProject ? {
+    id: currentProject.id,
+    name: currentProject.name,
+    type: currentProject.type,
+    html: currentProject.html || '',
+    css: currentProject.css || '',
+    js: currentProject.js || '',
+    php: currentProject.php || '',
+    hubl: currentProject.hubl || '',
+  } : null;
+
+  return (
+    <div>
+      <ProjectSidebar
+        groups={fileGroups.groups}
+        activeGroupId={fileGroups.activeGroupId}
+        onSelectGroup={fileGroups.selectGroup}
+        onCreateGroup={fileGroups.createNewGroup}
+        onDeleteGroup={fileGroups.deleteGroup}
+      />
+
+      <ElementorChat
+        currentSection={currentSection}
+        onUpdateSection={(updates) => {
+          if (currentSection) {
+            Object.entries(updates).forEach(([file, content]) => {
+              fileGroups.updateGroupFile(
+                currentSection.id,
+                file as 'html' | 'css' | 'js',
+                content
+              );
+            });
+          }
+        }}
+      />
+    </div>
+  );
+}
+```
+
+**Sidebar Component Pattern:**
+
+```typescript
+// src/components/elementor/ProjectSidebar.tsx
+interface ProjectSidebarProps {
+  groups: FileGroup[];
+  activeGroupId: string | null;
+  onSelectGroup: (id: string) => void;
+  onCreateGroup: (name: string, type: 'html' | 'php' | 'hubspot') => void;
+  onDeleteGroup: (id: string) => void;
+}
+
+export function ProjectSidebar({
+  groups,
+  activeGroupId,
+  onSelectGroup,
+  onCreateGroup,
+  onDeleteGroup,
+}: ProjectSidebarProps) {
+  return (
+    <div>
+      <button onClick={() => onCreateGroup('New Project', 'html')}>
+        + New Project
+      </button>
+
+      {groups.map((group) => (
+        <div
+          key={group.id}
+          onClick={() => onSelectGroup(group.id)}
+          className={group.id === activeGroupId ? 'active' : ''}
+        >
+          {group.name}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+**Chat Component Pattern:**
+
+```typescript
+// src/components/elementor/ElementorChat.tsx
+interface ElementorChatProps {
+  currentSection: Section | null;
+  onUpdateSection: (updates: { html?: string; css?: string; js?: string }) => void;
+}
+
+export function ElementorChat({ currentSection, onUpdateSection }: ElementorChatProps) {
+  // Generate system prompt with current project context
+  const systemPrompt = currentSection ? `
+You are editing: ${currentSection.name} (${currentSection.type} project)
+
+Current code:
+HTML (${currentSection.html.length} chars):
+${currentSection.html}
+
+CSS (${currentSection.css.length} chars):
+${currentSection.css}
+
+JS (${currentSection.js.length} chars):
+${currentSection.js}
+` : 'No project selected';
+
+  // Pass to useChat
+  const { messages, input, handleSubmit } = useChat({
+    api: '/api/chat-elementor',
+    body: {
+      systemPrompt,
+      currentSection,
+    },
+  });
+
+  return (
+    <div>
+      {/* Display current project badge */}
+      {currentSection && (
+        <ProjectContextBadge
+          key={currentSection.id}  // ← Force remount on project change
+          currentSection={currentSection}
+        />
+      )}
+
+      {/* Chat interface */}
+      <ChatMessages messages={messages} />
+      <ChatInput onSubmit={handleSubmit} />
+    </div>
+  );
+}
+```
+
+### Common Patterns & Best Practices
+
+**1. Force Component Remount with Key Prop**
+
+When switching between items, use the `key` prop to force React to remount:
+
+```typescript
+<ProjectContextBadge
+  key={currentSection.id}  // ← NEW instance on project change
+  currentSection={currentSection}
+/>
+```
+
+**Why**: Prevents stale state in component. Each project gets a fresh component instance.
+
+**2. Compute Current Item from Primitives**
+
+Always derive the current item using `.find()` with the ID, not a pre-computed reference:
+
+```typescript
+// ✅ CORRECT - Uses primitives
+const currentProject = fileGroups.activeGroupId
+  ? fileGroups.groups.find(g => g.id === fileGroups.activeGroupId)
+  : null;
+
+// ❌ WRONG - Uses pre-computed reference
+const currentProject = fileGroups.activeGroup;
+```
+
+**Why**: `.find()` creates a new object reference on every render, ensuring React detects changes.
+
+**3. ID-Based Selection Flow**
+
+```
+User clicks project in sidebar
+    ↓
+onSelectGroup(groupId)  // Passes ID, not object
+    ↓
+setActiveGroupManager(groupId)  // Updates localStorage
+    ↓
+setState(loadEditorState())  // Reloads React state
+    ↓
+Page component re-renders
+    ↓
+currentProject = groups.find(g => g.id === activeGroupId)
+    ↓
+currentSection derived from currentProject
+    ↓
+Chat re-renders with new currentSection
+    ↓
+Badge re-mounts (new key = new ID)
+```
+
+**4. Prevent Infinite Loops**
+
+**❌ BROKEN - Circular useEffect:**
+```typescript
+const currentSection = currentProject ? { ... } : null;
+
+useEffect(() => {
+  // ❌ References currentSection BEFORE it's defined
+  console.log(currentSection?.id);
+}, [currentSection?.id]);
+```
+
+**✅ CORRECT - Define before use:**
+```typescript
+const currentSection = currentProject ? { ... } : null;
+
+useEffect(() => {
+  // ✅ currentSection already defined
+  console.log(currentSection?.id);
+}, [currentSection?.id]);
+```
+
+**5. Console Logging for Debugging**
+
+Add strategic logs to track state flow:
+
+```typescript
+// In manager functions
+console.log('🔧 setActiveGroup() called:', { requestedId: id });
+console.log('✅ setActiveGroup() completed:', { newActiveId: state.activeGroupId });
+
+// In hooks
+console.log('🎯 useFileGroups.selectGroup() called:', { requestedId: id });
+console.log('🔄 [SELECT_GROUP] setState() triggered');
+
+// In components
+console.log('🖱️ ProjectSidebar: User clicked project:', { clickedId: group.id });
+```
+
+### Tool Integration with ID-Based State
+
+**Tool Pattern: Update Active Document**
+
+```typescript
+// src/lib/tools.ts
+export const updateDocumentTool = tool({
+  description: 'Update the content of the currently active document',
+  inputSchema: z.object({
+    content: z.string().describe('The new document content'),
+  }),
+  execute: async ({ content }) => {
+    // Tool only returns metadata
+    // Frontend widget handles the actual update
+    return {
+      content,
+      timestamp: new Date().toISOString(),
+      message: 'Document updated successfully'
+    };
+  },
+});
+```
+
+**Widget Pattern: Apply to Active Item**
+
+```typescript
+// src/components/tool-ui/update-document-widget.tsx
+import { useDocumentStorage } from '@/hooks/useDocumentStorage';
+
+export function UpdateDocumentWidget({ result }: { result: any }) {
+  const { selectedDocumentId, updateDocument } = useDocumentStorage();
+  const [applied, setApplied] = useState(false);
+
+  const handleApply = () => {
+    if (!selectedDocumentId) {
+      console.error('No document selected');
+      return;
+    }
+
+    // Update the ACTIVE document using its ID
+    updateDocument(selectedDocumentId, {
+      content: result.content,
+      updatedAt: new Date().toISOString(),
+    });
+
+    setApplied(true);
+  };
+
+  return (
+    <div>
+      <h3>Document Update Ready</h3>
+      <p>{result.message}</p>
+      <button onClick={handleApply} disabled={applied || !selectedDocumentId}>
+        {applied ? 'Applied ✓' : 'Apply to Current Document'}
+      </button>
+    </div>
+  );
+}
+```
+
+### Troubleshooting Common Issues
+
+**Issue 1: Badge Doesn't Update When Switching Projects**
+
+**Symptoms**: Click different project, badge shows old project name
+
+**Causes**:
+- Missing `key` prop on badge component
+- Using memoization on `activeGroup` or `currentSection`
+- Component defined before useEffect that references it
+
+**Fixes**:
+```typescript
+// 1. Add key prop
+<ProjectContextBadge key={currentSection.id} ... />
+
+// 2. Remove useMemo
+const activeGroup = state.groups.find(...);  // No useMemo!
+
+// 3. Define currentSection BEFORE useEffect
+const currentSection = ...;  // Line 164
+useEffect(() => { ... }, [currentSection?.id]);  // Line 180
+```
+
+**Issue 2: Changes Lost After Refresh**
+
+**Symptoms**: Make changes, refresh page, changes gone
+
+**Causes**:
+- Not calling `saveEditorState()` after updates
+- Wrong localStorage key
+- JSON serialization error
+
+**Fixes**:
+```typescript
+// Always save after modifying state
+export function updateGroup(id: string, updates: Partial<FileGroup>): void {
+  const state = loadEditorState();
+  const group = state.groups.find(g => g.id === id);
+  if (group) {
+    Object.assign(group, updates);
+    saveEditorState(state);  // ← Don't forget this!
+  }
+}
+```
+
+**Issue 3: Selected Item ID Mismatch**
+
+**Symptoms**: activeGroupId says "group_123" but displayed item is different
+
+**Causes**:
+- Multiple components updating activeGroupId directly
+- Race condition between localStorage and React state
+- Wrong ID passed to selectGroup()
+
+**Fixes**:
+```typescript
+// Only use manager function to change active ID
+setActiveGroupManager(id);  // ✅ CORRECT
+setState({ ...state, activeGroupId: id });  // ❌ WRONG
+
+// Always reload after manager call
+setActiveGroupManager(id);
+setState(loadEditorState());  // ← Ensures sync
+```
+
+### Comparison: Document Editor vs Elementor Editor
+
+| Feature | Document Editor | Elementor Editor |
+|---------|----------------|------------------|
+| **Structure** | Nested (Projects → Documents) | Flat (File Groups) |
+| **Storage Keys** | `doc-editor-documents`, `doc-editor-projects` | `elementor-editor-groups` |
+| **Active Item** | `selectedDocumentId` | `activeGroupId` |
+| **Item Types** | Document (text content) | FileGroup (html/css/js/php/hubl) |
+| **Manager File** | `src/lib/document-storage.ts` | `src/lib/file-group-manager.ts` |
+| **Hook** | `useDocumentStorage()` | `useFileGroups()` |
+| **Parent Container** | Project (optional grouping) | None |
+| **Auto-Selection** | First document in project | First group |
+| **File Types** | Single (content field) | Multiple (html, css, js, php, hubl) |
+
+**When to use each pattern:**
+
+- **Nested (Document Editor)**: When items naturally belong to containers
+  - Example: Documents in projects, tasks in lists, comments on posts
+
+- **Flat (Elementor Editor)**: When items are independent
+  - Example: Code sections, API configurations, user profiles
+
+### Checklist: Implementing ID-Based State Management
+
+When creating a new document/project-based feature:
+
+**Manager Module** (`src/lib/your-manager.ts`):
+- [ ] Define storage key constant
+- [ ] Define TypeScript interfaces for state
+- [ ] Implement `loadState()` with JSON.parse
+- [ ] Implement `saveState()` with JSON.stringify
+- [ ] Implement `setActive(id)` with validation
+- [ ] Implement `createItem()` with unique ID generation
+- [ ] Implement `updateItem(id, data)` with validation
+- [ ] Implement `deleteItem(id)` with active item fallback
+- [ ] Add console.log statements for debugging
+- [ ] Export all functions
+
+**React Hook** (`src/hooks/useYourItems.ts`):
+- [ ] Import all manager functions
+- [ ] Initialize state with `useState(() => loadState())`
+- [ ] Add storage event listener for cross-tab sync
+- [ ] Wrap each manager function with useCallback
+- [ ] Call manager function + setState(loadState()) pattern
+- [ ] Compute active item with `.find()` (no useMemo!)
+- [ ] Return object directly (no useMemo on return!)
+- [ ] Export hook
+
+**Page Component**:
+- [ ] Call your hook: `const items = useYourItems()`
+- [ ] Compute `currentItem` from primitives using `.find()`
+- [ ] Pass `items.items`, `items.activeItemId` to sidebar
+- [ ] Pass `onSelectItem={items.selectItem}` to sidebar
+- [ ] Pass `currentItem` to chat component
+- [ ] Add key prop to context badge: `key={currentItem.id}`
+
+**Testing**:
+- [ ] Create multiple items, verify they save to localStorage
+- [ ] Switch between items, verify UI updates
+- [ ] Refresh page, verify selected item persists
+- [ ] Open in two tabs, verify cross-tab sync works
+- [ ] Delete active item, verify fallback to another item
+- [ ] Check console logs show expected state flow
+- [ ] Verify no infinite loops in React DevTools
+
+---
+
 ## Tool Types
 
 There are **two types of tools** you can create:

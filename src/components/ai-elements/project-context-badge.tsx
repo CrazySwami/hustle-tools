@@ -85,8 +85,8 @@ export function ProjectContextBadge({
     if (currentSection.js) tags.push("JS")
     if (currentSection.hubl) tags.push("HubL")
   } else if (projectType === 'document') {
-    // Documents don't show file tags - just the document name
-    // Leave tags array empty
+    // Documents show metrics: word count, char count, token count
+    // Leave tags array empty - metrics will be shown instead
   } else {
     // Default HTML projects show: HTML, CSS, JS
     if (currentSection.html) tags.push("HTML")
@@ -99,6 +99,27 @@ export function ProjectContextBadge({
   useEffect(() => {
     setIsOverflowing(projectTitle.length > 25)
   }, [projectTitle])
+
+  // Calculate metrics for documents
+  const metrics = projectType === 'document' && currentSection?.content ? (() => {
+    const content = currentSection.content
+    const charCount = content.length
+    const wordCount = content.trim().split(/\s+/).filter(Boolean).length
+    // Rough token estimate: ~4 chars per token
+    const tokenCount = Math.ceil(charCount / 4)
+    console.log('📊 Document Metrics Calculated:', { charCount, wordCount, tokenCount, contentLength: content.length })
+    return { charCount, wordCount, tokenCount }
+  })() : null
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 ProjectContextBadge Debug:', {
+      projectType,
+      hasContent: !!currentSection?.content,
+      contentLength: currentSection?.content?.length || 0,
+      metricsCalculated: !!metrics
+    })
+  }, [projectType, currentSection?.content, metrics])
 
   // Determine icon based on project type
   const ProjectIcon = projectType === 'hubspot' ? SiHubspot
@@ -169,15 +190,43 @@ export function ProjectContextBadge({
             </div>
 
             <div className="flex items-center gap-1 sm:gap-1.5 ml-0.5 sm:ml-1 relative z-10">
-              {tags.map((tag, i) => (
-                <span
-                  key={tag}
-                  className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded ${getExtensionColor(tag, isDark)} animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0`}
-                  style={{ animationDelay: `${400 + i * 100}ms` }}
-                >
-                  {tag}
-                </span>
-              ))}
+              {metrics ? (
+                // Show metrics for documents
+                <>
+                  <span
+                    className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded ${isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-500/30 text-blue-800"} animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0`}
+                    style={{ animationDelay: '400ms' }}
+                    title="Word count"
+                  >
+                    {metrics.wordCount.toLocaleString()}w
+                  </span>
+                  <span
+                    className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded ${isDark ? "bg-green-500/20 text-green-300" : "bg-green-500/30 text-green-800"} animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0`}
+                    style={{ animationDelay: '500ms' }}
+                    title="Character count"
+                  >
+                    {metrics.charCount.toLocaleString()}c
+                  </span>
+                  <span
+                    className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded ${isDark ? "bg-purple-500/20 text-purple-300" : "bg-purple-500/30 text-purple-800"} animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0`}
+                    style={{ animationDelay: '600ms' }}
+                    title="Estimated token count"
+                  >
+                    {metrics.tokenCount.toLocaleString()}t
+                  </span>
+                </>
+              ) : (
+                // Show file type tags for code projects
+                tags.map((tag, i) => (
+                  <span
+                    key={tag}
+                    className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded ${getExtensionColor(tag, isDark)} animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0`}
+                    style={{ animationDelay: `${400 + i * 100}ms` }}
+                  >
+                    {tag}
+                  </span>
+                ))
+              )}
             </div>
           </>
         )}

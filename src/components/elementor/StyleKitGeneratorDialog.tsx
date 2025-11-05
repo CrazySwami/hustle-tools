@@ -11,7 +11,7 @@ import { estimateTokenCount } from '@/lib/token-validator';
 
 interface StyleKitGeneratorDialogProps {
   onGenerate: (config: {
-    model: 'claude-haiku-4.5' | 'gpt-5';
+    model: 'claude-haiku-4.5' | 'gpt-5' | 'gemini-2.5-flash';
     brandfetchData?: {
       colors?: string[];
       fonts?: string[];
@@ -21,8 +21,10 @@ interface StyleKitGeneratorDialogProps {
     stylePreferences?: string;
     industry?: string;
     images?: Array<{ url: string; filename: string; description?: string }>;
+    stage?: 1 | 2 | 3 | 4; // Optional: generate only specific stage
   }) => Promise<void>;
   onClose: () => void;
+  preSelectedStage?: 1 | 2 | 3 | 4; // NEW: Pre-select a stage when opening dialog
 }
 
 const SYSTEM_PROMPT = `You are an expert Elementor Style Kit customizer. Generate brand-specific customizations that will be merged into a complete template.
@@ -66,8 +68,9 @@ DESIGN RULES:
 export function StyleKitGeneratorDialog({
   onGenerate,
   onClose,
+  preSelectedStage,
 }: StyleKitGeneratorDialogProps) {
-  const [model, setModel] = useState<'claude-haiku-4.5' | 'gpt-5'>('gpt-5');
+  const [model, setModel] = useState<'claude-haiku-4.5' | 'gpt-5' | 'gemini-2.5-flash'>('gpt-5');
   const [brandfetchUrl, setBrandfetchUrl] = useState('');
   const [isFetchingBrand, setIsFetchingBrand] = useState(false);
   const [brandfetchData, setBrandfetchData] = useState<any>(null);
@@ -82,6 +85,8 @@ export function StyleKitGeneratorDialog({
   const [systemTokens, setSystemTokens] = useState(0);
   const [inputTokens, setInputTokens] = useState(0);
   const [imageTokens, setImageTokens] = useState(0);
+
+  // Removed auto-trigger - dialog now stays open for user to add context before generating
 
   // Calculate tokens
   useEffect(() => {
@@ -105,7 +110,7 @@ export function StyleKitGeneratorDialog({
   }, [images]);
 
   const totalTokens = systemTokens + inputTokens + imageTokens;
-  const contextLimit = model === 'gpt-5' ? 128000 : model === 'claude-haiku-4.5' ? 200000 : 1000000;
+  const contextLimit = model === 'gpt-5' ? 128000 : model === 'claude-haiku-4.5' ? 200000 : model === 'gemini-2.5-flash' ? 1000000 : 128000;
 
   const handleBrandfetchFetch = async () => {
     if (!brandfetchUrl.trim()) {
@@ -199,12 +204,24 @@ export function StyleKitGeneratorDialog({
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (stage?: 1 | 2 | 3 | 4) => {
+    console.log('📝 handleGenerate called with:', {
+      stage,
+      preSelectedStage,
+      stylePreferences: stylePreferences.trim(),
+      hasBrandfetchData: !!brandfetchData,
+      imageCount: images.length
+    });
+
+    // Skip validation if this is an auto-triggered stage generation from inline button
+    // Validate that user provided some context
     if (!stylePreferences.trim() && !brandfetchData && images.length === 0) {
+      console.log('❌ Validation failed: no data provided');
       alert('Please provide style preferences, Brandfetch data, or upload images');
       return;
     }
 
+    console.log('✅ Validation passed, starting generation...');
     setIsGenerating(true);
     try {
       // Transform brandfetchData to simple arrays (API expects strings, not objects)
@@ -216,15 +233,27 @@ export function StyleKitGeneratorDialog({
         ) || [],
       } : undefined;
 
+      console.log('📤 Calling onGenerate with:', {
+        model,
+        hasBrandfetchData: !!transformedBrandfetchData,
+        hasStylePreferences: !!stylePreferences,
+        hasIndustry: !!industry,
+        imageCount: images.length,
+        stage
+      });
+
       await onGenerate({
         model,
         brandfetchData: transformedBrandfetchData,
         stylePreferences: stylePreferences || undefined,
         industry: industry || undefined,
         images: images.length > 0 ? images : undefined,
+        stage, // Pass the optional stage parameter
       });
+
+      console.log('✅ onGenerate completed successfully');
     } catch (error) {
-      console.error('Generation error:', error);
+      console.error('❌ Generation error:', error);
     } finally {
       setIsGenerating(false);
     }
@@ -391,6 +420,35 @@ export function StyleKitGeneratorDialog({
                   <div style={{ fontWeight: 500, fontSize: '14px' }}>GPT-5</div>
                   <div style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>
                     Highest quality
+                  </div>
+                </div>
+              </label>
+              <label
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  border: `2px solid ${model === 'gemini-2.5-flash' ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  background: model === 'gemini-2.5-flash' ? 'var(--accent)' : 'transparent',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="model"
+                  value="gemini-2.5-flash"
+                  checked={model === 'gemini-2.5-flash'}
+                  onChange={() => setModel('gemini-2.5-flash')}
+                  style={{ accentColor: 'var(--primary)' }}
+                />
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '14px' }}>Gemini 2.5 Flash</div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>
+                    Fast & affordable
                   </div>
                 </div>
               </label>
@@ -763,24 +821,119 @@ export function StyleKitGeneratorDialog({
             )}
           </div>
 
-          {/* Generate Button */}
-          <Button
-            onClick={handleGenerate}
-            disabled={(!stylePreferences.trim() && !brandfetchData && images.length === 0) || isGenerating || isAnalyzing || images.some(img => !img.description)}
-            style={{ width: '100%', height: '44px', fontSize: '15px', fontWeight: 600 }}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2Icon size={18} className="animate-spin" style={{ marginRight: '8px' }} />
-                Generating Complete Style Kit (444 fields)...
-              </>
-            ) : (
-              <>
-                <SparklesIcon size={18} style={{ marginRight: '8px' }} />
-                Generate Complete Style Kit (180 fields)
-              </>
-            )}
-          </Button>
+          {/* Generate Buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Individual Stage Buttons */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '8px',
+              padding: '12px',
+              backgroundColor: 'var(--muted)',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+            }}>
+              <div style={{ gridColumn: '1 / -1', marginBottom: '4px' }}>
+                <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: 'var(--muted-foreground)' }}>
+                  Generate Individual Stages
+                </p>
+                <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--muted-foreground)' }}>
+                  Test independently or regenerate specific sections
+                </p>
+              </div>
+              <button
+                onClick={() => handleGenerate(1)}
+                disabled={(!stylePreferences.trim() && !brandfetchData && images.length === 0) || isGenerating || isAnalyzing}
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  backgroundColor: preSelectedStage === 1 ? 'var(--primary)' : (isGenerating ? 'var(--muted)' : 'var(--background)'),
+                  color: preSelectedStage === 1 ? 'var(--primary-foreground)' : 'var(--foreground)',
+                  border: preSelectedStage === 1 ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  borderRadius: '6px',
+                  cursor: isGenerating ? 'not-allowed' : 'pointer',
+                  opacity: isGenerating ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {preSelectedStage === 1 && '✨ '} 🎨 Stage 1: Colors
+              </button>
+              <button
+                onClick={() => handleGenerate(2)}
+                disabled={(!stylePreferences.trim() && !brandfetchData && images.length === 0) || isGenerating || isAnalyzing}
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  backgroundColor: preSelectedStage === 2 ? 'var(--primary)' : (isGenerating ? 'var(--muted)' : 'var(--background)'),
+                  color: preSelectedStage === 2 ? 'var(--primary-foreground)' : 'var(--foreground)',
+                  border: preSelectedStage === 2 ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  borderRadius: '6px',
+                  cursor: isGenerating ? 'not-allowed' : 'pointer',
+                  opacity: isGenerating ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {preSelectedStage === 2 && '✨ '}🔤 Stage 2: Fonts
+              </button>
+              <button
+                onClick={() => handleGenerate(3)}
+                disabled={(!stylePreferences.trim() && !brandfetchData && images.length === 0) || isGenerating || isAnalyzing}
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  backgroundColor: preSelectedStage === 3 ? 'var(--primary)' : (isGenerating ? 'var(--muted)' : 'var(--background)'),
+                  color: preSelectedStage === 3 ? 'var(--primary-foreground)' : 'var(--foreground)',
+                  border: preSelectedStage === 3 ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  borderRadius: '6px',
+                  cursor: isGenerating ? 'not-allowed' : 'pointer',
+                  opacity: isGenerating ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {preSelectedStage === 3 && '✨ '}📐 Stage 3: Headings
+              </button>
+              <button
+                onClick={() => handleGenerate(4)}
+                disabled={(!stylePreferences.trim() && !brandfetchData && images.length === 0) || isGenerating || isAnalyzing}
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  backgroundColor: preSelectedStage === 4 ? 'var(--primary)' : (isGenerating ? 'var(--muted)' : 'var(--background)'),
+                  color: preSelectedStage === 4 ? 'var(--primary-foreground)' : 'var(--foreground)',
+                  border: preSelectedStage === 4 ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  borderRadius: '6px',
+                  cursor: isGenerating ? 'not-allowed' : 'pointer',
+                  opacity: isGenerating ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {preSelectedStage === 4 && '✨ '}🎛️ Stage 4: Components
+              </button>
+            </div>
+
+            {/* Full Generation Button */}
+            <Button
+              onClick={() => handleGenerate(preSelectedStage)}
+              disabled={(!stylePreferences.trim() && !brandfetchData && images.length === 0) || isGenerating || isAnalyzing || images.some(img => !img.description)}
+              style={{ width: '100%', height: '44px', fontSize: '15px', fontWeight: 600 }}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2Icon size={18} className="animate-spin" style={{ marginRight: '8px' }} />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <SparklesIcon size={18} style={{ marginRight: '8px' }} />
+                  {preSelectedStage ? `Generate Stage ${preSelectedStage}` : 'Generate Complete Style Kit (All 4 Stages)'}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

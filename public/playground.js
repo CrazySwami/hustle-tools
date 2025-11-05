@@ -435,8 +435,32 @@ window.viewPage = async function() {
         return;
     }
 
-    const pageUrl = '/?page_id=' + currentPageId;
-    console.log('Viewing page:', pageUrl);
+    // Clear WordPress cache before viewing
+    const clearCacheCode = `<?php
+        require_once '/wordpress/wp-load.php';
+
+        // Clear WordPress object cache
+        wp_cache_flush();
+
+        // Clear Elementor cache
+        if (class_exists('\\Elementor\\Plugin')) {
+            \\Elementor\\Plugin::instance()->files_manager->clear_cache();
+        }
+
+        echo 'CACHE_CLEARED';
+    ?>`;
+
+    try {
+        await playgroundClient.run({ code: clearCacheCode });
+        console.log('✅ WordPress cache cleared');
+    } catch (error) {
+        console.warn('⚠️ Failed to clear cache:', error);
+    }
+
+    // Add timestamp to bust browser cache
+    const timestamp = Date.now();
+    const pageUrl = `/?page_id=${currentPageId}&v=${timestamp}`;
+    console.log('Viewing page with cache-busting:', pageUrl);
     await playgroundClient.goTo(pageUrl);
     console.log('Page loaded');
 };
@@ -1540,7 +1564,8 @@ window.saveHtmlSectionToLibrary = async function(section) {
 };
 
 // Import HTML section to a preview page
-window.importHtmlSectionToPage = async function(section) {
+// deploymentType: 'live-page' (default) or 'elementor-editor'
+window.importHtmlSectionToPage = async function(section, deploymentType = 'live-page') {
     if (!playgroundClient) {
         throw new Error('Playground not running. Launch it first.');
     }
@@ -1548,6 +1573,7 @@ window.importHtmlSectionToPage = async function(section) {
     try {
         updatePlaygroundStatus('📄 Creating preview page with section...');
         console.log('📝 Importing section to page:', section);
+        console.log('🎯 Deployment type:', deploymentType);
 
         const { name, html, css, js, globalCss } = section;
 
@@ -1740,18 +1766,31 @@ window.importHtmlSectionToPage = async function(section) {
         const response = JSON.parse(result.text);
 
         if (response.success) {
-            updatePlaygroundStatus('✅ Preview page created! Opening...', 'success');
             console.log('✅ Page ID:', response.page_id);
 
-            // Navigate to the live page
-            await playgroundClient.goTo('/?page_id=' + response.page_id);
+            // Navigate based on deployment type
+            if (deploymentType === 'elementor-editor') {
+                updatePlaygroundStatus('✅ Preview page created! Opening Elementor editor...', 'success');
+                // Navigate to Elementor editor
+                await playgroundClient.goTo('/wp-admin/post.php?post=' + response.page_id + '&action=elementor');
+                console.log('🎨 Navigated to Elementor editor');
+            } else {
+                updatePlaygroundStatus('✅ Preview page created! Opening live page...', 'success');
+                // Navigate to the live page (front-end view)
+                await playgroundClient.goTo('/?page_id=' + response.page_id);
+                console.log('📄 Navigated to live page');
+            }
+
+            // Store the page ID globally for future use
+            window.currentPageId = response.page_id;
 
             return {
                 success: true,
                 pageId: response.page_id,
                 pageUrl: response.page_url,
                 editUrl: response.edit_url,
-                message: response.message
+                message: response.message,
+                deploymentType: deploymentType
             };
         } else {
             throw new Error(response.error || 'Failed to create preview page');
@@ -2014,6 +2053,68 @@ window.deployElementorWidget = async function(widgetPhp, widgetCss = '', widgetJ
         const widgetSlug = nameMatch ? nameMatch[1] : 'custom_widget';
 
         console.log('📦 Widget details:', { className: widgetClassName, slug: widgetSlug });
+        updatePlaygroundStatus(`📦 Widget: ${widgetClassName} (${widgetSlug})`);
+
+        // CRITICAL: Deactivate and remove ALL existing elementor-* plugins before deploying new one
+        console.log('🧹 Cleaning up old widget plugins...');
+        updatePlaygroundStatus('🧹 Removing old widgets...');
+
+        const cleanupCode = `<?php
+            require_once '/wordpress/wp-load.php';
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+
+            // Get all plugins
+            $all_plugins = get_plugins();
+
+            // Find all elementor-* plugins (except this one we're about to deploy)
+            $current_plugin_slug = 'elementor-${widgetSlug}';
+            $plugins_to_remove = [];
+
+            foreach ($all_plugins as $plugin_file => $plugin_data) {
+                if (strpos($plugin_file, 'elementor-') === 0) {
+                    $plugin_slug = dirname($plugin_file);
+                    if ($plugin_slug !== $current_plugin_slug) {
+                        $plugins_to_remove[] = ['file' => $plugin_file, 'slug' => $plugin_slug];
+                    }
+                }
+            }
+
+            echo 'FOUND_PLUGINS: ' . count($plugins_to_remove) . "\\n";
+
+            // Deactivate and delete each old plugin
+            foreach ($plugins_to_remove as $plugin_info) {
+                $plugin_file = $plugin_info['file'];
+                $plugin_slug = $plugin_info['slug'];
+
+                // Deactivate if active
+                if (is_plugin_active($plugin_file)) {
+                    deactivate_plugins($plugin_file);
+                    echo 'DEACTIVATED: ' . $plugin_file . "\\n";
+                }
+
+                // Delete plugin directory
+                $plugin_dir = WP_PLUGIN_DIR . '/' . $plugin_slug;
+                if (file_exists($plugin_dir)) {
+                    // Recursive delete
+                    $files = new RecursiveIteratorIterator(
+                        new RecursiveDirectoryIterator($plugin_dir, RecursiveDirectoryIterator::SKIP_DOTS),
+                        RecursiveIteratorIterator::CHILD_FIRST
+                    );
+                    foreach ($files as $fileinfo) {
+                        $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
+                        $todo($fileinfo->getRealPath());
+                    }
+                    rmdir($plugin_dir);
+                    echo 'DELETED: ' . $plugin_dir . "\\n";
+                }
+            }
+
+            echo 'CLEANUP_COMPLETE';
+        ?>`;
+
+        const cleanupResult = await playgroundClient.run({ code: cleanupCode });
+        console.log('🧹 Cleanup result:', cleanupResult.text);
 
         // CRITICAL: Check for PHP syntax errors BEFORE deploying
         const syntaxCheckCode = `<?php
@@ -2053,17 +2154,42 @@ PHPCODE;
 
             require_once '/wordpress/wp-load.php';
 
+            // Debug: Show what class name we're looking for
+            echo 'LOOKING_FOR_CLASS: ${widgetClassName}' . "\\n\\n";
+
             $widget_code = <<<'PHPCODE'
 ${widgetPhp}
 PHPCODE;
+
+            // Ensure widget code starts with <?php
+            $trimmed = trim($widget_code);
+            if (strpos($trimmed, '<?php') !== 0) {
+                $widget_code = '<?php' . "\\n" . $trimmed;
+            } else {
+                $widget_code = $trimmed;
+            }
 
             // Write widget to temp file
             $temp_file = '/tmp/widget-test.php';
             file_put_contents($temp_file, $widget_code);
 
+            // Debug: Show first 300 chars of file (more context)
+            $file_preview = substr(file_get_contents($temp_file), 0, 300);
+            echo 'FILE_PREVIEW: ' . $file_preview . "\\n\\n";
+
+            // Debug: Show if ABSPATH is defined (widget might exit if not)
+            echo 'ABSPATH_DEFINED: ' . (defined('ABSPATH') ? 'YES' : 'NO') . "\\n\\n";
+
             // Try to load and instantiate the widget
             try {
                 require_once $temp_file;
+
+                // Debug: Show all classes defined after loading widget
+                $all_classes = get_declared_classes();
+                $widget_classes = array_filter($all_classes, function($c) {
+                    return strpos($c, 'Widget') !== false || strpos($c, 'Elementor') !== false || strpos($c, 'Basic') !== false;
+                });
+                echo 'CLASSES_AFTER_LOAD: ' . implode(', ', array_slice($widget_classes, -15)) . "\\n\\n";
 
                 // Try to instantiate the widget class
                 $class_name = '${widgetClassName}';
@@ -2071,7 +2197,7 @@ PHPCODE;
                     $widget = new $class_name();
                     echo 'PHP_RUNTIME_OK';
                 } else {
-                    echo 'PHP_RUNTIME_ERROR: Class ' . $class_name . ' not found in widget.php';
+                    echo 'PHP_RUNTIME_ERROR: Class ' . $class_name . ' not found after loading widget file.';
                 }
             } catch (Throwable $e) {
                 echo 'PHP_RUNTIME_ERROR: ' . $e->getMessage() . ' in ' . $e->getFile() . ' on line ' . $e->getLine();
@@ -2160,9 +2286,15 @@ add_action( 'elementor/frontend/after_register_scripts', '${widgetSlug}_enqueue_
         await playgroundClient.mkdir(pluginDir);
         console.log('📁 Created plugin directory:', pluginDir);
 
+        // Ensure widget PHP code starts with <?php
+        let widgetPhpContent = widgetPhp.trim();
+        if (!widgetPhpContent.startsWith('<?php')) {
+            widgetPhpContent = '<?php\n' + widgetPhpContent;
+        }
+
         // Write plugin files
         await playgroundClient.writeFile(`${pluginDir}/${pluginSlug}.php`, mainPluginFile);
-        await playgroundClient.writeFile(`${pluginDir}/widget.php`, widgetPhp);
+        await playgroundClient.writeFile(`${pluginDir}/widget.php`, widgetPhpContent);
 
         if (widgetCss && widgetCss.trim()) {
             await playgroundClient.writeFile(`${pluginDir}/widget.css`, widgetCss);
@@ -2653,6 +2785,83 @@ window.uploadImagesToWordPress = async function(imageUrls) {
         successCount: results.length,
         errorCount: errors.length
     };
+};
+
+// Get WordPress debug logs
+window.getWordPressLogs = async function() {
+    if (!playgroundClient) {
+        throw new Error('Playground not running');
+    }
+
+    try {
+        const phpCode = `<?php
+            // Check multiple log locations
+            $log_locations = [
+                '/wordpress/wp-content/debug.log',
+                '/wordpress/debug.log',
+                '/tmp/error_log',
+                '/wordpress/wp-content/error_log'
+            ];
+
+            $all_logs = [];
+
+            foreach ($log_locations as $location) {
+                if (file_exists($location)) {
+                    $content = file_get_contents($location);
+                    if (!empty($content)) {
+                        $all_logs[] = "=== " . $location . " ===\\n" . $content;
+                    }
+                }
+            }
+
+            if (empty($all_logs)) {
+                echo "No error logs found. Enable WP_DEBUG in wp-config.php to see logs.";
+            } else {
+                echo implode("\\n\\n", $all_logs);
+            }
+        ?>`;
+
+        const result = await playgroundClient.run({ code: phpCode });
+        return result.text || 'No logs available';
+    } catch (error) {
+        console.error('Failed to fetch logs:', error);
+        return 'Error fetching logs: ' + error.message;
+    }
+};
+
+// Clear WordPress debug logs
+window.clearWordPressLogs = async function() {
+    if (!playgroundClient) {
+        throw new Error('Playground not running');
+    }
+
+    try {
+        const phpCode = `<?php
+            $log_locations = [
+                '/wordpress/wp-content/debug.log',
+                '/wordpress/debug.log',
+                '/tmp/error_log',
+                '/wordpress/wp-content/error_log'
+            ];
+
+            $cleared = 0;
+            foreach ($log_locations as $location) {
+                if (file_exists($location)) {
+                    file_put_contents($location, '');
+                    $cleared++;
+                }
+            }
+
+            echo "Cleared $cleared log file(s)";
+        ?>`;
+
+        const result = await playgroundClient.run({ code: phpCode });
+        console.log('🧹 Logs cleared:', result.text);
+        return { success: true, message: result.text };
+    } catch (error) {
+        console.error('Failed to clear logs:', error);
+        return { success: false, message: error.message };
+    }
 };
 
 // Auto-start playground on page load (if enabled)

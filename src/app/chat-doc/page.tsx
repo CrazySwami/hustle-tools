@@ -21,6 +21,7 @@ const ChatBotDemo = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const [isEditorVisible, setIsEditorVisible] = useState(true); // Open by default on desktop
+  const [isChatVisible, setIsChatVisible] = useState(true); // Chat panel visibility on desktop
   const [comments, setComments] = useState<Comment[]>([]);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | undefined>(undefined);
@@ -34,6 +35,10 @@ const ChatBotDemo = () => {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [panelTab, setPanelTab] = useState<'comments' | 'tools'>('comments');
 
+  // Chat panel width tracking for responsive NavigationBar
+  const [chatPanelWidth, setChatPanelWidth] = useState<number>(0);
+  const chatPanelRef = useRef<HTMLDivElement>(null);
+
   // Document content management - SINGLE source of truth
   const documentContentStore = useDocumentContent();
   const documentContent = documentContentStore.content; // Read directly from store
@@ -46,6 +51,27 @@ const ChatBotDemo = () => {
   const { messages, sendMessage, isLoading, reload, status, error } = useChat({
     api: '/api/chat-doc', // 🎯 Specialized endpoint for document editing
   });
+
+  // Measure chat panel width for responsive NavigationBar
+  useEffect(() => {
+    if (!chatPanelRef.current) return;
+
+    const updatePanelWidth = () => {
+      if (chatPanelRef.current) {
+        const width = chatPanelRef.current.offsetWidth;
+        setChatPanelWidth(width);
+      }
+    };
+
+    // Initial measurement
+    updatePanelWidth();
+
+    // Update on resize
+    const resizeObserver = new ResizeObserver(updatePanelWidth);
+    resizeObserver.observe(chatPanelRef.current);
+
+    return () => resizeObserver.disconnect();
+  }, []);
 
   // Detect mobile on mount and manage editor visibility
   useEffect(() => {
@@ -373,7 +399,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
     // Options tab actions
     if (tabId === 'options') {
       if (item === 'Hide Chat' || item === 'Show Chat') {
-        setIsEditorVisible(!isEditorVisible);
+        setIsChatVisible(!isChatVisible);
       }
       // Future: Add more general options here
       return;
@@ -524,7 +550,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
       id: 'options',
       label: 'Options',
       icon: null,
-      dropdownItems: [isEditorVisible ? 'Hide Chat' : 'Show Chat'],
+      dropdownItems: [isChatVisible ? 'Hide Chat' : 'Show Chat'],
     },
     {
       id: 'documents',
@@ -592,19 +618,22 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
 
       {/* Main content wrapper */}
       <div className={`flex flex-1 h-full w-full ${isMobile ? 'px-2' : ''} gap-0 overflow-hidden`}>
-        {/* Desktop: Two-panel layout using TwoPanelChatLayout */}
-        {!isMobile && isEditorVisible && (
+        {/* Desktop: Two-panel layout with chat and editor */}
+        {!isMobile && isEditorVisible && isChatVisible && (
           <TwoPanelChatLayout
             leftPanel={
-              <div style={{
-                padding: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-                width: '100%',
-                maxWidth: '100%',
-                boxSizing: 'border-box'
-              }}>
+              <div
+                ref={chatPanelRef}
+                style={{
+                  padding: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box'
+                }}
+              >
                 <div className="rounded-lg bg-background" style={{
                   flex: 1,
                   display: 'flex',
@@ -619,8 +648,9 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                       onTabChange={handleTabChange}
                       onDropdownItemClick={handleNavigationDropdownClick}
                       showOnDesktop={true}
-                      showOnMobile={true}
+                      showOnMobile={false}
                       hideLogoOnDesktop={false}
+                      containerWidth={chatPanelWidth}
                     />
                   </div>
                   <DocumentChat
@@ -641,6 +671,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                     wordCount={wordCount}
                     systemPrompt={actualSystemPrompt}
                     documentContent={documentContent}
+                    containerWidth={chatPanelWidth}
                   />
                 </div>
               </div>
@@ -678,6 +709,50 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
           />
         )}
 
+        {/* Desktop: Editor-only view when chat is hidden */}
+        {!isMobile && isEditorVisible && !isChatVisible && (
+          <div
+            style={{
+              padding: '8px',
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%',
+              width: '100%'
+            }}
+          >
+            <div className="rounded-lg bg-background shadow-sm" style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}>
+              <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <NavigationBar
+                  tabs={navigationTabs}
+                  onTabChange={handleTabChange}
+                  onDropdownItemClick={handleNavigationDropdownClick}
+                  showOnDesktop={true}
+                  showOnMobile={false}
+                  hideLogoOnDesktop={false}
+                  containerWidth={typeof window !== 'undefined' ? window.innerWidth : 0}
+                />
+              </div>
+              <TiptapEditor
+                initialContent={documentContent}
+                onContentChange={(html) => {
+                  console.log('📝 [EDITOR] Content changed, updating store (skipEditorUpdate=true)');
+                  documentContentStore.updateContent(html, true); // true = skip editor update
+                }}
+                onCommentsChange={setComments}
+                onAIEdit={handleAIEdit}
+                selectedModel={selectedModel}
+                selectedDocumentId={selectedDocumentId}
+                onDocumentSelect={setSelectedDocumentId}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Desktop: Chat-only view when editor hidden */}
         {!isMobile && !isEditorVisible && (
           <div className="flex flex-col h-full w-full">
@@ -699,6 +774,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
               wordCount={wordCount}
               systemPrompt={actualSystemPrompt}
               documentContent={documentContent}
+              containerWidth={typeof window !== 'undefined' ? window.innerWidth : 0}
             />
           </div>
         )}
@@ -837,6 +913,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                   wordCount={wordCount}
                   systemPrompt={actualSystemPrompt}
                   documentContent={documentContent}
+                  containerWidth={typeof window !== 'undefined' ? window.innerWidth : 0}
                 />
               </div>
             )}

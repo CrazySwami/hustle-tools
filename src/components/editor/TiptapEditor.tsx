@@ -19,10 +19,12 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import TiptapHeading from '@tiptap/extension-heading'
 import TiptapParagraph from '@tiptap/extension-paragraph'
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { AppSidebar } from '@/components/app-sidebar'
 import { marked } from 'marked'
+import Editor from '@monaco-editor/react'
+import { useTheme } from 'next-themes'
 import {
   Bold,
   Italic,
@@ -260,11 +262,16 @@ const Heading = TiptapHeading.extend({
 
   renderHTML({ node, HTMLAttributes }) {
     const styles = []
+    // Use !important to override prose class defaults
     if (HTMLAttributes.marginTop) {
-      styles.push(`margin-top: ${HTMLAttributes.marginTop}`)
+      styles.push(`margin-top: ${HTMLAttributes.marginTop} !important`)
     }
     if (HTMLAttributes.marginBottom) {
-      styles.push(`margin-bottom: ${HTMLAttributes.marginBottom}`)
+      styles.push(`margin-bottom: ${HTMLAttributes.marginBottom} !important`)
+    }
+    // Include lineHeight from LineHeight extension
+    if (node.attrs.lineHeight) {
+      styles.push(`line-height: ${node.attrs.lineHeight}`)
     }
 
     const hasStyle = styles.length > 0
@@ -301,13 +308,18 @@ const Paragraph = TiptapParagraph.extend({
     }
   },
 
-  renderHTML({ HTMLAttributes }) {
+  renderHTML({ node, HTMLAttributes }) {
     const styles = []
+    // Use !important to override prose class defaults
     if (HTMLAttributes.marginTop) {
-      styles.push(`margin-top: ${HTMLAttributes.marginTop}`)
+      styles.push(`margin-top: ${HTMLAttributes.marginTop} !important`)
     }
     if (HTMLAttributes.marginBottom) {
-      styles.push(`margin-bottom: ${HTMLAttributes.marginBottom}`)
+      styles.push(`margin-bottom: ${HTMLAttributes.marginBottom} !important`)
+    }
+    // Include lineHeight from LineHeight extension
+    if (node.attrs.lineHeight) {
+      styles.push(`line-height: ${node.attrs.lineHeight}`)
     }
 
     const hasStyle = styles.length > 0
@@ -576,6 +588,17 @@ const LineHeightSelector = React.memo(({
 }: {
   editor: any
 }) => {
+  const [customValue, setCustomValue] = React.useState('')
+
+  const handleCustomApply = () => {
+    if (customValue) {
+      // Support both unitless (1.5) and px values (24px)
+      const value = customValue.includes('px') ? customValue : customValue
+      editor.chain().focus().setLineHeight(value).run()
+      setCustomValue('')
+    }
+  }
+
   return (
     <div className="p-2 bg-background border rounded-md shadow-lg w-44">
       <div className="mb-1 text-xs font-medium text-muted-foreground px-2">Line Height</div>
@@ -585,9 +608,32 @@ const LineHeightSelector = React.memo(({
           onClick={() => editor.chain().focus().setLineHeight(height.value).run()}
           className="w-full px-3 py-2 text-left hover:bg-muted rounded text-sm"
         >
-          {height.value}
+          {height.name}
         </button>
       ))}
+      <div className="mt-2 pt-2 border-t">
+        <div className="mb-1 text-xs font-medium text-muted-foreground px-2">Custom</div>
+        <div className="flex gap-1 px-2">
+          <input
+            type="text"
+            value={customValue}
+            onChange={(e) => setCustomValue(e.target.value)}
+            placeholder="1.5 or 24px"
+            className="flex-1 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleCustomApply()
+              }
+            }}
+          />
+          <button
+            onClick={handleCustomApply}
+            className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90"
+          >
+            Set
+          </button>
+        </div>
+      </div>
       <button
         onClick={() => editor.chain().focus().unsetLineHeight().run()}
         className="w-full mt-1 px-3 py-2 text-left hover:bg-muted rounded text-sm border-t"
@@ -674,6 +720,7 @@ const savedContent = typeof window !== 'undefined' ? localStorage.getItem('tipta
 const initialComments = typeof window !== 'undefined' ? localStorage.getItem('tiptap-comments') : null;
 
 export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions, onAIEdit, selectedModel, onToggleSidebar, isSidebarVisible, selectedDocumentId, onDocumentSelect, onToggleCommentsPanel, onSetPanelTab }: TiptapEditorProps = {}) {
+  const { theme } = useTheme()
   const [isMounted, setIsMounted] = useState(false)
   // Consolidated dropdown state for performance
   const [dropdownStates, setDropdownStates] = useState({
@@ -708,6 +755,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   const [markdownMode, setMarkdownMode] = useState(true) // true = rich text editor, false = raw markdown textarea
   const [markdownText, setMarkdownText] = useState('') // Stores raw markdown when in markdown view mode
   const [comments, setComments] = useState<Comment[]>(initialComments ? JSON.parse(initialComments) : [])
+
   const isInternalUpdate = useRef(false) // Flag to prevent circular updates
   const hasUserInteracted = useRef(false) // Track if user has clicked/edited the document
   const colorButtonRef = useRef<HTMLButtonElement>(null)
@@ -877,7 +925,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     content: initialContent || (savedContent ? JSON.parse(savedContent) : '<p></p>'),
     editorProps: {
       attributes: {
-        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none w-full max-w-none min-h-[calc(100vh-16rem)] [&_h1]:text-2xl [&_h1]:sm:text-3xl [&_h1]:lg:text-4xl',
+        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none w-full !max-w-none min-h-[calc(100vh-16rem)] [&_h1]:text-2xl [&_h1]:sm:text-3xl [&_h1]:lg:text-4xl',
       },
     },
     onUpdate: handleEditorUpdate,
@@ -1675,7 +1723,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
           {isDocumentsPanelOpen && (
             <div
               className={cn(
-                "absolute z-50 transition-transform duration-300 ease-in-out bg-background border border-border shadow-sm",
+                "absolute z-50 transition-transform duration-300 ease-in-out bg-background border border-border shadow-sm overflow-y-auto scrollbar-hide",
                 // Desktop: left margin, fixed width, rounded corners
                 "md:left-2 md:top-2 md:bottom-2 md:w-64 md:rounded-lg",
                 // Mobile: full width, no margins, square corners
@@ -1701,12 +1749,27 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
             {markdownMode ? (
               <EditorContent editor={editor} className="w-full" />
             ) : (
-              <textarea
-                value={markdownText}
-                onChange={(e) => setMarkdownText(e.target.value)}
-                className="w-full h-full p-4 font-mono text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                placeholder="<h1>Raw HTML view</h1><p>Edit the HTML directly...</p>"
-              />
+              <div className="w-full h-full border rounded-md overflow-hidden">
+                <Editor
+                  height="100%"
+                  language="html"
+                  value={markdownText}
+                  onChange={(value) => setMarkdownText(value || '')}
+                  theme={theme === 'dark' ? 'vs-dark' : 'light'}
+                  options={{
+                    minimap: { enabled: false },
+                    lineNumbers: 'on',
+                    fontSize: 13,
+                    wordWrap: 'on',
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    tabSize: 2,
+                    insertSpaces: true,
+                    formatOnPaste: true,
+                    formatOnType: true,
+                  }}
+                />
+              </div>
             )}
           </div>
 

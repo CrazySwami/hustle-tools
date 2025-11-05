@@ -261,10 +261,10 @@ function parseAIResponse(text: string): any {
 
 export async function POST(req: Request) {
   try {
-    const { model, brandfetchData, stylePreferences, industry } = await req.json();
+    const { model, brandfetchData, stylePreferences, industry, stage } = await req.json();
 
     // Validate inputs
-    if (!model || !['claude-haiku-4.5', 'gpt-5'].includes(model)) {
+    if (!model || !['claude-haiku-4.5', 'gpt-5', 'gemini-2.5-flash'].includes(model)) {
       return new Response(JSON.stringify({ error: 'Invalid model selection' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -275,10 +275,13 @@ export async function POST(req: Request) {
     let selectedModel: string;
     switch (model) {
       case 'claude-haiku-4.5':
-        selectedModel = 'anthropic/claude-haiku-4.5-20250110';
+        selectedModel = 'anthropic/claude-haiku-4-5-20251001';
         break;
       case 'gpt-5':
         selectedModel = 'openai/gpt-5';
+        break;
+      case 'gemini-2.5-flash':
+        selectedModel = 'google/gemini-2.5-flash';
         break;
       default:
         return new Response(JSON.stringify({ error: 'Invalid model' }), {
@@ -302,79 +305,161 @@ export async function POST(req: Request) {
       baseContext += `\nIndustry: ${industry}`;
     }
 
-    // Start with base template
-    let styleKit = JSON.parse(JSON.stringify(defaultTemplate));
+    // Create a ReadableStream for progress updates
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Helper to send progress updates
+          const sendProgress = (stage: number, message: string) => {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ stage, message })}\n\n`));
+          };
 
-    // ===== STAGE 1: Generate Colors =====
-    console.log('🎨 Stage 1: Generating colors...');
-    const stage1Result = await generateText({
-      model: selectedModel,
-      prompt: STAGE1_COLORS_PROMPT + baseContext,
-      temperature: 0.7,
-      maxTokens: 1000,
+          // Start with base template
+          let styleKit = JSON.parse(JSON.stringify(defaultTemplate));
+
+          // Determine which stages to run
+          const stagesToRun = stage ? [stage] : [1, 2, 3, 4]; // If stage specified, run only that stage, otherwise run all
+
+          let stage1Data: any = null;
+          let stage2Data: any = null;
+          let colorsContext = '';
+          let fontsContext = '';
+
+          // ===== STAGE 1: Generate Colors =====
+          if (stagesToRun.includes(1)) {
+            sendProgress(1, 'Generating brand colors...');
+            console.log('🎨 Stage 1: Generating colors...');
+            const stage1Result = await generateText({
+              model: selectedModel,
+              prompt: STAGE1_COLORS_PROMPT + baseContext,
+              temperature: 0.7,
+              maxTokens: 1000,
+            });
+
+            stage1Data = parseAIResponse(stage1Result.text);
+            styleKit = deepMerge(styleKit, stage1Data);
+            colorsContext = `\nGenerated Colors: ${JSON.stringify(stage1Data.system_colors)}`;
+          }
+
+          // ===== STAGE 2: Generate Fonts =====
+          if (stagesToRun.includes(2)) {
+            sendProgress(2, 'Generating typography system...');
+            console.log('🔤 Stage 2: Generating typography...');
+            const stage2Result = await generateText({
+              model: selectedModel,
+              prompt: STAGE2_FONTS_PROMPT.replace('{{COLORS}}', colorsContext) + baseContext,
+              temperature: 0.7,
+              maxTokens: 3000,
+            });
+
+            stage2Data = parseAIResponse(stage2Result.text);
+            styleKit = deepMerge(styleKit, stage2Data);
+            fontsContext = `\nPrimary Font: ${stage2Data.primary_font}\nSecondary Font: ${stage2Data.secondary_font}`;
+          }
+
+          // ===== STAGE 3: Generate Heading Typography =====
+          if (stagesToRun.includes(3)) {
+            sendProgress(3, 'Generating heading styles...');
+            console.log('📐 Stage 3: Generating heading styles...');
+            const stage3Result = await generateText({
+              model: selectedModel,
+              prompt: STAGE3_HEADINGS_PROMPT
+                .replace('{{COLORS}}', colorsContext)
+                .replace('{{FONTS}}', fontsContext)
+                .replace(/\{\{PRIMARY_FONT\}\}/g, stage2Data?.primary_font || 'Roboto')
+                .replace(/\{\{SECONDARY_FONT\}\}/g, stage2Data?.secondary_font || 'Roboto'),
+              temperature: 0.7,
+              maxTokens: 3000,
+            });
+
+            const stage3Data = parseAIResponse(stage3Result.text);
+            styleKit = deepMerge(styleKit, stage3Data);
+          }
+
+          // ===== STAGE 4: Generate Component Styles =====
+          if (stagesToRun.includes(4)) {
+            sendProgress(4, 'Generating component styles...');
+            console.log('🎛️ Stage 4: Generating component styles...');
+            const stage4Result = await generateText({
+              model: selectedModel,
+              prompt: STAGE4_COMPONENTS_PROMPT
+                .replace('{{COLORS}}', colorsContext)
+                .replace('{{FONTS}}', fontsContext)
+                .replace(/\{\{PRIMARY_FONT\}\}/g, stage2Data?.primary_font || 'Roboto')
+                .replace(/\{\{SECONDARY_FONT\}\}/g, stage2Data?.secondary_font || 'Roboto'),
+              temperature: 0.7,
+              maxTokens: 2000,
+            });
+
+            const stage4Data = parseAIResponse(stage4Result.text);
+            styleKit = deepMerge(styleKit, stage4Data);
+          }
+
+          // Add title if provided
+          if (stylePreferences) {
+            const brandName = stylePreferences.split(' ').slice(0, 3).join(' ');
+            styleKit.title = `${brandName} Style Kit` || 'Generated Style Kit';
+          }
+
+          // Wrap all fields except title/description in page_settings for editor compatibility
+          const wrappedStyleKit = {
+            title: styleKit.title || 'Generated Style Kit',
+            description: styleKit.description || '',
+            type: 'kit',
+            version: '0.4',
+            page_settings: {
+              system_colors: styleKit.system_colors || [],
+              custom_colors: styleKit.custom_colors || [],
+              system_typography: styleKit.system_typography || [],
+              custom_typography: styleKit.custom_typography || [],
+              h1_typography: styleKit.h1_typography || {},
+              h2_typography: styleKit.h2_typography || {},
+              h3_typography: styleKit.h3_typography || {},
+              h4_typography: styleKit.h4_typography || {},
+              h5_typography: styleKit.h5_typography || {},
+              h6_typography: styleKit.h6_typography || {},
+              body_typography: styleKit.body_typography || {},
+              body_color: styleKit.body_color || '',
+              link_normal_color: styleKit.link_normal_color || '',
+              button_typography: styleKit.button_typography || {},
+              button_text_color: styleKit.button_text_color || '',
+              button_background_color: styleKit.button_background_color || '',
+              button_border_radius: styleKit.button_border_radius || {},
+              button_border_width: styleKit.button_border_width || {},
+              form_field_typography: styleKit.form_field_typography || {},
+              form_field_text_color: styleKit.form_field_text_color || '',
+              form_field_background_color: styleKit.form_field_background_color || '',
+              form_field_border_color: styleKit.form_field_border_color || '',
+              form_field_border_radius: styleKit.form_field_border_radius || {},
+              form_field_border_width: styleKit.form_field_border_width || {},
+              container_width: styleKit.container_width || {},
+              space_between_widgets: styleKit.space_between_widgets || {},
+              viewport_md: styleKit.viewport_md || 768,
+              viewport_lg: styleKit.viewport_lg || 1025,
+            },
+            content: [],
+          };
+
+          console.log(`✅ ${stage ? `Stage ${stage}` : 'Complete Style Kit'} generated`);
+
+          // Send final result
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ stage: stage || 5, message: 'Complete!', styleKit: wrappedStyleKit })}\n\n`));
+          controller.close();
+        } catch (error) {
+          console.error('❌ Style Kit generation error:', error);
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' })}\n\n`));
+          controller.close();
+        }
+      }
     });
 
-    const stage1Data = parseAIResponse(stage1Result.text);
-    styleKit = deepMerge(styleKit, stage1Data);
-
-    // ===== STAGE 2: Generate Fonts =====
-    console.log('🔤 Stage 2: Generating typography...');
-    const colorsContext = `\nGenerated Colors: ${JSON.stringify(stage1Data.system_colors)}`;
-    const stage2Result = await generateText({
-      model: selectedModel,
-      prompt: STAGE2_FONTS_PROMPT.replace('{{COLORS}}', colorsContext) + baseContext,
-      temperature: 0.7,
-      maxTokens: 3000, // Increased for complete nested structure
-    });
-
-    const stage2Data = parseAIResponse(stage2Result.text);
-    styleKit = deepMerge(styleKit, stage2Data);
-
-    // ===== STAGE 3: Generate Heading Typography =====
-    console.log('📐 Stage 3: Generating heading styles...');
-    const fontsContext = `\nPrimary Font: ${stage2Data.primary_font}\nSecondary Font: ${stage2Data.secondary_font}`;
-    const stage3Result = await generateText({
-      model: selectedModel,
-      prompt: STAGE3_HEADINGS_PROMPT
-        .replace('{{COLORS}}', colorsContext)
-        .replace('{{FONTS}}', fontsContext)
-        .replace(/\{\{PRIMARY_FONT\}\}/g, stage2Data.primary_font || 'Roboto')
-        .replace(/\{\{SECONDARY_FONT\}\}/g, stage2Data.secondary_font || 'Roboto'),
-      temperature: 0.7,
-      maxTokens: 3000, // Increased for complete nested structures
-    });
-
-    const stage3Data = parseAIResponse(stage3Result.text);
-    styleKit = deepMerge(styleKit, stage3Data);
-
-    // ===== STAGE 4: Generate Component Styles =====
-    console.log('🎛️ Stage 4: Generating component styles...');
-    const stage4Result = await generateText({
-      model: selectedModel,
-      prompt: STAGE4_COMPONENTS_PROMPT
-        .replace('{{COLORS}}', colorsContext)
-        .replace('{{FONTS}}', fontsContext)
-        .replace(/\{\{PRIMARY_FONT\}\}/g, stage2Data.primary_font || 'Roboto')
-        .replace(/\{\{SECONDARY_FONT\}\}/g, stage2Data.secondary_font || 'Roboto'),
-      temperature: 0.7,
-      maxTokens: 2000,
-    });
-
-    const stage4Data = parseAIResponse(stage4Result.text);
-    styleKit = deepMerge(styleKit, stage4Data);
-
-    // Add title if provided
-    if (stylePreferences) {
-      const brandName = stylePreferences.split(' ').slice(0, 3).join(' ');
-      styleKit.title = `${brandName} Style Kit` || 'Generated Style Kit';
-    }
-
-    console.log('✅ Complete Style Kit generated with all 180 fields');
-
-    // Return complete Style Kit
-    return new Response(JSON.stringify(styleKit), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
     });
   } catch (error) {
     console.error('❌ Style Kit generation error:', error);

@@ -62,6 +62,8 @@ interface DocumentChatProps {
   systemPrompt?: string;
   documentContent?: string;
   navigationBar?: React.ReactNode;
+  // Responsive UI
+  containerWidth?: number;
 }
 
 // Document Context Badge Component
@@ -209,7 +211,8 @@ export function DocumentChat({
   wordCount = 0,
   systemPrompt = '',
   documentContent = '',
-  navigationBar
+  navigationBar,
+  containerWidth = 0
 }: DocumentChatProps) {
   const [input, setInput] = useState('');
   const [includeContext, setIncludeContext] = useState(true);
@@ -715,21 +718,32 @@ export function DocumentChat({
       </Conversation>
 
       {/* Project Context Badge - using same component as Elementor editor */}
-      {currentDocument && (
-        <ProjectContextBadge
-          currentSection={{
-            name: currentDocument.title,
-            type: 'document',
-            // Document doesn't have code files, so leave these undefined
-            html: undefined,
-            css: undefined,
-            js: undefined,
-            php: undefined,
-            hubl: undefined,
-          }}
-          includeContext={includeContext}
-        />
-      )}
+      {currentDocument && (() => {
+        console.log('📄 DocumentChat passing to ProjectContextBadge:', {
+          documentTitle: currentDocument.title,
+          hasDocumentContent: !!documentContent,
+          documentContentLength: documentContent?.length || 0,
+          hasMarkdownContent: !!markdownContent,
+          markdownContentLength: markdownContent?.length || 0,
+          markdownPreview: markdownContent?.substring(0, 100)
+        });
+        return (
+          <ProjectContextBadge
+            currentSection={{
+              name: currentDocument.title,
+              type: 'document',
+              content: markdownContent, // Pass document content for metrics calculation
+              // Document doesn't have code files, so leave these undefined
+              html: undefined,
+              css: undefined,
+              js: undefined,
+              php: undefined,
+              hubl: undefined,
+            }}
+            includeContext={includeContext}
+          />
+        );
+      })()}
 
       <PromptInput
         onSubmit={handleSubmit}
@@ -770,85 +784,44 @@ export function DocumentChat({
         )}
         <PromptInputToolbar>
           <PromptInputTools>
-            {/* Mobile: Single dropdown menu for all actions */}
-            {isMobile ? (
-              <>
-                <MobilePromptActions
-                  actions={[
-                    {
-                      id: 'web-search',
-                      label: 'Web Search',
-                      icon: <GlobeIcon size={18} />,
-                      type: 'toggle',
-                      active: webSearch,
-                      onClick: () => setWebSearch(!webSearch),
-                    },
-                    {
-                      id: 'document-context',
-                      label: 'Document Context',
-                      icon: <FileIcon size={18} />,
-                      type: 'toggle',
-                      active: includeContext,
-                      onClick: () => setIncludeContext(!includeContext),
-                    },
-                    {
-                      id: 'attach-image',
-                      label: 'Attach Image',
-                      icon: <ImageIcon size={18} />,
-                      type: 'button',
-                      onClick: () => fileInputRef.current?.click(),
-                    },
-                    {
-                      id: 'auto-close-chat',
-                      label: 'Auto-close Chat on Edit',
-                      icon: <span className="text-sm font-medium">⚡</span>,
-                      type: 'toggle',
-                      active: autoCloseChat,
-                      onClick: () => setAutoCloseChat(!autoCloseChat),
-                    },
-                  ]}
-                />
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                />
-              </>
-            ) : (
-              /* Desktop: Individual buttons */
-              <>
-                <PromptInputButton
-                  variant={webSearch ? 'default' : 'ghost'}
-                  onClick={() => setWebSearch(!webSearch)}
-                  title={webSearch ? 'Web search enabled' : 'Web search disabled'}
-                >
-                  <GlobeIcon size={16} />
-                </PromptInputButton>
-                <PromptInputButton
-                  variant={includeContext ? 'default' : 'ghost'}
-                  onClick={() => setIncludeContext(!includeContext)}
-                  title={includeContext ? 'Document context included' : 'Document context excluded'}
-                >
-                  <FileIcon size={16} />
-                </PromptInputButton>
-                <PromptInputButton
-                  variant={attachedImage ? 'default' : 'ghost'}
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Attach image (PNG/JPEG, max 5MB)"
-                >
-                  <ImageIcon size={16} />
-                </PromptInputButton>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                />
-              </>
-            )}
+            {/* Responsive: Dropdown on narrow, buttons on wide */}
+            <MobilePromptActions
+              breakpoint={600}
+              containerWidth={containerWidth}
+              actions={[
+                {
+                  id: 'web-search',
+                  label: 'Web Search',
+                  icon: <GlobeIcon size={18} />,
+                  isActive: webSearch,
+                  onClick: () => setWebSearch(!webSearch),
+                  title: webSearch ? 'Web search enabled' : 'Web search disabled',
+                },
+                {
+                  id: 'document-context',
+                  label: 'Document Context',
+                  icon: <FileIcon size={18} />,
+                  isActive: includeContext,
+                  onClick: () => setIncludeContext(!includeContext),
+                  title: includeContext ? 'Document context included' : 'Document context excluded',
+                },
+                {
+                  id: 'attach-image',
+                  label: 'Attach Image',
+                  icon: <ImageIcon size={18} />,
+                  isActive: attachedImage !== null,
+                  onClick: () => fileInputRef.current?.click(),
+                  title: 'Attach image (PNG/JPEG, max 5MB)',
+                },
+              ]}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
             <SystemPromptViewer
               input={input}
               systemPrompt={actualSystemPrompt}

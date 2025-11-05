@@ -288,38 +288,6 @@ export function ElementorChat({
       position: 'relative',
       background: '#F2F2F2',
     }}>
-      {/* DIAGNOSTIC: Display selected project name */}
-      <div style={{
-        padding: '12px 16px',
-        background: '#FFFFFF',
-        borderBottom: '2px solid #E5E5E5',
-        fontSize: '14px',
-        fontWeight: 600,
-        color: '#333333',
-      }}>
-        <div style={{ marginBottom: '4px', fontSize: '11px', fontWeight: 400, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          DIAGNOSTIC: Selected Project
-        </div>
-        <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>
-          {currentSection ? (
-            <>
-              <span style={{ color: '#22C55E', marginRight: '8px' }}>✓</span>
-              <span style={{ fontWeight: 700 }}>{currentSection.name}</span>
-              <span style={{ marginLeft: '8px', color: '#666666', fontSize: '11px', fontWeight: 400 }}>
-                ({currentSection.type.toUpperCase()})
-              </span>
-              <span style={{ marginLeft: '8px', color: '#999999', fontSize: '10px' }}>
-                ID: {currentSection.id}
-              </span>
-            </>
-          ) : (
-            <>
-              <span style={{ color: '#EF4444', marginRight: '8px' }}>✗</span>
-              <span style={{ color: '#999999' }}>No project selected</span>
-            </>
-          )}
-        </div>
-      </div>
       <Conversation className="flex-1 scrollbar-hide" style={{ overflow: 'hidden' }}>
         <ConversationContent className="scrollbar-hide px-3" style={{ flex: 1, overflow: 'auto' }}>
           {messages.map((message, index) => (

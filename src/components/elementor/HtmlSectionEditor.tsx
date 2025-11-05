@@ -138,6 +138,11 @@ export function HtmlSectionEditor({
     stats?: any;
   } | null>(null);
 
+  // Save indicator state for PHP widget projects
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const lastSavedContentRef = useRef<{ html: string; css: string; js: string; php: string; hubl: string } | null>(null);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const { globalCss, cssVariables } = useGlobalStylesheet();
@@ -661,49 +666,84 @@ export function HtmlSectionEditor({
 
         // Only trigger hot reload if:
         // 1. Hot reload is enabled
-        // 2. Current project is a PHP project
-        // 3. Project has been deployed to WordPress
-        if (
-          hotReloadEnabled &&
-          currentProject?.type === 'php' &&
-          currentProject?.wordpressDeployment?.isDeployed
-        ) {
-          console.log('🔥 Hot reload triggered (Cmd+S)');
+        // 2. Playground is running
+        if (hotReloadEnabled && typeof window !== 'undefined' && (window as any).playgroundClient) {
 
-          try {
-            // Call the updateWidgetAndRefresh function
-            const deploymentType = currentProject.wordpressDeployment.lastDeploymentType || 'live-page';
-            const pageSlug = deploymentType === 'live-page'
-              ? currentProject.wordpressDeployment.livePageSlug
-              : currentProject.wordpressDeployment.elementorPageSlug;
+          // PHP/Widget projects: Use dedicated updateWidgetAndRefresh function
+          if (
+            currentProject?.type === 'php' &&
+            currentProject?.wordpressDeployment?.isDeployed
+          ) {
+            console.log('🔥 Hot reload triggered (Cmd+S) - PHP Widget');
 
-            if (typeof window !== 'undefined' && (window as any).updateWidgetAndRefresh) {
-              await (window as any).updateWidgetAndRefresh(
-                editorPhp,
-                editorCss,
-                editorJs,
-                currentProject.wordpressDeployment.pluginSlug,
-                pageSlug,
-                deploymentType
-              );
-              console.log('✅ Hot reload completed');
-            } else {
-              console.warn('⚠️ updateWidgetAndRefresh function not available');
+            try {
+              const deploymentType = currentProject.wordpressDeployment.lastDeploymentType || 'live-page';
+              const pageSlug = deploymentType === 'live-page'
+                ? currentProject.wordpressDeployment.livePageSlug
+                : currentProject.wordpressDeployment.elementorPageSlug;
+
+              if ((window as any).updateWidgetAndRefresh) {
+                await (window as any).updateWidgetAndRefresh(
+                  editorPhp,
+                  editorCss,
+                  editorJs,
+                  currentProject.wordpressDeployment.pluginSlug,
+                  pageSlug,
+                  deploymentType
+                );
+                console.log('✅ Hot reload completed - PHP Widget');
+              } else {
+                console.warn('⚠️ updateWidgetAndRefresh function not available');
+              }
+            } catch (error: any) {
+              console.error('❌ Hot reload failed:', error);
+              alert(`Hot reload failed: ${error.message}`);
             }
-          } catch (error: any) {
-            console.error('❌ Hot reload failed:', error);
-            alert(`Hot reload failed: ${error.message}`);
+          }
+          // HTML sections: Re-deploy to last used deployment type
+          else if (currentProject?.type === 'html' || currentProject?.type === 'hubspot') {
+            console.log('🔥 Hot reload triggered (Cmd+S) - HTML Section');
+
+            try {
+              // Check if window.currentPageId exists (meaning we've deployed before)
+              if ((window as any).currentPageId && (window as any).importHtmlSectionToPage) {
+                // Use live-page as default deployment type for hot reload
+                const deploymentType = 'live-page';
+
+                const sectionName = section.name || "Untitled Section";
+
+                const result = await (window as any).importHtmlSectionToPage({
+                  name: sectionName,
+                  html: editorHtml,
+                  css: editorCss,
+                  js: editorJs,
+                  globalCss: globalCss,
+                }, deploymentType);
+
+                if (result.success) {
+                  console.log('✅ Hot reload completed - HTML Section');
+                } else {
+                  console.warn('⚠️ Hot reload completed but with warnings');
+                }
+              } else {
+                console.log('ℹ️ HTML section not yet deployed. Use "Deploy to Live Page" or "Deploy to Elementor" first.');
+              }
+            } catch (error: any) {
+              console.error('❌ Hot reload failed:', error);
+              // Don't show alert for HTML sections, just log
+              console.log('💡 Hot reload failed. You may need to deploy manually.');
+            }
           }
         } else {
           // Just a regular save without hot reload
-          console.log('💾 Save triggered (Cmd+S) - hot reload not applicable');
+          console.log('💾 Save triggered (Cmd+S) - hot reload not enabled or playground not running');
         }
       }
     };
 
     window.addEventListener('keydown', handleSave);
     return () => window.removeEventListener('keydown', handleSave);
-  }, [hotReloadEnabled, currentProject, editorPhp, editorCss, editorJs]);
+  }, [hotReloadEnabled, currentProject, editorPhp, editorCss, editorJs, editorHtml, section.name, globalCss]);
 
   // Event handlers for dropdown actions (defined with useCallback for stable references)
   const handleGenerateProject = useCallback(() => {
@@ -1055,6 +1095,92 @@ export function HtmlSectionEditor({
     return () => clearTimeout(timeoutId);
   }, [editorHtml, editorCss, editorJs, editorPhp, editorHubl, fileGroups.activeGroup?.id]);
 
+  // Track unsaved changes for PHP widget projects
+  useEffect(() => {
+    // Only track for PHP widget projects
+    if (!fileGroups.activeGroup || fileGroups.activeGroup.type !== 'php') {
+      setHasUnsavedChanges(false);
+      return;
+    }
+
+    // Initialize last saved content on mount
+    if (!lastSavedContentRef.current) {
+      lastSavedContentRef.current = {
+        html: editorHtml,
+        css: editorCss,
+        js: editorJs,
+        php: editorPhp,
+        hubl: editorHubl,
+      };
+      setHasUnsavedChanges(false);
+      return;
+    }
+
+    // Compare current content with last saved
+    const hasChanges =
+      editorHtml !== lastSavedContentRef.current.html ||
+      editorCss !== lastSavedContentRef.current.css ||
+      editorJs !== lastSavedContentRef.current.js ||
+      editorPhp !== lastSavedContentRef.current.php ||
+      editorHubl !== lastSavedContentRef.current.hubl;
+
+    setHasUnsavedChanges(hasChanges);
+  }, [editorHtml, editorCss, editorJs, editorPhp, editorHubl, fileGroups.activeGroup?.type]);
+
+  // Manual save function for PHP widget projects
+  const handleManualSave = useCallback(async () => {
+    if (!fileGroups.activeGroup || fileGroups.activeGroup.type !== 'php') {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Save to localStorage via fileGroups
+      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'html', editorHtml);
+      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'css', editorCss);
+      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'js', editorJs);
+      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'php', editorPhp);
+      if (editorHubl) {
+        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'hubl', editorHubl);
+      }
+
+      // Update last saved content ref
+      lastSavedContentRef.current = {
+        html: editorHtml,
+        css: editorCss,
+        js: editorJs,
+        php: editorPhp,
+        hubl: editorHubl,
+      };
+
+      setHasUnsavedChanges(false);
+      console.log('💾 Manual save complete:', fileGroups.activeGroup.name);
+
+      // Small delay to show "Saving..." state
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error('❌ Save failed:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editorHtml, editorCss, editorJs, editorPhp, editorHubl, fileGroups]);
+
+  // Listen for Cmd+S to trigger manual save
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+S (Mac) or Ctrl+S (Windows/Linux)
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (fileGroups.activeGroup?.type === 'php') {
+          handleManualSave();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleManualSave, fileGroups.activeGroup?.type]);
+
   // Listen for select-project event from Project Library
   useEffect(() => {
     const handleSelectProject = (event: CustomEvent) => {
@@ -1402,7 +1528,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
             }}
           />
 
-          <div style={{ display: "flex", gap: isMobile ? "6px" : "8px" }}>
+          <div style={{ display: "flex", gap: isMobile ? "6px" : "8px", alignItems: "center" }}>
             {/* Save to Library - Always visible */}
             <button
               onClick={() => setShowSaveDialog(true)}
@@ -1421,8 +1547,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
               💾 {isMobile ? "" : "Save to Library"}
             </button>
 
-            {/* Preview in WP - Desktop only */}
-            {!isMobile && (
+            {/* Deploy to Live Page - Only for PHP Widget projects */}
+            {!isMobile && editorPhp && (
               <button
                 onClick={async () => {
                   try {
@@ -1434,31 +1560,19 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                       return;
                     }
 
-                    const importToPage = (window as any)
-                      .importHtmlSectionToPage;
-                    if (!importToPage) {
+                    const deployWidget = (window as any).deployAndPreviewWidget;
+                    if (!deployWidget) {
                       alert(
                         "WordPress Playground functions not loaded yet. Please wait a moment and try again.",
                       );
                       return;
                     }
 
-                    // Quick preview with default name if not set
-                    const sectionName = section.name || "Untitled Section";
-
-                    const result = await importToPage({
-                      name: sectionName,
-                      html: section.html,
-                      css: section.css,
-                      js: section.js,
-                      globalCss: globalCss,
-                    });
+                    // Deploy widget to live page
+                    const result = await deployWidget(editorPhp, editorCss, editorJs, 'live-page');
 
                     if (result.success) {
-                      // Show brief success message - page already opens in playground
-                      console.log(
-                        "✅ Section preview updated in WordPress Playground",
-                      );
+                      console.log("✅ Widget deployed to live page");
 
                       // Automatically switch to WordPress Playground tab
                       if (onSwitchToPlayground) {
@@ -1466,8 +1580,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                       }
                     }
                   } catch (error: any) {
-                    console.error("Preview error:", error);
-                    alert(`❌ Failed to update preview: ${error.message}`);
+                    console.error("Deploy error:", error);
+                    alert(`❌ Failed to deploy: ${error.message}`);
                   }
                 }}
                 style={{
@@ -1480,9 +1594,70 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   cursor: "pointer",
                   fontWeight: 500,
                 }}
-                title="Quick preview this section in WordPress Playground"
+                title="Deploy widget to live page (front-end view)"
               >
-                🔄 Preview in WP
+                📄 Deploy to Live Page
+              </button>
+            )}
+
+            {/* Deploy to Elementor - Only for PHP Widget projects */}
+            {!isMobile && editorPhp && (
+              <button
+                onClick={async () => {
+                  console.log('🚀 Deploy to Elementor clicked:', {
+                    activeGroupId: fileGroups.activeGroupId,
+                    activeGroupName: fileGroups.activeGroup?.name,
+                    editorPhpLength: editorPhp?.length || 0,
+                    editorCssLength: editorCss?.length || 0,
+                    editorJsLength: editorJs?.length || 0,
+                    fileGroupPhpLength: fileGroups.activeGroup?.php?.length || 0,
+                  });
+                  try {
+                    // Check if playground is running
+                    if (!(window as any).playgroundClient) {
+                      alert(
+                        "WordPress Playground is not running. Please launch it first from the WordPress Playground tab.",
+                      );
+                      return;
+                    }
+
+                    const deployWidget = (window as any).deployAndPreviewWidget;
+                    if (!deployWidget) {
+                      alert(
+                        "WordPress Playground functions not loaded yet. Please wait a moment and try again.",
+                      );
+                      return;
+                    }
+
+                    // Deploy widget to Elementor editor
+                    const result = await deployWidget(editorPhp, editorCss, editorJs, 'elementor-editor');
+
+                    if (result.success) {
+                      console.log("✅ Widget deployed to Elementor editor");
+
+                      // Automatically switch to WordPress Playground tab
+                      if (onSwitchToPlayground) {
+                        onSwitchToPlayground();
+                      }
+                    }
+                  } catch (error: any) {
+                    console.error("Deploy error:", error);
+                    alert(`❌ Failed to deploy: ${error.message}`);
+                  }
+                }}
+                style={{
+                  padding: "6px 12px",
+                  background: "#7c3aed",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+                title="Deploy widget to Elementor editor"
+              >
+                🎨 Deploy to Elementor
               </button>
             )}
 
@@ -1502,50 +1677,6 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 }}
               >
                 {showSettings ? "✓" : ""} Settings
-              </button>
-            )}
-
-            {/* Deploy to Playground - Only show in PHP/Widget mode */}
-            {editorPhp && !isMobile && (
-              <button
-                onClick={handleDeployWidget}
-                style={{
-                  padding: "6px 12px",
-                  background: "#7c3aed",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  fontWeight: 500,
-                }}
-              >
-                🚀 Deploy to Playground
-              </button>
-            )}
-
-            {/* Visual Editor - Desktop only */}
-            {!isMobile && onSwitchToVisualEditor && (
-              <button
-                onClick={() => {
-                  // Save current changes before switching
-                  if (onSectionChange) {
-                    onSectionChange(section);
-                  }
-                  onSwitchToVisualEditor();
-                }}
-                style={{
-                  padding: "6px 12px",
-                  background: "#10b981",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  fontWeight: 500,
-                }}
-              >
-                👁️ Visual Editor
               </button>
             )}
 
@@ -2147,6 +2278,63 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     return '';
                   })()}
                 </span>
+
+                {/* Save Indicator - Only for PHP widget projects */}
+                {fileGroups.activeGroup?.type === 'php' && (
+                  <button
+                    onClick={handleManualSave}
+                    disabled={isSaving}
+                    title={
+                      isSaving
+                        ? "Saving..."
+                        : hasUnsavedChanges
+                        ? "Unsaved changes (Click to save or press Cmd+S)"
+                        : "All changes saved"
+                    }
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "4px 10px",
+                      background: isSaving
+                        ? "rgba(59, 130, 246, 0.15)"
+                        : hasUnsavedChanges
+                        ? "rgba(251, 146, 60, 0.15)"
+                        : "rgba(34, 197, 94, 0.15)",
+                      border: `1px solid ${
+                        isSaving
+                          ? "rgba(59, 130, 246, 0.3)"
+                          : hasUnsavedChanges
+                          ? "rgba(251, 146, 60, 0.3)"
+                          : "rgba(34, 197, 94, 0.3)"
+                      }`,
+                      borderRadius: "4px",
+                      color: isSaving
+                        ? "#60a5fa"
+                        : hasUnsavedChanges
+                        ? "#fb923c"
+                        : "#4ade80",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      cursor: isSaving ? "default" : "pointer",
+                      transition: "all 0.2s",
+                      opacity: isSaving ? 0.7 : 1,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "14px",
+                        lineHeight: 1,
+                        animation: isSaving ? "pulse 1.5s ease-in-out infinite" : "none",
+                      }}
+                    >
+                      {isSaving ? "⏳" : hasUnsavedChanges ? "●" : "✓"}
+                    </span>
+                    <span style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      {isSaving ? "Saving..." : hasUnsavedChanges ? "Unsaved" : "Saved"}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
 

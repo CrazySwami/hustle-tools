@@ -829,8 +829,8 @@ export function DocumentChat({
                   onClick: () => fileInputRef.current?.click(),
                   title: 'Attach image (PNG/JPEG, max 5MB)',
                 },
-                // Client selector - only in dropdown on very narrow screens (< 450px)
-                ...(containerWidth < 450 ? [{
+                // Client selector - only in dropdown on mobile (< 500px, same as dropdown breakpoint)
+                ...(containerWidth < 500 ? [{
                   id: 'select-client',
                   label: selectedClient ? selectedClient.name : 'Client',
                   icon: <Building2 size={18} />,
@@ -849,8 +849,8 @@ export function DocumentChat({
               onChange={handleImageSelect}
               className="hidden"
             />
-            {/* Client selector button - hide on very narrow screens (< 450px) */}
-            {containerWidth >= 450 && (
+            {/* Client selector button - hide on mobile (< 500px, same as dropdown breakpoint) */}
+            {containerWidth >= 500 && (
               <ClientSelectorButton
                 selectedClient={selectedClient}
                 clientContextEnabled={clientContextEnabled}

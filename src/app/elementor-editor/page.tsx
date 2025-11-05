@@ -1405,6 +1405,9 @@ export default function ElementorEditorPage() {
             setChatVisible={setChatVisible}
             tabBarVisible={tabBarVisible}
             setTabBarVisible={setTabBarVisible}
+            hotReloadEnabled={hotReloadEnabled}
+            currentProject={currentProject}
+            fileGroups={fileGroups}
             onEditElementInChat={(elementData) => {
               if (!chatVisible && !isMobile) {
                 setChatVisible(true);
@@ -1649,6 +1652,7 @@ export default function ElementorEditorPage() {
                 setTabBarVisible={setTabBarVisible}
                 hotReloadEnabled={hotReloadEnabled}
                 currentProject={currentProject}
+                fileGroups={fileGroups}
                 onEditElementInChat={(elementData) => {
                   // Show chat if hidden
                   if (!chatVisible && !isMobile) {

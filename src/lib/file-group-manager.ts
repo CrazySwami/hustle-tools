@@ -32,6 +32,20 @@ export interface FileGroup {
   description?: string;          // Optional description
   tags?: string[];               // Optional tags for organization
 
+  // WordPress Plugin Support (NEW)
+  isPlugin?: boolean;            // Flag to indicate this is a plugin project (not just a single widget)
+  pluginMainFile?: string;       // Main plugin PHP file content with auto-registration
+  pluginName?: string;           // Plugin display name (e.g., "My Custom Widgets")
+  pluginSlug?: string;           // Plugin slug (e.g., "my-custom-widgets")
+  widgetFiles?: {                // Map of widget PHP files by widget ID
+    [widgetId: string]: {
+      name: string;              // Display name (e.g., "Hero Widget")
+      slug: string;              // File slug (e.g., "hero-widget")
+      content: string;           // PHP widget class code
+      className: string;         // PHP class name (e.g., "Hero_Widget")
+    }
+  };
+
   // WordPress deployment tracking
   wordpressDeployment?: {
     isDeployed: boolean;           // Quick check if deployed
@@ -88,6 +102,19 @@ export function loadEditorState(): EditorState {
     }
 
     const state: EditorState = JSON.parse(saved);
+
+    // Debug: Log what we loaded from localStorage
+    console.log('📂 loadEditorState: Loaded from localStorage:', {
+      groupCount: state.groups?.length || 0,
+      groups: state.groups?.map(g => ({
+        id: g.id,
+        name: g.name,
+        type: g.type,
+        isPlugin: g.isPlugin,
+        hasPluginMainFile: !!g.pluginMainFile,
+        pluginMainFileLength: g.pluginMainFile?.length || 0
+      }))
+    });
 
     // Validate state
     if (!state.groups || !Array.isArray(state.groups)) {
@@ -569,7 +596,20 @@ export function updateGroupContent(
   file: 'html' | 'css' | 'js' | 'php' | 'hubl',
   content: string
 ): void {
-  updateGroup(id, { [file]: content });
+  const state = loadEditorState();
+  const group = state.groups.find(g => g.id === id);
+
+  if (!group) {
+    console.warn(`Group ${id} not found`);
+    return;
+  }
+
+  // For plugins, update pluginMainFile when PHP is being edited
+  if (group.isPlugin && file === 'php') {
+    updateGroup(id, { pluginMainFile: content });
+  } else {
+    updateGroup(id, { [file]: content });
+  }
 }
 
 /**
@@ -835,4 +875,413 @@ export function loadGroupFromLibrary(libraryId: string): FileGroup | null {
 
   addGroup(group);
   return group;
+}
+
+/**
+ * ============================================================
+ * WORDPRESS PLUGIN MANAGEMENT FUNCTIONS (NEW)
+ * ============================================================
+ */
+
+/**
+ * Generate main plugin PHP file with auto-registration
+ */
+function generateMainPluginFile(name: string, slug: string, description?: string): string {
+  return `<?php
+/**
+ * Plugin Name: ${name}
+ * Description: ${description || 'Custom Elementor widgets collection'}
+ * Version: 1.0.0
+ * Author: Your Name
+ * Text Domain: ${slug}
+ * Elementor tested up to: 3.20.0
+ * Elementor Pro tested up to: 3.20.0
+ */
+
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
+
+/**
+ * Register custom Elementor widget category
+ */
+function ${slug.replace(/-/g, '_')}_add_elementor_category($elements_manager) {
+    $elements_manager->add_category(
+        '${slug}',
+        [
+            'title' => esc_html__('${name}', '${slug}'),
+            'icon' => 'fa fa-plug',
+        ]
+    );
+}
+add_action('elementor/elements/categories_registered', '${slug.replace(/-/g, '_')}_add_elementor_category');
+
+/**
+ * Register all widgets in the widgets/ folder
+ */
+function ${slug.replace(/-/g, '_')}_register_widgets($widgets_manager) {
+    // Include all widget files from widgets/ directory
+    $widget_files = glob(plugin_dir_path(__FILE__) . 'widgets/*.php');
+
+    foreach ($widget_files as $widget_file) {
+        require_once $widget_file;
+    }
+
+    // AUTO-REGISTRATION: Add widget classes here
+    // Format: $widgets_manager->register(new Widget_Class_Name());
+
+    // [WIDGETS_PLACEHOLDER]
+}
+add_action('elementor/widgets/register', '${slug.replace(/-/g, '_')}_register_widgets');
+`;
+}
+
+/**
+ * Extract PHP class name from widget code
+ */
+function extractClassNameFromPhp(phpCode: string): string {
+  // Match: class ClassName extends
+  const match = phpCode.match(/class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends/);
+  return match ? match[1] : 'Unknown_Widget';
+}
+
+/**
+ * Generate slug from class name
+ */
+function generateSlugFromClassName(className: string): string {
+  // Convert "Hero_Widget" -> "hero-widget"
+  return className.toLowerCase().replace(/_/g, '-');
+}
+
+/**
+ * Register widget class in main plugin file
+ */
+function registerWidgetInMainFile(mainFile: string, className: string, widgetSlug: string): string {
+  // Find the placeholder and add registration line
+  const registrationLine = `    $widgets_manager->register(new ${className}()); // ${widgetSlug}`;
+
+  if (mainFile.includes('[WIDGETS_PLACEHOLDER]')) {
+    return mainFile.replace('[WIDGETS_PLACEHOLDER]', `${registrationLine}\n    \n    // [WIDGETS_PLACEHOLDER]`);
+  }
+
+  // Fallback: add before the closing comment
+  const fallbackPattern = /(\s*\/\/ AUTO-REGISTRATION:.*?\n)/;
+  if (fallbackPattern.test(mainFile)) {
+    return mainFile.replace(fallbackPattern, `$1${registrationLine}\n`);
+  }
+
+  return mainFile; // Return unchanged if no insertion point found
+}
+
+/**
+ * Generate demo "Hello World" widget
+ */
+function generateHelloWorldWidget(): string {
+  return `<?php
+/**
+ * Hello World Widget
+ *
+ * A simple demo widget that displays "Hello World" text.
+ */
+
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
+
+class Hello_World_Widget extends \\Elementor\\Widget_Base {
+
+    public function get_name() {
+        return 'hello-world';
+    }
+
+    public function get_title() {
+        return esc_html__('Hello World', 'text-domain');
+    }
+
+    public function get_icon() {
+        return 'eicon-text';
+    }
+
+    public function get_categories() {
+        return ['basic'];
+    }
+
+    protected function register_controls() {
+        // Content Section
+        $this->start_controls_section(
+            'content_section',
+            [
+                'label' => esc_html__('Content', 'text-domain'),
+                'tab' => \\Elementor\\Controls_Manager::TAB_CONTENT,
+            ]
+        );
+
+        $this->add_control(
+            'message',
+            [
+                'label' => esc_html__('Message', 'text-domain'),
+                'type' => \\Elementor\\Controls_Manager::TEXT,
+                'default' => esc_html__('Hello World!', 'text-domain'),
+                'placeholder' => esc_html__('Enter your message', 'text-domain'),
+            ]
+        );
+
+        $this->end_controls_section();
+
+        // Style Section
+        $this->start_controls_section(
+            'style_section',
+            [
+                'label' => esc_html__('Style', 'text-domain'),
+                'tab' => \\Elementor\\Controls_Manager::TAB_STYLE,
+            ]
+        );
+
+        $this->add_control(
+            'text_color',
+            [
+                'label' => esc_html__('Text Color', 'text-domain'),
+                'type' => \\Elementor\\Controls_Manager::COLOR,
+                'default' => '#000000',
+                'selectors' => [
+                    '{{WRAPPER}} .hello-world-message' => 'color: {{VALUE}}',
+                ],
+            ]
+        );
+
+        $this->add_group_control(
+            \\Elementor\\Group_Control_Typography::get_type(),
+            [
+                'name' => 'text_typography',
+                'selector' => '{{WRAPPER}} .hello-world-message',
+            ]
+        );
+
+        $this->end_controls_section();
+    }
+
+    protected function render() {
+        $settings = $this->get_settings_for_display();
+        ?>
+        <div class="hello-world-widget">
+            <h2 class="hello-world-message">
+                <?php echo esc_html($settings['message']); ?>
+            </h2>
+        </div>
+        <?php
+    }
+
+    protected function content_template() {
+        ?>
+        <#
+        view.addRenderAttribute('message', 'class', 'hello-world-message');
+        #>
+        <div class="hello-world-widget">
+            <h2 {{{ view.getRenderAttributeString('message') }}}>
+                {{{ settings.message }}}
+            </h2>
+        </div>
+        <?php
+    }
+}`;
+}
+
+/**
+ * Create a new WordPress plugin project
+ */
+export function createPlugin(name: string, description?: string): FileGroup {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const now = Date.now();
+
+  const mainFileContent = generateMainPluginFile(name, slug, description);
+  console.log('🔌 Creating plugin:', {
+    name,
+    slug,
+    description,
+    mainFileLength: mainFileContent.length,
+    mainFilePreview: mainFileContent.substring(0, 100)
+  });
+
+  // Generate demo "Hello World" widget
+  const helloWorldCode = generateHelloWorldWidget();
+  const helloWorldId = generateId();
+  const helloWorldClassName = 'Hello_World_Widget';
+  const helloWorldSlug = 'hello-world';
+
+  // Register the demo widget in the main file
+  const mainFileWithWidget = registerWidgetInMainFile(
+    mainFileContent,
+    helloWorldClassName,
+    helloWorldSlug
+  );
+
+  const plugin: FileGroup = {
+    id: generateId(),
+    name,
+    type: 'php',
+    isPlugin: true,
+    pluginName: name,
+    pluginSlug: slug,
+    pluginMainFile: mainFileWithWidget,
+    widgetFiles: {
+      [helloWorldId]: {
+        name: 'Hello World',
+        slug: helloWorldSlug,
+        content: helloWorldCode,
+        className: helloWorldClassName,
+      }
+    },
+    createdAt: now,
+    updatedAt: now,
+    // For plugins, we DON'T create HTML/CSS/JS files - only PHP
+    // These should be undefined, not empty strings
+    html: '',
+    css: '',
+    js: '',
+    description,
+  };
+
+  console.log('✅ Plugin created with demo widget:', {
+    id: plugin.id,
+    pluginMainFileLength: plugin.pluginMainFile?.length || 0,
+    hasPluginMainFile: !!plugin.pluginMainFile,
+    widgetCount: Object.keys(plugin.widgetFiles || {}).length
+  });
+
+  return plugin;
+}
+
+/**
+ * Add a widget to an existing plugin
+ */
+export function addWidgetToPlugin(
+  pluginId: string,
+  widgetName: string,
+  widgetCode: string
+): void {
+  const state = loadEditorState();
+  const plugin = state.groups.find(g => g.id === pluginId);
+
+  if (!plugin) {
+    throw new Error(`Plugin with ID ${pluginId} not found`);
+  }
+
+  if (!plugin.isPlugin) {
+    throw new Error('Target project is not a plugin');
+  }
+
+  // Extract class name from widget code
+  const className = extractClassNameFromPhp(widgetCode);
+  const widgetSlug = widgetName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const widgetId = generateId();
+
+  // Initialize widgetFiles if not exists
+  if (!plugin.widgetFiles) {
+    plugin.widgetFiles = {};
+  }
+
+  // Add widget to map
+  plugin.widgetFiles[widgetId] = {
+    name: widgetName,
+    slug: widgetSlug,
+    content: widgetCode,
+    className,
+  };
+
+  // Auto-register widget in main plugin file
+  if (plugin.pluginMainFile) {
+    plugin.pluginMainFile = registerWidgetInMainFile(
+      plugin.pluginMainFile,
+      className,
+      widgetSlug
+    );
+  }
+
+  plugin.updatedAt = Date.now();
+  saveEditorState(state);
+
+  console.log(`✅ Added widget "${widgetName}" (${className}) to plugin "${plugin.pluginName}"`);
+}
+
+/**
+ * Remove a widget from a plugin
+ */
+export function removeWidgetFromPlugin(pluginId: string, widgetId: string): void {
+  const state = loadEditorState();
+  const plugin = state.groups.find(g => g.id === pluginId);
+
+  if (!plugin || !plugin.isPlugin || !plugin.widgetFiles) {
+    return;
+  }
+
+  const widget = plugin.widgetFiles[widgetId];
+  if (!widget) {
+    return;
+  }
+
+  // Remove from widgetFiles map
+  delete plugin.widgetFiles[widgetId];
+
+  // Remove registration from main file
+  if (plugin.pluginMainFile) {
+    const registrationPattern = new RegExp(
+      `\\s*\\$widgets_manager->register\\(new ${widget.className}\\(\\)\\);.*?\\n`,
+      'g'
+    );
+    plugin.pluginMainFile = plugin.pluginMainFile.replace(registrationPattern, '');
+  }
+
+  plugin.updatedAt = Date.now();
+  saveEditorState(state);
+
+  console.log(`✅ Removed widget "${widget.name}" from plugin "${plugin.pluginName}"`);
+}
+
+/**
+ * Update a widget's code in a plugin
+ */
+export function updateWidgetInPlugin(
+  pluginId: string,
+  widgetId: string,
+  newCode: string
+): void {
+  const state = loadEditorState();
+  const plugin = state.groups.find(g => g.id === pluginId);
+
+  if (!plugin || !plugin.isPlugin || !plugin.widgetFiles) {
+    return;
+  }
+
+  const widget = plugin.widgetFiles[widgetId];
+  if (!widget) {
+    return;
+  }
+
+  // Update widget code
+  const newClassName = extractClassNameFromPhp(newCode);
+  const oldClassName = widget.className;
+
+  widget.content = newCode;
+  widget.className = newClassName;
+
+  // If class name changed, update registration in main file
+  if (oldClassName !== newClassName && plugin.pluginMainFile) {
+    plugin.pluginMainFile = plugin.pluginMainFile.replace(
+      new RegExp(`\\$widgets_manager->register\\(new ${oldClassName}\\(\\)\\);`),
+      `$widgets_manager->register(new ${newClassName}());`
+    );
+  }
+
+  plugin.updatedAt = Date.now();
+  saveEditorState(state);
+
+  console.log(`✅ Updated widget "${widget.name}" in plugin "${plugin.pluginName}"`);
+}
+
+/**
+ * Get all plugins from state
+ */
+export function getAllPlugins(): FileGroup[] {
+  const state = loadEditorState();
+  return state.groups.filter(g => g.isPlugin === true);
 }

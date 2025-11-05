@@ -13,13 +13,14 @@ import { SiHubspot } from 'react-icons/si';
 
 interface NewGroupDialogProps {
   onClose: () => void;
-  onCreate: (name: string, type: 'html' | 'php' | 'hubspot', template: string) => void;
+  onCreate: (name: string, type: 'html' | 'php' | 'hubspot' | 'plugin', template: string) => void;
 }
 
 export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
   const [name, setName] = useState('');
-  const [type, setType] = useState<'html' | 'php' | 'hubspot'>('html');
+  const [type, setType] = useState<'html' | 'php' | 'hubspot' | 'plugin'>('html');
   const [template, setTemplate] = useState('empty');
+  const [description, setDescription] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +30,13 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
       return;
     }
 
-    onCreate(name.trim(), type, template);
+    // For plugin type, pass description in the template parameter
+    // For other types, use the selected template
+    const templateOrDescription = type === 'plugin'
+      ? (description.trim() || 'empty')
+      : template;
+
+    onCreate(name.trim(), type, templateOrDescription);
     onClose();
   };
 
@@ -92,13 +99,13 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                 fontWeight: 600,
                 color: '#cccccc'
               }}>
-                Project Name
+                {type === 'plugin' ? 'Plugin Name' : 'Project Name'}
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Hero Section"
+                placeholder={type === 'plugin' ? 'e.g., My Custom Widgets' : 'e.g., Hero Section'}
                 autoFocus
                 style={{
                   width: '100%',
@@ -118,6 +125,45 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                 }}
               />
             </div>
+
+            {/* Plugin Description - Only for plugin type */}
+            {type === 'plugin' && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#cccccc'
+                }}>
+                  Description (Optional)
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Custom Elementor widgets for my website"
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#1e1e1e',
+                    border: '1px solid #3e3e3e',
+                    borderRadius: '6px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    outline: 'none',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#007acc';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#3e3e3e';
+                  }}
+                />
+              </div>
+            )}
 
             {/* Type Selection */}
             <div style={{ marginBottom: '20px' }}>
@@ -148,7 +194,7 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                     name="type"
                     value="html"
                     checked={type === 'html'}
-                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot')}
+                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot' | 'plugin')}
                     style={{ marginRight: '12px' }}
                   />
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -188,7 +234,7 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                     name="type"
                     value="php"
                     checked={type === 'php'}
-                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot')}
+                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot' | 'plugin')}
                     style={{ marginRight: '12px' }}
                   />
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -200,13 +246,53 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                         color: '#ffffff',
                         marginBottom: '4px'
                       }}>
-                        WordPress PHP Widget
+                        WordPress Widget
                       </div>
                       <div style={{
                         fontSize: '12px',
                         color: '#888'
                       }}>
-                        Elementor widget (PHP + CSS + JavaScript)
+                        Single Elementor widget with PHP
+                      </div>
+                    </div>
+                  </div>
+                </label>
+
+                {/* WordPress Plugin Option */}
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '12px',
+                  background: type === 'plugin' ? '#2a2d2e' : '#1e1e1e',
+                  border: type === 'plugin' ? '2px solid #007acc' : '2px solid #3e3e3e',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}>
+                  <input
+                    type="radio"
+                    name="type"
+                    value="plugin"
+                    checked={type === 'plugin'}
+                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot' | 'plugin')}
+                    style={{ marginRight: '12px' }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FaWordpress size={20} color="#9B59B6" style={{ flexShrink: 0 }} />
+                    <div>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: '#ffffff',
+                        marginBottom: '4px'
+                      }}>
+                        WordPress Plugin
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#888'
+                      }}>
+                        Multi-widget plugin with auto-registration
                       </div>
                     </div>
                   </div>
@@ -228,7 +314,7 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                     name="type"
                     value="hubspot"
                     checked={type === 'hubspot'}
-                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot')}
+                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot' | 'plugin')}
                     style={{ marginRight: '12px' }}
                   />
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -254,50 +340,52 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
               </div>
             </div>
 
-            {/* Template Selection */}
-            <div>
-              <label style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#cccccc'
-              }}>
-                Template
-              </label>
-              <select
-                value={template}
-                onChange={(e) => setTemplate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  background: '#1e1e1e',
-                  border: '1px solid #3e3e3e',
-                  borderRadius: '6px',
-                  color: '#ffffff',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  outline: 'none'
-                }}
-              >
-                <option value="empty">Empty (blank files)</option>
-                {type === 'html' ? (
-                  <>
-                    <option value="hero">Hero Section</option>
-                    <option value="contact-form">Contact Form</option>
-                  </>
-                ) : type === 'php' ? (
-                  <>
-                    <option value="basic-widget">Basic Widget</option>
-                  </>
-                ) : type === 'hubspot' ? (
-                  <>
-                    <option value="hubspot-hero">Hero Section (Page Module)</option>
-                    <option value="hubspot-email">Email CTA (Email Module)</option>
-                  </>
-                ) : null}
-              </select>
-            </div>
+            {/* Template Selection - Only show for non-plugin types */}
+            {type !== 'plugin' && (
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#cccccc'
+                }}>
+                  Template
+                </label>
+                <select
+                  value={template}
+                  onChange={(e) => setTemplate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#1e1e1e',
+                    border: '1px solid #3e3e3e',
+                    borderRadius: '6px',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="empty">Empty (blank files)</option>
+                  {type === 'html' ? (
+                    <>
+                      <option value="hero">Hero Section</option>
+                      <option value="contact-form">Contact Form</option>
+                    </>
+                  ) : type === 'php' ? (
+                    <>
+                      <option value="basic-widget">Basic Widget</option>
+                    </>
+                  ) : type === 'hubspot' ? (
+                    <>
+                      <option value="hubspot-hero">Hero Section (Page Module)</option>
+                      <option value="hubspot-email">Email CTA (Email Module)</option>
+                    </>
+                  ) : null}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Footer */}

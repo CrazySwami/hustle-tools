@@ -162,3 +162,145 @@
   color: hsl(var(--muted-foreground));
   opacity: 0.7;
 }
+
+/* Google Docs-Style Page Layout */
+.tiptap-page-view {
+  /* Background color for area around pages */
+  background-color: #f0f0f0;
+  min-height: 100vh;
+  padding: 40px 0;
+}
+
+.dark .tiptap-page-view {
+  background-color: #1a1a1a;
+}
+
+.tiptap-page {
+  /* Page dimensions - US Letter (8.5" x 11") at 96 DPI */
+  width: 816px; /* 8.5" * 96 DPI */
+  min-height: 1056px; /* 11" * 96 DPI */
+
+  /* Margins - 1 inch on all sides (96px) */
+  padding: 96px;
+
+  /* Page styling */
+  background-color: white;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1),
+              0 2px 4px rgba(0, 0, 0, 0.08),
+              0 4px 8px rgba(0, 0, 0, 0.05);
+  margin: 0 auto 24px auto; /* Center pages with spacing between */
+
+  /* Smooth rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dark .tiptap-page {
+  background-color: #2a2a2a;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1),
+              0 2px 4px rgba(0, 0, 0, 0.3),
+              0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Alternative A4 size (210mm x 297mm at 96 DPI) */
+.tiptap-page-a4 {
+  width: 794px; /* 210mm */
+  min-height: 1123px; /* 297mm */
+}
+
+/* ProseMirror editor inside page */
+.tiptap-page .ProseMirror {
+  outline: none;
+  min-height: 864px; /* 11" - 2" margins = 9" */
+}
+
+.tiptap-page-a4 .ProseMirror {
+  min-height: 931px; /* A4 height minus margins */
+}
+
+/* Multi-page container wrapper */
+.tiptap-page-container {
+  width: 816px; /* 8.5" * 96 DPI */
+  margin: 0 auto;
+}
+
+.tiptap-page-container .ProseMirror {
+  outline: none;
+  /* Remove min-height to allow natural content flow */
+}
+
+/* Automatic page boundaries */
+.tiptap-page-container .ProseMirror > * {
+  /* Allow page breaks between block elements */
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* Visual page separator for automatic pagination */
+.auto-page-separator {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Page break indicator */
+.page-break-wrapper {
+  margin: 32px 0;
+  user-select: none;
+}
+
+.page-break {
+  position: relative;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+.page-break::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    #d0d0d0 0px,
+    #d0d0d0 8px,
+    transparent 8px,
+    transparent 16px
+  );
+}
+
+.page-break-label {
+  position: relative;
+  background: white;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #666;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  z-index: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.dark .page-break::before {
+  background: repeating-linear-gradient(
+    to right,
+    #555 0px,
+    #555 8px,
+    transparent 8px,
+    transparent 16px
+  );
+}
+
+.dark .page-break-label {
+  background: #2a2a2a;
+  color: #aaa;
+  border-color: #555;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}

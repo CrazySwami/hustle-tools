@@ -1,12 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, BookMarked } from 'lucide-react';
-import { Editor } from '@tiptap/react';
-
-interface TOCWidgetProps {
-  editor: Editor | null;
-}
+import { useState, useEffect, useRef } from "react";
+import { Editor } from "@tiptap/react";
+import { ChevronRight, ChevronDown, Menu, X } from "lucide-react";
 
 interface HeadingNode {
   id: string;
@@ -16,7 +12,13 @@ interface HeadingNode {
   children: HeadingNode[];
 }
 
-export function TOCWidget({ editor }: TOCWidgetProps) {
+interface TableOfContentsProps {
+  editor: Editor | null;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+export function TableOfContents({ editor, isOpen, onToggle }: TableOfContentsProps) {
   const [headings, setHeadings] = useState<HeadingNode[]>([]);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
@@ -31,12 +33,17 @@ export function TOCWidget({ editor }: TOCWidgetProps) {
       editor.state.doc.descendants((node, pos) => {
         if (node.type.name === "heading") {
           const level = node.attrs.level;
+
+          // Skip H1 headings
+          if (level === 1) return;
+
           const text = node.textContent;
+          // Generate stable ID from position and text
           const id = `heading-${pos}-${text.slice(0, 20).replace(/\s+/g, "-")}`;
 
           headingsList.push({ level, text, position: pos, id });
 
-          // Add ID to the node if it doesn't have one
+          // Add ID to the node if it doesn't have one (for scroll target)
           if (!node.attrs.id) {
             editor.commands.setNodeSelection(pos);
             editor.commands.updateAttributes("heading", { id });
@@ -52,6 +59,7 @@ export function TOCWidget({ editor }: TOCWidgetProps) {
         items.forEach((item) => {
           const node: HeadingNode = { ...item, children: [] };
 
+          // Find parent in stack
           while (stack.length > 0 && stack[stack.length - 1].level >= node.level) {
             stack.pop();
           }
@@ -168,35 +176,51 @@ export function TOCWidget({ editor }: TOCWidgetProps) {
   };
 
   return (
-    <div className="my-4 rounded-lg border border-border/50 bg-card overflow-hidden animate-in fade-in-from-bottom-2 duration-300">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
-        <div className="flex items-center gap-2.5 flex-1 min-w-0">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-teal-500/10">
-            <BookMarked className="h-4 w-4 text-teal-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-medium">Table of Contents</h3>
-            <p className="text-xs text-muted-foreground">
+    <>
+      {/* Slide-in Panel */}
+      <div
+        className={`fixed right-0 bg-background z-40 transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+        style={{ width: "320px", top: "60px", bottom: "0", height: "calc(100vh - 60px)" }}
+      >
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="p-6 border-b border-border">
+            <h2 className="text-lg font-semibold">Table of Contents</h2>
+            <p className="text-sm text-muted-foreground mt-1">
               {headings.length === 0 ? "No headings yet" : `${countTotalHeadings(headings)} headings`}
             </p>
+          </div>
+
+          {/* Headings List */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {headings.length === 0 ? (
+              <div className="text-center text-muted-foreground text-sm py-12 px-6">
+                Add headings to your document to see the outline here.
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {headings.map((heading) => renderHeadingNode(heading))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-border text-sm text-muted-foreground text-center">
+            Click any heading to jump to it
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-4 max-h-[600px] overflow-y-auto">
-        {headings.length === 0 ? (
-          <div className="text-center text-sm text-muted-foreground py-8">
-            Add headings to your document to see the outline here.
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {headings.map((heading) => renderHeadingNode(heading))}
-          </div>
-        )}
-      </div>
-    </div>
+      {/* Overlay (when open on mobile) */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/20 z-30 md:hidden"
+          onClick={onToggle}
+        />
+      )}
+    </>
   );
 }
 

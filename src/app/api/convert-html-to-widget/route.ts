@@ -114,10 +114,84 @@ export async function POST(req: Request) {
       controlsNeeded: el.requiredControls,
     }));
 
-    // Step 2: AI Enhancement Layer
-    const enhancementPrompt = `You are an expert Elementor widget developer. I have programmatically parsed an HTML structure and identified all elements that need controls.
+    // Step 2: AI Enhancement Layer with Elementor Best Practices
+    const enhancementPrompt = `You are an expert Elementor widget developer following strict best practices for inline CSS and dynamic controls.
 
-**YOUR TASK:** Generate a complete, production-ready Elementor widget PHP class that includes comprehensive controls for EVERY element identified.
+**YOUR TASK:** Generate a complete, production-ready Elementor widget PHP class with embedded CSS in the render() method.
+
+**CRITICAL CSS RULES (MUST FOLLOW):**
+
+1. **INLINE CSS IN <style> TAG**: ALL CSS must be embedded in the render() method using a <style> tag. NO separate CSS files.
+
+2. **STRUCTURAL CSS ONLY IN <style>**: The inline <style> tag should ONLY contain:
+   - Layout (display, grid, flexbox, position)
+   - Spacing structure (gap, aspect-ratio)
+   - Transitions and animations
+   - Responsive breakpoints (@media)
+   - Transform effects
+
+3. **NO HARDCODED COLORS/TYPOGRAPHY IN CSS**: Colors, backgrounds, font-family, font-size, font-weight MUST use Elementor controls with 'selectors'
+
+4. **USE GLOBAL DEFAULTS**: All color/typography controls should default to empty string (uses Elementor global colors/typography)
+
+5. **{{WRAPPER}} SCOPING**: Every CSS rule MUST use {{WRAPPER}} prefix to prevent global style leaking
+
+**GOOD EXAMPLE (Structural CSS + Dynamic Controls):**
+\`\`\`php
+protected function render() {
+    $settings = $this->get_settings_for_display();
+    ?>
+    <style>
+    {{WRAPPER}} .hero-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        transition: all 0.3s ease;
+    }
+
+    @media (max-width: 768px) {
+        {{WRAPPER}} .hero-container {
+            grid-template-columns: 1fr;
+        }
+    }
+    </style>
+
+    <div class="hero-container">
+        <h1><?php echo esc_html($settings['title']); ?></h1>
+    </div>
+    <?php
+}
+
+// In register_controls():
+$this->add_control('hero_bg_color', [
+    'label' => 'Background Color',
+    'type' => \\Elementor\\Controls_Manager::COLOR,
+    'default' => '', // Empty = uses global default
+    'selectors' => [
+        '{{WRAPPER}} .hero-container' => 'background-color: {{VALUE}}'
+    ]
+]);
+
+$this->add_group_control(
+    \\Elementor\\Group_Control_Typography::get_type(),
+    [
+        'name' => 'title_typography',
+        'selector' => '{{WRAPPER}} h1',
+    ]
+);
+\`\`\`
+
+**BAD EXAMPLE (DO NOT DO THIS):**
+\`\`\`php
+<style>
+{{WRAPPER}} .hero-container {
+    background-color: #667eea; /* ❌ WRONG - use control */
+    color: white; /* ❌ WRONG - use control */
+    font-family: Arial; /* ❌ WRONG - use typography control */
+    padding: 40px; /* ❌ WRONG - use spacing control */
+}
+</style>
+\`\`\`
 
 **PARSED ELEMENTS:**
 ${JSON.stringify(elementSummary, null, 2)}
@@ -127,45 +201,47 @@ ${JSON.stringify(elementSummary, null, 2)}
 ${html}
 \`\`\`
 
-**ORIGINAL CSS:**
+**ORIGINAL CSS (convert to structural + controls):**
 \`\`\`css
 ${css}
 \`\`\`
 
-**ORIGINAL JAVASCRIPT:**
+**ORIGINAL JAVASCRIPT (embed in render() if needed):**
 \`\`\`javascript
 ${js}
 \`\`\`
 
 **DESCRIPTION:** ${description || 'Convert this HTML section to an Elementor widget'}
 
-**CRITICAL REQUIREMENTS:**
+**ADDITIONAL REQUIREMENTS:**
 
-1. **GUARANTEE ALL CONTROLS**: For each element in the parsed list, you MUST create ALL the controls specified in "controlsNeeded"
+1. **GUARANTEE ALL CONTROLS**: For each element in the parsed list, create ALL the controls specified in "controlsNeeded"
 
 2. **PRESERVE STRUCTURE**: The render() method must output HTML that matches the original structure exactly
 
-3. **PRESERVE STYLING**: Include the original CSS in widget.css (will be handled separately, but reference it in your plan)
-
-4. **ORGANIZE INTELLIGENTLY**: Group related controls into logical sections:
+3. **ORGANIZE INTELLIGENTLY**: Group related controls into logical sections:
    - Content Tab: Text content, images, links, media
    - Style Tab: Typography, colors, backgrounds, borders, shadows, spacing
    - Advanced Tab: Custom CSS, Custom JS, animations, visibility
 
-5. **ELEMENT CLASS/ID DISPLAY**: In every control description, show the CSS selector:
+4. **ELEMENT CLASS/ID DISPLAY**: In every control description, show the CSS selector:
    \`'description' => 'CSS Selector: .class-name | ID: #element-id'\`
 
-6. **CUSTOM CSS/JS BOXES**: Include Custom CSS and Custom JavaScript code boxes in Advanced tab
+5. **SEMANTIC NAMING**: Use intelligent control names based on context (e.g., "hero_title" not "text_1")
 
-7. **WIDGET CATEGORY**: Use category ['hustle-tools'] to group all widgets together
+6. **RESPONSIVE CONTROLS**: Use add_responsive_control() for spacing, dimensions where appropriate
 
-8. **SEMANTIC NAMING**: Use intelligent control names based on context (e.g., "hero_title" not "text_1")
+7. **NO SHORTCUTS**: Do not skip ANY element. Every element must have corresponding controls.
 
-9. **RESPONSIVE CONTROLS**: Use add_responsive_control() for spacing, typography where appropriate
+**OUTPUT FORMAT:**
+Generate the complete PHP widget class with:
+- <?php opening tag
+- Proper class definition extending \\Elementor\\Widget_Base
+- Complete register_controls() with all controls
+- render() method with embedded <style> tag + HTML output
+- NO separate CSS/JS file references
 
-10. **NO SHORTCUTS**: Do not skip ANY element. Every element must have corresponding controls.
-
-**OUTPUT:** Generate the complete PHP widget class. Start with <?php and include the full implementation.`;
+Start generating now:`;
 
     // Stream the AI-enhanced widget generation
     const result = streamText({

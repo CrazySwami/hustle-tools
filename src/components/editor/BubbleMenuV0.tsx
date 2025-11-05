@@ -144,7 +144,7 @@ export function BubbleMenuV0({
 
   return (
     <>
-      <div className="bg-white border border-neutral-200 rounded-lg shadow-lg backdrop-blur-sm relative z-[9999]">
+      <div className="bg-white border border-neutral-200 rounded-lg shadow-lg backdrop-blur-sm relative">
         <div className="flex items-center gap-0.5 p-1">
           {formatButtons.map((button, index) => {
             const Icon = button.icon
@@ -199,7 +199,7 @@ export function BubbleMenuV0({
             </Button>
 
             {showAIMenu && (
-              <div className={`absolute right-0 w-56 bg-white border border-neutral-200 rounded-lg shadow-xl backdrop-blur-sm animate-in fade-in duration-200 overflow-hidden z-[10000] ${
+              <div className={`absolute right-0 w-56 bg-white border border-neutral-200 rounded-lg shadow-xl backdrop-blur-sm animate-in fade-in duration-200 overflow-hidden ${
                 menuPosition === 'top'
                   ? 'bottom-full mb-2 slide-in-from-bottom-2'
                   : 'top-full mt-2 slide-in-from-top-2'

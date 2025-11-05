@@ -36,12 +36,18 @@ export function GoogleFontPicker({
   useEffect(() => {
     const fetchFonts = async () => {
       try {
-        // Use Google Fonts API
-        const API_KEY = "AIzaSyBwKPCN-VX8l-vI5YqpwTZVKOZPLpgj5Lc"; // Public key for client-side use
+        // Use Google Fonts API with environment variable
+        const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_FONTS_API_KEY || "";
+        console.log('🔑 Google Fonts API Key available:', !!API_KEY);
+        if (!API_KEY) {
+          console.error('❌ Google Fonts API key not configured in environment variables');
+          throw new Error("Google Fonts API key not configured");
+        }
         const response = await fetch(
           `https://www.googleapis.com/webfonts/v1/webfonts?key=${API_KEY}&sort=popularity`
         );
         const data = await response.json();
+        console.log('📡 Google Fonts API response:', { hasItems: !!data?.items, itemCount: data?.items?.length });
 
         // Check if data.items exists
         if (data && data.items && Array.isArray(data.items)) {

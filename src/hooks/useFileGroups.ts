@@ -23,6 +23,11 @@ import {
   migrateFromOldFormat,
   saveGroupToLibrary,
   loadGroupFromLibrary,
+  createPlugin,
+  addWidgetToPlugin,
+  removeWidgetFromPlugin,
+  updateWidgetInPlugin,
+  getAllPlugins,
 } from '@/lib/file-group-manager';
 
 export interface UseFileGroupsReturn {
@@ -40,6 +45,13 @@ export interface UseFileGroupsReturn {
   deleteGroup: (id: string) => void;
   saveToLibrary: (id: string) => void;
   loadFromLibrary: (libraryId: string) => FileGroup | null;
+
+  // Plugin Management (NEW)
+  createNewPlugin: (name: string, description?: string) => FileGroup;
+  addWidgetToPlugin: (pluginId: string, widgetName: string, widgetCode: string) => void;
+  removeWidgetFromPlugin: (pluginId: string, widgetId: string) => void;
+  updateWidgetInPlugin: (pluginId: string, widgetId: string, newCode: string) => void;
+  getAllPlugins: () => FileGroup[];
 
   // Utilities
   refresh: () => void;
@@ -225,6 +237,57 @@ export function useFileGroups(): UseFileGroupsReturn {
     ? state.groups.find(g => g.id === state.activeGroupId) || null
     : null;
 
+  // Plugin management actions (NEW)
+  const createNewPlugin = useCallback((name: string, description?: string): FileGroup => {
+    const plugin = createPlugin(name, description);
+    addGroup(plugin);
+    const newState = loadEditorState();
+    console.log('🔄 [CREATE_PLUGIN] setState() triggered:', {
+      pluginName: name,
+      newActiveId: newState.activeGroupId,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
+    return plugin;
+  }, []);
+
+  const addWidgetToPluginAction = useCallback((pluginId: string, widgetName: string, widgetCode: string) => {
+    addWidgetToPlugin(pluginId, widgetName, widgetCode);
+    const newState = loadEditorState();
+    console.log('🔄 [ADD_WIDGET] setState() triggered:', {
+      pluginId,
+      widgetName,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
+  }, []);
+
+  const removeWidgetFromPluginAction = useCallback((pluginId: string, widgetId: string) => {
+    removeWidgetFromPlugin(pluginId, widgetId);
+    const newState = loadEditorState();
+    console.log('🔄 [REMOVE_WIDGET] setState() triggered:', {
+      pluginId,
+      widgetId,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
+  }, []);
+
+  const updateWidgetInPluginAction = useCallback((pluginId: string, widgetId: string, newCode: string) => {
+    updateWidgetInPlugin(pluginId, widgetId, newCode);
+    const newState = loadEditorState();
+    console.log('🔄 [UPDATE_WIDGET] setState() triggered:', {
+      pluginId,
+      widgetId,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
+  }, []);
+
+  const getAllPluginsAction = useCallback(() => {
+    return getAllPlugins();
+  }, []);
+
   // Return object directly (no memoization to ensure fresh reference on state changes)
   // This ensures components re-render immediately when state changes
   return {
@@ -239,6 +302,11 @@ export function useFileGroups(): UseFileGroupsReturn {
     deleteGroup: deleteGroupAction,
     saveToLibrary: saveToLibraryAction,
     loadFromLibrary: loadFromLibraryAction,
+    createNewPlugin,
+    addWidgetToPlugin: addWidgetToPluginAction,
+    removeWidgetFromPlugin: removeWidgetFromPluginAction,
+    updateWidgetInPlugin: updateWidgetInPluginAction,
+    getAllPlugins: getAllPluginsAction,
     refresh,
   };
 }

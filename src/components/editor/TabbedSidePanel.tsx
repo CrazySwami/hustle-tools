@@ -5,6 +5,7 @@ import { X, MessageSquare, Wrench, ArrowLeft, FileText, Search, BookOpen, List, 
 import { cn } from '@/lib/utils'
 import CommentsPanel, { CommentTabType } from './CommentsPanel'
 import { Comment } from './CommentExtension'
+import { Editor } from '@tiptap/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,6 +43,9 @@ interface TabbedSidePanelProps {
 
   // Library props
   onDocumentSelect?: (documentId: string, content: string) => void
+
+  // Editor instance
+  editor?: Editor | null
 }
 
 type ActiveTool = 'stats' | 'find' | 'readability' | 'headings' | 'replace' | 'toc' | 'duplicates' | null
@@ -62,6 +66,7 @@ export function TabbedSidePanel({
   activeCommentTab,
   onCommentTabChange,
   onDocumentSelect,
+  editor,
 }: TabbedSidePanelProps) {
   const [internalTab, setInternalTab] = useState<'comments' | 'tools'>('comments')
   const [internalTool, setInternalTool] = useState<ActiveTool>(null)
@@ -348,11 +353,7 @@ export function TabbedSidePanel({
 
                   {activeTool === 'toc' && (
                     <TOCWidget
-                      data={{
-                        numbered: true,
-                        maxLevel: 3,
-                        style: 'markdown',
-                      }}
+                      editor={editor || null}
                     />
                   )}
 

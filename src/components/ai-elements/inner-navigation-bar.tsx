@@ -36,6 +36,8 @@ export interface NavigationBarProps {
   hideLogoOnDesktop?: boolean
   dimmed?: boolean // Add overlay effect when chat drawer is open on mobile
   containerWidth?: number // Optional container width to determine compact mode based on panel size instead of window size
+  mobileBreakpoint?: number // Custom mobile breakpoint (default: 450 for container, 768 for window)
+  compactBreakpoint?: number // Custom compact breakpoint (default: 600 for container, 1024 for window)
 }
 
 const defaultTabs: TabItem[] = [
@@ -133,6 +135,8 @@ export function NavigationBar({
   hideLogoOnDesktop = false,
   dimmed = false,
   containerWidth,
+  mobileBreakpoint,
+  compactBreakpoint,
 }: NavigationBarProps = {}) {
   const [internalActiveTab, setInternalActiveTab] = useState(tabs.length > 0 ? tabs[0].id : '')
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
@@ -157,11 +161,15 @@ export function NavigationBar({
       // Panel mode: 450px/600px (for resizable panels that are 25-75% of screen)
       // Window mode: 768px/1024px (standard mobile/tablet breakpoints)
       const isUsingContainerWidth = (containerWidth !== undefined && containerWidth > 0)
-      const mobileBreakpoint = isUsingContainerWidth ? 450 : 768
-      const compactBreakpoint = isUsingContainerWidth ? 600 : 1024
+      const defaultMobileBreakpoint = isUsingContainerWidth ? 450 : 768
+      const defaultCompactBreakpoint = isUsingContainerWidth ? 600 : 1024
 
-      setIsMobile(width < mobileBreakpoint)
-      setIsCompactMode(width >= mobileBreakpoint && width < compactBreakpoint)
+      // Use custom breakpoints if provided, otherwise use defaults
+      const mobileBp = mobileBreakpoint !== undefined ? mobileBreakpoint : defaultMobileBreakpoint
+      const compactBp = compactBreakpoint !== undefined ? compactBreakpoint : defaultCompactBreakpoint
+
+      setIsMobile(width < mobileBp)
+      setIsCompactMode(width >= mobileBp && width < compactBp)
     }
     checkSize()
 
@@ -170,7 +178,7 @@ export function NavigationBar({
       window.addEventListener("resize", checkSize)
       return () => window.removeEventListener("resize", checkSize)
     }
-  }, [containerWidth])
+  }, [containerWidth, mobileBreakpoint, compactBreakpoint])
 
   // Keyboard shortcuts (only when tabs exist)
   useEffect(() => {

@@ -27,7 +27,7 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/source';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
-import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, PanelRightOpen, FileText, FileIcon, EyeIcon, File, ImageIcon, XIcon } from 'lucide-react';
+import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, PanelRightOpen, FileText, FileIcon, EyeIcon, File, ImageIcon, XIcon, Building2 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ConversationTokenData } from '@/components/ui/ConversationTokenIndicator';
@@ -829,6 +829,24 @@ export function DocumentChat({
                   onClick: () => fileInputRef.current?.click(),
                   title: 'Attach image (PNG/JPEG, max 5MB)',
                 },
+                // Client actions - only show when we have client functionality
+                {
+                  id: 'select-client',
+                  label: selectedClient ? `${selectedClient.name}` : 'Select Client',
+                  icon: <Building2 size={18} />,
+                  isActive: false,
+                  onClick: () => setClientModalOpen(true),
+                  title: 'Select or change client',
+                },
+                // Only show context toggle if a client is selected
+                ...(selectedClient ? [{
+                  id: 'client-context',
+                  label: 'Client Context',
+                  icon: <Building2 size={18} />,
+                  isActive: clientContextEnabled,
+                  onClick: () => onClientContextToggle?.(),
+                  title: clientContextEnabled ? 'Client context enabled' : 'Client context disabled',
+                }] : []),
               ]}
             />
             <input
@@ -838,12 +856,15 @@ export function DocumentChat({
               onChange={handleImageSelect}
               className="hidden"
             />
-            <ClientSelectorButton
-              selectedClient={selectedClient}
-              clientContextEnabled={clientContextEnabled}
-              onToggleContext={() => onClientContextToggle?.()}
-              onSelectClient={() => setClientModalOpen(true)}
-            />
+            {/* Only show ClientSelectorButton on wide screens (above 600px) */}
+            {containerWidth >= 600 && (
+              <ClientSelectorButton
+                selectedClient={selectedClient}
+                clientContextEnabled={clientContextEnabled}
+                onToggleContext={() => onClientContextToggle?.()}
+                onSelectClient={() => setClientModalOpen(true)}
+              />
+            )}
             <SystemPromptViewer
               input={input}
               systemPrompt={actualSystemPrompt}

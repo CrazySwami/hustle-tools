@@ -666,6 +666,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                       showOnMobile={false}
                       hideLogoOnDesktop={false}
                       containerWidth={chatPanelWidth}
+                      compactBreakpoint={500}
                     />
                   </div>
                   <DocumentChat

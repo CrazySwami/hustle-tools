@@ -153,22 +153,72 @@ export function TwoPanelChatLayout({
         {leftPanel}
       </div>
 
-      {/* Divider - Transparent with hover effect */}
+      {/* Divider - Light gray line with grabbable handle */}
       <div
         onMouseDown={handleMouseDown}
-        className="flex-shrink-0 cursor-col-resize transition-colors"
+        className="flex-shrink-0 cursor-col-resize relative group"
         style={{
-          width: '2px',
-          background: 'transparent',
+          width: '1px',
+          background: isResizing ? 'var(--primary)' : 'rgba(150, 150, 150, 0.2)',
+          transition: isResizing ? 'none' : 'background 0.2s',
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--primary)';
-        }}
-        onMouseLeave={(e) => {
-          if (!isResizing) {
-            e.currentTarget.style.background = 'transparent';
-          }
-        }}
+      >
+        {/* Grabbable handle in the middle */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '20px',
+            height: '60px',
+            background: isResizing ? 'var(--primary)' : 'rgba(150, 150, 150, 0.3)',
+            borderRadius: '10px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '4px',
+            padding: '8px 0',
+            transition: 'all 0.2s',
+            opacity: isResizing ? 1 : 0,
+            pointerEvents: 'none',
+          }}
+          className="group-hover:opacity-100"
+        >
+          {/* Three horizontal dots to indicate grabbable */}
+          <div style={{
+            width: '3px',
+            height: '3px',
+            background: 'currentColor',
+            borderRadius: '50%',
+            opacity: 0.7,
+          }} />
+          <div style={{
+            width: '3px',
+            height: '3px',
+            background: 'currentColor',
+            borderRadius: '50%',
+            opacity: 0.7,
+          }} />
+          <div style={{
+            width: '3px',
+            height: '3px',
+            background: 'currentColor',
+            borderRadius: '50%',
+            opacity: 0.7,
+          }} />
+        </div>
+        {/* Wider invisible hit area for easier grabbing */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: '-4px',
+            right: '-4px',
+            bottom: 0,
+          }}
+        />
       />
 
       {/* Right Panel - Content (60% default) */}

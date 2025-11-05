@@ -348,6 +348,24 @@
 }
 
 /* TipTap editor text color - white in dark mode */
+.dark .tiptap-page .ProseMirror {
+  color: white !important;
+}
+
+/* Also apply to any ProseMirror in dark mode */
 .dark .ProseMirror {
-  color: white;
+  color: white !important;
+}
+
+/* Ensure all text nodes in editor are white */
+.dark .ProseMirror p,
+.dark .ProseMirror h1,
+.dark .ProseMirror h2,
+.dark .ProseMirror h3,
+.dark .ProseMirror h4,
+.dark .ProseMirror h5,
+.dark .ProseMirror h6,
+.dark .ProseMirror li,
+.dark .ProseMirror blockquote {
+  color: white !important;
 }

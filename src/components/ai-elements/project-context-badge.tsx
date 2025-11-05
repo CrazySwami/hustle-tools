@@ -142,8 +142,10 @@ export function ProjectContextBadge({
   return (
     <div className="flex justify-center items-center gap-2 sm:gap-3 px-2" style={{ background: "transparent" }}>
       <div
-        className={`group relative inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium tracking-tight transition-all duration-500 overflow-hidden cursor-default w-[95%] mx-auto bg-white
-          ${isDark ? "text-slate-900 border-slate-200" : "text-gray-900 border-gray-200"}
+        className={`group relative inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium tracking-tight transition-all duration-500 overflow-hidden cursor-default w-[95%] mx-auto
+          bg-white dark:bg-[#2a2a2a]
+          text-gray-900 dark:text-white
+          border-gray-200 dark:border-gray-700
           ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
           ${animationStage === 1 ? "opacity-100 translate-y-4" : ""}
           ${animationStage >= 2 ? "opacity-100 translate-y-0" : ""}
@@ -170,12 +172,12 @@ export function ProjectContextBadge({
         {animationStage >= 3 && (
           <>
             <span
-              className={`hidden sm:inline text-xs animate-in fade-in slide-in-from-left-2 duration-300 relative z-10 ${isDark ? "opacity-60" : "opacity-70"}`}
+              className="hidden sm:inline text-xs animate-in fade-in slide-in-from-left-2 duration-300 relative z-10 opacity-70 dark:opacity-60"
             >
               Current Project
             </span>
             <span
-              className={`hidden sm:inline text-xs animate-in fade-in duration-300 relative z-10 ${isDark ? "opacity-40" : "opacity-50"}`}
+              className="hidden sm:inline text-xs animate-in fade-in duration-300 relative z-10 opacity-50 dark:opacity-40"
               style={{ animationDelay: "100ms" }}
             >
               •
@@ -198,21 +200,21 @@ export function ProjectContextBadge({
                 // Show metrics for documents
                 <>
                   <span
-                    className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded ${isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-500/30 text-blue-800"} animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0`}
+                    className="text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300 animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0"
                     style={{ animationDelay: '400ms' }}
                     title="Word count"
                   >
                     {metrics.wordCount.toLocaleString()}w
                   </span>
                   <span
-                    className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded ${isDark ? "bg-green-500/20 text-green-300" : "bg-green-500/30 text-green-800"} animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0`}
+                    className="text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded bg-green-500/30 text-green-800 dark:bg-green-500/20 dark:text-green-300 animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0"
                     style={{ animationDelay: '500ms' }}
                     title="Character count"
                   >
                     {metrics.charCount.toLocaleString()}c
                   </span>
                   <span
-                    className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded ${isDark ? "bg-purple-500/20 text-purple-300" : "bg-purple-500/30 text-purple-800"} animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0`}
+                    className="text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300 animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0"
                     style={{ animationDelay: '600ms' }}
                     title="Estimated token count"
                   >
@@ -224,7 +226,7 @@ export function ProjectContextBadge({
                 tags.map((tag, i) => (
                   <span
                     key={tag}
-                    className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded ${getExtensionColor(tag, isDark)} animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0`}
+                    className={`text-[10px] sm:text-xs font-semibold px-1 sm:px-1.5 py-0.5 rounded animate-in fade-in slide-in-from-right-2 duration-300 flex-shrink-0 ${getExtensionColor(tag, isDark)}`}
                     style={{ animationDelay: `${400 + i * 100}ms` }}
                   >
                     {tag}

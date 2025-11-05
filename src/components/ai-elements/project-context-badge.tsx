@@ -143,7 +143,7 @@ export function ProjectContextBadge({
     <div className="flex justify-center items-center gap-2 sm:gap-3 px-2" style={{ background: "transparent" }}>
       <div
         className={`group relative inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium tracking-tight transition-all duration-500 overflow-hidden cursor-default w-[95%] mx-auto
-          bg-white dark:bg-[#2a2a2a]
+          bg-[#EBEBEB] dark:bg-[#2C2C2C]
           text-gray-900 dark:text-white
           border-gray-200 dark:border-gray-700
           ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}

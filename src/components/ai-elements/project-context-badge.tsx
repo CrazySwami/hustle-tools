@@ -16,11 +16,11 @@ function getExtensionColor(ext: string, isDark: boolean) {
     HubL: "bg-orange-500/30 text-orange-800",
   }
   const darkColors: Record<string, string> = {
-    PHP: "bg-purple-500/20 text-purple-300",
-    HTML: "bg-green-500/20 text-green-300",
-    CSS: "bg-blue-500/20 text-blue-300",
-    JS: "bg-yellow-500/20 text-yellow-300",
-    HubL: "bg-orange-500/20 text-orange-300",
+    PHP: "bg-purple-500/20 text-purple-200",
+    HTML: "bg-green-500/20 text-green-200",
+    CSS: "bg-blue-500/20 text-blue-200",
+    JS: "bg-yellow-500/20 text-yellow-200",
+    HubL: "bg-orange-500/20 text-orange-200",
   }
   return isDark ? darkColors[ext] || "bg-gray-500/20 text-gray-300" : lightColors[ext] || "bg-gray-500/30 text-gray-800"
 }

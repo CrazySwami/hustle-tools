@@ -175,7 +175,7 @@ export function ExportModal({ isOpen, onClose, editor, documentTitle = 'document
   ]
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={onClose} modal={false}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

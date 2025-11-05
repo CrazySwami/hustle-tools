@@ -46,7 +46,7 @@ export function CreateItemModal({ open, onOpenChange, type, onConfirm }: CreateI
   const placeholder = type === 'document' ? 'Untitled' : 'New Folder';
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

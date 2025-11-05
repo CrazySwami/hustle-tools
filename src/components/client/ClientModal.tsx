@@ -109,7 +109,7 @@ export function ClientModal({ isOpen, onClose, selectedClientId, onSelectClient,
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleModalChange}>
+    <Dialog open={isOpen} onOpenChange={handleModalChange} modal={false}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>

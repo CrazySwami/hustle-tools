@@ -2361,6 +2361,157 @@ ${currentSection.js}
 
 ### Common Patterns & Best Practices
 
+**⚠️ CRITICAL: Shared State Between Parent and Child Components**
+
+When a child component (like `HtmlSectionEditor`) creates its own instance of a state hook (like `useFileGroups()`), it creates a **separate state instance** that is NOT synchronized with the parent's state. This causes:
+
+- **Stale data** - Child sees old state while parent has new state
+- **UI not updating** - Project Context Badge shows old project
+- **Broken interactions** - File tabs don't switch because they read from stale state
+
+**❌ BROKEN PATTERN:**
+```typescript
+// Parent page
+export default function ElementorEditorPage() {
+  const fileGroups = useFileGroups(); // Parent's instance
+  const currentProject = fileGroups.activeGroup;
+
+  return (
+    <HtmlSectionEditor
+      currentProject={currentProject}
+      // ❌ NOT passing fileGroups prop!
+    />
+  );
+}
+
+// Child component
+export function HtmlSectionEditor({ currentProject }) {
+  const fileGroups = useFileGroups(); // ❌ Creates SEPARATE instance!
+
+  // Now there are TWO instances:
+  // 1. Parent's instance (used for currentProject)
+  // 2. Child's instance (used for file tabs, sidebar)
+
+  // When user switches projects in sidebar:
+  // - Child's instance updates ✓
+  // - Parent's instance DOES NOT update ✗
+  // - currentProject stays old ✗
+  // - Project Context Badge shows old project ✗
+}
+```
+
+**✅ CORRECT PATTERN (Share State Instance):**
+```typescript
+// Parent page
+export default function ElementorEditorPage() {
+  const fileGroups = useFileGroups(); // Single instance
+  const currentProject = fileGroups.activeGroup;
+
+  return (
+    <HtmlSectionEditor
+      currentProject={currentProject}
+      fileGroups={fileGroups}  // ✅ Pass shared instance!
+    />
+  );
+}
+
+// Child component
+export function HtmlSectionEditor({
+  currentProject,
+  fileGroups: parentFileGroups  // ✅ Receive from parent
+}) {
+  // Use parent's instance if provided, otherwise create local (for standalone use)
+  const localFileGroups = useFileGroups();
+  const fileGroups = parentFileGroups || localFileGroups;
+
+  // Now there is ONE instance shared between parent and child
+  // When user switches projects:
+  // - Shared instance updates ✓
+  // - Parent sees update ✓
+  // - currentProject updates ✓
+  // - Project Context Badge updates ✓
+  // - File tabs switch correctly ✓
+}
+```
+
+**Why This Pattern is Critical:**
+
+1. **Single Source of Truth** - Only ONE instance of state exists
+2. **Immediate Sync** - Parent and child always see same data
+3. **No Race Conditions** - No need to sync between instances
+4. **Predictable Updates** - State changes propagate instantly
+5. **Easy Debugging** - Only one place to check state
+
+**Real-World Example from Elementor Editor:**
+
+Before fix (broken):
+```typescript
+// page.tsx
+const fileGroups = useFileGroups();
+<HtmlSectionEditor currentProject={currentProject} />
+
+// HtmlSectionEditor.tsx
+const localFileGroups = useFileGroups(); // Separate instance!
+// Clicking widget tabs updates localFileGroups
+// But parent's fileGroups stays stale
+// Project Context Badge never updates
+```
+
+After fix (working):
+```typescript
+// page.tsx - 3 places where HtmlSectionEditor is rendered
+const fileGroups = useFileGroups();
+
+// Main view
+<HtmlSectionEditor
+  currentProject={currentProject}
+  fileGroups={fileGroups}  // ← Added
+/>
+
+// Split view (renderTabPanel)
+<HtmlSectionEditor
+  currentProject={currentProject}
+  fileGroups={fileGroups}  // ← Added
+/>
+
+// Mobile view
+<HtmlSectionEditor
+  currentProject={currentProject}
+  fileGroups={fileGroups}  // ← Added
+/>
+```
+
+**Implementation Checklist:**
+
+When creating components that use project/document state:
+
+- [ ] Parent creates ONLY ONE instance of state hook
+- [ ] Parent passes state instance as prop to ALL child instances
+- [ ] Child accepts state as optional prop (for standalone use)
+- [ ] Child uses parent's state if provided: `const state = parentState || localState`
+- [ ] Test: Switch projects/documents and verify ALL UI updates
+- [ ] Test: Check browser console for duplicate state instances
+- [ ] Test: Verify file tabs, badges, context all update together
+
+**Symptoms of Broken State Sharing:**
+
+If you see these symptoms, you likely have duplicate state instances:
+
+- ✗ Project Context Badge doesn't update when switching projects
+- ✗ File tabs don't switch when clicking them
+- ✗ System prompt shows old project context
+- ✗ Chat receives stale data
+- ✗ Browser console shows: "🏷️ ProjectContextBadge received section: { name: 'OldProject' }" after switching
+- ✗ localStorage updates but UI doesn't reflect changes
+
+**Debugging Steps:**
+
+1. Add console.log in parent: `console.log('Parent state:', fileGroups.activeGroupId)`
+2. Add console.log in child: `console.log('Child state:', fileGroups.activeGroupId)`
+3. Switch projects and check console
+4. If values differ → you have duplicate instances!
+5. Solution: Pass parent's instance to child as prop
+
 **1. Force Component Remount with Key Prop**
 
 When switching between items, use the `key` prop to force React to remount:

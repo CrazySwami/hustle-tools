@@ -37,11 +37,19 @@ This document describes the unified generation system that eliminates code dupli
 - ✅ Helper hooks: useGenerationProgress, useFilePreview
 - ✅ Legacy adapter: streamWithLegacyCallbacks for backward compatibility
 
-### Phase 3: Refactor Components
-- [ ] 3.1 Update `GenerateProjectWidget.tsx` to use hook
+### Phase 3: Refactor Components (IN PROGRESS)
+- [x] 3.1 Update `GenerateProjectWidget.tsx` to use streamWithLegacyCallbacks (620 lines, -200 from 820)
 - [ ] 3.2 Update `GenerateProjectModal.tsx` to use hook
 - [ ] 3.3 Remove duplicate streaming logic
 - [ ] 3.4 Remove duplicate prompt building
+
+**Phase 3.1 Summary:**
+- ✅ Refactored GenerateProjectWidget.tsx (-200 lines, -24% reduction)
+- ✅ Removed ~250 lines of duplicated streaming/parsing logic
+- ✅ Now uses streamWithLegacyCallbacks for unified streaming
+- ✅ Dynamic model dropdown via getModelsByProvider()
+- ✅ All parsing handled by centralized parsers
+- ✅ Successfully tested with Elementor plugin generation
 
 ### Phase 4: Simplify API Route
 - [ ] 4.1 Update `/api/generate-project/route.ts` to use PROJECT_CONFIGS

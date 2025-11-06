@@ -2688,55 +2688,33 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                   {renderGlobalColors()}
                 </div>
 
-                {/* Global Fonts Section */}
-                <div ref={globalFontsRef} style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Global Fonts</h3>
-                    <button
-                      onClick={() => openDialogForStage(2)}
-                      disabled={isGenerating}
-                      style={{
-                        padding: '6px 12px',
-                        fontSize: '12px',
-                        backgroundColor: currentGeneratingStage === 2 ? 'var(--primary)' : 'var(--accent)',
-                        color: currentGeneratingStage === 2 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: isGenerating ? 'not-allowed' : 'pointer',
-                        opacity: isGenerating && currentGeneratingStage !== 2 ? 0.5 : 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      {currentGeneratingStage === 2 ? '⏳' : '🔄'} Regenerate
-                    </button>
-                  </div>
-                  <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Base font selections used throughout the site</p>
-                  {/* TODO: Add global fonts editor */}
-                  <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '4px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
-                    Global fonts editor coming soon. Use Typography Presets for now.
-                  </div>
-                </div>
-
-                {/* Typography Presets Section */}
-                <div ref={typographyRef} style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Typography Presets</h3>
+                {/* ===== STAGE 2: TYPOGRAPHY ===== */}
+                <div style={{ marginBottom: '48px', padding: '24px', backgroundColor: 'var(--muted)/10', border: '3px solid var(--primary)', borderRadius: '12px' }}>
+                  {/* Stage 2 Header with ONE Regenerate Button */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        🔤 Stage 2: Typography System
+                      </h2>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                        Global fonts, typography presets, and all heading styles
+                      </p>
+                    </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button
                         onClick={() => viewSectionData('fonts')}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                          padding: '8px 16px',
+                          fontSize: '13px',
                           backgroundColor: 'var(--muted)',
                           color: 'var(--foreground)',
                           border: '1px solid var(--border)',
-                          borderRadius: '4px',
+                          borderRadius: '6px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          fontWeight: 500,
                         }}
                       >
                         🔍 View Data
@@ -2745,91 +2723,76 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                         onClick={() => openDialogForStage(2)}
                         disabled={isGenerating}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                          padding: '8px 20px',
+                          fontSize: '13px',
+                          fontWeight: 600,
                           backgroundColor: currentGeneratingStage === 2 ? 'var(--primary)' : 'var(--accent)',
                           color: currentGeneratingStage === 2 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
                           border: 'none',
-                          borderRadius: '4px',
+                          borderRadius: '6px',
                           cursor: isGenerating ? 'not-allowed' : 'pointer',
                           opacity: isGenerating && currentGeneratingStage !== 2 ? 0.5 : 1,
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
                         }}
                       >
-                        {currentGeneratingStage === 2 ? '⏳' : '🔄'} Regenerate
+                        {currentGeneratingStage === 2 ? '⏳ Generating...' : '✨ Regenerate Typography'}
                       </button>
                     </div>
                   </div>
-                  <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Global typography styles (Primary, Secondary, Text, Accent)</p>
-                  {renderGlobalTypography()}
-                </div>
 
-                {/* Headings & Body Section */}
-                <div ref={headingsRef} style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Headings & Body</h3>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => viewSectionData('headings')}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          backgroundColor: 'var(--muted)',
-                          color: 'var(--foreground)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        🔍 View Data
-                      </button>
-                      <button
-                        onClick={() => openDialogForStage(3)}
-                        disabled={isGenerating}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          backgroundColor: currentGeneratingStage === 3 ? 'var(--primary)' : 'var(--accent)',
-                          color: currentGeneratingStage === 3 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: isGenerating ? 'not-allowed' : 'pointer',
-                          opacity: isGenerating && currentGeneratingStage !== 3 ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        {currentGeneratingStage === 3 ? '⏳' : '🔄'} Regenerate
-                      </button>
+                  {/* Global Fonts Subsection */}
+                  <div ref={globalFontsRef} style={{ marginBottom: '24px' }}>
+                    <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>📚 Global Font Families</h3>
+                    <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Base font selections (Primary & Secondary) used throughout the site</p>
+                    <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '6px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                      Global fonts editor coming soon. These are set during Stage 2 AI generation.
                     </div>
                   </div>
-                  {renderThemeTypography()}
+
+                  {/* Typography Presets Subsection */}
+                  <div ref={typographyRef} style={{ marginBottom: '24px' }}>
+                    <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>🎨 Typography Presets</h3>
+                    <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Global typography styles (Primary, Secondary, Text, Accent)</p>
+                    {renderGlobalTypography()}
+                  </div>
+
+                  {/* Headings & Body Subsection */}
+                  <div ref={headingsRef}>
+                    <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>📝 Headings & Body Text</h3>
+                    <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Configure H1-H6 heading styles and body typography</p>
+                    {renderThemeTypography()}
+                  </div>
                 </div>
 
-                {/* Buttons Section */}
-                <div ref={buttonsRef} style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Buttons</h3>
+                {/* ===== STAGE 4: COMPONENTS ===== */}
+                <div style={{ marginBottom: '48px', padding: '24px', backgroundColor: 'var(--muted)/10', border: '3px solid var(--primary)', borderRadius: '12px' }}>
+                  {/* Stage 4 Header with ONE Regenerate Button */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        🔘 Stage 4: Components & Interactions
+                      </h2>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                        Button styles, form fields, and interactive element configurations
+                      </p>
+                    </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button
                         onClick={() => viewSectionData('components')}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                          padding: '8px 16px',
+                          fontSize: '13px',
                           backgroundColor: 'var(--muted)',
                           color: 'var(--foreground)',
                           border: '1px solid var(--border)',
-                          borderRadius: '4px',
+                          borderRadius: '6px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          fontWeight: 500,
                         }}
                       >
                         🔍 View Data
@@ -2838,70 +2801,38 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                         onClick={() => openDialogForStage(4)}
                         disabled={isGenerating}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                          padding: '8px 20px',
+                          fontSize: '13px',
+                          fontWeight: 600,
                           backgroundColor: currentGeneratingStage === 4 ? 'var(--primary)' : 'var(--accent)',
                           color: currentGeneratingStage === 4 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
                           border: 'none',
-                          borderRadius: '4px',
+                          borderRadius: '6px',
                           cursor: isGenerating ? 'not-allowed' : 'pointer',
                           opacity: isGenerating && currentGeneratingStage !== 4 ? 0.5 : 1,
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
                         }}
                       >
-                        {currentGeneratingStage === 4 ? '⏳' : '🔄'} Regenerate
+                        {currentGeneratingStage === 4 ? '⏳ Generating...' : '✨ Regenerate Components'}
                       </button>
                     </div>
                   </div>
-                  {renderButtons()}
-                </div>
 
-                {/* Forms Section */}
-                <div ref={formsRef} style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Forms</h3>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => viewSectionData('components')}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          backgroundColor: 'var(--muted)',
-                          color: 'var(--foreground)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        🔍 View Data
-                      </button>
-                      <button
-                        onClick={() => openDialogForStage(4)}
-                        disabled={isGenerating}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          backgroundColor: currentGeneratingStage === 4 ? 'var(--primary)' : 'var(--accent)',
-                          color: currentGeneratingStage === 4 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: isGenerating ? 'not-allowed' : 'pointer',
-                          opacity: isGenerating && currentGeneratingStage !== 4 ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        {currentGeneratingStage === 4 ? '⏳' : '🔄'} Regenerate
-                      </button>
-                    </div>
+                  {/* Buttons Subsection */}
+                  <div ref={buttonsRef} style={{ marginBottom: '24px' }}>
+                    <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>🔘 Buttons</h3>
+                    <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Default button styles, typography, colors, and hover states</p>
+                    {renderButtons()}
                   </div>
-                  {renderForms()}
+
+                  {/* Forms Subsection */}
+                  <div ref={formsRef}>
+                    <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>📝 Form Fields</h3>
+                    <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Form field styles, labels, borders, and focus states</p>
+                    {renderForms()}
+                  </div>
                 </div>
 
                 {/* Images Section */}

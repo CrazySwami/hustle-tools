@@ -1591,6 +1591,134 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
             />
           </div>
         </div>
+
+        {/* Form Label Typography Section */}
+        <div style={{ marginTop: '32px', padding: '20px', backgroundColor: 'var(--muted)/20', border: '2px dashed var(--border)', borderRadius: '8px' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Form Label Typography</h3>
+
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+              {getStatusIcon(getFieldStatus(s.form_label_typography_font_family, null))} Font Family
+            </label>
+            <input
+              type="text"
+              value={s.form_label_typography_font_family || ''}
+              onChange={(e) => updateSetting('form_label_typography_font_family', e.target.value)}
+              placeholder="e.g., Inter, Roboto, Arial"
+              style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+                {getStatusIcon(getFieldStatus(s.form_label_typography_font_weight, null))} Font Weight
+              </label>
+              <select
+                value={s.form_label_typography_font_weight || '500'}
+                onChange={(e) => updateSetting('form_label_typography_font_weight', e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+              >
+                <option value="300">300 - Light</option>
+                <option value="400">400 - Normal</option>
+                <option value="500">500 - Medium</option>
+                <option value="600">600 - Semi Bold</option>
+                <option value="700">700 - Bold</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+                {getStatusIcon(getFieldStatus(s.form_label_typography_font_size, null))} Font Size
+              </label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input
+                  type="number"
+                  value={s.form_label_typography_font_size?.size || ''}
+                  onChange={(e) => updateSize('form_label_typography_font_size', 'size', parseFloat(e.target.value))}
+                  placeholder="14"
+                  style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                />
+                <select
+                  value={s.form_label_typography_font_size?.unit || 'px'}
+                  onChange={(e) => updateSize('form_label_typography_font_size', 'unit', e.target.value)}
+                  style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                >
+                  <option value="px">px</option>
+                  <option value="em">em</option>
+                  <option value="rem">rem</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+                {getStatusIcon(getFieldStatus(s.form_label_typography_line_height, null))} Line Height
+              </label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={s.form_label_typography_line_height?.size || ''}
+                  onChange={(e) => updateSize('form_label_typography_line_height', 'size', parseFloat(e.target.value))}
+                  placeholder="1.5"
+                  style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                />
+                <select
+                  value={s.form_label_typography_line_height?.unit || 'em'}
+                  onChange={(e) => updateSize('form_label_typography_line_height', 'unit', e.target.value)}
+                  style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                >
+                  <option value="em">em</option>
+                  <option value="px">px</option>
+                  <option value="">default</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+                {getStatusIcon(getFieldStatus(s.form_label_typography_letter_spacing, null))} Letter Spacing
+              </label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={s.form_label_typography_letter_spacing?.size || ''}
+                  onChange={(e) => updateSize('form_label_typography_letter_spacing', 'size', parseFloat(e.target.value))}
+                  placeholder="0"
+                  style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                />
+                <select
+                  value={s.form_label_typography_letter_spacing?.unit || 'px'}
+                  onChange={(e) => updateSize('form_label_typography_letter_spacing', 'unit', e.target.value)}
+                  style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                >
+                  <option value="px">px</option>
+                  <option value="em">em</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+              {getStatusIcon(getFieldStatus(s.form_label_typography_text_transform, null))} Text Transform
+            </label>
+            <select
+              value={s.form_label_typography_text_transform || ''}
+              onChange={(e) => updateSetting('form_label_typography_text_transform', e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+            >
+              <option value="">Default</option>
+              <option value="uppercase">UPPERCASE</option>
+              <option value="lowercase">lowercase</option>
+              <option value="capitalize">Capitalize</option>
+            </select>
+          </div>
+        </div>
       </div>
     );
   };

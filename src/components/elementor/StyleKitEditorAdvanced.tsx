@@ -1316,7 +1316,6 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                   width: '100%',
                   height: '180px',
                   background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  borderRadius: s.image_styles?.image_border_radius?.top + 'px' || '8px',
                   boxShadow: s.image_styles?.image_box_shadow || '0 4px 12px rgba(0,0,0,0.08)',
                   objectFit: s.image_styles?.image_object_fit || 'cover',
                   ...getImageStyle(),
@@ -1701,7 +1700,6 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                     width: '100%',
                     height: '180px',
                     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    borderRadius: kit.page_settings?.image_styles?.image_border_radius?.top + 'px' || '8px',
                     boxShadow: kit.page_settings?.image_styles?.image_box_shadow || '0 4px 12px rgba(0,0,0,0.08)',
                     objectFit: kit.page_settings?.image_styles?.image_object_fit || 'cover',
                     ...(image1Hovered ? { ...getImageStyle(), ...getImageHoverStyle() } : getImageStyle()),
@@ -1729,7 +1727,6 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                     width: '100%',
                     height: '180px',
                     background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                    borderRadius: kit.page_settings?.image_styles?.image_border_radius?.top + 'px' || '8px',
                     boxShadow: kit.page_settings?.image_styles?.image_box_shadow || '0 4px 12px rgba(0,0,0,0.08)',
                     objectFit: kit.page_settings?.image_styles?.image_object_fit || 'cover',
                     ...(image2Hovered ? { ...getImageStyle(), ...getImageHoverStyle() } : getImageStyle()),
@@ -2085,7 +2082,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     { id: 'layout', label: 'Layout Settings', ref: layoutRef },
   ];
 
-  const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => {
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 

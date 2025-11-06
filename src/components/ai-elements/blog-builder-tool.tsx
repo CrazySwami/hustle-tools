@@ -438,6 +438,16 @@ export function BlogBuilderTool() {
     keywords: [] as string[]
   })
 
+  // Schema generator modal
+  const [showSchemaGenerator, setShowSchemaGenerator] = useState(false)
+  const [schemaPrompt, setSchemaPrompt] = useState('')
+  const [schemaModel, setSchemaModel] = useState('anthropic/claude-sonnet-4-20250514')
+  const [generatedSchema, setGeneratedSchema] = useState('')
+  const [isGeneratingSchema, setIsGeneratingSchema] = useState(false)
+
+  // Navigation tabs
+  const [activeTab, setActiveTab] = useState('workflow')
+
   const [contentForm, setContentForm] = useState<ContentOrderForm>({
     currentUrl: "",
     businessName: "",
@@ -1036,6 +1046,103 @@ Instructions:
       }
     }
     reader.readAsText(file)
+  }
+
+  const generateJsonSchema = async () => {
+    if (!schemaPrompt.trim()) {
+      alert('Please enter a description of the JSON structure you need')
+      return
+    }
+
+    setIsGeneratingSchema(true)
+    setGeneratedSchema('')
+
+    try {
+      const response = await fetch('/api/chat-elementor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'user',
+              content: `Generate a JSON Schema based on this description: ${schemaPrompt}
+
+IMPORTANT: Return ONLY the JSON Schema object, with no additional text, explanations, or markdown formatting.
+
+The schema should follow JSON Schema Draft 7 format with:
+- type: "object"
+- properties: { ... } defining each field
+- required: [...] array listing required fields
+
+Example format:
+{
+  "type": "object",
+  "properties": {
+    "title": { "type": "string" },
+    "items": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["title"]
+}`
+            }
+          ],
+          model: schemaModel,
+          webSearch: false,
+          enableReasoning: false,
+          enableTools: false
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate schema')
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let schema = ''
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          schema += chunk
+          setGeneratedSchema(schema)
+        }
+      }
+
+      // Try to parse and prettify the JSON
+      try {
+        const parsed = JSON.parse(schema)
+        const prettified = JSON.stringify(parsed, null, 2)
+        setGeneratedSchema(prettified)
+      } catch (e) {
+        // If parsing fails, just use the raw response
+        console.warn('Could not parse generated schema as JSON:', e)
+      }
+
+    } catch (error) {
+      console.error('Schema generation error:', error)
+      alert('Failed to generate schema. Please try again.')
+    } finally {
+      setIsGeneratingSchema(false)
+    }
+  }
+
+  const applyGeneratedSchema = () => {
+    if (!configuringStep || !generatedSchema.trim()) return
+
+    const updatedSteps = steps.map(s =>
+      s.id === configuringStep.id ? { ...s, jsonSchema: generatedSchema } : s
+    )
+    setSteps(updatedSteps)
+    setConfiguringStep({ ...configuringStep, jsonSchema: generatedSchema })
+    setShowSchemaGenerator(false)
+    setSchemaPrompt('')
+    setGeneratedSchema('')
   }
 
   const toggleStep = (stepId: string) => {
@@ -2573,9 +2680,20 @@ Provide a detailed review with specific feedback and suggested edits.`
                         setSteps(updatedSteps)
                       }}
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Enter a JSON Schema that defines the structure of the expected JSON response
-                    </p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-xs text-gray-500">
+                        Enter a JSON Schema that defines the structure of the expected JSON response
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => setShowSchemaGenerator(true)}
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        Generate with AI
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2920,80 +3038,145 @@ Replace the placeholder values with actual client information and format it as v
         </div>
       )}
 
-    {/* Main Layout */}
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Top Toolbar */}
-      <div className="bg-white border-b shadow-sm sticky top-0 z-40">
-        <div className="px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-bold text-gray-900">Blog Builder</h1>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowVariableBank(true)}
-                className="text-xs"
-              >
-                <Database className="h-3 w-3 mr-1.5" />
-                Variables ({12 + customVariables.length})
+      {/* Schema Generator Modal */}
+      {showSchemaGenerator && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-6 w-6 text-purple-600" />
+                <div>
+                  <h2 className="text-xl font-bold">Generate JSON Schema with AI</h2>
+                  <p className="text-sm text-gray-500">Describe what you need and AI will generate the schema</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => {
+                setShowSchemaGenerator(false)
+                setSchemaPrompt('')
+                setGeneratedSchema('')
+              }}>
+                <X className="h-4 w-4" />
               </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Select Model</label>
+                <select
+                  className="w-full p-2 border rounded-lg text-sm"
+                  value={schemaModel}
+                  onChange={(e) => setSchemaModel(e.target.value)}
+                >
+                  <optgroup label="Anthropic">
+                    <option value="anthropic/claude-opus-4-20250514">Claude Opus 4</option>
+                    <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                    <option value="anthropic/claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+                  </optgroup>
+                  <optgroup label="OpenAI">
+                    <option value="openai/gpt-4.1">GPT-4.1</option>
+                    <option value="openai/gpt-4.1-mini">GPT-4.1 mini</option>
+                    <option value="openai/gpt-4o">GPT-4o</option>
+                  </optgroup>
+                  <optgroup label="Google">
+                    <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
+                    <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Describe the JSON structure you need
+                </label>
+                <Textarea
+                  rows={6}
+                  placeholder={`Example: I need a schema for a blog outline with a title (string), author (string), sections (array of objects with heading and content), and tags (array of strings)`}
+                  value={schemaPrompt}
+                  onChange={(e) => setSchemaPrompt(e.target.value)}
+                  className="text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Be specific about field names, types, and whether they're required or optional
+                </p>
+              </div>
+
               <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowClientImporter(true)}
-                className="text-xs"
+                onClick={generateJsonSchema}
+                disabled={isGeneratingSchema || !schemaPrompt.trim()}
+                className="w-full"
               >
-                <Upload className="h-3 w-3 mr-1.5" />
-                Import Clients
+                {isGeneratingSchema ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Generating Schema...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Generate Schema
+                  </>
+                )}
               </Button>
+
+              {generatedSchema && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Generated Schema</label>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedSchema)
+                        alert('Schema copied to clipboard!')
+                      }}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy
+                    </Button>
+                  </div>
+                  <Textarea
+                    rows={12}
+                    value={generatedSchema}
+                    onChange={(e) => setGeneratedSchema(e.target.value)}
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Review and edit the schema if needed, then click Apply
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t flex justify-end gap-2">
               <Button
-                size="sm"
-                variant="outline"
-                onClick={exportWorkflow}
-                className="text-xs"
-              >
-                <Download className="h-3 w-3 mr-1.5" />
-                Export Workflow
-              </Button>
-              <Button
-                size="sm"
                 variant="outline"
                 onClick={() => {
-                  const input = document.createElement('input')
-                  input.type = 'file'
-                  input.accept = '.json'
-                  input.onchange = (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0]
-                    if (file) importWorkflow(file)
-                  }
-                  input.click()
+                  setShowSchemaGenerator(false)
+                  setSchemaPrompt('')
+                  setGeneratedSchema('')
                 }}
-                className="text-xs"
               >
-                <FolderOpen className="h-3 w-3 mr-1.5" />
-                Import Workflow
+                Cancel
+              </Button>
+              <Button
+                onClick={applyGeneratedSchema}
+                disabled={!generatedSchema}
+              >
+                Apply Schema
               </Button>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              onClick={() => setBulkMode(!bulkMode)}
-              variant={bulkMode ? 'default' : 'outline'}
-              className="text-xs"
-            >
-              {bulkMode ? 'Exit Bulk Mode' : 'Bulk Mode'}
-            </Button>
-          </div>
         </div>
-      </div>
+      )}
 
-      <TwoPanelChatLayout
+    {/* Main Layout */}
+    <TwoPanelChatLayout
         defaultSplitPercent={35}
         minLeftPercent={25}
         maxLeftPercent={60}
         leftPanel={
-          <div className="flex flex-col h-full overflow-hidden bg-white">
+          <div className="flex flex-col h-full overflow-hidden p-4">
+          <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border overflow-hidden">
           <div className="p-6 space-y-4 overflow-y-auto flex-1">
             <div className="space-y-4 pb-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
@@ -4767,11 +4950,28 @@ Replace the placeholder values with actual client information and format it as v
             )}
           </div>
           </div>
+          </div>
         }
+        navigationBarProps={{
+          logo: 'HT',
+          tabs: [
+            { id: 'workflow', label: 'Workflow', icon: Sparkles },
+            { id: 'variables', label: 'Variables', icon: Database },
+            { id: 'clients', label: 'Clients', icon: Users },
+            { id: 'settings', label: 'Settings', icon: Settings },
+          ],
+          activeTab,
+          onTabChange: setActiveTab,
+        }}
+        navigationBarPosition="right"
         rightPanel={
-          <div className="flex flex-col h-full overflow-hidden bg-gray-50">
+          <div className="flex flex-col h-full overflow-hidden p-4">
+          <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border overflow-hidden">
           <div className="overflow-y-auto p-6 flex-1">
           <div className="max-w-4xl">
+            {/* Workflow Tab */}
+            {activeTab === 'workflow' && (
+            <>
             {!selectedClient ? (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center space-y-4 p-12">

@@ -2778,8 +2778,8 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
 
                   {/* Headings & Body Subsection */}
                   <div ref={headingsRef}>
-                    <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>📝 Headings & Body Text</h3>
-                    <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Configure H1-H6 heading styles and body typography</p>
+                    <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>📝 Stage 3: Headings & Body Text</h3>
+                    <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>H1-H6 heading styles and body typography (generated with Stage 2)</p>
                     {renderThemeTypography()}
                   </div>
                   </div>
@@ -2789,7 +2789,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                 {/* ===== STAGE 4: COMPONENTS ===== */}
                 <div style={{ marginBottom: '48px', padding: '24px', backgroundColor: 'var(--muted)/10', border: '3px solid var(--primary)', borderRadius: '12px' }}>
                   {/* Stage 4 Header with ONE Regenerate Button */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(4)}>
                     <div>
                       <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
                         🔘 Stage 4: Components & Interactions {collapsedStages[4] ? "▶" : "▼"}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { StyleKitGeneratorDialog } from './StyleKitGeneratorDialog';
+import defaultStyleKitTemplate from '@/lib/default-stylekit-template.json';
 
 type FieldStatus = 'missing' | 'default' | 'has-data';
 type EditorTab = 'global-colors' | 'global-typography' | 'theme-typography' | 'buttons' | 'forms' | 'images';
@@ -13,16 +14,14 @@ interface StyleKitEditorAdvancedProps {
 }
 
 export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvancedProps) {
+  // Remove title and description from template, use rest as page_settings
+  const { title: templateTitle, description: templateDesc, ...defaultSettings } = defaultStyleKitTemplate as any;
+
   const [kit, setKit] = useState<any>({
     title: 'My Style Kit',
     type: 'kit',
     version: '0.4',
-    page_settings: {
-      system_colors: [],
-      custom_colors: [],
-      system_typography: [],
-      custom_typography: [],
-    },
+    page_settings: defaultSettings,
     content: [],
   });
 
@@ -143,6 +142,20 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleResetToDefaults = () => {
+    if (confirm('Are you sure you want to reset all values to defaults? This cannot be undone.')) {
+      const { title: templateTitle, description: templateDesc, ...defaultSettings } = defaultStyleKitTemplate as any;
+      setKit({
+        title: 'My Style Kit',
+        type: 'kit',
+        version: '0.4',
+        page_settings: defaultSettings,
+        content: [],
+      });
+      alert('✓ Reset to default values successfully!');
+    }
   };
 
   const openDialogForStage = (stage: 1 | 2 | 3 | 4) => {
@@ -754,120 +767,192 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   const renderThemeTypography = () => {
     const headings = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
     const s = kit.page_settings || {};
-    const prefix = activeHeading;
+
+    // Helper to render settings for a single heading
+    const renderHeadingSection = (prefix: string) => {
+      const headingStyle = getHeadingStyle(prefix as any);
+
+      return (
+        <div style={{
+          marginBottom: '24px',
+          padding: '20px',
+          backgroundColor: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: '8px'
+        }}>
+          {/* Preview */}
+          <div style={{
+            marginBottom: '20px',
+            padding: '16px',
+            backgroundColor: 'var(--muted)',
+            borderRadius: '6px'
+          }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', textTransform: 'uppercase' }}>
+              {prefix.toUpperCase()} PREVIEW
+            </div>
+            <div style={headingStyle}>
+              The quick brown fox jumps over the lazy dog
+            </div>
+            <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>
+              {headingStyle.fontFamily?.split(',')[0].replace(/'/g, '')} • {headingStyle.fontSize} • {headingStyle.fontWeight}
+            </div>
+          </div>
+
+          {/* Font Family */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+              {getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_family`], null))} Font Family
+            </label>
+            <input
+              type="text"
+              value={s[`${prefix}_typography_font_family`] || ''}
+              onChange={(e) => updateSetting(`${prefix}_typography_font_family`, e.target.value)}
+              placeholder="e.g., Roboto, Inter, Arial"
+              style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            {/* Font Weight */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+                {getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_weight`], null))} Weight
+              </label>
+              <select
+                value={s[`${prefix}_typography_font_weight`] || '400'}
+                onChange={(e) => updateSetting(`${prefix}_typography_font_weight`, e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+              >
+                <option value="300">300 - Light</option>
+                <option value="400">400 - Normal</option>
+                <option value="500">500 - Medium</option>
+                <option value="600">600 - Semi Bold</option>
+                <option value="700">700 - Bold</option>
+                <option value="800">800 - Extra Bold</option>
+                <option value="900">900 - Black</option>
+              </select>
+            </div>
+
+            {/* Font Size */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+                {getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_size`], null))} Size
+              </label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input
+                  type="number"
+                  value={s[`${prefix}_typography_font_size`]?.size || ''}
+                  onChange={(e) => updateSize(`${prefix}_typography_font_size`, 'size', parseFloat(e.target.value))}
+                  placeholder="16"
+                  style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                />
+                <select
+                  value={s[`${prefix}_typography_font_size`]?.unit || 'px'}
+                  onChange={(e) => updateSize(`${prefix}_typography_font_size`, 'unit', e.target.value)}
+                  style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                >
+                  <option value="px">px</option>
+                  <option value="em">em</option>
+                  <option value="rem">rem</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
 
     return (
       <div style={{ padding: '20px' }}>
-        <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
-          <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 600 }}>Field Status Legend</h4>
-          <div style={{ display: 'flex', gap: '24px', fontSize: '13px' }}>
-            <div><span style={{ marginRight: '6px', color: '#10b981' }}>●</span>Has Data</div>
-            <div><span style={{ marginRight: '6px', color: '#f59e0b' }}>●</span>Default Value</div>
-            <div><span style={{ marginRight: '6px', color: '#ef4444' }}>●</span>Missing from JSON</div>
+        <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+          <h4 style={{ margin: '0 0 8px', fontSize: '14px', fontWeight: 600 }}>Theme Typography</h4>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted-foreground)' }}>
+            Configure H1-H6 heading styles with live previews
+          </p>
+        </div>
+
+        {/* Body Typography */}
+        <div style={{
+          marginBottom: '24px',
+          padding: '20px',
+          backgroundColor: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: '8px'
+        }}>
+          <div style={{
+            marginBottom: '20px',
+            padding: '16px',
+            backgroundColor: 'var(--muted)',
+            borderRadius: '6px'
+          }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', textTransform: 'uppercase' }}>
+              BODY TEXT PREVIEW
+            </div>
+            <div style={getBodyStyle()}>
+              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. This is how body text will appear throughout your website.
+            </div>
           </div>
-        </div>
 
-        <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {headings.map((h) => (
-            <button
-              key={h}
-              onClick={() => setActiveHeading(h)}
-              style={{
-                padding: '8px 16px',
-                fontSize: '13px',
-                fontWeight: 500,
-                backgroundColor: activeHeading === h ? 'var(--primary)' : 'var(--muted)',
-                color: activeHeading === h ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                textTransform: 'uppercase',
-              }}
-            >
-              {h}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <h3 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 600 }}>
-            {getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_family`], null))} Font Family
-          </h3>
-          <input
-            type="text"
-            value={s[`${prefix}_typography_font_family`] || ''}
-            onChange={(e) => updateSetting(`${prefix}_typography_font_family`, e.target.value)}
-            placeholder="e.g., Inter, Roboto, Arial"
-            style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
-          />
-        </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <h3 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 600 }}>
-            {getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_weight`], null))} Font Weight
-          </h3>
-          <select
-            value={s[`${prefix}_typography_font_weight`] || '400'}
-            onChange={(e) => updateSetting(`${prefix}_typography_font_weight`, e.target.value)}
-            style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
-          >
-            <option value="100">100 - Thin</option>
-            <option value="200">200 - Extra Light</option>
-            <option value="300">300 - Light</option>
-            <option value="400">400 - Normal</option>
-            <option value="500">500 - Medium</option>
-            <option value="600">600 - Semi Bold</option>
-            <option value="700">700 - Bold</option>
-            <option value="800">800 - Extra Bold</option>
-            <option value="900">900 - Black</option>
-          </select>
-        </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <h3 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 600 }}>
-            {getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_size`], null))} Font Size
-          </h3>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input
-              type="number"
-              value={s[`${prefix}_typography_font_size`]?.size || ''}
-              onChange={(e) => updateSize(`${prefix}_typography_font_size`, 'size', parseFloat(e.target.value))}
-              placeholder="48"
-              style={{ flex: 1, padding: '10px 12px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
-            />
-            <select
-              value={s[`${prefix}_typography_font_size`]?.unit || 'px'}
-              onChange={(e) => updateSize(`${prefix}_typography_font_size`, 'unit', e.target.value)}
-              style={{ padding: '10px 12px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
-            >
-              <option value="px">px</option>
-              <option value="em">em</option>
-              <option value="rem">rem</option>
-              <option value="%">%</option>
-            </select>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <h3 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 600 }}>
-            {getStatusIcon(getFieldStatus(s[`${prefix}_color`], null))} Color
-          </h3>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input
-              type="color"
-              value={s[`${prefix}_color`] || '#000000'}
-              onChange={(e) => updateSetting(`${prefix}_color`, e.target.value)}
-              style={{ width: '50px', height: '42px', border: '2px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}
-            />
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+              {getStatusIcon(getFieldStatus(s.body_typography?.typography_font_family, null))} Font Family
+            </label>
             <input
               type="text"
-              value={s[`${prefix}_color`] || ''}
-              onChange={(e) => updateSetting(`${prefix}_color`, e.target.value)}
-              placeholder="#000000"
-              style={{ flex: 1, padding: '10px 12px', fontSize: '14px', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontFamily: 'monospace' }}
+              value={s.body_typography?.typography_font_family || ''}
+              onChange={(e) => updateSetting('body_typography', { ...s.body_typography, typography_font_family: e.target.value })}
+              placeholder="e.g., Roboto, Inter, Arial"
+              style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
             />
           </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>Weight</label>
+              <select
+                value={s.body_typography?.typography_font_weight || '400'}
+                onChange={(e) => updateSetting('body_typography', { ...s.body_typography, typography_font_weight: e.target.value })}
+                style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+              >
+                <option value="300">300</option>
+                <option value="400">400</option>
+                <option value="500">500</option>
+                <option value="600">600</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>Size</label>
+              <input
+                type="number"
+                value={s.body_typography?.typography_font_size?.size || ''}
+                onChange={(e) => updateSetting('body_typography', {
+                  ...s.body_typography,
+                  typography_font_size: { unit: 'px', size: parseFloat(e.target.value), sizes: [] }
+                })}
+                placeholder="16"
+                style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>Color</label>
+              <input
+                type="color"
+                value={s.body_color || '#202020'}
+                onChange={(e) => updateSetting('body_color', e.target.value)}
+                style={{ width: '100%', height: '32px', border: '2px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}
+              />
+            </div>
+          </div>
         </div>
+
+        {/* All Headings */}
+        {headings.map((heading) => (
+          <div key={heading}>
+            {renderHeadingSection(heading)}
+          </div>
+        ))}
       </div>
     );
   };
@@ -882,6 +967,39 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
           <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted-foreground)' }}>
             Configure default button styles for your theme
           </p>
+        </div>
+
+        {/* INLINE PREVIEW */}
+        <div style={{ marginBottom: '32px', padding: '20px', backgroundColor: 'var(--card)', border: '2px solid var(--primary)', borderRadius: '12px' }}>
+          <h4 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600, color: 'var(--primary)' }}>
+            Live Preview
+          </h4>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+              <button style={getButtonStyle()}>
+                Normal State
+              </button>
+              <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Normal</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+              <button style={{ ...getButtonStyle(), ...getButtonHoverStyle() }}>
+                Hover State
+              </button>
+              <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Hover</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+              <button style={{
+                ...getButtonStyle(),
+                outline: `${s.button_focus_outline_width?.size || 2}${s.button_focus_outline_width?.unit || 'px'} solid ${s.button_focus_outline_color || '#0066CC'}`,
+                outlineOffset: '2px'
+              }}>
+                Focus State
+              </button>
+              <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Focus</span>
+            </div>
+          </div>
         </div>
 
         <div style={{ marginBottom: '16px' }}>
@@ -1004,6 +1122,44 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
           <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted-foreground)' }}>
             Configure default form field styles
           </p>
+        </div>
+
+        {/* INLINE PREVIEW */}
+        <div style={{ marginBottom: '32px', padding: '20px', backgroundColor: 'var(--card)', border: '2px solid var(--primary)', borderRadius: '12px' }}>
+          <h4 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600, color: 'var(--primary)' }}>
+            Live Preview
+          </h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+            <div>
+              <label style={{ ...getFormLabelStyle(), display: 'block', marginBottom: '8px' }}>Normal State</label>
+              <input
+                type="text"
+                placeholder="Normal input field..."
+                style={getFormInputStyle()}
+              />
+            </div>
+            <div>
+              <label style={{ ...getFormLabelStyle(), display: 'block', marginBottom: '8px' }}>Focus State</label>
+              <input
+                type="text"
+                placeholder="Focused input field..."
+                style={{
+                  ...getFormInputStyle(),
+                  ...getFormInputFocusStyle(),
+                  borderColor: s.form_field_focus_border_color || '#0066CC',
+                  boxShadow: `0 0 0 3px ${s.form_field_focus_shadow_color || 'rgba(0, 102, 204, 0.1)'}`,
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ ...getFormLabelStyle(), display: 'block', marginBottom: '8px' }}>Textarea</label>
+              <textarea
+                placeholder="Enter your message..."
+                rows={3}
+                style={{ ...getFormInputStyle(), resize: 'vertical' }}
+              />
+            </div>
+          </div>
         </div>
 
         <div style={{ marginBottom: '16px' }}>
@@ -1146,6 +1302,41 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
           <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted-foreground)' }}>
             Configure default image styles and effects
           </p>
+        </div>
+
+        {/* INLINE PREVIEW */}
+        <div style={{ marginBottom: '32px', padding: '20px', backgroundColor: 'var(--card)', border: '2px solid var(--primary)', borderRadius: '12px' }}>
+          <h4 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600, color: 'var(--primary)' }}>
+            Live Preview
+          </h4>
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            <div style={{ width: '250px' }}>
+              <div
+                style={{
+                  width: '100%',
+                  height: '180px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  borderRadius: s.image_styles?.image_border_radius?.top + 'px' || '8px',
+                  boxShadow: s.image_styles?.image_box_shadow || '0 4px 12px rgba(0,0,0,0.08)',
+                  objectFit: s.image_styles?.image_object_fit || 'cover',
+                  ...getImageStyle(),
+                }}
+              />
+              {s.image_styles?.image_caption_typography && (
+                <div style={{
+                  marginTop: '8px',
+                  fontFamily: s.image_styles.image_caption_typography.typography_font_family || 'inherit',
+                  fontSize: s.image_styles.image_caption_typography.typography_font_size?.size + (s.image_styles.image_caption_typography.typography_font_size?.unit || 'px'),
+                  fontWeight: s.image_styles.image_caption_typography.typography_font_weight || 400,
+                  lineHeight: s.image_styles.image_caption_typography.typography_line_height?.size || 1.4,
+                  color: s.image_styles.image_caption_color || '#333',
+                  textAlign: 'center',
+                }}>
+                  Image with caption styling
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div style={{ marginBottom: '16px' }}>
@@ -1501,40 +1692,230 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
           <section style={{ marginBottom: '48px' }}>
             <h3 style={getHeadingStyle('h3')}>Images & Visual Elements</h3>
             <p style={getBodyStyle()}>
-              Images can have hover effects, filters, and borders defined in your style kit.
+              Images can have hover effects, filters, borders, and captions defined in your style kit.
             </p>
-            <div style={{ marginTop: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-              <div
-                style={{
-                  width: '250px',
-                  height: '180px',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  ...(image1Hovered ? { ...getImageStyle(), ...getImageHoverStyle() } : getImageStyle()),
-                }}
-                onMouseEnter={() => setImage1Hovered(true)}
-                onMouseLeave={() => setImage1Hovered(false)}
-              />
-              <div
-                style={{
-                  width: '250px',
-                  height: '180px',
-                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                  ...(image2Hovered ? { ...getImageStyle(), ...getImageHoverStyle() } : getImageStyle()),
-                }}
-                onMouseEnter={() => setImage2Hovered(true)}
-                onMouseLeave={() => setImage2Hovered(false)}
-              />
+            <div style={{ marginTop: '20px', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+              <div style={{ width: '250px' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '180px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    borderRadius: kit.page_settings?.image_styles?.image_border_radius?.top + 'px' || '8px',
+                    boxShadow: kit.page_settings?.image_styles?.image_box_shadow || '0 4px 12px rgba(0,0,0,0.08)',
+                    objectFit: kit.page_settings?.image_styles?.image_object_fit || 'cover',
+                    ...(image1Hovered ? { ...getImageStyle(), ...getImageHoverStyle() } : getImageStyle()),
+                  }}
+                  onMouseEnter={() => setImage1Hovered(true)}
+                  onMouseLeave={() => setImage1Hovered(false)}
+                />
+                {kit.page_settings?.image_styles?.image_caption_typography && (
+                  <div style={{
+                    marginTop: '8px',
+                    fontFamily: kit.page_settings.image_styles.image_caption_typography.typography_font_family || 'inherit',
+                    fontSize: kit.page_settings.image_styles.image_caption_typography.typography_font_size?.size + (kit.page_settings.image_styles.image_caption_typography.typography_font_size?.unit || 'px'),
+                    fontWeight: kit.page_settings.image_styles.image_caption_typography.typography_font_weight || 400,
+                    lineHeight: kit.page_settings.image_styles.image_caption_typography.typography_line_height?.size || 1.4,
+                    color: kit.page_settings.image_styles.image_caption_color || '#333',
+                    textAlign: 'center',
+                  }}>
+                    Beautiful gradient image with caption styling
+                  </div>
+                )}
+              </div>
+              <div style={{ width: '250px' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '180px',
+                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    borderRadius: kit.page_settings?.image_styles?.image_border_radius?.top + 'px' || '8px',
+                    boxShadow: kit.page_settings?.image_styles?.image_box_shadow || '0 4px 12px rgba(0,0,0,0.08)',
+                    objectFit: kit.page_settings?.image_styles?.image_object_fit || 'cover',
+                    ...(image2Hovered ? { ...getImageStyle(), ...getImageHoverStyle() } : getImageStyle()),
+                  }}
+                  onMouseEnter={() => setImage2Hovered(true)}
+                  onMouseLeave={() => setImage2Hovered(false)}
+                />
+                {kit.page_settings?.image_styles?.image_caption_typography && (
+                  <div style={{
+                    marginTop: '8px',
+                    fontFamily: kit.page_settings.image_styles.image_caption_typography.typography_font_family || 'inherit',
+                    fontSize: kit.page_settings.image_styles.image_caption_typography.typography_font_size?.size + (kit.page_settings.image_styles.image_caption_typography.typography_font_size?.unit || 'px'),
+                    fontWeight: kit.page_settings.image_styles.image_caption_typography.typography_font_weight || 400,
+                    lineHeight: kit.page_settings.image_styles.image_caption_typography.typography_line_height?.size || 1.4,
+                    color: kit.page_settings.image_styles.image_caption_color || '#333',
+                    textAlign: 'center',
+                  }}>
+                    Another image with consistent caption style
+                  </div>
+                )}
+              </div>
             </div>
             <p style={{ ...getBodyStyle(), marginTop: '16px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
-              Hover over images to see effects like scale, brightness, saturation, and blur defined in your style kit.
+              Hover over images to see effects. Captions use the image_caption_typography settings.
             </p>
           </section>
 
-          {/* Color Palette */}
+          {/* Button States (Hover & Focus) */}
           <section style={{ marginBottom: '48px' }}>
-            <h3 style={getHeadingStyle('h3')}>Color Palette</h3>
+            <h3 style={getHeadingStyle('h3')}>Button States - Hover & Focus</h3>
             <p style={getBodyStyle()}>
-              These are the system colors defined in your style kit:
+              Buttons have normal, hover, and focus states all styled by your style kit:
+            </p>
+            <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                <button style={{
+                  ...getButtonStyle(),
+                  padding: kit.page_settings?.button_padding ?
+                    `${kit.page_settings.button_padding.top}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.right}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.bottom}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.left}${kit.page_settings.button_padding.unit || 'px'}`
+                    : '12px 24px',
+                }}>
+                  Normal State
+                </button>
+                <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Normal</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                <button style={{
+                  ...getButtonStyle(),
+                  ...getButtonHoverStyle(),
+                  padding: kit.page_settings?.button_padding ?
+                    `${kit.page_settings.button_padding.top}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.right}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.bottom}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.left}${kit.page_settings.button_padding.unit || 'px'}`
+                    : '12px 24px',
+                }}>
+                  Hover State
+                </button>
+                <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Hover</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                <button style={{
+                  ...getButtonStyle(),
+                  outline: `${kit.page_settings?.button_focus_outline_width?.size || 2}${kit.page_settings?.button_focus_outline_width?.unit || 'px'} solid ${kit.page_settings?.button_focus_outline_color || '#0066CC'}`,
+                  outlineOffset: '2px',
+                  padding: kit.page_settings?.button_padding ?
+                    `${kit.page_settings.button_padding.top}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.right}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.bottom}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.left}${kit.page_settings.button_padding.unit || 'px'}`
+                    : '12px 24px',
+                }}>
+                  Focus State
+                </button>
+                <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Focus</span>
+              </div>
+            </div>
+            <p style={{ ...getBodyStyle(), marginTop: '16px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+              All three states use colors and dimensions from your style kit (button_hover_background_color, button_focus_outline_color, etc.)
+            </p>
+          </section>
+
+          {/* Form Field States */}
+          <section style={{ marginBottom: '48px' }}>
+            <h3 style={getHeadingStyle('h3')}>Form Field States - Normal & Focus</h3>
+            <p style={getBodyStyle()}>
+              Form fields have normal and focus states with borders and shadows:
+            </p>
+            <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+              <div>
+                <label style={{ ...getFormLabelStyle(), display: 'block', marginBottom: '8px' }}>Normal State</label>
+                <input
+                  type="text"
+                  placeholder="Normal input field..."
+                  style={{
+                    ...getFormInputStyle(),
+                    padding: kit.page_settings?.form_field_padding ?
+                      `${kit.page_settings.form_field_padding.top}${kit.page_settings.form_field_padding.unit || 'px'} ${kit.page_settings.form_field_padding.right}${kit.page_settings.form_field_padding.unit || 'px'}`
+                      : '10px 12px',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ ...getFormLabelStyle(), display: 'block', marginBottom: '8px' }}>Focus State</label>
+                <input
+                  type="text"
+                  placeholder="Focused input field..."
+                  style={{
+                    ...getFormInputStyle(),
+                    ...getFormInputFocusStyle(),
+                    borderColor: kit.page_settings?.form_field_focus_border_color || '#0066CC',
+                    boxShadow: `0 0 0 3px ${kit.page_settings?.form_field_focus_shadow_color || 'rgba(0, 102, 204, 0.1)'}`,
+                    padding: kit.page_settings?.form_field_padding ?
+                      `${kit.page_settings.form_field_padding.top}${kit.page_settings.form_field_padding.unit || 'px'} ${kit.page_settings.form_field_padding.right}${kit.page_settings.form_field_padding.unit || 'px'}`
+                      : '10px 12px',
+                  }}
+                />
+              </div>
+            </div>
+            <p style={{ ...getBodyStyle(), marginTop: '16px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+              Focus state uses form_field_focus_border_color and form_field_focus_shadow_color from your style kit
+            </p>
+          </section>
+
+          {/* Layout Settings */}
+          <section style={{ marginBottom: '48px' }}>
+            <h3 style={getHeadingStyle('h3')}>Layout & Spacing Settings</h3>
+            <p style={getBodyStyle()}>
+              Global layout settings that control container widths and widget spacing:
+            </p>
+            <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '4px' }}>
+                  CONTAINER WIDTH
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 600, color: 'var(--foreground)' }}>
+                  {kit.page_settings?.container_width?.size || 1200}{kit.page_settings?.container_width?.unit || 'px'}
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginTop: '4px' }}>
+                  Maximum width for centered content containers
+                </div>
+              </div>
+
+              <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px' }}>
+                  WIDGET SPACING
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '4px' }}>Column Gap</div>
+                    <div style={{ fontSize: '20px', fontWeight: 600 }}>
+                      {kit.page_settings?.space_between_widgets?.column || 20}{kit.page_settings?.space_between_widgets?.unit || 'px'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '4px' }}>Row Gap</div>
+                    <div style={{ fontSize: '20px', fontWeight: 600 }}>
+                      {kit.page_settings?.space_between_widgets?.row || 20}{kit.page_settings?.space_between_widgets?.unit || 'px'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px' }}>
+                  RESPONSIVE BREAKPOINTS
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '4px' }}>Tablet Breakpoint</div>
+                    <div style={{ fontSize: '20px', fontWeight: 600 }}>
+                      {kit.page_settings?.viewport_md || 768}px
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '4px' }}>Desktop Breakpoint</div>
+                    <div style={{ fontSize: '20px', fontWeight: 600 }}>
+                      {kit.page_settings?.viewport_lg || 1025}px
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* System Color Palette */}
+          <section style={{ marginBottom: '48px' }}>
+            <h3 style={getHeadingStyle('h3')}>System Color Palette</h3>
+            <p style={getBodyStyle()}>
+              These are the 4 system colors defined in your style kit:
             </p>
             <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
               {(kit.page_settings?.system_colors || []).map((color: any, index: number) => (
@@ -1554,6 +1935,105 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
               ))}
             </div>
           </section>
+
+          {/* Custom Colors */}
+          {kit.page_settings?.custom_colors && kit.page_settings.custom_colors.length > 0 && (
+            <section style={{ marginBottom: '48px' }}>
+              <h3 style={getHeadingStyle('h3')}>Custom Colors</h3>
+              <p style={getBodyStyle()}>
+                Additional custom colors from your brand palette ({kit.page_settings.custom_colors.length} colors):
+              </p>
+              <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
+                {kit.page_settings.custom_colors.map((color: any, index: number) => (
+                  <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{
+                      width: '100%',
+                      height: '80px',
+                      backgroundColor: color.color,
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                    }} />
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{color.title}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>
+                      {color.color}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* System Typography Presets */}
+          <section style={{ marginBottom: '48px' }}>
+            <h3 style={getHeadingStyle('h3')}>System Typography Presets</h3>
+            <p style={getBodyStyle()}>
+              The 4 system typography presets (Primary, Secondary, Text, Accent) that can be applied to any element:
+            </p>
+            <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {(kit.page_settings?.system_typography || []).map((typo: any, index: number) => {
+                const style = {
+                  fontFamily: typo.typography_font_family || 'inherit',
+                  fontSize: typo.typography_font_size?.size + (typo.typography_font_size?.unit || 'px'),
+                  fontWeight: typo.typography_font_weight || 400,
+                  lineHeight: typo.typography_line_height?.size || 1.5,
+                  letterSpacing: typo.typography_letter_spacing?.size ? `${typo.typography_letter_spacing.size}${typo.typography_letter_spacing.unit || 'px'}` : 'normal',
+                  textTransform: typo.typography_text_transform || 'none',
+                  fontStyle: typo.typography_font_style || 'normal',
+                  textDecoration: typo.typography_text_decoration || 'none',
+                };
+
+                return (
+                  <div key={index} style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', textTransform: 'uppercase' }}>
+                      {typo.title}
+                    </div>
+                    <div style={style as any}>
+                      The quick brown fox jumps over the lazy dog - TYPOGRAPHY PREVIEW
+                    </div>
+                    <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>
+                      {typo.typography_font_family} • {typo.typography_font_size?.size}{typo.typography_font_size?.unit} • {typo.typography_font_weight}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Custom Typography Presets */}
+          {kit.page_settings?.custom_typography && kit.page_settings.custom_typography.length > 0 && (
+            <section style={{ marginBottom: '48px' }}>
+              <h3 style={getHeadingStyle('h3')}>Custom Typography Presets</h3>
+              <p style={getBodyStyle()}>
+                Custom typography styles you can apply throughout your site ({kit.page_settings.custom_typography.length} presets):
+              </p>
+              <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {kit.page_settings.custom_typography.map((typo: any, index: number) => {
+                  const style = {
+                    fontFamily: typo.typography_font_family || 'inherit',
+                    fontSize: typo.typography_font_size?.size + (typo.typography_font_size?.unit || 'px'),
+                    fontWeight: typo.typography_font_weight || 400,
+                    lineHeight: typo.typography_line_height?.size || 1.5,
+                    letterSpacing: typo.typography_letter_spacing?.size ? `${typo.typography_letter_spacing.size}${typo.typography_letter_spacing.unit || 'px'}` : 'normal',
+                    textTransform: typo.typography_text_transform || 'none',
+                  };
+
+                  return (
+                    <div key={index} style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', textTransform: 'uppercase' }}>
+                        {typo.title}
+                      </div>
+                      <div style={style as any}>
+                        The quick brown fox jumps over the lazy dog
+                      </div>
+                      <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>
+                        {typo.typography_font_family} • {typo.typography_font_size?.size}{typo.typography_font_size?.unit} • {typo.typography_font_weight}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Typography Specimens */}
           <section>
@@ -1605,7 +2085,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     { id: 'layout', label: 'Layout Settings', ref: layoutRef },
   ];
 
-  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -1616,6 +2096,9 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Style Kit Editor</h2>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            <button onClick={handleResetToDefaults} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 500, backgroundColor: 'var(--destructive)', color: 'var(--destructive-foreground)', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              Reset to Defaults
+            </button>
             <button onClick={() => setShowAIDialog(true)} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 500, backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               AI Generate
             </button>

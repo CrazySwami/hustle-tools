@@ -4126,8 +4126,45 @@ Provide a detailed review with specific feedback and suggested edits.`
                         </div>
                       )}
                     </div>
+
+                    {/* Add Step Button (Between Steps) */}
+                    <div className="flex items-center justify-center py-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs border-dashed border-2 hover:border-blue-500 hover:bg-blue-50 text-gray-600 hover:text-blue-600"
+                        onClick={() => {
+                          const newPosition = index + 1
+                          const title = prompt('Enter step title:')
+                          if (title) {
+                            addCustomStep(title, newPosition)
+                          }
+                        }}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Step
+                      </Button>
+                    </div>
                   </React.Fragment>
                   ))}
+
+                  {/* Add Step Button (At End) */}
+                  <div className="flex items-center justify-center pt-4">
+                    <Button
+                      variant="default"
+                      size="default"
+                      className="bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg"
+                      onClick={() => {
+                        const title = prompt('Enter step title:')
+                        if (title) {
+                          addCustomStep(title, steps.length)
+                        }
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add New Step
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Progress Bar */}
@@ -4205,8 +4242,10 @@ Provide a detailed review with specific feedback and suggested edits.`
               </div>
             )}
           </div>
-        </div>
-      </div>
+          </div>
+          </div>
+        }
+      />
 
       {/* Client Bio Modal */}
       {showClientBio && selectedClient && (

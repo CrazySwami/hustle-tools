@@ -111,6 +111,29 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     updateSetting(key, { ...current, [field]: value });
   };
 
+  // Helper to update nested typography fields (h1-h6)
+  const updateTypographyField = (prefix: string, field: string, value: any) => {
+    const typoKey = `${prefix}_typography`;
+    const currentTypo = kit.page_settings[typoKey] || {};
+    const nestedField = field.replace(`${prefix}_typography_`, 'typography_');
+    updateSetting(typoKey, { ...currentTypo, [nestedField]: value });
+    // Also keep flat for backwards compatibility
+    updateSetting(field, value);
+  };
+
+  // Helper to update nested typography size fields
+  const updateTypographySize = (prefix: string, field: string, sizeField: string, value: any) => {
+    const typoKey = `${prefix}_typography`;
+    const currentTypo = kit.page_settings[typoKey] || {};
+    const currentSize = currentTypo[`typography_${field}`] || { unit: 'px', size: 0 };
+    const nestedField = `typography_${field}`;
+    updateSetting(typoKey, { ...currentTypo, [nestedField]: { ...currentSize, [sizeField]: value } });
+    // Also keep flat for backwards compatibility
+    const flatKey = `${prefix}_typography_${field}`;
+    const flatCurrent = kit.page_settings[flatKey] || { unit: 'px', size: 0 };
+    updateSetting(flatKey, { ...flatCurrent, [sizeField]: value });
+  };
+
   const handleExport = () => {
     const dataStr = JSON.stringify(kit, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -407,14 +430,15 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   const getHeadingStyle = (level: string) => {
     const s = kit.page_settings || {};
     const prefix = level;
+    const typo = s[`${prefix}_typography`] || {};
     return {
-      fontFamily: s[`${prefix}_typography_font_family`] || 'Inter',
-      fontWeight: s[`${prefix}_typography_font_weight`] || '700',
-      fontSize: `${s[`${prefix}_typography_font_size`]?.size || 48}${s[`${prefix}_typography_font_size`]?.unit || 'px'}`,
-      lineHeight: s[`${prefix}_typography_line_height`]?.size || 1.2,
-      letterSpacing: `${s[`${prefix}_typography_letter_spacing`]?.size || 0}${s[`${prefix}_typography_letter_spacing`]?.unit || 'px'}`,
-      textTransform: s[`${prefix}_typography_text_transform`] || 'none',
-      color: s[`${prefix}_color`] || '#000000',
+      fontFamily: typo.typography_font_family || (s[`${prefix}_typography`]?.typography_font_family || s[`${prefix}_typography_font_family`]) || 'Inter',
+      fontWeight: typo.typography_font_weight || (s[`${prefix}_typography`]?.typography_font_weight || s[`${prefix}_typography_font_weight`]) || '700',
+      fontSize: `${typo.typography_font_size?.size || (s[`${prefix}_typography`]?.typography_font_size || s[`${prefix}_typography_font_size`])?.size || 48}${typo.typography_font_size?.unit || (s[`${prefix}_typography`]?.typography_font_size || s[`${prefix}_typography_font_size`])?.unit || 'px'}`,
+      lineHeight: typo.typography_line_height?.size || (s[`${prefix}_typography`]?.typography_line_height || s[`${prefix}_typography_line_height`])?.size || 1.2,
+      letterSpacing: `${typo.typography_letter_spacing?.size || (s[`${prefix}_typography`]?.typography_letter_spacing || s[`${prefix}_typography_letter_spacing`])?.size || 0}${typo.typography_letter_spacing?.unit || (s[`${prefix}_typography`]?.typography_letter_spacing || s[`${prefix}_typography_letter_spacing`])?.unit || 'px'}`,
+      textTransform: typo.typography_text_transform || (s[`${prefix}_typography`]?.typography_text_transform || s[`${prefix}_typography_text_transform`]) || 'none',
+      color: typo.typography_text_color || (s[`${prefix}_typography`]?.typography_text_color || s[`${prefix}_color`]) || '#000000',
     };
   };
 
@@ -803,12 +827,12 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
           {/* Font Family */}
           <div style={{ marginBottom: '12px' }}>
             <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
-              {getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_family`], null))} Font Family
+              {getStatusIcon(getFieldStatus((s[`${prefix}_typography`]?.typography_font_family || s[`${prefix}_typography_font_family`]), null))} Font Family
             </label>
             <input
               type="text"
-              value={s[`${prefix}_typography_font_family`] || ''}
-              onChange={(e) => updateSetting(`${prefix}_typography_font_family`, e.target.value)}
+              value={(s[`${prefix}_typography`]?.typography_font_family || s[`${prefix}_typography_font_family`]) || ''}
+              onChange={(e) => updateTypographyField(prefix, `${prefix}_typography_font_family`, e.target.value)}
               placeholder="e.g., Roboto, Inter, Arial"
               style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
             />
@@ -818,11 +842,11 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
             {/* Font Weight */}
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
-                {getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_weight`], null))} Weight
+                {getStatusIcon(getFieldStatus((s[`${prefix}_typography`]?.typography_font_weight || s[`${prefix}_typography_font_weight`]), null))} Weight
               </label>
               <select
-                value={s[`${prefix}_typography_font_weight`] || '400'}
-                onChange={(e) => updateSetting(`${prefix}_typography_font_weight`, e.target.value)}
+                value={(s[`${prefix}_typography`]?.typography_font_weight || s[`${prefix}_typography_font_weight`]) || '400'}
+                onChange={(e) => updateTypographyField(prefix, `${prefix}_typography_font_weight`, e.target.value)}
                 style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
               >
                 <option value="300">300 - Light</option>
@@ -838,19 +862,19 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
             {/* Font Size */}
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
-                {getStatusIcon(getFieldStatus(s[`${prefix}_typography_font_size`], null))} Size
+                {getStatusIcon(getFieldStatus((s[`${prefix}_typography`]?.typography_font_size || s[`${prefix}_typography_font_size`]), null))} Size
               </label>
               <div style={{ display: 'flex', gap: '6px' }}>
                 <input
                   type="number"
-                  value={s[`${prefix}_typography_font_size`]?.size || ''}
-                  onChange={(e) => updateSize(`${prefix}_typography_font_size`, 'size', parseFloat(e.target.value))}
+                  value={(s[`${prefix}_typography`]?.typography_font_size || s[`${prefix}_typography_font_size`])?.size || ''}
+                  onChange={(e) => updateTypographySize(prefix, "font_size", "size", parseFloat(e.target.value))}
                   placeholder="16"
                   style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
                 />
                 <select
-                  value={s[`${prefix}_typography_font_size`]?.unit || 'px'}
-                  onChange={(e) => updateSize(`${prefix}_typography_font_size`, 'unit', e.target.value)}
+                  value={(s[`${prefix}_typography`]?.typography_font_size || s[`${prefix}_typography_font_size`])?.unit || 'px'}
+                  onChange={(e) => updateTypographySize(prefix, "font_size", "unit", e.target.value)}
                   style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
                 >
                   <option value="px">px</option>
@@ -861,23 +885,80 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
             </div>
           </div>
 
+          {/* Responsive Font Sizes */}
+          <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--muted)/30', borderRadius: '8px', border: '1px dashed var(--border)' }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 600, color: 'var(--foreground)' }}>📱 Responsive Sizes</h4>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {/* Tablet Size */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+                  {getStatusIcon(getFieldStatus((s[`${prefix}_typography`]?.typography_font_size_tablet || s[`${prefix}_typography_font_size_tablet`]), null))} Tablet Size
+                </label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input
+                    type="number"
+                    value={(s[`${prefix}_typography`]?.typography_font_size_tablet?.size || s[`${prefix}_typography_font_size_tablet`]?.size) || ''}
+                    onChange={(e) => updateTypographySize(prefix, "font_size_tablet", "size", parseFloat(e.target.value))}
+                    placeholder="40"
+                    style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                  />
+                  <select
+                    value={(s[`${prefix}_typography`]?.typography_font_size_tablet?.unit || s[`${prefix}_typography_font_size_tablet`]?.unit) || 'px'}
+                    onChange={(e) => updateTypographySize(prefix, "font_size_tablet", "unit", e.target.value)}
+                    style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                  >
+                    <option value="px">px</option>
+                    <option value="em">em</option>
+                    <option value="rem">rem</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Mobile Size */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+                  {getStatusIcon(getFieldStatus((s[`${prefix}_typography`]?.typography_font_size_mobile || s[`${prefix}_typography_font_size_mobile`]), null))} Mobile Size
+                </label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input
+                    type="number"
+                    value={(s[`${prefix}_typography`]?.typography_font_size_mobile?.size || s[`${prefix}_typography_font_size_mobile`]?.size) || ''}
+                    onChange={(e) => updateTypographySize(prefix, "font_size_mobile", "size", parseFloat(e.target.value))}
+                    placeholder="32"
+                    style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                  />
+                  <select
+                    value={(s[`${prefix}_typography`]?.typography_font_size_mobile?.unit || s[`${prefix}_typography_font_size_mobile`]?.unit) || 'px'}
+                    onChange={(e) => updateTypographySize(prefix, "font_size_mobile", "unit", e.target.value)}
+                    style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                  >
+                    <option value="px">px</option>
+                    <option value="em">em</option>
+                    <option value="rem">rem</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Line Height */}
           <div style={{ marginBottom: '12px' }}>
             <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
-              {getStatusIcon(getFieldStatus(s[`${prefix}_typography_line_height`], null))} Line Height
+              {getStatusIcon(getFieldStatus((s[`${prefix}_typography`]?.typography_line_height || s[`${prefix}_typography_line_height`]), null))} Line Height
             </label>
             <div style={{ display: 'flex', gap: '6px' }}>
               <input
                 type="number"
                 step="0.1"
-                value={s[`${prefix}_typography_line_height`]?.size || ''}
-                onChange={(e) => updateSize(`${prefix}_typography_line_height`, 'size', parseFloat(e.target.value))}
+                value={(s[`${prefix}_typography`]?.typography_line_height || s[`${prefix}_typography_line_height`])?.size || ''}
+                onChange={(e) => updateTypographySize(prefix, "line_height", "size", parseFloat(e.target.value))}
                 placeholder="1.5"
                 style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
               />
               <select
-                value={s[`${prefix}_typography_line_height`]?.unit || 'em'}
-                onChange={(e) => updateSize(`${prefix}_typography_line_height`, 'unit', e.target.value)}
+                value={(s[`${prefix}_typography`]?.typography_line_height || s[`${prefix}_typography_line_height`])?.unit || 'em'}
+                onChange={(e) => updateTypographySize(prefix, "line_height", "unit", e.target.value)}
                 style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
               >
                 <option value="em">em</option>
@@ -890,20 +971,20 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
           {/* Letter Spacing */}
           <div style={{ marginBottom: '12px' }}>
             <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
-              {getStatusIcon(getFieldStatus(s[`${prefix}_typography_letter_spacing`], null))} Letter Spacing
+              {getStatusIcon(getFieldStatus((s[`${prefix}_typography`]?.typography_letter_spacing || s[`${prefix}_typography_letter_spacing`]), null))} Letter Spacing
             </label>
             <div style={{ display: 'flex', gap: '6px' }}>
               <input
                 type="number"
                 step="0.1"
-                value={s[`${prefix}_typography_letter_spacing`]?.size || ''}
-                onChange={(e) => updateSize(`${prefix}_typography_letter_spacing`, 'size', parseFloat(e.target.value))}
+                value={(s[`${prefix}_typography`]?.typography_letter_spacing || s[`${prefix}_typography_letter_spacing`])?.size || ''}
+                onChange={(e) => updateTypographySize(prefix, "letter_spacing", "size", parseFloat(e.target.value))}
                 placeholder="0"
                 style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
               />
               <select
-                value={s[`${prefix}_typography_letter_spacing`]?.unit || 'px'}
-                onChange={(e) => updateSize(`${prefix}_typography_letter_spacing`, 'unit', e.target.value)}
+                value={(s[`${prefix}_typography`]?.typography_letter_spacing || s[`${prefix}_typography_letter_spacing`])?.unit || 'px'}
+                onChange={(e) => updateTypographySize(prefix, "letter_spacing", "unit", e.target.value)}
                 style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
               >
                 <option value="px">px</option>
@@ -916,11 +997,11 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
             {/* Text Transform */}
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
-                {getStatusIcon(getFieldStatus(s[`${prefix}_typography_text_transform`], null))} Text Transform
+                {getStatusIcon(getFieldStatus((s[`${prefix}_typography`]?.typography_text_transform || s[`${prefix}_typography_text_transform`]), null))} Text Transform
               </label>
               <select
-                value={s[`${prefix}_typography_text_transform`] || ''}
-                onChange={(e) => updateSetting(`${prefix}_typography_text_transform`, e.target.value)}
+                value={(s[`${prefix}_typography`]?.typography_text_transform || s[`${prefix}_typography_text_transform`]) || ''}
+                onChange={(e) => updateTypographyField(prefix, `${prefix}_typography_text_transform`, e.target.value)}
                 style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
               >
                 <option value="">Default</option>
@@ -933,19 +1014,19 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
             {/* Text Color */}
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
-                {getStatusIcon(getFieldStatus(s[`${prefix}_color`], null))} Text Color
+                {getStatusIcon(getFieldStatus((s[`${prefix}_typography`]?.typography_text_color || s[`${prefix}_color`]), null))} Text Color
               </label>
               <div style={{ display: 'flex', gap: '6px' }}>
                 <input
                   type="color"
-                  value={s[`${prefix}_color`] || '#000000'}
-                  onChange={(e) => updateSetting(`${prefix}_color`, e.target.value)}
+                  value={(s[`${prefix}_typography`]?.typography_text_color || s[`${prefix}_color`]) || '#000000'}
+                  onChange={(e) => updateTypographyField(prefix, `${prefix}_color`, e.target.value)}
                   style={{ width: '40px', height: '36px', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}
                 />
                 <input
                   type="text"
-                  value={s[`${prefix}_color`] || ''}
-                  onChange={(e) => updateSetting(`${prefix}_color`, e.target.value)}
+                  value={(s[`${prefix}_typography`]?.typography_text_color || s[`${prefix}_color`]) || ''}
+                  onChange={(e) => updateTypographyField(prefix, `${prefix}_color`, e.target.value)}
                   placeholder="#000000"
                   style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontFamily: 'monospace' }}
                 />

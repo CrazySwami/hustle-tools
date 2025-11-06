@@ -435,8 +435,19 @@ export function BlogBuilderTool() {
     niche: '',
     targetAudience: '',
     geoLocations: '',
-    keywords: [] as string[]
+    keywords: [] as string[],
+    intendedResult: '',
+    additionalInstructions: '',
+    competitors: [] as string[],
+    includeKeyPoints: true,
+    contentPreference: 'create' as 'create' | 'improve'
   })
+
+  // AI Client Generator state
+  const [clientDescription, setClientDescription] = useState('')
+  const [clientGenModel, setClientGenModel] = useState('anthropic/claude-sonnet-4-20250514')
+  const [isGeneratingClient, setIsGeneratingClient] = useState(false)
+  const [generatedClientJSON, setGeneratedClientJSON] = useState('')
 
   // Schema generator modal
   const [showSchemaGenerator, setShowSchemaGenerator] = useState(false)
@@ -1143,6 +1154,131 @@ Example format:
     setShowSchemaGenerator(false)
     setSchemaPrompt('')
     setGeneratedSchema('')
+  }
+
+  const generateClientJSON = async () => {
+    if (!clientDescription.trim()) {
+      alert('Please enter a description of the client')
+      return
+    }
+
+    setIsGeneratingClient(true)
+    setGeneratedClientJSON('')
+
+    try {
+      const response = await fetch('/api/chat-elementor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'user',
+              content: `Generate a JSON object for a blog builder client import based on this description:
+
+${clientDescription}
+
+IMPORTANT: Return ONLY the JSON object with NO additional text, explanations, or markdown formatting.
+
+Use this exact format:
+{
+  "clients": [{
+    "id": "unique-id",
+    "name": "Client Name",
+    "logo": "🏢",
+    "url": "https://example.com",
+    "bio": "Business description",
+    "thingsToAvoid": "Topics/phrases to avoid",
+    "competitors": [
+      {"name": "Competitor 1", "url": "https://comp1.com"}
+    ],
+    "ownUrls": [
+      {"name": "About Page", "url": "https://example.com/about"}
+    ],
+    "locations": [
+      {"title": "Main Office", "address": "123 Main St"}
+    ],
+    "socialLinks": [
+      {"label": "Facebook", "url": "https://facebook.com/example"}
+    ],
+    "defaultFormValues": {
+      "currentUrl": "https://example.com",
+      "businessName": "Client Name",
+      "niche": "Industry",
+      "intendedResult": "Goal/Objective",
+      "targetAudience": "Target audience description",
+      "geoLocations": "Geographic locations",
+      "keywords": ["keyword1", "keyword2"],
+      "additionalInstructions": "",
+      "competitors": ["Competitor 1"],
+      "includeKeyPoints": true,
+      "contentPreference": "create"
+    }
+  }]
+}
+
+Generate realistic and relevant data based on the description. Ensure all URLs are valid and all arrays contain relevant items.`
+            }
+          ],
+          model: clientGenModel,
+          webSearch: false,
+          enableReasoning: false,
+          enableTools: false
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate client JSON')
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let jsonText = ''
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          jsonText += chunk
+          setGeneratedClientJSON(jsonText)
+        }
+      }
+
+      // Try to parse and prettify the JSON
+      try {
+        const parsed = JSON.parse(jsonText)
+        const prettified = JSON.stringify(parsed, null, 2)
+        setGeneratedClientJSON(prettified)
+      } catch (e) {
+        console.warn('Could not parse generated client JSON:', e)
+      }
+
+    } catch (error) {
+      console.error('Client JSON generation error:', error)
+      alert('Failed to generate client JSON. Please try again.')
+    } finally {
+      setIsGeneratingClient(false)
+    }
+  }
+
+  const applyGeneratedClientJSON = () => {
+    if (!generatedClientJSON.trim()) return
+
+    try {
+      const parsed = JSON.parse(generatedClientJSON)
+      if (parsed.clients && Array.isArray(parsed.clients)) {
+        setClients([...clients, ...parsed.clients])
+        setShowAddClient(false)
+        setClientDescription('')
+        setGeneratedClientJSON('')
+        alert(`Successfully imported ${parsed.clients.length} client(s)!`)
+      } else {
+        alert('Invalid JSON format. Expected { "clients": [...] }')
+      }
+    } catch (e) {
+      alert('Failed to parse JSON. Please check the format.')
+    }
   }
 
   const toggleStep = (stepId: string) => {
@@ -2905,6 +3041,68 @@ Provide a detailed review with specific feedback and suggested edits.`
                     />
                   </div>
 
+                  {/* Default Form Values Section */}
+                  <div className="pt-4 mt-4 border-t">
+                    <h3 className="text-sm font-semibold mb-3 text-gray-700">Default Form Values</h3>
+                    <p className="text-xs text-gray-500 mb-4">These values will be pre-filled when generating content for this client</p>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Intended Result</label>
+                        <Input
+                          value={newClientData.intendedResult}
+                          onChange={(e) => setNewClientData({...newClientData, intendedResult: e.target.value})}
+                          placeholder="e.g., Increase brand awareness and drive traffic"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Additional Instructions</label>
+                        <Textarea
+                          value={newClientData.additionalInstructions}
+                          onChange={(e) => setNewClientData({...newClientData, additionalInstructions: e.target.value})}
+                          placeholder="Any specific instructions or requirements..."
+                          rows={2}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Competitors (comma-separated)</label>
+                        <Input
+                          value={newClientData.competitors.join(', ')}
+                          onChange={(e) => setNewClientData({...newClientData, competitors: e.target.value.split(',').map(c => c.trim()).filter(Boolean)})}
+                          placeholder="Competitor 1, Competitor 2, Competitor 3"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Include Key Points</label>
+                          <select
+                            value={newClientData.includeKeyPoints ? 'yes' : 'no'}
+                            onChange={(e) => setNewClientData({...newClientData, includeKeyPoints: e.target.value === 'yes'})}
+                            className="w-full border rounded-md px-3 py-2 text-sm"
+                          >
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Content Preference</label>
+                          <select
+                            value={newClientData.contentPreference}
+                            onChange={(e) => setNewClientData({...newClientData, contentPreference: e.target.value as 'create' | 'improve'})}
+                            className="w-full border rounded-md px-3 py-2 text-sm"
+                          >
+                            <option value="create">Create New</option>
+                            <option value="improve">Improve Existing</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <Button
                     className="w-full bg-green-600 hover:bg-green-700"
                     disabled={!newClientData.name || !newClientData.logo || !newClientData.url}
@@ -2924,21 +3122,23 @@ Provide a detailed review with specific feedback and suggested edits.`
                           currentUrl: newClientData.url,
                           businessName: newClientData.name,
                           niche: newClientData.niche,
-                          intendedResult: '',
+                          intendedResult: newClientData.intendedResult,
                           targetAudience: newClientData.targetAudience,
                           geoLocations: newClientData.geoLocations,
                           keywords: newClientData.keywords,
-                          additionalInstructions: '',
-                          competitors: [],
-                          includeKeyPoints: true,
-                          contentPreference: 'create'
+                          additionalInstructions: newClientData.additionalInstructions,
+                          competitors: newClientData.competitors,
+                          includeKeyPoints: newClientData.includeKeyPoints,
+                          contentPreference: newClientData.contentPreference
                         }
                       }
                       setClients([...clients, newClient])
                       setShowAddClient(false)
                       setNewClientData({
                         name: '', logo: '', url: '', bio: '', thingsToAvoid: '',
-                        niche: '', targetAudience: '', geoLocations: '', keywords: []
+                        niche: '', targetAudience: '', geoLocations: '', keywords: [],
+                        intendedResult: '', additionalInstructions: '', competitors: [],
+                        includeKeyPoints: true, contentPreference: 'create'
                       })
                       alert('Client added successfully!')
                     }}
@@ -2959,9 +3159,81 @@ Provide a detailed review with specific feedback and suggested edits.`
                   </div>
 
                   <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <h3 className="font-semibold text-sm mb-2">AI Prompt Helper</h3>
-                    <p className="text-xs text-gray-600 mb-3">Copy this prompt and paste into Claude/ChatGPT with your client details:</p>
-                    <div className="bg-white p-3 rounded border text-xs font-mono max-h-48 overflow-y-auto mb-2">
+                    <h3 className="font-semibold text-sm mb-2">AI Client Generator</h3>
+                    <p className="text-xs text-gray-600 mb-3">Describe the client and AI will generate the JSON:</p>
+                    <div className="space-y-3">
+                      <Textarea
+                        placeholder="E.g., Local wellness center in Seattle specializing in holistic health, yoga, and nutrition counseling..."
+                        value={clientDescription}
+                        onChange={(e) => setClientDescription(e.target.value)}
+                        rows={4}
+                        className="text-sm"
+                      />
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={clientGenModel}
+                          onChange={(e) => setClientGenModel(e.target.value)}
+                          className="text-sm border rounded px-2 py-1 flex-1"
+                        >
+                          <optgroup label="Anthropic">
+                            <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                            <option value="anthropic/claude-opus-4-20250514">Claude Opus 4</option>
+                            <option value="anthropic/claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+                          </optgroup>
+                          <optgroup label="OpenAI">
+                            <option value="openai/gpt-4.1">GPT-4.1</option>
+                            <option value="openai/gpt-4.1-mini">GPT-4.1 mini</option>
+                          </optgroup>
+                          <optgroup label="Google">
+                            <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
+                            <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
+                          </optgroup>
+                        </select>
+                        <Button
+                          onClick={generateClientJSON}
+                          disabled={isGeneratingClient || !clientDescription.trim()}
+                          size="sm"
+                          className="bg-purple-600 hover:bg-purple-700"
+                        >
+                          {isGeneratingClient ? 'Generating...' : 'Generate JSON'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {generatedClientJSON && (
+                      <div className="mt-3 space-y-2">
+                        <h4 className="text-xs font-semibold">Generated JSON:</h4>
+                        <Textarea
+                          value={generatedClientJSON}
+                          onChange={(e) => setGeneratedClientJSON(e.target.value)}
+                          rows={12}
+                          className="text-xs font-mono"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigator.clipboard.writeText(generatedClientJSON)}
+                          >
+                            <Copy className="h-3.5 w-3.5 mr-1.5" />
+                            Copy JSON
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={applyGeneratedClientJSON}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            Apply & Import Client
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h3 className="font-semibold text-sm mb-2">Or use a prompt manually</h3>
+                    <p className="text-xs text-gray-600 mb-3">Copy this prompt template if you prefer:</p>
+                    <div className="bg-white p-3 rounded border text-xs font-mono max-h-32 overflow-y-auto mb-2">
                       {`Create a JSON object for a blog builder client import with this format:
 
 {
@@ -3174,33 +3446,26 @@ Replace the placeholder values with actual client information and format it as v
         defaultSplitPercent={35}
         minLeftPercent={25}
         maxLeftPercent={60}
+        navigationBarProps={{
+          logo: 'HT',
+          tabs: [
+            { id: 'workflow', label: 'Workflow', icon: <Sparkles className="h-4 w-4" />, dropdownItems: [] },
+            { id: 'variables', label: 'Variables', icon: <Database className="h-4 w-4" />, dropdownItems: [] },
+            { id: 'clients', label: 'Clients', icon: <Users className="h-4 w-4" />, dropdownItems: [] },
+            { id: 'settings', label: 'Settings', icon: <Settings className="h-4 w-4" />, dropdownItems: [] },
+          ],
+          activeTab,
+          onTabChange: setActiveTab,
+        }}
+        navigationBarPosition="left"
         leftPanel={
           <div className="flex flex-col h-full overflow-hidden p-4">
-          <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="p-6 space-y-4 overflow-y-auto flex-1">
-            <div className="space-y-4 pb-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-600 rounded-lg shadow-md animate-in zoom-in duration-500">
-                    <Sparkles className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg tracking-tight text-gray-900">Content Order Form Generator</h3>
-                    <p className="text-xs text-gray-500">AI-powered service page brief creation</p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-3 text-xs bg-gray-900 text-white hover:bg-gray-800 shadow-md hover:shadow-lg transition-all duration-300"
-                  // Use wrapper function
-                  onClick={runAllStepsWrapper}
-                  disabled={!selectedClient}
-                >
-                  <Play className="h-3 w-3 mr-1.5" />
-                  Run All Steps
-                </Button>
-              </div>
+          <div className="flex flex-col h-full bg-white dark:bg-[#2C2C2C] rounded-lg shadow-sm overflow-hidden">
+          <div className="p-4 space-y-4 overflow-y-auto flex-1">
+            {/* Workflow Tab */}
+            {activeTab === 'workflow' && (
+            <div className="space-y-4">
+              <div className="space-y-4 pb-4 border-b border-gray-200">
 
               {/* Client Selector */}
               <div className="space-y-2">
@@ -4949,78 +5214,6 @@ Replace the placeholder values with actual client information and format it as v
               </div>
             )}
           </div>
-          </div>
-          </div>
-        }
-        navigationBarProps={{
-          logo: 'HT',
-          tabs: [
-            { id: 'workflow', label: 'Workflow', icon: Sparkles },
-            { id: 'variables', label: 'Variables', icon: Database },
-            { id: 'clients', label: 'Clients', icon: Users },
-            { id: 'settings', label: 'Settings', icon: Settings },
-          ],
-          activeTab,
-          onTabChange: setActiveTab,
-        }}
-        navigationBarPosition="right"
-        rightPanel={
-          <div className="flex flex-col h-full overflow-hidden p-4">
-          <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="overflow-y-auto p-6 flex-1">
-          <div className="max-w-4xl">
-            {/* Workflow Tab */}
-            {activeTab === 'workflow' && (
-            <>
-            {!selectedClient ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center space-y-4 p-12">
-                  <div className="inline-flex p-4 bg-gray-100 rounded-full">
-                    <Sparkles className="h-12 w-12 text-gray-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-700">Select a client to get started</h3>
-                  <p className="text-gray-500">Choose a client from the dropdown to begin generating content</p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="text-3xl">{selectedClient.logo}</div>
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">{selectedClient.name}</h2>
-                      <a href={selectedClient.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
-                        {selectedClient.url}
-                      </a>
-                    </div>
-                  </div>
-                  {selectedClient.bio && (
-                    <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-2">About</h3>
-                      <p className="text-sm text-gray-600">{selectedClient.bio}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Progress</h3>
-                  <div className="space-y-3">
-                    {steps.map((step, index) => (
-                      <div key={step.id} className="flex items-center gap-3">
-                        <div className="flex-shrink-0">
-                          {getStatusIcon(step.status)}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-sm text-gray-900">{step.title}</div>
-                          <div className="text-xs text-gray-500 capitalize">{step.status}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-            </>
             )}
 
             {/* Variables Tab */}
@@ -5300,9 +5493,61 @@ Replace the placeholder values with actual client information and format it as v
                 </div>
               </div>
             )}
+          </div>
+          </div>
+          </div>
+        }
+        rightPanel={
+          <div className="flex flex-col h-full overflow-hidden p-4">
+          <div className="flex flex-col h-full bg-white dark:bg-[#2C2C2C] rounded-lg shadow-sm overflow-hidden">
+            {!selectedClient ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center space-y-4 p-8">
+                  <div className="inline-flex p-4 bg-gray-100 rounded-full">
+                    <Sparkles className="h-12 w-12 text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-700">Select a client to get started</h3>
+                  <p className="text-gray-500">Choose a client from the dropdown to begin generating content</p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 space-y-4 overflow-y-auto">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="text-3xl">{selectedClient.logo}</div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">{selectedClient.name}</h2>
+                      <a href={selectedClient.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+                        {selectedClient.url}
+                      </a>
+                    </div>
+                  </div>
+                  {selectedClient.bio && (
+                    <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                      <h3 className="text-sm font-semibold text-gray-700 mb-2">About</h3>
+                      <p className="text-sm text-gray-600">{selectedClient.bio}</p>
+                    </div>
+                  )}
+                </div>
 
-          </div>
-          </div>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Progress</h3>
+                  <div className="space-y-3">
+                    {steps.map((step, index) => (
+                      <div key={step.id} className="flex items-center gap-3">
+                        <div className="flex-shrink-0">
+                          {getStatusIcon(step.status)}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-sm text-gray-900">{step.title}</div>
+                          <div className="text-xs text-gray-500 capitalize">{step.status}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           </div>
         }
@@ -6231,7 +6476,6 @@ Replace the placeholder values with actual client information and format it as v
           </div>
         </div>
       )}
-    </div>
     </>
   )
 }

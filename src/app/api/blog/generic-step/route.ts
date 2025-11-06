@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateText, streamText } from 'ai';
-import { createAIProvider } from '@/lib/ai-provider';
+import { generateText } from 'ai';
 
-export const runtime = 'nodejs';
-export const maxDuration = 300;
+export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   try {
@@ -68,19 +66,13 @@ export async function POST(req: NextRequest) {
 
     const fullPrompt = contextString ? `${prompt}\n\n## Available Context:${contextString}` : prompt;
 
-    // Parse model string to get provider and model name
-    const [provider, ...modelParts] = model.split('/');
-    const modelName = modelParts.join('/');
-
-    const aiProvider = createAIProvider(provider, modelName);
-
     // Handle structured responses with JSON schema
     if (responseType === 'structured' && jsonSchema) {
       try {
         const parsedSchema = JSON.parse(jsonSchema);
 
         const { text } = await generateText({
-          model: aiProvider,
+          model,
           prompt: fullPrompt,
           temperature: temperature || 0.7,
           maxTokens: maxTokens || 4000,
@@ -99,7 +91,7 @@ export async function POST(req: NextRequest) {
 
     // Default text response
     const { text } = await generateText({
-      model: aiProvider,
+      model,
       prompt: fullPrompt,
       temperature: temperature || 0.7,
       maxTokens: maxTokens || 4000

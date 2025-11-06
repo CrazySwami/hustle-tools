@@ -5,13 +5,14 @@ import { ChevronDown, FileText, Clock, Type, Hash } from 'lucide-react';
 import { useDocumentContent } from '@/hooks/useDocumentContent';
 
 interface TextStatsWidgetProps {
-  data: {
+  data?: {
     includeSpaces?: boolean;
     status?: string;
   };
+  editor?: any; // Editor instance when called directly from TiptapEditor
 }
 
-export function TextStatsWidget({ data }: TextStatsWidgetProps) {
+export function TextStatsWidget({ data = {}, editor }: TextStatsWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const { content } = useDocumentContent();
   const [stats, setStats] = useState<any>(null);

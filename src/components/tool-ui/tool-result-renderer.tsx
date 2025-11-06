@@ -54,8 +54,10 @@ interface ToolResultRendererProps {
   model?: string;
   designSystemSummary?: DesignSystemSummary | null;
   globalCSS?: string;
-  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
+  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot', generationState?: 'generating' | 'ready' | 'error') => string; // Returns new project ID
   onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  onProjectMetadataUpdate?: (projectId: string, metadata: Partial<{ isPlugin: boolean; pluginMainFile: string; pluginName: string; pluginSlug: string }>) => void; // Update plugin metadata
+  onProjectStateUpdate?: (projectId: string, state: 'generating' | 'ready' | 'error', error?: string) => void; // Update generation state
   isEditorReady?: (fileType: string) => boolean; // Check if editor is mounted and ready
 }
 
@@ -125,7 +127,7 @@ function TaskWidget({ data }: { data: any }) {
   );
 }
 
-export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSectionEditor, onSwitchCodeTab, onSwitchTab, model, designSystemSummary, globalCSS, onProjectCreate, onProjectUpdate, isEditorReady }: ToolResultRendererProps) {
+export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSectionEditor, onSwitchCodeTab, onSwitchTab, model, designSystemSummary, globalCSS, onProjectCreate, onProjectUpdate, onProjectMetadataUpdate, onProjectStateUpdate, isEditorReady }: ToolResultRendererProps) {
   const { toolName, result } = toolResult;
 
   console.log('🔧 ToolResultRenderer received:', {
@@ -354,7 +356,7 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
         hasGlobalCSS: !!globalCSS,
         globalCSSLength: globalCSS?.length || 0
       });
-      return <GenerateProjectWidget toolResult={result} globalCSS={globalCSS} defaultModel={model} onProjectCreate={onProjectCreate} onProjectUpdate={onProjectUpdate} onSwitchCodeTab={onSwitchCodeTab} onSwitchTab={onSwitchTab} isEditorReady={isEditorReady} />;
+      return <GenerateProjectWidget toolResult={result} globalCSS={globalCSS} defaultModel={model} onProjectCreate={onProjectCreate} onProjectUpdate={onProjectUpdate} onProjectMetadataUpdate={onProjectMetadataUpdate} onProjectStateUpdate={onProjectStateUpdate} onSwitchCodeTab={onSwitchCodeTab} onSwitchTab={onSwitchTab} isEditorReady={isEditorReady} />;
 
     default:
       // Fallback for unknown tool types, now stylized like AI Elements

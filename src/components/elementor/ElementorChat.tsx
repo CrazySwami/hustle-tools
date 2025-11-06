@@ -57,9 +57,21 @@ interface ElementorChatProps {
   globalCss?: string;
   navigationBar?: React.ReactNode;
   containerWidth?: number; // Container width for responsive prompt actions
-  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
+  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot', generationState?: 'generating' | 'ready' | 'error') => string; // Returns new project ID
   onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  onProjectMetadataUpdate?: (projectId: string, metadata: Partial<{ isPlugin: boolean; pluginMainFile: string; pluginName: string; pluginSlug: string }>) => void; // Update plugin metadata
+  onProjectStateUpdate?: (projectId: string, state: 'generating' | 'ready' | 'error', error?: string) => void; // Update generation state
   isEditorReady?: (fileType: string) => boolean; // Check if editor is mounted and ready
+  fileInclusions?: {
+    html: boolean;
+    css: boolean;
+    js: boolean;
+    php: boolean;
+    hubl: boolean;
+    pluginMainFile: boolean;
+    readme: boolean;
+  };
+  onOpenFileInclusions?: () => void;
 }
 
 const modelGroups = [
@@ -112,7 +124,11 @@ export function ElementorChat({
   containerWidth,
   onProjectCreate,
   onProjectUpdate,
-  isEditorReady
+  onProjectMetadataUpdate,
+  onProjectStateUpdate,
+  isEditorReady,
+  fileInclusions,
+  onOpenFileInclusions
 }: ElementorChatProps) {
   const [input, setInput] = useState('');
   const [webSearch, setWebSearch] = useState(false);
@@ -158,8 +174,9 @@ export function ElementorChat({
       webSearch,
       currentSection,
       globalCss: effectiveGlobalCss,
+      fileInclusions,
     });
-  }, [includeContext, includeCss, webSearch, currentSection, effectiveGlobalCss]);
+  }, [includeContext, includeCss, webSearch, currentSection, effectiveGlobalCss, fileInclusions]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -391,6 +408,8 @@ export function ElementorChat({
                                   globalCSS={effectiveGlobalCss}
                                   onProjectCreate={onProjectCreate}
                                   onProjectUpdate={onProjectUpdate}
+                                  onProjectMetadataUpdate={onProjectMetadataUpdate}
+                                  onProjectStateUpdate={onProjectStateUpdate}
                                   isEditorReady={isEditorReady}
                                 />
                               );
@@ -450,6 +469,8 @@ export function ElementorChat({
                                   globalCSS={effectiveGlobalCss}
                                   onProjectCreate={onProjectCreate}
                                   onProjectUpdate={onProjectUpdate}
+                                  onProjectMetadataUpdate={onProjectMetadataUpdate}
+                                  onProjectStateUpdate={onProjectStateUpdate}
                                   isEditorReady={isEditorReady}
                                 />
                               );
@@ -526,6 +547,7 @@ export function ElementorChat({
             currentSection={currentSection}
             includeContext={includeContext}
             isDark={isDarkMode}
+            onClick={onOpenFileInclusions}
           />
         );
       })()}

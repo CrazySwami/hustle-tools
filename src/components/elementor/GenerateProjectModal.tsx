@@ -29,6 +29,7 @@ interface GenerateProjectModalProps {
   onGenerate: (code: { html: string; css: string; js: string; php?: string; hubl?: string; projectName?: string }) => void;
   onProjectCreate?: (projectName: string, projectType: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
   onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  onProjectMetadataUpdate?: (projectId: string, metadata: any) => void; // Update plugin metadata (widgetFiles, pluginMainFile, etc.)
   onSwitchCodeTab?: (tab: 'html' | 'css' | 'js' | 'php' | 'hubl') => void;
   onSwitchTab?: (tab: string) => void; // Switch main tab (e.g., to 'json')
   onGenerationStart?: () => void; // NEW: Notify when generation starts
@@ -45,7 +46,7 @@ interface GenerateProjectModalProps {
   globalCSS?: string;
 }
 
-export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCreate, onProjectUpdate, onSwitchCodeTab, onSwitchTab, onGenerationStart, onGenerationEnd, isEditorReady, defaultModel, existingCode, globalCSS }: GenerateProjectModalProps) {
+export function GenerateProjectModal({ isOpen, onClose, onGenerate, onProjectCreate, onProjectUpdate, onProjectMetadataUpdate, onSwitchCodeTab, onSwitchTab, onGenerationStart, onGenerationEnd, isEditorReady, defaultModel, existingCode, globalCSS }: GenerateProjectModalProps) {
   // If existingCode is provided, we're in conversion mode - skip type selection and go straight to elementor
   const isConversionMode = !!existingCode;
   const [step, setStep] = useState<'type' | 'description' | 'generating'>(isConversionMode ? 'description' : 'type');
@@ -610,14 +611,60 @@ Type: ${projectType}`;
           // Stream updates to project files in real-time
           if (projectId && onProjectUpdate) {
             if (projectType === 'elementor' || projectType === 'convert-to-elementor') {
-              // Use lenient regex that works during streaming (doesn't require closing ```)
-              const phpMatch = fullCode.match(/```php\n([\s\S]*?)(?:```|$)/);
-              const cssMatch = fullCode.match(/```css\n([\s\S]*?)(?:```|$)/);
-              const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)(?:```|$)/);
+              // Find ALL php blocks (expecting 2: main-plugin.php and widget.php)
+              const phpBlocks = fullCode.match(/```php\n([\s\S]*?)(?:```|$)/g) || [];
 
-              if (phpMatch) onProjectUpdate(projectId, 'php', phpMatch[1].trim());
-              if (cssMatch) onProjectUpdate(projectId, 'css', cssMatch[1].trim());
-              if (jsMatch) onProjectUpdate(projectId, 'js', jsMatch[1].trim());
+              // Identify which is which by content:
+              // Main plugin: contains "Plugin Name:" header
+              // Widget: contains "class" and "extends \Elementor\Widget_Base"
+              let mainPluginCode = '';
+              let widgetCode = '';
+
+              phpBlocks.forEach(block => {
+                const code = block.replace(/```php\n/, '').replace(/```$/, '').trim();
+                if (code.includes('Plugin Name:') && code.includes('add_action')) {
+                  mainPluginCode = code;
+                } else if (code.includes('class') && code.includes('extends') && code.includes('Widget_Base')) {
+                  widgetCode = code;
+                }
+              });
+
+              // Stream main plugin file to pluginMainFile
+              if (mainPluginCode && onProjectMetadataUpdate) {
+                onProjectMetadataUpdate(projectId, {
+                  pluginMainFile: mainPluginCode
+                });
+                console.log(`📦 Streaming main-plugin.php (${mainPluginCode.length} chars)`);
+              }
+
+              // Stream widget file to widgetFiles map
+              if (widgetCode && onProjectMetadataUpdate) {
+                console.log(`📝 Streaming widget.php (${widgetCode.length} chars)`);
+
+                // Extract class name from generated widget
+                const classNameMatch = widgetCode.match(/class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends/);
+                const className = classNameMatch ? classNameMatch[1] : 'Generated_Widget';
+                const widgetSlug = className.toLowerCase().replace(/_/g, '-');
+                const widgetName = className.replace(/_/g, ' ').replace(/\bWidget\b/, '').trim()
+                  || projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+                // Generate new widget ID to replace Hello World widget
+                const widgetId = `widget_${Date.now()}`;
+
+                // Replace Hello World widget with generated widget in widgetFiles
+                onProjectMetadataUpdate(projectId, {
+                  widgetFiles: {
+                    [widgetId]: {
+                      name: widgetName,
+                      slug: widgetSlug,
+                      content: widgetCode,
+                      className: className,
+                    }
+                  }
+                });
+
+                console.log(`🎨 Replaced Hello World widget with ${widgetName} (ID: ${widgetId})`);
+              }
             } else if (projectType === 'hubspot') {
               // HubSpot: HTML + HubL (inline CSS)
               const htmlMatch = fullCode.match(/```html\n([\s\S]*?)(?:```|$)/);

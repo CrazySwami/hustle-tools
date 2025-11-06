@@ -64,7 +64,7 @@ export function BlogWriterWidget({ data, model }: BlogWriterWidgetProps) {
         setIsResearching(true);
         setCurrentSection('Researching topic...');
 
-        const researchResponse = await fetch('/api/chat', {
+        const researchResponse = await fetch('/api/chat-blog-planner', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

@@ -30,10 +30,12 @@ export function ProjectContextBadge({
   currentSection,
   includeContext = true,
   isDark = false,
+  onClick,
 }: {
   currentSection: any
   includeContext?: boolean
   isDark?: boolean
+  onClick?: () => void
 }) {
   const [animationStage, setAnimationStage] = useState(0)
   const [isOverflowing, setIsOverflowing] = useState(false)
@@ -167,10 +169,12 @@ export function ProjectContextBadge({
   return (
     <div className="flex justify-center items-center gap-2 sm:gap-3 px-2" style={{ background: "transparent" }}>
       <div
-        className={`group relative inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium tracking-tight transition-all duration-500 overflow-hidden cursor-default w-[95%] mx-auto
+        onClick={onClick}
+        className={`group relative inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium tracking-tight transition-all duration-500 overflow-hidden w-[95%] mx-auto
           bg-[#EBEBEB] dark:bg-[#2C2C2C]
           text-gray-900 dark:text-white
           border-gray-200 dark:border-gray-700
+          ${onClick ? 'cursor-pointer hover:bg-[#D8D8D8] dark:hover:bg-[#353535] active:scale-[0.98]' : 'cursor-default'}
           ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
           ${animationStage === 1 ? "opacity-100 translate-y-4" : ""}
           ${animationStage >= 2 ? "opacity-100 translate-y-0" : ""}
@@ -181,6 +185,7 @@ export function ProjectContextBadge({
           borderRight: "2px solid var(--border)",
           borderTop: "2px solid var(--border)"
         }}
+        title={onClick ? "Click to filter files included in AI context" : undefined}
       >
         <div
           className={`h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full ${includeContext ? "bg-green-500" : "bg-red-500"} transition-all duration-300 flex-shrink-0 relative z-10

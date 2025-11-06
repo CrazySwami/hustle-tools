@@ -22,6 +22,11 @@ export function ElementInspector({ previewRef, onEditElement }: ElementInspector
   const [elementData, setElementData] = useState<any>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
 
+  // Touch state for mobile
+  const lastTapTimeRef = useRef<number>(0);
+  const lastTapTargetRef = useRef<HTMLElement | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
   // Extract element information
   const getElementData = useCallback((element: HTMLElement) => {
     if (!element) return null;
@@ -129,6 +134,87 @@ export function ElementInspector({ previewRef, onEditElement }: ElementInspector
     console.log('🎯 Element selected:', data);
   }, [isActive, getElementData]);
 
+  // Handle touch start - record position for drag detection
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    if (!isActive) return;
+
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+  }, [isActive]);
+
+  // Handle touch move - update overlay position (like hover on desktop)
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!isActive) return;
+
+    const touch = e.touches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement;
+
+    if (!target || target === hoveredElement) return;
+    if (target.closest?.('.element-inspector-overlay')) return;
+
+    setHoveredElement(target);
+
+    // Update overlay position
+    const rect = target.getBoundingClientRect();
+    if (overlayRef.current) {
+      const overlay = overlayRef.current;
+      overlay.style.left = `${rect.left}px`;
+      overlay.style.top = `${rect.top}px`;
+      overlay.style.width = `${rect.width}px`;
+      overlay.style.height = `${rect.height}px`;
+      overlay.style.display = 'block';
+    }
+  }, [isActive, hoveredElement]);
+
+  // Handle touch end - detect double-tap
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    if (!isActive) return;
+
+    const touch = e.changedTouches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement;
+
+    if (!target || target.closest?.('.element-inspector-overlay')) return;
+
+    // Check if this was a drag gesture
+    if (touchStartPosRef.current) {
+      const deltaX = Math.abs(touch.clientX - touchStartPosRef.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartPosRef.current.y);
+
+      // If moved more than 10px, it's a drag - don't select
+      if (deltaX > 10 || deltaY > 10) {
+        touchStartPosRef.current = null;
+        return;
+      }
+    }
+
+    // Double-tap detection (within 300ms on same element)
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapTimeRef.current;
+    const isSameTarget = target === lastTapTargetRef.current;
+
+    if (timeSinceLastTap < 300 && isSameTarget) {
+      // Double-tap detected - open modal
+      e.preventDefault();
+      e.stopPropagation();
+
+      setSelectedElement(target);
+      const data = getElementData(target);
+      setElementData(data);
+
+      console.log('🎯 Element selected (double-tap):', data);
+
+      // Reset double-tap state
+      lastTapTimeRef.current = 0;
+      lastTapTargetRef.current = null;
+    } else {
+      // First tap - just record it
+      lastTapTimeRef.current = now;
+      lastTapTargetRef.current = target;
+    }
+
+    touchStartPosRef.current = null;
+  }, [isActive, getElementData]);
+
   // Attach/detach iframe listeners
   useEffect(() => {
     if (!isActive || !previewRef.current) return;
@@ -166,11 +252,17 @@ export function ElementInspector({ previewRef, onEditElement }: ElementInspector
 
     iframeDoc.addEventListener('mousemove', handleMouseMove);
     iframeDoc.addEventListener('click', handleClick);
+    iframeDoc.addEventListener('touchstart', handleTouchStart);
+    iframeDoc.addEventListener('touchmove', handleTouchMove);
+    iframeDoc.addEventListener('touchend', handleTouchEnd);
 
     return () => {
       try {
         iframeDoc!.removeEventListener('mousemove', handleMouseMove);
         iframeDoc!.removeEventListener('click', handleClick);
+        iframeDoc!.removeEventListener('touchstart', handleTouchStart);
+        iframeDoc!.removeEventListener('touchmove', handleTouchMove);
+        iframeDoc!.removeEventListener('touchend', handleTouchEnd);
         if (overlay) {
           overlay.style.display = 'none';
         }
@@ -178,7 +270,7 @@ export function ElementInspector({ previewRef, onEditElement }: ElementInspector
         // Ignore cleanup errors for cross-origin iframes
       }
     };
-  }, [isActive, previewRef, handleMouseMove, handleClick]);
+  }, [isActive, previewRef, handleMouseMove, handleClick, handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   // Copy to clipboard
   const copyToClipboard = async () => {

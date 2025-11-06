@@ -15,6 +15,7 @@ import {
   addGroup,
   updateGroup,
   updateGroupContent,
+  updateProjectState,
   renameGroup,
   deleteGroup,
   setActiveGroup as setActiveGroupManager,
@@ -37,10 +38,11 @@ export interface UseFileGroupsReturn {
   activeGroupId: string | null;
 
   // Actions
-  createNewGroup: (name: string, type: 'html' | 'php' | 'hubspot', template?: string) => FileGroup;
+  createNewGroup: (name: string, type: 'html' | 'php' | 'hubspot', template?: string, generationState?: 'generating' | 'ready' | 'error') => FileGroup;
   selectGroup: (id: string) => void;
   updateGroupFile: (id: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
   updateGroup: (id: string, updates: Partial<FileGroup>) => void;
+  updateProjectState: (id: string, state: 'generating' | 'ready' | 'error', error?: string) => void;
   renameGroup: (id: string, name: string) => void;
   duplicateGroup: (id: string) => FileGroup | null;
   deleteGroup: (id: string) => void;
@@ -113,14 +115,16 @@ export function useFileGroups(): UseFileGroupsReturn {
   const createNewGroup = useCallback((
     name: string,
     type: 'html' | 'php' | 'hubspot',
-    template?: string
+    template?: string,
+    generationState?: 'generating' | 'ready' | 'error'
   ): FileGroup => {
-    const group = createGroup(name, type, template as any);
+    const group = createGroup(name, type, template as any, generationState);
     addGroup(group);
     const newState = loadEditorState();
     console.log('🔄 [CREATE_GROUP] setState() triggered:', {
       newActiveId: newState.activeGroupId,
       newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+      generationState: generationState,
       timestamp: new Date().toISOString(),
     });
     setState(newState);
@@ -160,6 +164,25 @@ export function useFileGroups(): UseFileGroupsReturn {
     console.log('🔄 [UPDATE_FILE] setState() triggered:', {
       groupId: id,
       fileType: file,
+      newActiveId: newState.activeGroupId,
+      newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
+      timestamp: new Date().toISOString(),
+    });
+    setState(newState);
+  }, []);
+
+  // Update project generation state
+  const updateProjectStateAction = useCallback((
+    id: string,
+    state: 'generating' | 'ready' | 'error',
+    error?: string
+  ) => {
+    updateProjectState(id, state, error);
+    const newState = loadEditorState();
+    console.log('🔄 [UPDATE_PROJECT_STATE] setState() triggered:', {
+      groupId: id,
+      generationState: state,
+      error: error,
       newActiveId: newState.activeGroupId,
       newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
       timestamp: new Date().toISOString(),
@@ -313,6 +336,7 @@ export function useFileGroups(): UseFileGroupsReturn {
     selectGroup,
     updateGroupFile,
     updateGroup: updateGroupAction,
+    updateProjectState: updateProjectStateAction,
     renameGroup: renameGroupAction,
     duplicateGroup: duplicateGroupAction,
     deleteGroup: deleteGroupAction,

@@ -4,10 +4,17 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
 import { cn } from '@/lib/utils'
+import { UnifiedPanel, PanelType } from './UnifiedPanel'
 
 interface MultiPageRendererProps {
   editor: Editor | null
   mobileZoom?: number
+  leftPanel?: PanelType
+  rightPanel?: PanelType
+  leftPanelContent?: React.ReactNode
+  rightPanelContent?: React.ReactNode
+  onLeftPanelClose?: () => void
+  onRightPanelClose?: () => void
 }
 
 const PAGE_WIDTH = 816 // 8.5 inches at 96 DPI
@@ -16,7 +23,16 @@ const CONTENT_HEIGHT = 864 // 9 inches (11 - 2 inch margins)
 const PAGE_PADDING = 96 // 1 inch margins
 const PAGE_GAP = 24 // Gap between pages
 
-export function MultiPageRenderer({ editor, mobileZoom = 60 }: MultiPageRendererProps) {
+export function MultiPageRenderer({
+  editor,
+  mobileZoom = 60,
+  leftPanel,
+  rightPanel,
+  leftPanelContent,
+  rightPanelContent,
+  onLeftPanelClose = () => {},
+  onRightPanelClose = () => {}
+}: MultiPageRendererProps) {
   const [pageCount, setPageCount] = useState(1)
   const [currentPage, setCurrentPage] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -102,47 +118,118 @@ export function MultiPageRenderer({ editor, mobileZoom = 60 }: MultiPageRenderer
   return (
     <div
       ref={containerRef}
-      className="h-full overflow-y-auto scrollbar-hide bg-[#f0f0f0] dark:bg-[#1a1a1a] flex justify-center"
+      className="h-full overflow-y-auto overflow-x-hidden scrollbar-hide bg-[#f0f0f0] dark:bg-[#1a1a1a]"
       style={{ padding: '40px 20px' }}
     >
-      {/* Scale wrapper for mobile */}
-      <div
-        className="transform-gpu origin-top"
-        style={{
-          transform: `scale(${mobileZoom / 100})`,
-        }}
-      >
-        {/* Media query styles for responsive scaling */}
-        <style jsx>{`
-          @media (min-width: 640px) {
-            div {
-              transform: scale(0.7) !important;
-            }
-          }
-          @media (min-width: 768px) {
-            div {
-              transform: scale(0.9) !important;
-            }
-          }
-          @media (min-width: 1024px) {
-            div {
-              transform: scale(1) !important;
-            }
-          }
-        `}</style>
+      {/* Mobile overlay panels */}
+      {leftPanel && (
+        <div className="fixed md:hidden top-[60px] left-0 right-0 bottom-0 z-50">
+          <UnifiedPanel
+            type={leftPanel}
+            position="left"
+            onClose={onLeftPanelClose}
+          >
+            {leftPanelContent}
+          </UnifiedPanel>
+        </div>
+      )}
+      {rightPanel && (
+        <div className="fixed md:hidden top-[60px] left-0 right-0 bottom-0 z-50">
+          <UnifiedPanel
+            type={rightPanel}
+            position="right"
+            onClose={onRightPanelClose}
+          >
+            {rightPanelContent}
+          </UnifiedPanel>
+        </div>
+      )}
 
-        {/* Single continuous page container with visual page breaks */}
+      {/* Desktop flex container for panels + document */}
+      <div className="hidden md:flex items-start justify-center gap-4 min-h-full">
+        {/* Left Panel Desktop */}
+        {leftPanel && (
+          <UnifiedPanel
+            type={leftPanel}
+            position="left"
+            onClose={onLeftPanelClose}
+          >
+            {leftPanelContent}
+          </UnifiedPanel>
+        )}
+
+        {/* Document */}
+        <div
+          className="transform-gpu flex-shrink-0"
+          style={{
+            transformOrigin: 'top center',
+          }}
+        >
+          {/* Media query styles for responsive scaling */}
+          <style jsx>{`
+            /* Mobile: 98% scale, centered */
+            div {
+              transform: scale(0.98) !important;
+            }
+            @media (min-width: 640px) {
+              div {
+                transform: scale(0.7) !important;
+              }
+            }
+            @media (min-width: 768px) {
+              div {
+                transform: scale(0.9) !important;
+              }
+            }
+            @media (min-width: 1024px) {
+              div {
+                transform: scale(1) !important;
+              }
+            }
+          `}</style>
+
+          {/* Single continuous page container with visual page breaks */}
+          <div
+            ref={editorWrapperRef}
+            className={cn(
+              "tiptap-page mx-auto",
+              "w-[816px]",
+              "bg-white dark:bg-[#2a2a2a]",
+              "shadow-[0_0_0_1px_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.08),0_4px_8px_rgba(0,0,0,0.05)]",
+              "dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.3),0_4px_8px_rgba(0,0,0,0.2)]"
+            )}
+            style={{
+              padding: `${PAGE_PADDING}px`,
+              minHeight: `${totalHeight}px`,
+            }}
+          >
+            <EditorContent editor={editor} className="w-full" />
+          </div>
+        </div>
+
+        {/* Right Panel Desktop */}
+        {rightPanel && (
+          <UnifiedPanel
+            type={rightPanel}
+            position="right"
+            onClose={onRightPanelClose}
+          >
+            {rightPanelContent}
+          </UnifiedPanel>
+        )}
+      </div>
+
+      {/* Mobile document view - full width edge to edge */}
+      <div className="md:hidden">
         <div
           ref={editorWrapperRef}
           className={cn(
-            "tiptap-page mx-auto",
-            "w-[816px]",
+            "tiptap-page",
+            "w-full",
             "bg-white dark:bg-[#2a2a2a]",
-            "shadow-[0_0_0_1px_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.08),0_4px_8px_rgba(0,0,0,0.05)]",
-            "dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.3),0_4px_8px_rgba(0,0,0,0.2)]"
           )}
           style={{
-            padding: `${PAGE_PADDING}px`,
+            padding: '16px',
             minHeight: `${totalHeight}px`,
           }}
         >

@@ -276,9 +276,47 @@ ${globalCSS && !existingCode ? `**Global CSS Reference** (for consistent styling
 **Widget ID**: ${projectName}
 **Title**: ${projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
 
-Generate a **SINGLE PHP FILE** with everything inline:
+Generate **TWO PHP FILES** for a complete WordPress plugin:
 
-**PHP Widget Class with Inline CSS/JS**
+**📦 FILE 1: Main Plugin File (main-plugin.php)**
+
+This file must include:
+- Plugin header comment with Name, Description, Version, Author
+- Check for ABSPATH to prevent direct access
+- Register custom Elementor widget category 'hustle-tools'
+- Auto-require widget.php file from same directory
+- Register widget with Elementor
+
+Example structure:
+\`\`\`php
+<?php
+/**
+ * Plugin Name: ${projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+ * Description: Custom Elementor widget for ${description}
+ * Version: 1.0.0
+ * Author: Your Name
+ * Text Domain: elementor-${projectName}
+ */
+
+if (!defined('ABSPATH')) exit;
+
+// Register custom category
+add_action('elementor/elements/categories_registered', function($elements_manager) {
+    $elements_manager->add_category('hustle-tools', [
+        'title' => __('Hustle Tools', 'elementor-${projectName}'),
+        'icon' => 'fa fa-plug',
+    ]);
+});
+
+// Register widget
+add_action('elementor/widgets/register', function($widgets_manager) {
+    require_once(__DIR__ . '/widget.php');
+    $widgets_manager->register(new \\Elementor_${projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('_')}_Widget());
+});
+?>
+\`\`\`
+
+**🎨 FILE 2: Widget Class File with Inline CSS/JS (widget.php)**
 
 The widget class MUST include:
 
@@ -324,6 +362,34 @@ The widget class MUST include:
 **MAKE EVERYTHING EDITABLE** - Users should NEVER need to touch code. Every text, color, size, spacing, image, link, etc. must have a control.
 
 **Output Format:**
+
+**Main Plugin File (main-plugin.php):**
+\`\`\`php
+<?php
+/**
+ * Plugin Name: Widget Name
+ * Description: Description here
+ * Version: 1.0.0
+ * Author: Your Name
+ */
+
+if (!defined('ABSPATH')) exit;
+
+add_action('elementor/elements/categories_registered', function($elements_manager) {
+    $elements_manager->add_category('hustle-tools', [
+        'title' => __('Hustle Tools', 'elementor-widget'),
+        'icon' => 'fa fa-plug',
+    ]);
+});
+
+add_action('elementor/widgets/register', function($widgets_manager) {
+    require_once(__DIR__ . '/widget.php');
+    $widgets_manager->register(new \\Elementor_Widget_Name_Widget());
+});
+?>
+\`\`\`
+
+**Widget Class File (widget.php):**
 \`\`\`php
 <?php
 if (!defined('ABSPATH')) exit;
@@ -355,7 +421,7 @@ class Elementor_Widget_Name extends \\Elementor\\Widget_Base {
 ?>
 \`\`\`
 
-**CRITICAL**: Generate ONLY ONE PHP file with CSS and JS inline in the render() method. Do NOT generate separate CSS or JS files.
+**CRITICAL**: Generate TWO PHP files as shown above. The widget.php file should have CSS and JS inline in the render() method. Do NOT generate separate CSS or JS files. The main-plugin.php file makes this a complete, installable WordPress plugin.
 
 Be comprehensive - this widget should be production-ready and fully customizable through Elementor's interface.`
       : isHubSpot

@@ -4,11 +4,11 @@ import { ReactNode, useState, useCallback, useEffect, useRef } from 'react';
 import { NavigationBar, type NavigationBarProps } from '@/components/ai-elements/inner-navigation-bar';
 
 interface TwoPanelChatLayoutProps {
-  /** Left panel - typically the chat interface (40% default on desktop) */
+  /** Left panel - typically the chat interface (30% default on desktop) */
   leftPanel: ReactNode;
-  /** Right panel - content area (editor, canvas, etc) (60% default on desktop) */
+  /** Right panel - content area (editor, canvas, etc) (70% default on desktop) */
   rightPanel: ReactNode;
-  /** Default split percentage for left panel (default: 40) */
+  /** Default split percentage for left panel (default: 30) */
   defaultSplitPercent?: number;
   /** Minimum left panel width percentage (default: 25) */
   minLeftPercent?: number;
@@ -23,7 +23,7 @@ interface TwoPanelChatLayoutProps {
 export function TwoPanelChatLayout({
   leftPanel,
   rightPanel,
-  defaultSplitPercent = 40,
+  defaultSplitPercent = 30,
   minLeftPercent = 25,
   maxLeftPercent = 75,
   navigationBarProps,
@@ -174,7 +174,7 @@ export function TwoPanelChatLayout({
       className="flex h-full w-full"
       style={{ userSelect: isResizing ? 'none' : 'auto' }}
     >
-      {/* Left Panel - Chat (40% default) */}
+      {/* Left Panel - Chat (30% default) */}
       <div
         ref={leftPanelRef}
         className="flex flex-col h-full overflow-hidden"
@@ -251,7 +251,7 @@ export function TwoPanelChatLayout({
         />
       </div>
 
-      {/* Right Panel - Content (60% default) */}
+      {/* Right Panel - Content (70% default) */}
       <div
         className="flex flex-col h-full overflow-hidden"
         style={{ width: `${100 - leftPanelWidth}%` }}

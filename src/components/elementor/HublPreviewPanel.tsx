@@ -1,12 +1,19 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import type { HubSpotModuleField } from '@/lib/hubspot-converter';
 
 interface HublPreviewPanelProps {
   html: string;
   hubl: string;
   css: string;
   onClose: () => void;
+  convertHtmlToHubL?: (html: string, options?: { kind?: 'page' | 'section' }) => {
+    moduleHtml: string;
+    fields: HubSpotModuleField[];
+    fieldsJson: string;
+    meta: any;
+  };
 }
 
 interface HublField {
@@ -23,7 +30,7 @@ interface HublField {
  * - Left (35%): Editable fields extracted from HubL
  * - Right (65%): Live preview with field values applied
  */
-export function HublPreviewPanel({ html, hubl, css, onClose }: HublPreviewPanelProps) {
+export function HublPreviewPanel({ html, hubl, css, onClose, convertHtmlToHubL }: HublPreviewPanelProps) {
   const [splitWidth, setSplitWidth] = useState(35); // Left panel percentage (desktop) or top panel percentage (mobile)
   const [isDragging, setIsDragging] = useState(false);
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
@@ -39,72 +46,43 @@ export function HublPreviewPanel({ html, hubl, css, onClose }: HublPreviewPanelP
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Extract fields from HubL code
+  // Extract fields using converter function (same as standalone converter)
   const fields = useMemo(() => {
-    const extractedFields: HublField[] = [];
-    const fieldRegex = /\{\{\s*module\.([a-zA-Z_][a-zA-Z0-9_]*)(\.[\w]+)?\s*\}\}/g;
-    const uniqueFields = new Set<string>();
-
-    let match;
-    while ((match = fieldRegex.exec(hubl)) !== null) {
-      const fullFieldPath = match[1] + (match[2] || '');
-      const fieldName = match[1];
-      const subProperty = match[2]; // e.g., '.color', '.src', '.alt'
-
-      if (uniqueFields.has(fieldName)) continue;
-      uniqueFields.add(fieldName);
-
-      // Determine field type from name patterns OR sub-property
-      let type = 'text';
-      let defaultValue: any = '';
-
-      // Check sub-property first (more specific)
-      if (subProperty === '.color') {
-        type = 'color';
-        defaultValue = '#3498db';
-      } else if (subProperty === '.src') {
-        type = 'image';
-        defaultValue = 'https://via.placeholder.com/400x300';
-      } else if (subProperty === '.alt') {
-        // Skip .alt fields - they're handled with images
-        uniqueFields.delete(fieldName);
-        continue;
-      }
-      // Then check field name patterns
-      else if (fieldName.includes('color') || fieldName.includes('bg') || fieldName.includes('background')) {
-        type = 'color';
-        defaultValue = '#3498db';
-      } else if (fieldName.includes('image') || fieldName.includes('img')) {
-        type = 'image';
-        defaultValue = 'https://via.placeholder.com/400x300';
-      } else if (fieldName.match(/title|heading/i)) {
-        type = 'text';
-        defaultValue = 'Sample Title';
-      } else if (fieldName.match(/body|text|description/i)) {
-        type = 'richtext';
-        defaultValue = 'Sample text content';
-      } else if (fieldName.match(/url|link|href/i)) {
-        type = 'url';
-        defaultValue = '#';
-      } else if (fieldName.match(/radius|padding|margin|width|height|size/i)) {
-        type = 'number';
-        defaultValue = 20;
-      }
-
-      // Create label from field name
-      const label = fieldName
-        .replace(/_/g, ' ')
-        .replace(/([A-Z])/g, ' $1')
-        .trim()
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-
-      extractedFields.push({ name: fieldName, label, type, defaultValue });
+    if (!convertHtmlToHubL) {
+      console.warn('convertHtmlToHubL not provided, falling back to regex extraction');
+      return [];
     }
 
-    return extractedFields;
-  }, [hubl]);
+    try {
+      const result = convertHtmlToHubL(html, { kind: 'page' });
+      console.log('🔧 HublPreviewPanel: Extracted fields from converter:', result.fields.length);
+
+      // Convert HubSpotModuleField[] to HublField[]
+      return result.fields.map(field => ({
+        name: field.name,
+        label: field.label,
+        type: field.type,
+        defaultValue: field.default || getDefaultValueForType(field.type)
+      }));
+    } catch (error) {
+      console.error('❌ HublPreviewPanel: Field extraction failed:', error);
+      return [];
+    }
+  }, [html, convertHtmlToHubL]);
+
+  // Helper to get default value based on field type
+  function getDefaultValueForType(type: string): any {
+    switch (type) {
+      case 'color': return '#3498db';
+      case 'image': return 'https://via.placeholder.com/400x300';
+      case 'text': return 'Sample text';
+      case 'richtext': return 'Sample content';
+      case 'url': return '#';
+      case 'number': return 20;
+      case 'boolean': return false;
+      default: return '';
+    }
+  }
 
   // Initialize field values with defaults
   useEffect(() => {
@@ -152,7 +130,7 @@ export function HublPreviewPanel({ html, hubl, css, onClose }: HublPreviewPanelP
       // Skip number fields to preserve original dimensions
     });
 
-    // Build complete HTML document with minimal styles (preserve inline styles)
+    // Build complete HTML document with CSS and minimal styles (preserve inline styles)
     return `
       <!DOCTYPE html>
       <html>
@@ -173,6 +151,9 @@ export function HublPreviewPanel({ html, hubl, css, onClose }: HublPreviewPanelP
             *, *:before, *:after {
               box-sizing: border-box;
             }
+
+            /* Custom CSS from editor */
+            ${css}
           </style>
         </head>
         <body>

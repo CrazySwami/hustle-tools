@@ -30,10 +30,11 @@ import { HublPreviewPanel } from "./HublPreviewPanel";
 import { AddWidgetDialog } from "./AddWidgetDialog";
 import { PluginNamingDialog } from "./PluginNamingDialog";
 import { PluginDownloadModal } from "./PluginDownloadModal";
+import { FileInclusionModal } from "./FileInclusionModal";
 import { AiFillHtml5, AiOutlinePlus, AiOutlineDownload } from 'react-icons/ai';
 import { DiCss3, DiJavascript1, DiPhp } from 'react-icons/di';
 import { SiHubspot } from 'react-icons/si';
-import { FileText, RefreshCw } from 'lucide-react';
+import { FileText, RefreshCw, Filter } from 'lucide-react';
 
 interface HtmlSectionEditorProps {
   initialSection?: Section;
@@ -61,6 +62,24 @@ interface HtmlSectionEditorProps {
   hotReloadEnabled?: boolean; // Hot reload toggle state from parent
   currentProject?: any; // Current project from file groups
   fileGroups?: ReturnType<typeof useFileGroups>; // Shared file groups state from parent
+  fileInclusions?: {
+    html: boolean;
+    css: boolean;
+    js: boolean;
+    php: boolean;
+    hubl: boolean;
+    pluginMainFile: boolean;
+    readme: boolean;
+  };
+  onFileInclusionsChange?: (inclusions: {
+    html: boolean;
+    css: boolean;
+    js: boolean;
+    php: boolean;
+    hubl: boolean;
+    pluginMainFile: boolean;
+    readme: boolean;
+  }) => void;
   onEditorReady?: (editorRefs: {
     html: any | null;
     css: any | null;
@@ -99,6 +118,8 @@ export function HtmlSectionEditor({
   hotReloadEnabled = false,
   currentProject,
   fileGroups: parentFileGroups,
+  fileInclusions: propFileInclusions,
+  onFileInclusionsChange,
   onEditorReady,
   onEditorReadyStateChange,
 }: HtmlSectionEditorProps) {
@@ -150,6 +171,20 @@ export function HtmlSectionEditor({
   const [generatingPhase, setGeneratingPhase] = useState<'html' | 'css' | 'js' | 'php' | null>(null);
   const [generatingTokens, setGeneratingTokens] = useState(0); // Track current file token count
   const [showGenerationComplete, setShowGenerationComplete] = useState(false); // Show completion notification
+
+  // File inclusion modal state (only modal visibility, state is managed by parent)
+  const [showFileInclusionModal, setShowFileInclusionModal] = useState(false);
+
+  // Use file inclusions from props, or default to all true if not provided
+  const fileInclusions = propFileInclusions || {
+    html: true,
+    css: true,
+    js: true,
+    php: true,
+    hubl: true,
+    pluginMainFile: true,
+    readme: true,
+  };
 
   // Editor ready state tracking (for streaming synchronization)
   const [editorsReady, setEditorsReady] = useState({
@@ -242,9 +277,46 @@ export function HtmlSectionEditor({
 
   // Deploy widget to WordPress Playground
   const handleDeployWidget = async () => {
-    // Check editorPhp instead of section.php (which is legacy)
-    if (!editorPhp || !editorPhp.trim()) {
+    let widgetPhpCode = '';
+
+    // For plugins: ALWAYS use widgetFiles, NEVER use editorPhp (which might be main plugin file)
+    if (fileGroups.activeGroup?.isPlugin) {
+      // First, try to use the currently active widget
+      if (activeWidgetId && fileGroups.activeGroup.widgetFiles?.[activeWidgetId]) {
+        widgetPhpCode = fileGroups.activeGroup.widgetFiles[activeWidgetId].content;
+        console.log('📦 Deploying active widget:', {
+          widgetId: activeWidgetId,
+          widgetName: fileGroups.activeGroup.widgetFiles[activeWidgetId].name,
+          codeLength: widgetPhpCode.length
+        });
+      }
+      // If no active widget, use the first widget in the plugin
+      else if (fileGroups.activeGroup.widgetFiles && Object.keys(fileGroups.activeGroup.widgetFiles).length > 0) {
+        const firstWidgetId = Object.keys(fileGroups.activeGroup.widgetFiles)[0];
+        widgetPhpCode = fileGroups.activeGroup.widgetFiles[firstWidgetId].content;
+        console.log('📦 Deploying first widget from plugin:', {
+          widgetId: firstWidgetId,
+          widgetName: fileGroups.activeGroup.widgetFiles[firstWidgetId].name,
+          codeLength: widgetPhpCode.length
+        });
+      } else {
+        alert('⚠️ No widgets found in this plugin. Please generate a widget first.');
+        return;
+      }
+    } else {
+      // For non-plugin PHP projects, use editorPhp
+      widgetPhpCode = editorPhp;
+    }
+
+    // Validate widget PHP code
+    if (!widgetPhpCode || !widgetPhpCode.trim()) {
       alert('⚠️ No widget PHP code to deploy. Generate a widget first using "Generate Widget" button.');
+      return;
+    }
+
+    // Additional validation: Check if it's actually widget code (not main plugin file)
+    if (widgetPhpCode.includes('Plugin Name:') && widgetPhpCode.includes('add_action(')) {
+      alert('⚠️ Cannot deploy main plugin file. Please switch to a widget tab first, or the widget will be deployed automatically.');
       return;
     }
 
@@ -262,8 +334,8 @@ export function HtmlSectionEditor({
       // Small delay to let the tab switch complete
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Deploy widget and create preview page - use editorPhp instead of section.php
-      const result = await window.deployAndPreviewWidget(editorPhp, editorCss, editorJs);
+      // Deploy widget and create preview page - use widget PHP code (NOT main plugin file!)
+      const result = await window.deployAndPreviewWidget(widgetPhpCode, editorCss, editorJs);
 
       console.log('✅ Deploy and preview complete:', result);
 
@@ -1018,6 +1090,18 @@ export function HtmlSectionEditor({
     };
   }, [handleGenerateProject, handleSaveLibrary, handleConvertWidget, handlePreviewHtml, handlePreviewHubl, handleSplitHtml, handleCreateNewProject, handleToggleProjectPanel, handleToggleFilesPanel]);
 
+  // Listen for file inclusions modal trigger from chat
+  useEffect(() => {
+    const handleOpenFileInclusions = () => {
+      setShowFileInclusionModal(true);
+    };
+
+    window.addEventListener('open-file-inclusions-modal', handleOpenFileInclusions);
+    return () => {
+      window.removeEventListener('open-file-inclusions-modal', handleOpenFileInclusions);
+    };
+  }, []);
+
   // Close menu on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1087,8 +1171,15 @@ export function HtmlSectionEditor({
       const widgetId = tab.replace('widget-', '');
       console.log('📦 Widget tab clicked:', { widgetId, activeGroup: fileGroups.activeGroup?.name });
 
+      // IMPORTANT: Set widget ID and tab state FIRST
       setActiveWidgetId(widgetId);
-      setInternalActiveCodeTab('php'); // Widget files are PHP
+
+      // Notify parent if controlled, otherwise use internal state
+      if (onCodeTabChange) {
+        onCodeTabChange('php'); // Widget files are PHP
+      } else {
+        setInternalActiveCodeTab('php');
+      }
 
       // Load widget content into editor
       if (fileGroups.activeGroup?.widgetFiles?.[widgetId]) {
@@ -1110,8 +1201,18 @@ export function HtmlSectionEditor({
     } else {
       // Regular file tab
       console.log('📄 Regular file tab clicked:', tab);
-      setActiveWidgetId(null); // Clear widget selection
 
+      // IMPORTANT: Clear widget selection FIRST before updating tab state
+      setActiveWidgetId(null);
+
+      // IMPORTANT: Update tab state FIRST before loading content
+      if (onCodeTabChange) {
+        onCodeTabChange(tab as "html" | "css" | "js" | "php" | "hubl");
+      } else {
+        setInternalActiveCodeTab(tab as "html" | "css" | "js" | "php" | "hubl");
+      }
+
+      // THEN load the appropriate content for plugins
       if (tab === 'php' && fileGroups.activeGroup?.isPlugin) {
         // Load main plugin file
         const mainFileContent = fileGroups.activeGroup.pluginMainFile || '';
@@ -1121,12 +1222,6 @@ export function HtmlSectionEditor({
         });
         updateContent('php', mainFileContent);
         console.log('✅ updateContent called for main plugin file');
-      }
-
-      if (onCodeTabChange) {
-        onCodeTabChange(tab as "html" | "css" | "js" | "php" | "hubl");
-      } else {
-        setInternalActiveCodeTab(tab as "html" | "css" | "js" | "php" | "hubl");
       }
     }
     // Mobile uses horizontal pills, so no need to close file tree
@@ -1334,7 +1429,7 @@ export function HtmlSectionEditor({
       const defaultGroup = fileGroups.createNewGroup('Untitled Project', 'html', 'empty');
       fileGroups.selectGroup(defaultGroup.id);
     }
-  }, [fileGroups.activeGroupId]);
+  }, [fileGroups.activeGroupId, fileGroups.activeGroup?.pluginMainFile, fileGroups.activeGroup?.widgetFiles]);
 
   // Save active group content when editor changes (debounced auto-save)
   useEffect(() => {
@@ -1343,16 +1438,25 @@ export function HtmlSectionEditor({
     const timeoutId = setTimeout(() => {
       console.log('💾 Auto-saving active group:', fileGroups.activeGroup.name);
 
-      // If editing a widget file, save to that widget
-      if (activeWidgetId && editorPhp) {
-        console.log(`💾 Saving widget file: ${activeWidgetId}`);
-        fileGroups.updateWidgetInPlugin(
-          fileGroups.activeGroup.id,
-          activeWidgetId,
-          editorPhp
-        );
+      // For plugins: handle widget files and main plugin file separately
+      if (fileGroups.activeGroup.isPlugin) {
+        if (activeWidgetId && editorPhp) {
+          // Editing a widget file - save to widgetFiles
+          console.log(`💾 Saving widget file: ${activeWidgetId}`);
+          fileGroups.updateWidgetInPlugin(
+            fileGroups.activeGroup.id,
+            activeWidgetId,
+            editorPhp
+          );
+        } else if (!activeWidgetId && editorPhp) {
+          // Editing main plugin file (no activeWidgetId means main plugin tab)
+          console.log('💾 Saving main plugin file');
+          fileGroups.updateGroup(fileGroups.activeGroup.id, {
+            pluginMainFile: editorPhp
+          });
+        }
       } else {
-        // Regular file save
+        // Regular non-plugin file save
         fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'html', editorHtml);
         fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'css', editorCss);
         fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'js', editorJs);
@@ -2526,6 +2630,28 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 >
                   📁
                 </button>
+
+                {/* Filter Files for AI Context */}
+                <button
+                  onClick={() => setShowFileInclusionModal(true)}
+                  title="Select which files to include in AI context"
+                  style={{
+                    padding: "4px 8px",
+                    background: "transparent",
+                    border: "1px solid #3e3e3e",
+                    borderRadius: "4px",
+                    color: "#888",
+                    fontSize: "11px",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <Filter size={12} />
+                  {!isMobile && 'Files'}
+                </button>
               </div>
 
               {/* Current file display */}
@@ -2869,12 +2995,10 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                         return files;
                       }
 
-                      // For regular PHP widgets
+                      // For regular PHP widgets (CSS/JS are inline in PHP, so only show PHP and docs)
                       if (projectType === 'php') {
                         return [
                           { tab: 'php', icon: <DiPhp size={18} color="#777BB4" />, name: 'widget.php', lang: 'PHP' },
-                          { tab: 'css', icon: <DiCss3 size={18} color="#1572B6" />, name: 'widget.css', lang: 'CSS' },
-                          { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'widget.js', lang: 'JavaScript' },
                           { tab: 'docs', icon: <FileText size={16} color="#4CAF50" />, name: 'README.md', lang: 'Markdown' }
                         ];
                       }
@@ -3459,10 +3583,11 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                       borderBottom: "1px solid var(--border)",
                     }}
                   >
-                    {["html", "css", "js"].map((tab) => (
+                    {/* Show appropriate tabs based on project type */}
+                    {(projectType === 'php' ? ["php", "docs"] : projectType === 'hubspot' ? ["html", "hubl", "docs"] : ["html", "css", "js"]).map((tab) => (
                       <button
                         key={tab}
-                        onClick={() => handleCodeTabChange(tab as "html" | "css" | "js")}
+                        onClick={() => handleCodeTabChange(tab as "html" | "css" | "js" | "php" | "hubl" | "docs")}
                         style={{
                           padding: "4px 12px",
                           background: activeCodeTab === tab ? "var(--primary)" : "transparent",
@@ -3619,6 +3744,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
             hubl={editorHubl}
             css={editorCss}
             onClose={() => setShowHublPreview(false)}
+            convertHtmlToHubL={convertHtmlToHubL}
           />
         )}
 
@@ -3989,11 +4115,15 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
             let newGroup;
 
             if (type === 'plugin') {
-              // For plugin type, create a WordPress plugin instead of regular group
+              // For plugin type, create a WordPress plugin and trigger AI generation
               // Extract description from template parameter (we'll pass it specially)
               const description = template !== 'empty' ? template : undefined;
               newGroup = fileGroups.createNewPlugin(name, description);
               console.log('🔌 Created WordPress Plugin:', name);
+
+              // Automatically open GenerateProjectModal to generate initial widget code
+              setShowGenerateModal(true);
+              setGenerateModalConversionMode(false);
             } else {
               // For other types, use regular createNewGroup
               newGroup = fileGroups.createNewGroup(name, type as 'html' | 'php' | 'hubspot', template);
@@ -4150,11 +4280,22 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           // Check if specific editor is mounted and ready
           return editorsReady[fileType as keyof typeof editorsReady] || false;
         }}
-        onProjectCreate={(name, type) => {
-          // Create new project and return its ID
-          const newGroup = fileGroups.createNewGroup(name, type, 'empty');
+        onProjectCreate={(name, type, generationState) => {
+          let newGroup;
+
+          if (type === 'php') {
+            // For Elementor plugins, use createNewPlugin to get proper structure
+            newGroup = fileGroups.createNewPlugin(name, '');
+            // Set generation state after creation
+            fileGroups.updateGroup(newGroup.id, { generationState });
+            console.log('🔌 Plugin created via modal (HtmlSectionEditor):', name, 'ID:', newGroup.id);
+          } else {
+            // HTML/HubSpot projects use regular group
+            newGroup = fileGroups.createNewGroup(name, type, 'empty', generationState);
+            console.log('📦 Project created via modal (HtmlSectionEditor):', name, 'Type:', type, 'ID:', newGroup.id);
+          }
+
           fileGroups.selectGroup(newGroup.id);
-          console.log('📦 Project created:', name, 'Type:', type, 'ID:', newGroup.id);
 
           // Start generating state
           setIsGenerating(true);
@@ -4218,6 +4359,75 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
             } else {
               console.warn(`⚠️ ${file} editor ref not available, falling back to updateContent`);
               updateContent(file, content);
+            }
+          }
+        }}
+        onProjectMetadataUpdate={(projectId, metadata) => {
+          // Update plugin metadata (pluginMainFile, isPlugin flag, etc.)
+          fileGroups.updateGroup(projectId, metadata);
+          console.log(`🔧 Updated plugin metadata for ${projectId}:`, metadata);
+        }}
+        onProjectStateUpdate={async (projectId, state, error) => {
+          // Update generation state
+          fileGroups.updateGroup(projectId, {
+            generationState: state,
+            generationError: error
+          });
+          console.log(`📊 Updated generation state for ${projectId}:`, state, error || '');
+
+          // Show notification when generation completes
+          if (state === 'ready') {
+            setShowGenerationComplete(true);
+            setTimeout(() => {
+              setShowGenerationComplete(false);
+            }, 3000);
+
+            // Auto-generate README.md for the newly created project
+            console.log('🔄 Auto-generating README.md for new project...');
+            const project = fileGroups.groups.find(g => g.id === projectId);
+            if (project) {
+              try {
+                const response = await fetch('/api/analyze-project', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    projectId: project.id,
+                    projectName: project.name,
+                    projectType: project.type,
+                    isPlugin: project.isPlugin,
+                    files: {
+                      html: project.html,
+                      css: project.css,
+                      js: project.js,
+                      php: project.php,
+                      hubl: project.hubl,
+                      pluginMainFile: project.pluginMainFile,
+                      widgetFiles: project.widgetFiles,
+                    },
+                  }),
+                });
+
+                if (response.ok) {
+                  const reader = response.body?.getReader();
+                  const decoder = new TextDecoder();
+                  let fullMarkdown = '';
+
+                  if (reader) {
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) break;
+                      fullMarkdown += decoder.decode(value);
+                    }
+                  }
+
+                  // Save README to project
+                  fileGroups.updateGroup(project.id, { projectManifest: fullMarkdown });
+                  console.log('✅ README.md auto-generated successfully');
+                }
+              } catch (err) {
+                console.error('⚠️ Failed to auto-generate README:', err);
+                // Don't show error to user, it's not critical
+              }
             }
           }
         }}
@@ -4404,6 +4614,18 @@ class ${className} extends \\Elementor\\Widget_Base {
         open={showPluginDownloadModal}
         onOpenChange={setShowPluginDownloadModal}
         plugin={fileGroups.activeGroup?.isPlugin ? fileGroups.activeGroup : null}
+      />
+
+      {/* File Inclusion Modal */}
+      <FileInclusionModal
+        isOpen={showFileInclusionModal}
+        onClose={() => setShowFileInclusionModal(false)}
+        project={fileGroups.activeGroup}
+        currentInclusions={fileInclusions}
+        onSave={(newInclusions) => {
+          onFileInclusionsChange?.(newInclusions);
+          console.log('📁 File inclusions updated:', newInclusions);
+        }}
       />
 
       {/* Generation Status Indicator - Bottom Right */}

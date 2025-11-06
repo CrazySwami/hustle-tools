@@ -32,6 +32,10 @@ export interface FileGroup {
   description?: string;          // Optional description
   tags?: string[];               // Optional tags for organization
 
+  // Generation State Tracking (NEW)
+  generationState?: 'generating' | 'ready' | 'error';  // Current generation state
+  generationError?: string;      // Error message if generation failed
+
   // WordPress Plugin Support (NEW)
   isPlugin?: boolean;            // Flag to indicate this is a plugin project (not just a single widget)
   pluginMainFile?: string;       // Main plugin PHP file content with auto-registration
@@ -338,7 +342,8 @@ export function saveEditorState(state: EditorState): void {
 export function createGroup(
   name: string,
   type: 'html' | 'php' | 'hubspot',
-  template?: 'empty' | 'hero' | 'contact-form' | 'basic-widget' | 'button-widget' | 'hubspot-hero' | 'hubspot-email'
+  template?: 'empty' | 'hero' | 'contact-form' | 'basic-widget' | 'button-widget' | 'hubspot-hero' | 'hubspot-email',
+  generationState?: 'generating' | 'ready' | 'error'
 ): FileGroup {
   const now = Date.now();
   const group: FileGroup = {
@@ -356,6 +361,8 @@ export function createGroup(
     projectManifest: type === 'html' ? getHtmlManifest()
       : type === 'hubspot' ? getHubSpotManifest()
       : getPhpWidgetManifest(),
+    // Set initial generation state if provided
+    generationState: generationState,
   };
 
   // Apply template
@@ -796,6 +803,31 @@ export function updateGroupContent(
   } else {
     updateGroup(id, { [file]: content });
   }
+}
+
+/**
+ * Update file content in a group (alias for updateGroupContent for backward compatibility)
+ */
+export function updateGroupFile(
+  id: string,
+  file: 'html' | 'css' | 'js' | 'php' | 'hubl',
+  content: string
+): void {
+  updateGroupContent(id, file, content);
+}
+
+/**
+ * Update project generation state
+ */
+export function updateProjectState(
+  id: string,
+  state: 'generating' | 'ready' | 'error',
+  error?: string
+): void {
+  updateGroup(id, {
+    generationState: state,
+    generationError: error
+  });
 }
 
 /**
@@ -1275,7 +1307,11 @@ class Hello_World_Widget extends \\Elementor\\Widget_Base {
 /**
  * Create a new WordPress plugin project
  */
-export function createPlugin(name: string, description?: string): FileGroup {
+export function createPlugin(
+  name: string,
+  description?: string,
+  generationState: 'generating' | 'ready' | 'error' = 'ready'
+): FileGroup {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   const now = Date.now();
 
@@ -1284,6 +1320,7 @@ export function createPlugin(name: string, description?: string): FileGroup {
     name,
     slug,
     description,
+    generationState,
     mainFileLength: mainFileContent.length,
     mainFilePreview: mainFileContent.substring(0, 100)
   });
@@ -1327,6 +1364,8 @@ export function createPlugin(name: string, description?: string): FileGroup {
     description,
     // Add default plugin manifest
     projectManifest: getPhpPluginManifest(),
+    // Set generation state
+    generationState,
   };
 
   console.log('✅ Plugin created with demo widget:', {

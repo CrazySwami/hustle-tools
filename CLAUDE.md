@@ -144,6 +144,14 @@ When sections are imported to WordPress (via template library or page preview), 
 - **API**: `/api/convert-html-to-widget-ai` - streams PHP using Vercel AI SDK
 - **Why AI**: Template-based approaches miss complex control logic; AI generates production-ready widgets with proper control organization, dynamic rendering, and semantic naming
 
+**IMPORTANT: Single-File Widget Structure:**
+- Elementor widgets are generated as a SINGLE PHP file with inline CSS/JS
+- NO separate .css or .js files are created
+- CSS is embedded in `<style>` tags inside the `render()` method with `{{WRAPPER}}` scoping
+- JavaScript (if needed) is embedded in `<script>` tags inside the `render()` method
+- Only TWO tabs shown for PHP projects: `widget.php` and `README.md`
+- This ensures CSS/JS are properly scoped to the widget instance and avoids global conflicts
+
 ### 2. AI Chat Interface (`/chat`)
 Vercel AI SDK-powered chat with streaming responses and tool calling.
 

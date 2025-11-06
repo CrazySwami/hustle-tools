@@ -319,17 +319,36 @@ export function ProjectSidebar({
                   }}
                 />
               ) : (
-                <span style={{
-                  flex: 1,
-                  fontSize: '13px',
-                  fontWeight: activeGroupId === group.id ? 500 : 400,
-                  color: activeGroupId === group.id ? '#ffffff' : '#cccccc',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>
-                  {group.name}
-                </span>
+                <>
+                  <span style={{
+                    flex: 1,
+                    fontSize: '13px',
+                    fontWeight: activeGroupId === group.id ? 500 : 400,
+                    color: activeGroupId === group.id ? '#ffffff' : '#cccccc',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {group.name}
+                  </span>
+
+                  {/* Loading Spinner (for generating state) */}
+                  {group.generationState === 'generating' && (
+                    <div
+                      className="spinner"
+                      style={{
+                        width: '14px',
+                        height: '14px',
+                        border: '2px solid #3e3e3e',
+                        borderTop: '2px solid #007acc',
+                        borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite',
+                        flexShrink: 0,
+                      }}
+                      title="Generating..."
+                    />
+                  )}
+                </>
               )}
 
               {/* Three-dot Menu (shows on hover) */}

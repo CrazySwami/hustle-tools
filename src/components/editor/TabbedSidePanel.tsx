@@ -162,9 +162,9 @@ export function TabbedSidePanel({
     setActiveTool(null)
   }
 
-  // Extract headings for TOC tab
+  // Extract headings for TOC tab - always keep updated
   useEffect(() => {
-    if (!editor || activeTab !== 'toc') return;
+    if (!editor) return;
 
     const extractHeadings = () => {
       const headingsList: Array<{ level: number; text: string; position: number; id: string }> = [];
@@ -172,11 +172,11 @@ export function TabbedSidePanel({
       editor.state.doc.descendants((node, pos) => {
         if (node.type.name === "heading") {
           const level = node.attrs.level;
-
-          // Skip H1 headings
-          if (level === 1) return;
-
           const text = node.textContent;
+
+          // Skip empty headings
+          if (!text.trim()) return;
+
           // Generate stable ID from position and text
           const id = `heading-${pos}-${text.slice(0, 20).replace(/\s+/g, "-")}`;
 
@@ -231,7 +231,7 @@ export function TabbedSidePanel({
     return () => {
       editor.off("update", updateListener);
     };
-  }, [editor, activeTab]);
+  }, [editor]);
 
   // TOC: Scroll to heading when clicked
   const scrollToHeading = (position: number, id: string) => {
@@ -331,17 +331,19 @@ export function TabbedSidePanel({
   return (
     <div
       className={cn(
-        "bg-background border border-border flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
-        // Mobile: below toolbar, full width, no transform (always visible when open)
-        "fixed top-[60px] left-0 right-0 bottom-0 w-full rounded-none",
-        // Desktop: fixed right side, slide in/out
-        "md:fixed md:top-2 md:right-2 md:bottom-2 md:left-auto md:rounded-lg md:w-80",
-        // Desktop slide animation (mobile doesn't slide, just shows/hides)
+        "border-l border-border flex flex-col transition-all duration-300 ease-in-out overflow-hidden bg-[#EBEBEB] dark:bg-[#2C2C2C]",
+        // Mobile: full screen overlay below toolbar (60px + 60px = 120px total offset from top)
+        "fixed top-[120px] left-0 right-0 bottom-0 w-full rounded-none",
+        // Desktop: absolute right side within parent container
+        "md:absolute md:top-0 md:right-0 md:bottom-0 md:left-auto md:w-80",
+        // Slide animation from right
         isOpen
-          ? "shadow-lg md:translate-x-0"
-          : "hidden md:block md:translate-x-full md:shadow-none"
+          ? "translate-x-0"
+          : "translate-x-full"
       )}
-      style={{ zIndex: 50 }}
+      style={{
+        zIndex: 100
+      }}
     >
       {/* Header with Tab Buttons */}
       <div className="flex-shrink-0 border-b">
@@ -432,7 +434,7 @@ export function TabbedSidePanel({
                     <button
                       key={tool.id}
                       onClick={() => handleToolClick(tool.id)}
-                      className="w-full text-left p-3 rounded-lg border transition-all bg-card hover:bg-muted/50 border-border"
+                      className="w-full text-left p-3 rounded-lg border transition-all bg-background hover:bg-muted/50 border-border"
                     >
                       <div className="flex items-start gap-3">
                         <Icon className={`h-5 w-5 ${tool.color} flex-shrink-0 mt-0.5`} />

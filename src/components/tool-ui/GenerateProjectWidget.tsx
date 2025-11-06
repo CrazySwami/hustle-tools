@@ -14,8 +14,10 @@ interface GenerateProjectWidgetProps {
     timestamp: string;
     message: string;
   };
-  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot') => string; // Returns new project ID
+  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot', generationState?: 'generating' | 'ready' | 'error') => string; // Returns new project ID
   onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  onProjectMetadataUpdate?: (projectId: string, metadata: Partial<{ isPlugin: boolean; pluginMainFile: string; pluginName: string; pluginSlug: string }>) => void; // Update plugin metadata
+  onProjectStateUpdate?: (projectId: string, state: 'generating' | 'ready' | 'error', error?: string) => void; // Update generation state
   onSwitchCodeTab?: (tab: 'html' | 'css' | 'js' | 'php' | 'hubl') => void;
   onSwitchTab?: (tab: string) => void; // Switch main tab (e.g., to 'json')
   isEditorReady?: (fileType: string) => boolean; // Check if editor is mounted and ready
@@ -27,6 +29,8 @@ export function GenerateProjectWidget({
   toolResult,
   onProjectCreate,
   onProjectUpdate,
+  onProjectMetadataUpdate,
+  onProjectStateUpdate,
   onSwitchCodeTab,
   onSwitchTab,
   isEditorReady,
@@ -102,13 +106,15 @@ export function GenerateProjectWidget({
       return;
     }
 
-    // Create project FIRST (use editable projectName)
+    // Create project FIRST with 'generating' state (use editable projectName)
     const projectId = onProjectCreate(
       projectName,
-      projectType === 'elementor' ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html'
+      projectType === 'elementor' ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html',
+      'generating' // Set initial state to 'generating'
     );
 
-    console.log('📦 Created project via widget:', projectName, 'ID:', projectId);
+    // Plugin metadata is now set by createNewPlugin(), no need for manual patching
+    console.log('📦 Created project via widget:', projectName, 'ID:', projectId, 'State: generating', projectType === 'elementor' ? '(PLUGIN)' : '');
 
     // Switch to Code Editor tab
     if (onSwitchTab) {
@@ -206,14 +212,76 @@ export function GenerateProjectWidget({
           if (projectId && onProjectUpdate) {
             console.log(`🔍 Checking matches for projectType: ${projectType}, fullCode length: ${fullCode.length}`);
             if (projectType === 'elementor') {
-              // Elementor widgets: Only PHP file with inline CSS/JS
-              const phpMatch = fullCode.match(/```php\n([\s\S]*?)(?:```|$)/);
+              // Elementor plugins: Parse TWO PHP files (main-plugin.php and widget.php)
+              // Look for php code blocks and match them to the correct files
 
-              console.log(`🔍 Elementor PHP match: ${!!phpMatch}`);
+              // Strategy: Find ALL php blocks, then identify which is which by content
+              const phpBlocks = fullCode.match(/```php\n([\s\S]*?)```/gi) || [];
 
-              if (phpMatch) {
-                console.log(`📝 Widget streaming PHP (${phpMatch[1].trim().length} chars)`);
-                onProjectUpdate(projectId, 'php', phpMatch[1].trim());
+              console.log(`🔍 Found ${phpBlocks.length} PHP blocks in Elementor response`);
+
+              // Extract content from each block
+              const phpContents = phpBlocks.map(block => {
+                const match = block.match(/```php\n([\s\S]*?)```/);
+                return match ? match[1].trim() : '';
+              });
+
+              // Identify which block is which:
+              // Main plugin file: contains "Plugin Name:" header
+              // Widget file: contains "class" and "extends \\Elementor\\Widget_Base"
+
+              let mainPluginCode = '';
+              let widgetCode = '';
+
+              for (const code of phpContents) {
+                if (code.includes('Plugin Name:') && code.includes('add_action')) {
+                  mainPluginCode = code;
+                  console.log(`📦 Found main-plugin.php (${code.length} chars)`);
+                } else if (code.includes('class ') && code.includes('extends \\Elementor\\Widget_Base')) {
+                  widgetCode = code;
+                  console.log(`🎨 Found widget.php (${code.length} chars)`);
+                }
+              }
+
+              // Update project with found files
+              if (mainPluginCode && onProjectMetadataUpdate) {
+                console.log(`📝 Streaming main-plugin.php (${mainPluginCode.length} chars)`);
+                onProjectMetadataUpdate(projectId, {
+                  isPlugin: true,
+                  pluginMainFile: mainPluginCode
+                });
+              }
+
+              if (widgetCode && onProjectMetadataUpdate) {
+                console.log(`📝 Streaming widget.php (${widgetCode.length} chars)`);
+
+                // Extract class name from generated widget
+                const classNameMatch = widgetCode.match(/class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends/);
+                const className = classNameMatch ? classNameMatch[1] : 'Generated_Widget';
+                const widgetSlug = className.toLowerCase().replace(/_/g, '-');
+                const widgetName = className.replace(/_/g, ' ').replace(/\bWidget\b/, '').trim() || projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+                // Generate new widget ID to replace Hello World widget
+                const widgetId = `widget_${Date.now()}`;
+
+                // Replace Hello World widget with generated widget in widgetFiles
+                onProjectMetadataUpdate(projectId, {
+                  widgetFiles: {
+                    [widgetId]: {
+                      name: widgetName,
+                      slug: widgetSlug,
+                      content: widgetCode,
+                      className: className,
+                    }
+                  }
+                });
+
+                console.log(`🎨 Replaced Hello World widget with ${widgetName} (ID: ${widgetId})`);
+              }
+
+              // Warn if we didn't find both files
+              if (!mainPluginCode || !widgetCode) {
+                console.warn(`⚠️ Missing files: Main Plugin=${!!mainPluginCode}, Widget=${!!widgetCode}`);
               }
             } else if (projectType === 'hubspot') {
               const htmlMatch = fullCode.match(/```html\n([\s\S]*?)(?:```|$)/);
@@ -272,9 +340,21 @@ export function GenerateProjectWidget({
         }
 
         setProgress(`✅ Generation complete!`);
+
+        // Mark generation as complete
+        if (onProjectStateUpdate && projectId) {
+          onProjectStateUpdate(projectId, 'ready');
+          console.log('✅ Project generation complete, state updated to ready');
+        }
       }
     } catch (error: any) {
       setProgress(`❌ Error: ${error.message}`);
+
+      // Mark generation as failed
+      if (onProjectStateUpdate && projectId) {
+        onProjectStateUpdate(projectId, 'error', error.message);
+        console.log('❌ Project generation failed, state updated to error');
+      }
     } finally {
       setGenerating(false);
       setCurrentPhase(null);
@@ -291,13 +371,14 @@ export function GenerateProjectWidget({
     globalCSS,
     onProjectCreate,
     onProjectUpdate,
+    onProjectStateUpdate,
     onSwitchCodeTab,
     onSwitchTab,
     currentPhase
   ]);
 
   const getProjectTypeLabel = () => {
-    if (projectType === 'elementor') return 'Elementor Widget (PHP)';
+    if (projectType === 'elementor') return 'Elementor Plugin (with Widget)';
     if (projectType === 'hubspot') return `HubSpot ${hubspotModuleType === 'email' ? 'Email' : 'Page'} Module`;
     return 'HTML Section';
   };

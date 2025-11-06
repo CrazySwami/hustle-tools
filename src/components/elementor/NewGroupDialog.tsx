@@ -218,47 +218,7 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                   </div>
                 </label>
 
-                {/* PHP Widget Option */}
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '12px',
-                  background: type === 'php' ? '#2a2d2e' : '#1e1e1e',
-                  border: type === 'php' ? '2px solid #007acc' : '2px solid #3e3e3e',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s'
-                }}>
-                  <input
-                    type="radio"
-                    name="type"
-                    value="php"
-                    checked={type === 'php'}
-                    onChange={(e) => setType(e.target.value as 'html' | 'php' | 'hubspot' | 'plugin')}
-                    style={{ marginRight: '12px' }}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <FaWordpress size={20} color="#21759B" style={{ flexShrink: 0 }} />
-                    <div>
-                      <div style={{
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        color: '#ffffff',
-                        marginBottom: '4px'
-                      }}>
-                        WordPress Widget
-                      </div>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#888'
-                      }}>
-                        Single Elementor widget with PHP
-                      </div>
-                    </div>
-                  </div>
-                </label>
-
-                {/* WordPress Plugin Option */}
+                {/* WordPress Plugin Option (starts with initial widget) */}
                 <label style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -292,7 +252,7 @@ export function NewGroupDialog({ onClose, onCreate }: NewGroupDialogProps) {
                         fontSize: '12px',
                         color: '#888'
                       }}>
-                        Multi-widget plugin with auto-registration
+                        Plugin that starts with initial widget (add more later)
                       </div>
                     </div>
                   </div>

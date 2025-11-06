@@ -104,7 +104,9 @@ const ChatBotDemo = () => {
   const [model, setModel] = useState<string>(modelGroups[0].models[0].value);
   const [webSearch, setWebSearch] = useState(false);
 
-  const { messages, sendMessage, status } = useChat();
+  const { messages, sendMessage, status } = useChat({
+    api: '/api/chat-doc', // Use specialized document chat endpoint
+  });
 
   const [documentContent, setDocumentContent] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);

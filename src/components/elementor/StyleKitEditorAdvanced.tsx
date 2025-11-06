@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { StyleKitGeneratorDialog } from './StyleKitGeneratorDialog';
+import { StyleKitGenerationResult } from './StyleKitGenerationResult';
 import defaultStyleKitTemplate from '@/lib/default-stylekit-template.json';
 
 type FieldStatus = 'missing' | 'default' | 'has-data';
@@ -49,10 +50,39 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   const [preSelectedStage, setPreSelectedStage] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
   const [currentGeneratingStage, setCurrentGeneratingStage] = useState<1 | 2 | 3 | 4 | null>(null);
 
+  // Generation result comparison state
+  const [showResultComparison, setShowResultComparison] = useState(false);
+  const [lastGeneratedKit, setLastGeneratedKit] = useState<any>(null);
+  const [lastRequestedConfig, setLastRequestedConfig] = useState<{
+    colors?: string[];
+    fonts?: string[];
+    preferences?: string;
+    industry?: string;
+  }>({});
+
   // Debug modal state
   const [showDebugModal, setShowDebugModal] = useState(false);
   const [debugData, setDebugData] = useState<any>(null);
   const [debugSectionName, setDebugSectionName] = useState('');
+
+  // Collapsible section state (all OPEN by default so fields are visible)
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
+    'stage1-colors': false,      // OPEN: Show color pickers
+    'stage2-fonts': false,        // Not used anymore
+    'stage2-presets': false,      // OPEN: Show typography presets
+    'stage3-headings': false,     // OPEN: Show H1-H6 editors
+    'stage4-buttons': false,      // OPEN: Show button config
+    'stage4-forms': false,        // OPEN: Show form config
+    'stage4-images': false,       // OPEN: Show image config
+    'stage4-layout': false,       // OPEN: Show layout config
+  });
+
+  const toggleSection = (sectionId: string) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionId]: !prev[sectionId]
+    }));
+  };
 
   // Mobile detection
   useEffect(() => {
@@ -275,6 +305,14 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
       stage: config.stage
     });
 
+    // Track what was requested for comparison later
+    setLastRequestedConfig({
+      colors: config.brandfetchData?.colors || [],
+      fonts: config.brandfetchData?.fonts || [],
+      preferences: config.stylePreferences,
+      industry: config.industry,
+    });
+
     setIsGenerating(true);
     setCurrentGeneratingStage(config.stage || null);
     setGenerationProgress(config.stage ? `Generating Stage ${config.stage}...` : 'Initializing AI generation...');
@@ -376,17 +414,19 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
       }
 
       if (generatedKit) {
-        console.log('🎯 About to call setKit with:', generatedKit);
+        console.log('🎯 About to show comparison modal with:', generatedKit);
         setGenerationProgress('Style Kit generated successfully!');
-        setKit(generatedKit);
-        console.log('✨ setKit called successfully');
+        setLastGeneratedKit(generatedKit);
+        console.log('✨ Stored generated kit for comparison');
 
+        // Close dialog and show comparison modal
         setTimeout(() => {
           setShowAIDialog(false);
           setIsGenerating(false);
           setGenerationProgress('');
           setCurrentGeneratingStage(null);
-        }, 1500);
+          setShowResultComparison(true);
+        }, 1000);
       } else {
         throw new Error('No Style Kit data received from API');
       }
@@ -525,34 +565,34 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   const renderGlobalColors = () => {
     const s = kit.page_settings || {};
 
-    if (activeSubTab === 'system') {
-      return (
-        <div style={{ padding: '20px' }}>
-          <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 600 }}>Field Status Legend</h4>
-            <div style={{ display: 'flex', gap: '24px', fontSize: '13px' }}>
-              <div><span style={{ marginRight: '6px', color: '#10b981' }}>●</span>Has Data</div>
-              <div><span style={{ marginRight: '6px', color: '#f59e0b' }}>●</span>Default Value</div>
-              <div><span style={{ marginRight: '6px', color: '#ef4444' }}>●</span>Missing from JSON</div>
-            </div>
+    return (
+      <div style={{ padding: '20px' }}>
+        <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+          <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 600 }}>Field Status Legend</h4>
+          <div style={{ display: 'flex', gap: '24px', fontSize: '13px' }}>
+            <div><span style={{ marginRight: '6px', color: '#10b981' }}>●</span>Has Data</div>
+            <div><span style={{ marginRight: '6px', color: '#f59e0b' }}>●</span>Default Value</div>
+            <div><span style={{ marginRight: '6px', color: '#ef4444' }}>●</span>Missing from JSON</div>
           </div>
+        </div>
 
-          <div style={{ marginBottom: '24px' }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '12px' }}>
-              System Colors (4 Required)
-              <span style={{
-                padding: '4px 12px',
-                fontSize: '11px',
-                fontWeight: 600,
-                borderRadius: '12px',
-                backgroundColor: s.system_colors && s.system_colors.length === 4 ? '#4caf50' : '#f44336',
-                color: 'white',
-              }}>
-                {s.system_colors && s.system_colors.length === 4 ? 'COMPLETE' : 'INCOMPLETE'}
-              </span>
-            </h3>
-            {s.system_colors && s.system_colors.length > 0 ? (
-              s.system_colors.map((color: any, idx: number) => (
+        {/* SYSTEM COLORS */}
+        <div style={{ marginBottom: '32px' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '12px' }}>
+            System Colors (4 Required)
+            <span style={{
+              padding: '4px 12px',
+              fontSize: '11px',
+              fontWeight: 600,
+              borderRadius: '12px',
+              backgroundColor: s.system_colors && s.system_colors.length === 4 ? '#4caf50' : '#f44336',
+              color: 'white',
+            }}>
+              {s.system_colors && s.system_colors.length === 4 ? 'COMPLETE' : 'INCOMPLETE'}
+            </span>
+          </h3>
+          {s.system_colors && s.system_colors.length > 0 ? (
+            s.system_colors.map((color: any, idx: number) => (
                 <div key={color._id} style={{ marginBottom: '12px', padding: '12px', backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '6px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
                     <span>{getStatusIcon(getFieldStatus(color.color, null))}</span>
@@ -1316,7 +1356,6 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                   width: '100%',
                   height: '180px',
                   background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  borderRadius: s.image_styles?.image_border_radius?.top + 'px' || '8px',
                   boxShadow: s.image_styles?.image_box_shadow || '0 4px 12px rgba(0,0,0,0.08)',
                   objectFit: s.image_styles?.image_object_fit || 'cover',
                   ...getImageStyle(),
@@ -1701,7 +1740,6 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                     width: '100%',
                     height: '180px',
                     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    borderRadius: kit.page_settings?.image_styles?.image_border_radius?.top + 'px' || '8px',
                     boxShadow: kit.page_settings?.image_styles?.image_box_shadow || '0 4px 12px rgba(0,0,0,0.08)',
                     objectFit: kit.page_settings?.image_styles?.image_object_fit || 'cover',
                     ...(image1Hovered ? { ...getImageStyle(), ...getImageHoverStyle() } : getImageStyle()),
@@ -1729,7 +1767,6 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                     width: '100%',
                     height: '180px',
                     background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                    borderRadius: kit.page_settings?.image_styles?.image_border_radius?.top + 'px' || '8px',
                     boxShadow: kit.page_settings?.image_styles?.image_box_shadow || '0 4px 12px rgba(0,0,0,0.08)',
                     objectFit: kit.page_settings?.image_styles?.image_object_fit || 'cover',
                     ...(image2Hovered ? { ...getImageStyle(), ...getImageHoverStyle() } : getImageStyle()),
@@ -2075,17 +2112,13 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
 
   // Table of contents sections
   const tocSections = [
-    { id: 'colors', label: 'Colors', ref: colorsRef },
-    { id: 'global-fonts', label: 'Global Fonts', ref: globalFontsRef },
-    { id: 'typography', label: 'Typography Presets', ref: typographyRef },
-    { id: 'headings', label: 'Headings & Body', ref: headingsRef },
-    { id: 'buttons', label: 'Buttons', ref: buttonsRef },
-    { id: 'forms', label: 'Forms', ref: formsRef },
-    { id: 'images', label: 'Images', ref: imagesRef },
-    { id: 'layout', label: 'Layout Settings', ref: layoutRef },
+    { id: 'stage1-colors', label: '🎨 Stage 1: Colors', ref: colorsRef },
+    { id: 'stage2-typography', label: '🔤 Stage 2: Typography System', ref: typographyRef },
+    { id: 'stage3-content', label: '📝 Stage 3: Content Styles', ref: headingsRef },
+    { id: 'stage4-components', label: '🎛️ Stage 4: Components & Layout', ref: buttonsRef },
   ];
 
-  const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => {
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -2215,280 +2248,600 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
               padding: '16px',
             }}>
                 {/* Colors Section */}
-                <div ref={colorsRef} style={{ marginBottom: '32px' }}>
+                {/* ═══════════════════════════════════════════════════ */}
+                {/* STAGE 1: COLORS */}
+                {/* ═══════════════════════════════════════════════════ */}
+                <div ref={colorsRef} style={{ marginBottom: '32px', padding: '16px', backgroundColor: 'var(--muted)/20', border: '2px solid var(--border)', borderRadius: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Colors</h3>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => viewSectionData('colors')}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          backgroundColor: 'var(--muted)',
-                          color: 'var(--foreground)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        🔍 View Data
-                      </button>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>🎨 Stage 1: Colors</h3>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted-foreground)' }}>System and custom colors used in your style kit</p>
+                    </div>
                       <button
                         onClick={() => openDialogForStage(1)}
                         disabled={isGenerating}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                        padding: '8px 16px',
+                        fontSize: '13px',
+                        fontWeight: 600,
                           backgroundColor: currentGeneratingStage === 1 ? 'var(--primary)' : 'var(--accent)',
                           color: currentGeneratingStage === 1 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
                           border: 'none',
-                          borderRadius: '4px',
+                        borderRadius: '6px',
                           cursor: isGenerating ? 'not-allowed' : 'pointer',
                           opacity: isGenerating && currentGeneratingStage !== 1 ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
                         }}
                       >
-                        {currentGeneratingStage === 1 ? '⏳' : '🔄'} Regenerate
+                      {currentGeneratingStage === 1 ? '⏳ Generating...' : '✨ Regenerate Colors'}
                       </button>
                     </div>
+                  
+                  {/* Visual Preview of Colors */}
+                  <div style={{ marginBottom: '20px', padding: '20px', backgroundColor: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <h4 style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)' }}>👁️ VISUAL PREVIEW</h4>
+                    
+                    {/* System Colors Preview */}
+                    <div style={{ marginBottom: '24px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '12px' }}>SYSTEM COLORS (Primary Palette)</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
+                        {(kit.page_settings?.system_colors || []).slice(0, 4).map((color: any, index: number) => (
+                          <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{
+                              width: '100%',
+                              height: '80px',
+                              backgroundColor: color.color,
+                              borderRadius: '8px',
+                              border: '2px solid var(--border)',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                            }} />
+                            <div style={{ textAlign: 'center' }}>
+                              <div style={{ fontSize: '12px', fontWeight: 600 }}>{color.title || `Color ${index + 1}`}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>{color.color}</div>
                   </div>
-                  {renderGlobalColors()}
+                          </div>
+                        ))}
+                      </div>
                 </div>
 
-                {/* Global Fonts Section */}
-                <div ref={globalFontsRef} style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Global Fonts</h3>
-                    <button
-                      onClick={() => openDialogForStage(2)}
-                      disabled={isGenerating}
-                      style={{
-                        padding: '6px 12px',
-                        fontSize: '12px',
-                        backgroundColor: currentGeneratingStage === 2 ? 'var(--primary)' : 'var(--accent)',
-                        color: currentGeneratingStage === 2 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
+                    {/* Custom Colors Preview */}
+                    {kit.page_settings?.custom_colors && kit.page_settings.custom_colors.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '12px' }}>CUSTOM COLORS</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '12px' }}>
+                          {kit.page_settings.custom_colors.slice(0, 8).map((color: any, index: number) => (
+                            <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              <div style={{
+                                width: '100%',
+                                height: '60px',
+                                backgroundColor: color.color,
+                                borderRadius: '6px',
+                                border: '1px solid var(--border)',
+                              }} />
+                              <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '10px', fontWeight: 600 }}>{color.title || `Custom ${index + 1}`}</div>
+                                <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>{color.color}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Color Usage Example */}
+                    <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '6px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '12px' }}>COLOR USAGE PREVIEW</div>
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <button style={{
+                          padding: '10px 20px',
+                          backgroundColor: kit.page_settings?.system_colors?.[0]?.color || '#0066CC',
+                          color: '#FFFFFF',
                         border: 'none',
                         borderRadius: '4px',
-                        cursor: isGenerating ? 'not-allowed' : 'pointer',
-                        opacity: isGenerating && currentGeneratingStage !== 2 ? 0.5 : 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      {currentGeneratingStage === 2 ? '⏳' : '🔄'} Regenerate
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}>
+                          Primary Button
                     </button>
+                        <button style={{
+                          padding: '10px 20px',
+                          backgroundColor: kit.page_settings?.system_colors?.[1]?.color || '#6C757D',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}>
+                          Secondary Button
+                        </button>
+                        <span style={{
+                          padding: '6px 12px',
+                          backgroundColor: kit.page_settings?.system_colors?.[3]?.color || '#FFC107',
+                          color: '#000000',
+                          borderRadius: '4px',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                        }}>
+                          Accent Badge
+                        </span>
+                        <div style={{
+                          padding: '12px',
+                          backgroundColor: 'var(--card)',
+                          border: `2px solid ${kit.page_settings?.system_colors?.[0]?.color || '#0066CC'}`,
+                          borderRadius: '4px',
+                          fontSize: '13px',
+                        }}>
+                          Bordered Element
                   </div>
-                  <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Base font selections used throughout the site</p>
-                  {/* TODO: Add global fonts editor */}
-                  <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '4px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
-                    Global fonts editor coming soon. Use Typography Presets for now.
+                      </div>
                   </div>
                 </div>
 
-                {/* Typography Presets Section */}
-                <div ref={typographyRef} style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Typography Presets</h3>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                  {/* Detailed Editor - Collapsible */}
                       <button
-                        onClick={() => viewSectionData('fonts')}
+                    onClick={() => toggleSection('stage1-colors')}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                      width: '100%',
+                      padding: '12px',
                           backgroundColor: 'var(--muted)',
-                          color: 'var(--foreground)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '4px',
+                      border: 'none',
+                      borderRadius: '6px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                      justifyContent: 'space-between',
+                      marginBottom: collapsedSections['stage1-colors'] ? 0 : '12px',
                         }}
                       >
-                        🔍 View Data
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>
+                      ⚙️ Detailed Color Settings ({(kit.page_settings?.system_colors?.length || 0) + (kit.page_settings?.custom_colors?.length || 0)} colors)
+                    </span>
+                    <span style={{ fontSize: '18px' }}>{collapsedSections['stage1-colors'] ? '▶' : '▼'}</span>
                       </button>
+                  {!collapsedSections['stage1-colors'] && (
+                    <div style={{ marginTop: '12px' }}>
+                      {renderGlobalColors()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Typography Presets Section - Shows Primary & Secondary Fonts */}
+                <div ref={typographyRef} style={{ marginBottom: '32px', padding: '16px', backgroundColor: 'var(--muted)/20', border: '2px solid var(--border)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>🔤 Stage 2: Typography System</h3>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted-foreground)' }}>Primary & secondary fonts + typography presets</p>
+                    </div>
                       <button
                         onClick={() => openDialogForStage(2)}
                         disabled={isGenerating}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                        padding: '8px 16px',
+                        fontSize: '13px',
+                        fontWeight: 600,
                           backgroundColor: currentGeneratingStage === 2 ? 'var(--primary)' : 'var(--accent)',
                           color: currentGeneratingStage === 2 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
                           border: 'none',
-                          borderRadius: '4px',
+                        borderRadius: '6px',
                           cursor: isGenerating ? 'not-allowed' : 'pointer',
                           opacity: isGenerating && currentGeneratingStage !== 2 ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
                         }}
                       >
-                        {currentGeneratingStage === 2 ? '⏳' : '🔄'} Regenerate
+                      {currentGeneratingStage === 2 ? '⏳ Generating...' : '✨ Regenerate Typography'}
                       </button>
                     </div>
+                  
+                  {/* Primary & Secondary Fonts Display */}
+                  <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+                    <h4 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)' }}>🔤 BASE FONTS</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div style={{ padding: '12px', backgroundColor: 'var(--card)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '6px' }}>PRIMARY FONT</div>
+                        <div style={{ fontSize: '24px', fontWeight: 700, fontFamily: kit.page_settings?.system_typography?.[0]?.typography_font_family || 'inherit', marginBottom: '4px' }}>
+                          {kit.page_settings?.system_typography?.[0]?.typography_font_family || 'Not Set'}
                   </div>
-                  <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Global typography styles (Primary, Secondary, Text, Accent)</p>
+                        <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>For headings & emphasis</div>
+                      </div>
+                      <div style={{ padding: '12px', backgroundColor: 'var(--card)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '6px' }}>SECONDARY FONT</div>
+                        <div style={{ fontSize: '24px', fontWeight: 700, fontFamily: kit.page_settings?.system_typography?.[2]?.typography_font_family || 'inherit', marginBottom: '4px' }}>
+                          {kit.page_settings?.system_typography?.[2]?.typography_font_family || 'Not Set'}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>For body & secondary text</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px', fontWeight: 600 }}>📋 Typography Presets (Primary, Secondary, Text, Accent)</p>
                   {renderGlobalTypography()}
                 </div>
 
-                {/* Headings & Body Section */}
-                <div ref={headingsRef} style={{ marginBottom: '32px' }}>
+                {/* ═══════════════════════════════════════════════════ */}
+                {/* STAGE 3: CONTENT STYLES (H1-H6, Body) */}
+                {/* ═══════════════════════════════════════════════════ */}
+                <div ref={headingsRef} style={{ marginBottom: '32px', padding: '16px', backgroundColor: 'var(--muted)/20', border: '2px solid var(--border)', borderRadius: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Headings & Body</h3>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => viewSectionData('headings')}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          backgroundColor: 'var(--muted)',
-                          color: 'var(--foreground)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        🔍 View Data
-                      </button>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>📝 Stage 3: Content Styles</h3>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted-foreground)' }}>Heading sizes (H1-H6) and body text styles</p>
+                    </div>
                       <button
                         onClick={() => openDialogForStage(3)}
                         disabled={isGenerating}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                        padding: '8px 16px',
+                        fontSize: '13px',
+                        fontWeight: 600,
                           backgroundColor: currentGeneratingStage === 3 ? 'var(--primary)' : 'var(--accent)',
                           color: currentGeneratingStage === 3 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
                           border: 'none',
-                          borderRadius: '4px',
+                        borderRadius: '6px',
                           cursor: isGenerating ? 'not-allowed' : 'pointer',
                           opacity: isGenerating && currentGeneratingStage !== 3 ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
                         }}
                       >
-                        {currentGeneratingStage === 3 ? '⏳' : '🔄'} Regenerate
+                      {currentGeneratingStage === 3 ? '⏳ Generating...' : '✨ Regenerate Content Styles'}
                       </button>
                     </div>
+                  
+                  {/* Visual Preview of Headings */}
+                  <div style={{ marginBottom: '20px', padding: '20px', backgroundColor: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <h4 style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)' }}>👁️ VISUAL PREVIEW</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <h1 style={{
+                        margin: 0,
+                        fontFamily: kit.page_settings?.h1_typography?.typography_font_family || 'inherit',
+                        fontSize: kit.page_settings?.h1_typography?.typography_font_size?.size ? `${kit.page_settings.h1_typography.typography_font_size.size}px` : '56px',
+                        fontWeight: kit.page_settings?.h1_typography?.typography_font_weight || 700,
+                        lineHeight: kit.page_settings?.h1_typography?.typography_line_height?.size || 1.2,
+                        color: kit.page_settings?.h1_typography?.typography_text_color || 'var(--foreground)',
+                      }}>
+                        H1 Main Heading
+                      </h1>
+                      <h2 style={{
+                        margin: 0,
+                        fontFamily: kit.page_settings?.h2_typography?.typography_font_family || 'inherit',
+                        fontSize: kit.page_settings?.h2_typography?.typography_font_size?.size ? `${kit.page_settings.h2_typography.typography_font_size.size}px` : '40px',
+                        fontWeight: kit.page_settings?.h2_typography?.typography_font_weight || 600,
+                        lineHeight: kit.page_settings?.h2_typography?.typography_line_height?.size || 1.3,
+                        color: kit.page_settings?.h2_typography?.typography_text_color || 'var(--foreground)',
+                      }}>
+                        H2 Section Heading
+                      </h2>
+                      <h3 style={{
+                        margin: 0,
+                        fontFamily: kit.page_settings?.h3_typography?.typography_font_family || 'inherit',
+                        fontSize: kit.page_settings?.h3_typography?.typography_font_size?.size ? `${kit.page_settings.h3_typography.typography_font_size.size}px` : '32px',
+                        fontWeight: kit.page_settings?.h3_typography?.typography_font_weight || 600,
+                        color: kit.page_settings?.h3_typography?.typography_text_color || 'var(--foreground)',
+                      }}>
+                        H3 Subsection Heading
+                      </h3>
+                      <p style={{
+                        margin: 0,
+                        fontFamily: kit.page_settings?.body_typography?.typography_font_family || 'inherit',
+                        fontSize: kit.page_settings?.body_typography?.typography_font_size?.size ? `${kit.page_settings.body_typography.typography_font_size.size}px` : '16px',
+                        fontWeight: kit.page_settings?.body_typography?.typography_font_weight || 400,
+                        lineHeight: kit.page_settings?.body_typography?.typography_line_height?.size || 1.6,
+                        color: kit.page_settings?.body_typography?.typography_text_color || 'var(--foreground)',
+                      }}>
+                        Body text: This is how your paragraph text will look. The quick brown fox jumps over the lazy dog.
+                      </p>
                   </div>
-                  {renderThemeTypography()}
                 </div>
 
-                {/* Buttons Section */}
-                <div ref={buttonsRef} style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Buttons</h3>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                  {/* Detailed Editor */}
                       <button
-                        onClick={() => viewSectionData('components')}
+                    onClick={() => toggleSection('stage3-headings')}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                      width: '100%',
+                      padding: '12px',
                           backgroundColor: 'var(--muted)',
-                          color: 'var(--foreground)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '4px',
+                      border: 'none',
+                      borderRadius: '6px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                      justifyContent: 'space-between',
+                      marginBottom: collapsedSections['stage3-headings'] ? 0 : '12px',
                         }}
                       >
-                        🔍 View Data
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>
+                      ⚙️ Detailed Settings (H1-H6, Body)
+                    </span>
+                    <span style={{ fontSize: '18px' }}>{collapsedSections['stage3-headings'] ? '▶' : '▼'}</span>
                       </button>
+                  {!collapsedSections['stage3-headings'] && (
+                    <div style={{ marginTop: '12px' }}>
+                      {renderThemeTypography()}
+                    </div>
+                  )}
+                </div>
+
+                {/* ═══════════════════════════════════════════════════ */}
+                {/* STAGE 4: COMPONENTS & LAYOUT */}
+                {/* ═══════════════════════════════════════════════════ */}
+                <div ref={buttonsRef} style={{ marginBottom: '32px', padding: '16px', backgroundColor: 'var(--muted)/20', border: '2px solid var(--border)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>🎛️ Stage 4: Components & Layout</h3>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted-foreground)' }}>Buttons, forms, images, and layout settings</p>
+                    </div>
                       <button
                         onClick={() => openDialogForStage(4)}
                         disabled={isGenerating}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                        padding: '8px 16px',
+                        fontSize: '13px',
+                        fontWeight: 600,
                           backgroundColor: currentGeneratingStage === 4 ? 'var(--primary)' : 'var(--accent)',
                           color: currentGeneratingStage === 4 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
                           border: 'none',
-                          borderRadius: '4px',
+                        borderRadius: '6px',
                           cursor: isGenerating ? 'not-allowed' : 'pointer',
                           opacity: isGenerating && currentGeneratingStage !== 4 ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
                         }}
                       >
-                        {currentGeneratingStage === 4 ? '⏳' : '🔄'} Regenerate
+                      {currentGeneratingStage === 4 ? '⏳ Generating...' : '✨ Regenerate Components'}
                       </button>
                     </div>
+
+                  {/* Visual Preview of Components */}
+                  <div style={{ marginBottom: '20px', padding: '20px', backgroundColor: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <h4 style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)' }}>👁️ VISUAL PREVIEW</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      {/* Button Preview */}
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px' }}>BUTTONS</div>
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                          <button style={{
+                            padding: kit.page_settings?.button_padding ? 
+                              `${kit.page_settings.button_padding.top}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.right}${kit.page_settings.button_padding.unit || 'px'}` 
+                              : '12px 24px',
+                            backgroundColor: kit.page_settings?.button_background_color || '#0066CC',
+                            color: kit.page_settings?.button_text_color || '#FFFFFF',
+                            border: 'none',
+                            borderRadius: kit.page_settings?.button_border_radius?.size ? `${kit.page_settings.button_border_radius.size}${kit.page_settings.button_border_radius.unit || 'px'}` : '4px',
+                            fontFamily: kit.page_settings?.button_typography?.typography_font_family || 'inherit',
+                            fontSize: kit.page_settings?.button_typography?.typography_font_size?.size ? `${kit.page_settings.button_typography.typography_font_size.size}px` : '14px',
+                            fontWeight: kit.page_settings?.button_typography?.typography_font_weight || 600,
+                            cursor: 'pointer',
+                          }}>
+                            Primary Button
+                          </button>
+                          <button style={{
+                            padding: kit.page_settings?.button_padding ? 
+                              `${kit.page_settings.button_padding.top}${kit.page_settings.button_padding.unit || 'px'} ${kit.page_settings.button_padding.right}${kit.page_settings.button_padding.unit || 'px'}` 
+                              : '12px 24px',
+                            backgroundColor: kit.page_settings?.button_hover_background_color || '#0052A3',
+                            color: kit.page_settings?.button_text_color || '#FFFFFF',
+                            border: 'none',
+                            borderRadius: kit.page_settings?.button_border_radius?.size ? `${kit.page_settings.button_border_radius.size}${kit.page_settings.button_border_radius.unit || 'px'}` : '4px',
+                            fontFamily: kit.page_settings?.button_typography?.typography_font_family || 'inherit',
+                            fontSize: kit.page_settings?.button_typography?.typography_font_size?.size ? `${kit.page_settings.button_typography.typography_font_size.size}px` : '14px',
+                            fontWeight: kit.page_settings?.button_typography?.typography_font_weight || 600,
+                            cursor: 'pointer',
+                          }}>
+                            Hover State
+                          </button>
                   </div>
-                  {renderButtons()}
                 </div>
 
-                {/* Forms Section */}
-                <div ref={formsRef} style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Forms</h3>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => viewSectionData('components')}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                      {/* Form Preview */}
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px' }}>FORMS</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '400px' }}>
+                          <div>
+                            <label style={{
+                              display: 'block',
+                              marginBottom: '6px',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              fontFamily: kit.page_settings?.form_label_typography?.typography_font_family || 'inherit',
+                              color: kit.page_settings?.form_label_typography?.typography_text_color || 'var(--foreground)',
+                            }}>
+                              Form Label
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Input field"
+                              style={{
+                                width: '100%',
+                                padding: kit.page_settings?.form_field_padding ? 
+                                  `${kit.page_settings.form_field_padding.top}${kit.page_settings.form_field_padding.unit || 'px'} ${kit.page_settings.form_field_padding.right}${kit.page_settings.form_field_padding.unit || 'px'}` 
+                                  : '10px 12px',
+                                border: `1px solid ${kit.page_settings?.form_field_border_color || '#CCCCCC'}`,
+                                borderRadius: kit.page_settings?.form_field_border_radius?.size ? `${kit.page_settings.form_field_border_radius.size}${kit.page_settings.form_field_border_radius.unit || 'px'}` : '4px',
+                                backgroundColor: kit.page_settings?.form_field_background_color || '#FFFFFF',
+                                fontFamily: kit.page_settings?.form_field_typography?.typography_font_family || 'inherit',
+                                fontSize: kit.page_settings?.form_field_typography?.typography_font_size?.size ? `${kit.page_settings.form_field_typography.typography_font_size.size}px` : '14px',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Images Preview */}
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px' }}>IMAGES</div>
+                        <div style={{
+                          width: '120px',
+                          height: '80px',
                           backgroundColor: 'var(--muted)',
-                          color: 'var(--foreground)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '4px',
+                          borderRadius: kit.page_settings?.image_border_radius?.size ? `${kit.page_settings.image_border_radius.size}${kit.page_settings.image_border_radius.unit || 'px'}` : '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '11px',
+                          color: 'var(--muted-foreground)',
+                        }}>
+                          Image
+                        </div>
+                      </div>
+
+                      {/* Layout Preview */}
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px' }}>LAYOUT</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', fontSize: '11px' }}>
+                          <div style={{ padding: '8px', backgroundColor: 'var(--muted)', borderRadius: '4px', textAlign: 'center' }}>
+                            <div style={{ fontWeight: 600 }}>Container</div>
+                            <div>{kit.page_settings?.container_width?.size || 1200}{kit.page_settings?.container_width?.unit || 'px'}</div>
+                          </div>
+                          <div style={{ padding: '8px', backgroundColor: 'var(--muted)', borderRadius: '4px', textAlign: 'center' }}>
+                            <div style={{ fontWeight: 600 }}>Tablet</div>
+                            <div>{kit.page_settings?.viewport_md || 768}px</div>
+                          </div>
+                          <div style={{ padding: '8px', backgroundColor: 'var(--muted)', borderRadius: '4px', textAlign: 'center' }}>
+                            <div style={{ fontWeight: 600 }}>Desktop</div>
+                            <div>{kit.page_settings?.viewport_lg || 1025}px</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Collapsible Subsections */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {/* Buttons Subsection */}
+                    <div>
+                      <button
+                        onClick={() => toggleSection('stage4-buttons')}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          backgroundColor: 'var(--muted)',
+                          border: 'none',
+                          borderRadius: '6px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          justifyContent: 'space-between',
                         }}
                       >
-                        🔍 View Data
+                        <span style={{ fontSize: '14px', fontWeight: 600 }}>🔘 Buttons (all states)</span>
+                        <span style={{ fontSize: '18px' }}>{collapsedSections['stage4-buttons'] ? '▶' : '▼'}</span>
                       </button>
+                      {!collapsedSections['stage4-buttons'] && (
+                        <div style={{ marginTop: '12px', padding: '16px', backgroundColor: 'var(--card)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          {renderButtons()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Forms Subsection */}
+                    <div>
                       <button
-                        onClick={() => openDialogForStage(4)}
-                        disabled={isGenerating}
+                        onClick={() => toggleSection('stage4-forms')}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          backgroundColor: currentGeneratingStage === 4 ? 'var(--primary)' : 'var(--accent)',
-                          color: currentGeneratingStage === 4 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
+                          width: '100%',
+                          padding: '12px',
+                          backgroundColor: 'var(--muted)',
                           border: 'none',
-                          borderRadius: '4px',
-                          cursor: isGenerating ? 'not-allowed' : 'pointer',
-                          opacity: isGenerating && currentGeneratingStage !== 4 ? 0.5 : 1,
+                          borderRadius: '6px',
+                          cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          justifyContent: 'space-between',
                         }}
                       >
-                        {currentGeneratingStage === 4 ? '⏳' : '🔄'} Regenerate
+                        <span style={{ fontSize: '14px', fontWeight: 600 }}>📝 Forms (fields, labels, states)</span>
+                        <span style={{ fontSize: '18px' }}>{collapsedSections['stage4-forms'] ? '▶' : '▼'}</span>
                       </button>
-                    </div>
-                  </div>
+                      {!collapsedSections['stage4-forms'] && (
+                        <div style={{ marginTop: '12px', padding: '16px', backgroundColor: 'var(--card)', borderRadius: '6px', border: '1px solid var(--border)' }}>
                   {renderForms()}
+                        </div>
+                      )}
                 </div>
 
-                {/* Images Section */}
-                <div ref={imagesRef} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Images</h3>
+                    {/* Images Subsection */}
+                    <div ref={imagesRef}>
+                      <button
+                        onClick={() => toggleSection('stage4-images')}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          backgroundColor: 'var(--muted)',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <span style={{ fontSize: '14px', fontWeight: 600 }}>🖼️ Images (border radius, hover)</span>
+                        <span style={{ fontSize: '18px' }}>{collapsedSections['stage4-images'] ? '▶' : '▼'}</span>
+                      </button>
+                      {!collapsedSections['stage4-images'] && (
+                        <div style={{ marginTop: '12px', padding: '16px', backgroundColor: 'var(--card)', borderRadius: '6px', border: '1px solid var(--border)' }}>
                   {renderImages()}
+                        </div>
+                      )}
                 </div>
 
-                {/* Layout Settings Section */}
-                <div ref={layoutRef} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Layout Settings</h3>
+                    {/* Layout Subsection */}
+                    <div ref={layoutRef}>
+                      <button
+                        onClick={() => toggleSection('stage4-layout')}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          backgroundColor: 'var(--muted)',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <span style={{ fontSize: '14px', fontWeight: 600 }}>📐 Layout (container, spacing, breakpoints)</span>
+                        <span style={{ fontSize: '18px' }}>{collapsedSections['stage4-layout'] ? '▶' : '▼'}</span>
+                      </button>
+                      {!collapsedSections['stage4-layout'] && (
+                        <div style={{ marginTop: '12px', padding: '16px', backgroundColor: 'var(--card)', borderRadius: '6px', border: '1px solid var(--border)' }}>
                   <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Container width, spacing, and responsive breakpoints</p>
-                  {/* TODO: Add layout settings editor */}
-                  <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '4px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
-                    Layout settings editor coming soon (container width, widget spacing, breakpoints).
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '4px' }}>CONTAINER WIDTH</div>
+                              <div style={{ fontSize: '24px', fontWeight: 600 }}>
+                                {kit.page_settings?.container_width?.size || 1200}{kit.page_settings?.container_width?.unit || 'px'}
+                              </div>
+                            </div>
+                            <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px' }}>WIDGET SPACING</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <div>
+                                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Column Gap</div>
+                                  <div style={{ fontSize: '20px', fontWeight: 600 }}>
+                                    {kit.page_settings?.space_between_widgets?.column || 20}px
+                                  </div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Row Gap</div>
+                                  <div style={{ fontSize: '20px', fontWeight: 600 }}>
+                                    {kit.page_settings?.space_between_widgets?.row || 20}px
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '8px' }}>
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px' }}>RESPONSIVE BREAKPOINTS</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <div>
+                                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Tablet</div>
+                                  <div style={{ fontSize: '20px', fontWeight: 600 }}>{kit.page_settings?.viewport_md || 768}px</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Desktop</div>
+                                  <div style={{ fontSize: '20px', fontWeight: 600 }}>{kit.page_settings?.viewport_lg || 1025}px</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
             </div>
@@ -2505,6 +2858,40 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
             setPreSelectedStage(undefined);
           }}
           preSelectedStage={preSelectedStage}
+        />
+      )}
+
+      {/* Generation Result Comparison Modal */}
+      {showResultComparison && lastGeneratedKit && (
+        <StyleKitGenerationResult
+          requested={lastRequestedConfig}
+          generated={lastGeneratedKit}
+          onAccept={() => {
+            // Accept the generated kit
+            console.log('✅ User accepted generated kit');
+            setKit(lastGeneratedKit);
+            setShowResultComparison(false);
+            setLastGeneratedKit(null);
+          }}
+          onRegenerate={(stage?: 1 | 2 | 3 | 4) => {
+            // Regenerate specific stage or all
+            console.log('🔄 User requested regeneration:', stage ? `Stage ${stage}` : 'All');
+            setShowResultComparison(false);
+            
+            if (stage) {
+              // Regenerate specific stage with same config
+              setPreSelectedStage(stage);
+            }
+            
+            // Reopen dialog with previous config
+            setShowAIDialog(true);
+          }}
+          onClose={() => {
+            // Close without accepting (discard generated kit)
+            console.log('❌ User closed without accepting');
+            setShowResultComparison(false);
+            setLastGeneratedKit(null);
+          }}
         />
       )}
 

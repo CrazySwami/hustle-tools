@@ -278,6 +278,17 @@ export default function ElementorEditorPage() {
     return false;
   });
 
+  // File inclusions state (controls which files are sent to AI context)
+  const [fileInclusions, setFileInclusions] = useState({
+    html: true,
+    css: true,
+    js: true,
+    php: true,
+    hubl: true,
+    pluginMainFile: true,
+    readme: true,
+  });
+
   // Toast listener
   useEffect(() => {
     return useToastListener((toast) => {
@@ -892,6 +903,10 @@ export default function ElementorEditorPage() {
             reasoningEffort: settings?.reasoningEffort ?? 'medium',
             detailedMode: settings?.detailedMode ?? false,
             includeContext: settings?.includeContext ?? true,
+          },
+          fetch: async (url, options) => {
+            console.log('🌐 sendMessage fetch override - forcing to /api/chat-elementor');
+            return fetch('/api/chat-elementor', options);
           },
         }
       );
@@ -1546,6 +1561,7 @@ export default function ElementorEditorPage() {
         {/* Desktop: Two-panel layout with TwoPanelChatLayout */}
         {!isMobile && chatVisible && (
           <TwoPanelChatLayout
+            defaultSplitPercent={40}
             leftPanel={
               <div
                 ref={chatPanelRef}
@@ -1623,15 +1639,62 @@ export default function ElementorEditorPage() {
                         if (updates.php !== undefined) fileGroups.updateGroupFile(currentSection.id, 'php', updates.php);
                       }
                     }}
-                    onProjectCreate={(name, type) => {
-                      // Create new project and return its ID
-                      const newGroup = fileGroups.createNewGroup(name, type, 'empty');
+                    onProjectMetadataUpdate={(projectId, metadata) => {
+                      // Handle plugin metadata updates (pluginMainFile, widgetFiles, etc.)
+                      console.log('🔧 Metadata update requested:', projectId, Object.keys(metadata));
+
+                      // If updating widgetFiles, merge with existing widgets (don't replace all)
+                      if (metadata.widgetFiles) {
+                        const currentGroup = fileGroups.groups.find(g => g.id === projectId);
+                        if (currentGroup?.widgetFiles) {
+                          metadata.widgetFiles = { ...currentGroup.widgetFiles, ...metadata.widgetFiles };
+                          console.log('🔀 Merging widget files:', Object.keys(metadata.widgetFiles));
+                        }
+                      }
+
+                      // Update metadata in state
+                      fileGroups.updateGroup(projectId, metadata);
+                      console.log('✅ Metadata saved to state');
+
+                      // If updating pluginMainFile and it's the active group, update Monaco editor
+                      if (projectId === fileGroups.activeGroupId && metadata.pluginMainFile) {
+                        if (editorRefs.php) {
+                          const model = editorRefs.php.getModel();
+                          if (model) {
+                            model.pushEditOperations([], [{
+                              range: model.getFullModelRange(),
+                              text: metadata.pluginMainFile
+                            }], () => null);
+                            console.log('✨ Updated Monaco editor with pluginMainFile');
+                          }
+                        }
+                      }
+                    }}
+                    onProjectCreate={(name, type, generationState = 'ready') => {
+                      // Create new project with generation state and return its ID
+                      let newGroup;
+
+                      if (type === 'php') {
+                        // For Elementor plugins, use createNewPlugin to get proper structure
+                        // Pass generationState directly to createPlugin
+                        newGroup = fileGroups.createNewPlugin(name, '', generationState);
+                        console.log('🔌 Plugin created via generateProject tool:', name, 'ID:', newGroup.id, 'State:', generationState);
+                      } else {
+                        // HTML/HubSpot projects use regular group
+                        newGroup = fileGroups.createNewGroup(name, type, 'empty', generationState);
+                        console.log('📦 Project created via generateProject tool:', name, 'Type:', type, 'ID:', newGroup.id, 'State:', generationState);
+                      }
+
                       fileGroups.selectGroup(newGroup.id);
-                      console.log('📦 Project created via generateProject tool:', name, 'Type:', type, 'ID:', newGroup.id);
                       // Switch to Code Editor tab and appropriate file tab
                       setActiveTab('json');
                       setActiveCodeTab(type === 'php' ? 'php' : 'html');
                       return newGroup.id;
+                    }}
+                    onProjectStateUpdate={(projectId, state, error) => {
+                      // Update project generation state
+                      fileGroups.updateProjectState(projectId, state, error);
+                      console.log('🔄 Project state updated:', projectId, 'State:', state, error ? `Error: ${error}` : '');
                     }}
                     onProjectUpdate={(projectId, file, content) => {
                       // Update project file with streaming content
@@ -1691,6 +1754,11 @@ export default function ElementorEditorPage() {
                     }}
                     currentSection={currentSection}
                     containerWidth={chatPanelWidth}
+                    fileInclusions={fileInclusions}
+                    onOpenFileInclusions={() => {
+                      // Trigger event to open file inclusions modal in HtmlSectionEditor
+                      window.dispatchEvent(new CustomEvent('open-file-inclusions-modal'));
+                    }}
                   />
                 </div>
               </div>
@@ -1776,6 +1844,8 @@ export default function ElementorEditorPage() {
 
                   handleSendMessage(message);
                 }}
+                fileInclusions={fileInclusions}
+                onFileInclusionsChange={setFileInclusions}
                   />
                 </div>
 
@@ -2332,15 +2402,62 @@ export default function ElementorEditorPage() {
                         if (updates.php !== undefined) fileGroups.updateGroupFile(currentSection.id, 'php', updates.php);
                       }
                     }}
-                    onProjectCreate={(name, type) => {
-                      // Create new project and return its ID
-                      const newGroup = fileGroups.createNewGroup(name, type, 'empty');
+                    onProjectMetadataUpdate={(projectId, metadata) => {
+                      // Handle plugin metadata updates (pluginMainFile, widgetFiles, etc.)
+                      console.log('🔧 Metadata update requested (mobile):', projectId, Object.keys(metadata));
+
+                      // If updating widgetFiles, merge with existing widgets (don't replace all)
+                      if (metadata.widgetFiles) {
+                        const currentGroup = fileGroups.groups.find(g => g.id === projectId);
+                        if (currentGroup?.widgetFiles) {
+                          metadata.widgetFiles = { ...currentGroup.widgetFiles, ...metadata.widgetFiles };
+                          console.log('🔀 Merging widget files (mobile):', Object.keys(metadata.widgetFiles));
+                        }
+                      }
+
+                      // Update metadata in state
+                      fileGroups.updateGroup(projectId, metadata);
+                      console.log('✅ Metadata saved to state (mobile)');
+
+                      // If updating pluginMainFile and it's the active group, update Monaco editor
+                      if (projectId === fileGroups.activeGroupId && metadata.pluginMainFile) {
+                        if (editorRefs.php) {
+                          const model = editorRefs.php.getModel();
+                          if (model) {
+                            model.pushEditOperations([], [{
+                              range: model.getFullModelRange(),
+                              text: metadata.pluginMainFile
+                            }], () => null);
+                            console.log('✨ Updated Monaco editor with pluginMainFile (mobile)');
+                          }
+                        }
+                      }
+                    }}
+                    onProjectCreate={(name, type, generationState = 'ready') => {
+                      // Create new project with generation state and return its ID
+                      let newGroup;
+
+                      if (type === 'php') {
+                        // For Elementor plugins, use createNewPlugin to get proper structure
+                        // Pass generationState directly to createPlugin
+                        newGroup = fileGroups.createNewPlugin(name, '', generationState);
+                        console.log('🔌 Plugin created via generateProject tool:', name, 'ID:', newGroup.id, 'State:', generationState);
+                      } else {
+                        // HTML/HubSpot projects use regular group
+                        newGroup = fileGroups.createNewGroup(name, type, 'empty', generationState);
+                        console.log('📦 Project created via generateProject tool:', name, 'Type:', type, 'ID:', newGroup.id, 'State:', generationState);
+                      }
+
                       fileGroups.selectGroup(newGroup.id);
-                      console.log('📦 Project created via generateProject tool:', name, 'Type:', type, 'ID:', newGroup.id);
                       // Switch to Code Editor tab and appropriate file tab
                       setActiveTab('json');
                       setActiveCodeTab(type === 'php' ? 'php' : 'html');
                       return newGroup.id;
+                    }}
+                    onProjectStateUpdate={(projectId, state, error) => {
+                      // Update project generation state
+                      fileGroups.updateProjectState(projectId, state, error);
+                      console.log('🔄 Project state updated:', projectId, 'State:', state, error ? `Error: ${error}` : '');
                     }}
                     onProjectUpdate={(projectId, file, content) => {
                       // Update project file with streaming content
@@ -2400,6 +2517,11 @@ export default function ElementorEditorPage() {
                     }}
                     currentSection={currentSection}
                     containerWidth={chatPanelWidth}
+                    fileInclusions={fileInclusions}
+                    onOpenFileInclusions={() => {
+                      // Trigger event to open file inclusions modal in HtmlSectionEditor
+                      window.dispatchEvent(new CustomEvent('open-file-inclusions-modal'));
+                    }}
                   />
                 </div>
               )}
@@ -2445,12 +2567,63 @@ export default function ElementorEditorPage() {
           }
           setGenerateDialogOpen(false);
         }}
-        onProjectCreate={(name, type) => {
-          // Create new project and return its ID
-          const newGroup = fileGroups.createNewGroup(name, type, 'empty');
+        onProjectCreate={(name, type, generationState = 'ready') => {
+          // Create new project with generation state and return its ID
+          // Use same logic as chat tool for consistency
+          let newGroup;
+
+          if (type === 'php') {
+            // For Elementor plugins, use createNewPlugin to get proper structure
+            // Pass generationState directly to createPlugin
+            newGroup = fileGroups.createNewPlugin(name, '', generationState);
+            console.log('🔌 Plugin created via modal:', name, 'ID:', newGroup.id, 'State:', generationState);
+          } else {
+            // HTML/HubSpot projects use regular group
+            newGroup = fileGroups.createNewGroup(name, type, 'empty', generationState);
+            console.log('📦 Project created via modal:', name, 'Type:', type, 'ID:', newGroup.id, 'State:', generationState);
+          }
+
           fileGroups.selectGroup(newGroup.id);
-          console.log('📦 Project created via modal:', name, 'Type:', type, 'ID:', newGroup.id);
+          // Switch to Code Editor tab and appropriate file tab
+          setActiveTab('json');
+          setActiveCodeTab(type === 'php' ? 'php' : 'html');
           return newGroup.id;
+        }}
+        onProjectMetadataUpdate={(projectId, metadata) => {
+          // Handle plugin metadata updates (pluginMainFile, widgetFiles, etc.)
+          console.log('🔧 Metadata update requested (modal):', projectId, Object.keys(metadata));
+
+          // If updating widgetFiles, merge with existing widgets (don't replace all)
+          if (metadata.widgetFiles) {
+            const currentGroup = fileGroups.groups.find(g => g.id === projectId);
+            if (currentGroup?.widgetFiles) {
+              metadata.widgetFiles = { ...currentGroup.widgetFiles, ...metadata.widgetFiles };
+              console.log('🔀 Merging widget files (modal):', Object.keys(metadata.widgetFiles));
+            }
+          }
+
+          // Update metadata in state
+          fileGroups.updateGroup(projectId, metadata);
+          console.log('✅ Metadata saved to state (modal)');
+
+          // If updating pluginMainFile and it's the active group, update Monaco editor
+          if (projectId === fileGroups.activeGroupId && metadata.pluginMainFile) {
+            if (editorRefs.php) {
+              const model = editorRefs.php.getModel();
+              if (model) {
+                model.pushEditOperations([], [{
+                  range: model.getFullModelRange(),
+                  text: metadata.pluginMainFile
+                }], () => null);
+                console.log('✨ Updated Monaco editor with pluginMainFile (modal)');
+              }
+            }
+          }
+        }}
+        onProjectStateUpdate={(projectId, state, error) => {
+          // Update project generation state
+          fileGroups.updateProjectState(projectId, state, error);
+          console.log('🔄 Project state updated (modal):', projectId, 'State:', state, error ? `Error: ${error}` : '');
         }}
         onProjectUpdate={(projectId, file, content) => {
           // Update project file with streaming content (same logic as chat tool)
@@ -2491,6 +2664,7 @@ export default function ElementorEditorPage() {
         }}
         onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
         onSwitchTab={(tab) => setActiveTab(tab)}
+        isEditorReady={isEditorReady}
         defaultModel={selectedModel}
       />
 

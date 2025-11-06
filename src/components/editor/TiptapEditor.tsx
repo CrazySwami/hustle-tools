@@ -57,6 +57,7 @@ import {
   Minimize2,
   RotateCw,
   ArrowRight,
+  ArrowLeft,
   Smile,
   Search,
   MessageCircle,
@@ -79,8 +80,13 @@ import CommentsPanel, { AddCommentForm } from './CommentsPanel'
 import { AIBubbleMenuContent } from './AIBubbleMenu'
 import { BubbleMenuV0, AIAction } from './BubbleMenuV0'
 import { StreamingExtension, updateStreamingState } from './StreamingExtension'
-import { TabbedSidePanel } from './TabbedSidePanel'
 import { useDocumentContent } from '@/hooks/useDocumentContent'
+import { TextStatsWidget } from '@/components/tool-ui/text-stats-widget'
+import { FindStringWidget } from '@/components/tool-ui/find-string-widget'
+import { ReadabilityWidget } from '@/components/tool-ui/readability-widget'
+import { HeadingsWidget } from '@/components/tool-ui/headings-widget'
+import { FindReplaceWidget } from '@/components/tool-ui/find-replace-widget'
+import { DuplicatesWidget } from '@/components/tool-ui/duplicates-widget'
 import { LineHeight } from './LineHeightExtension'
 import TurndownService from 'turndown'
 import '@/styles/comments.css'
@@ -816,6 +822,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     showHeadingSelector: false,
     showFontSizeSelector: false,
     showLineHeightSelector: false,
+    showZoomSelector: false,
     showSpacingSelector: false,
     showViewModeSelector: false,
   })
@@ -830,6 +837,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     spacing: { top: number; left: number } | null
     heading: { top: number; left: number } | null
     viewMode: { top: number; left: number } | null
+    zoom: { top: number; left: number } | null
   }>({
     color: null,
     highlight: null,
@@ -839,6 +847,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     spacing: null,
     heading: null,
     viewMode: null,
+    zoom: null,
   })
 
   const [viewMode, setViewMode] = useState<'editor' | 'html' | 'markdown'>('editor')
@@ -847,6 +856,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
   const isInternalUpdate = useRef(false) // Flag to prevent circular updates
   const hasUserInteracted = useRef(false) // Track if user has clicked/edited the document
+  const lastEmittedContent = useRef<string>('') // Track last content emitted to parent
   const colorButtonRef = useRef<HTMLButtonElement>(null)
   const highlightButtonRef = useRef<HTMLButtonElement>(null)
   const fontButtonRef = useRef<HTMLButtonElement>(null)
@@ -855,6 +865,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   const headingButtonRef = useRef<HTMLButtonElement>(null)
   const spacingButtonRef = useRef<HTMLButtonElement>(null)
   const viewModeButtonRef = useRef<HTMLButtonElement>(null)
+  const zoomButtonRef = useRef<HTMLButtonElement>(null)
 
   // Memoized helper function to close all dropdowns
   const closeAllDropdowns = useCallback(() => {
@@ -865,6 +876,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       showHeadingSelector: false,
       showFontSizeSelector: false,
       showLineHeightSelector: false,
+      showZoomSelector: false,
       showSpacingSelector: false,
       showViewModeSelector: false,
     })
@@ -893,16 +905,33 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     }
     localStorage.setItem('tiptap-comments', JSON.stringify(comments));
   }, [comments, onCommentsChange]);
-  const [isCommentsPanelOpen, setIsCommentsPanelOpen] = useState(false)
-  const [panelTab, setPanelTab] = useState<'comments' | 'tools' | 'toc'>('comments')
-  const [activeTool, setActiveTool] = useState<'stats' | 'find' | 'readability' | 'headings' | 'replace' | 'toc' | 'duplicates' | null>(null)
-  const [activeCommentTab, setActiveCommentTab] = useState<'active' | 'resolved'>('active')
+
+  // New simplified panel state
+  type PanelType = 'documents' | 'comments' | 'tools' | 'toc' | null;
+  const [leftPanel, setLeftPanel] = useState<PanelType>(null);
+  const [rightPanel, setRightPanel] = useState<PanelType>(null);
+
+  // Tools state
+  type ActiveTool = 'stats' | 'find' | 'readability' | 'headings' | 'replace' | 'duplicates' | null;
+  const [activeTool, setActiveTool] = useState<ActiveTool>(null);
+
+  // TOC state
+  interface HeadingNode {
+    id: string;
+    level: number;
+    text: string;
+    position: number;
+    children: HeadingNode[];
+  }
+  const [headings, setHeadings] = useState<HeadingNode[]>([]);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const isUpdatingHeadingsRef = useRef(false); // Ref to prevent infinite loop when updating heading IDs
+
   const [showAddCommentForm, setShowAddCommentForm] = useState(false)
   const [selectedText, setSelectedText] = useState('')
   const [aiInstruction, setAiInstruction] = useState('')
   const [showAIMenu, setShowAIMenu] = useState(false)
   const [isInlineProcessing, setIsInlineProcessing] = useState(false)
-  const [isDocumentsPanelOpen, setIsDocumentsPanelOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
   // Get document content store for animations
@@ -932,6 +961,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       }
       contentDebounceTimer.current = setTimeout(() => {
         const html = editor.getHTML();
+        lastEmittedContent.current = html; // Track what we're emitting
         onContentChange(html);
       }, 150);
     }
@@ -947,6 +977,41 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       const text = editor.state.doc.textBetween(from, to, ' ');
       setSelectedText(text);
     }, 100);
+  }, []);
+
+  // Helper function to calculate dropdown position with boundary detection
+  const calculateDropdownPosition = useCallback((buttonRect: DOMRect, dropdownHeight = 300, dropdownWidth = 200) => {
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const spacing = 4; // Space between button and dropdown
+
+    // Default position: below the button, aligned left
+    let top = buttonRect.bottom + spacing;
+    let left = buttonRect.left;
+
+    // Check if dropdown would go below viewport
+    if (top + dropdownHeight > viewportHeight) {
+      // Flip to above the button
+      top = buttonRect.top - dropdownHeight - spacing;
+
+      // If still out of bounds (button near top), clamp to viewport
+      if (top < 0) {
+        top = spacing;
+      }
+    }
+
+    // Check if dropdown would go beyond right edge
+    if (left + dropdownWidth > viewportWidth) {
+      // Align right edge of dropdown with right edge of button
+      left = buttonRect.right - dropdownWidth;
+
+      // If still out of bounds (button near left edge), clamp to viewport
+      if (left < 0) {
+        left = spacing;
+      }
+    }
+
+    return { top, left };
   }, []);
 
   // Cleanup debounce timers on unmount
@@ -1046,6 +1111,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   useEffect(() => {
     if (!editor || !initialContent) return;
 
+    // Skip if this is the same content we just emitted to parent (prevents cursor reset loop)
+    // This happens when parent re-renders with content that originated from this editor
+    if (initialContent === lastEmittedContent.current) {
+      console.log('⏭️ [EDITOR] Skipping update - content matches last emitted (no cursor reset)');
+      return;
+    }
+
     const currentHTML = editor.getHTML();
 
     // Only update if content is ACTUALLY different (not just a re-render)
@@ -1074,97 +1146,152 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     }
   }, [editor, initialContent]);
 
-  // Expose comments panel toggle for external control (from navigation menu)
+  // Extract headings for TOC in real-time
   useEffect(() => {
-    // Handle the new doc-set-panel event with mutual exclusivity
+    if (!editor) return;
+
+    const buildHierarchy = (flatHeadings: Array<{ level: number; text: string; position: number; id: string }>): HeadingNode[] => {
+      const result: HeadingNode[] = [];
+      const stack: HeadingNode[] = [];
+
+      flatHeadings.forEach((heading) => {
+        const node: HeadingNode = { ...heading, children: [] };
+
+        while (stack.length > 0 && stack[stack.length - 1].level >= heading.level) {
+          stack.pop();
+        }
+
+        if (stack.length === 0) {
+          result.push(node);
+        } else {
+          stack[stack.length - 1].children.push(node);
+        }
+
+        stack.push(node);
+      });
+
+      return result;
+    };
+
+    const extractHeadings = () => {
+      const headingsList: Array<{ level: number; text: string; position: number; id: string }> = [];
+      const headingsNeedingIds: Array<{ pos: number; node: any; id: string }> = [];
+
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "heading") {
+          const level = node.attrs.level;
+          const text = node.textContent;
+
+          if (!text.trim()) return;
+
+          const id = `heading-${pos}-${text.slice(0, 20).replace(/\s+/g, "-")}`;
+          headingsList.push({ level, text, position: pos, id });
+
+          // Collect headings that need IDs (don't dispatch yet)
+          if (!node.attrs.id) {
+            headingsNeedingIds.push({ pos, node, id });
+          }
+        }
+      });
+
+      // Always update the headings list (this makes TOC update in real-time)
+      setHeadings(buildHierarchy(headingsList));
+      const allIds = new Set(headingsList.map(h => h.id));
+      setExpandedIds(allIds);
+
+      // Batch update heading IDs in a single transaction (only if not already updating)
+      if (headingsNeedingIds.length > 0 && !isUpdatingHeadingsRef.current) {
+        isUpdatingHeadingsRef.current = true;
+
+        // Use requestAnimationFrame to defer the transaction to avoid blocking the update event
+        requestAnimationFrame(() => {
+          const tr = editor.view.state.tr;
+
+          headingsNeedingIds.forEach(({ pos, node, id }) => {
+            tr.setNodeMarkup(pos, undefined, { ...node.attrs, id });
+          });
+
+          editor.view.dispatch(tr);
+
+          // Reset flag immediately after dispatch
+          isUpdatingHeadingsRef.current = false;
+        });
+      }
+    };
+
+    extractHeadings();
+
+    const updateListener = () => extractHeadings();
+    editor.on("update", updateListener);
+
+    return () => {
+      editor.off("update", updateListener);
+    };
+  }, [editor]);
+
+  // Event handlers for navigation bar
+  useEffect(() => {
     const handleSetPanel = (event: CustomEvent) => {
       const { tab, open } = event.detail;
 
-      if (tab === 'comments') {
-        // If already on comments and panel is open, toggle it off
-        if (panelTab === 'comments' && isCommentsPanelOpen && !open) {
-          setIsCommentsPanelOpen(false);
+      if (tab === 'documents') {
+        if (open) {
+          setLeftPanel('documents');
+          setRightPanel(null);
         } else {
-          // Otherwise open comments panel (replacing tools if needed)
-          setIsCommentsPanelOpen(true);
-          setPanelTab('comments');
+          setLeftPanel(null);
+        }
+      } else if (tab === 'comments') {
+        if (open) {
+          setRightPanel('comments');
+          setLeftPanel(null);
+        } else {
+          setRightPanel(null);
         }
       } else if (tab === 'tools') {
-        // If already on tools and panel is open, toggle it off
-        if (panelTab === 'tools' && isCommentsPanelOpen && !open) {
-          setIsCommentsPanelOpen(false);
+        if (open) {
+          setRightPanel('tools');
+          setLeftPanel(null);
         } else {
-          // Otherwise open tools panel (replacing comments if needed)
-          setIsCommentsPanelOpen(true);
-          setPanelTab('tools');
+          setRightPanel(null);
         }
       } else if (tab === 'toc') {
-        // If already on TOC and panel is open, toggle it off
-        if (panelTab === 'toc' && isCommentsPanelOpen && !open) {
-          setIsCommentsPanelOpen(false);
+        if (open) {
+          setRightPanel('toc');
+          setLeftPanel(null);
         } else {
-          // Otherwise open TOC panel
-          setIsCommentsPanelOpen(true);
-          setPanelTab('toc');
+          setRightPanel(null);
         }
       }
     };
 
-    // Handle filter changes for comments
-    const handleCommentsFilter = (event: CustomEvent) => {
-      const filter = event.detail; // 'all', 'active', or 'resolved'
-      console.log('Filter comments:', filter);
-
-      // Ensure comments panel is open
-      setIsCommentsPanelOpen(true);
-      setPanelTab('comments');
-
-      // Set the appropriate tab
-      if (filter === 'all') {
-        setActiveCommentTab('active'); // Default to active when showing all
-      } else if (filter === 'active') {
-        setActiveCommentTab('active');
-      } else if (filter === 'resolved') {
-        setActiveCommentTab('resolved');
+    const handleToggleDocuments = () => {
+      if (leftPanel === 'documents') {
+        setLeftPanel(null);
+      } else {
+        setLeftPanel('documents');
+        setRightPanel(null);
       }
-    };
-
-    // Handle individual tool opening
-    const handleOpenTool = (event: CustomEvent) => {
-      const toolId = event.detail;
-      console.log('Open tool:', toolId);
-      // Open tools panel and select specific tool
-      setIsCommentsPanelOpen(true);
-      setPanelTab('tools');
-      setActiveTool(toolId);
-    };
-
-    // Handler for toggling documents panel from navigation
-    const handleToggleDocumentsPanel = () => {
-      console.log('📂 [TIPTAP] Toggling documents panel from:', isDocumentsPanelOpen, 'to:', !isDocumentsPanelOpen);
-      setIsDocumentsPanelOpen(!isDocumentsPanelOpen);
-      onToggleSidebar?.();
     };
 
     window.addEventListener('doc-set-panel', handleSetPanel as EventListener);
-    window.addEventListener('doc-comments-filter', handleCommentsFilter as EventListener);
-    window.addEventListener('doc-open-tool', handleOpenTool as EventListener);
-    window.addEventListener('toggle-documents-panel', handleToggleDocumentsPanel);
+    window.addEventListener('toggle-documents-panel', handleToggleDocuments);
 
     return () => {
       window.removeEventListener('doc-set-panel', handleSetPanel as EventListener);
-      window.removeEventListener('doc-comments-filter', handleCommentsFilter as EventListener);
-      window.removeEventListener('doc-open-tool', handleOpenTool as EventListener);
-      window.removeEventListener('toggle-documents-panel', handleToggleDocumentsPanel);
+      window.removeEventListener('toggle-documents-panel', handleToggleDocuments);
     };
-  }, [isCommentsPanelOpen, panelTab, isDocumentsPanelOpen]);
+  }, [leftPanel, rightPanel]);
 
-  // Notify parent component about panel state changes
+  // Emit panel state changes for navigation bar
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('doc-panel-state', {
-      detail: { open: isCommentsPanelOpen, tab: panelTab }
+      detail: {
+        open: !!(leftPanel || rightPanel),
+        tab: leftPanel || rightPanel
+      }
     }));
-  }, [isCommentsPanelOpen, panelTab]);
+  }, [leftPanel, rightPanel]);
 
   // Add a new comment
   const handleAddComment = () => {
@@ -1721,7 +1848,8 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                     const btn = colorButtonRef.current
                     if (btn) {
                       const rect = btn.getBoundingClientRect()
-                      setDropdownPositions(prev => ({ ...prev, color: { top: rect.bottom + 4, left: rect.left } }))
+                      const position = calculateDropdownPosition(rect, 300, 250)
+                      setDropdownPositions(prev => ({ ...prev, color: position }))
                     }
                     setDropdownStates(prev => ({ ...prev, showColorSelector: !wasOpen }))
                   }}
@@ -1745,7 +1873,8 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                     const btn = highlightButtonRef.current
                     if (btn) {
                       const rect = btn.getBoundingClientRect()
-                      setDropdownPositions(prev => ({ ...prev, highlight: { top: rect.bottom + 4, left: rect.left } }))
+                      const position = calculateDropdownPosition(rect, 300, 250)
+                      setDropdownPositions(prev => ({ ...prev, highlight: position }))
                     }
                     setDropdownStates(prev => ({ ...prev, showHighlightSelector: !wasOpen }))
                   }}
@@ -1822,32 +1951,33 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               </MenuButton>
             </div>
 
-            {/* 10. Documents/Comments/Tools - LAST */}
+            {/* 10. Panel Toggles - LAST */}
             <div className="flex gap-1 flex-shrink-0">
               <MenuButton
                 onClick={() => {
-                  setIsDocumentsPanelOpen(!isDocumentsPanelOpen);
-                  onToggleSidebar?.();
+                  if (leftPanel === 'documents') {
+                    setLeftPanel(null);
+                  } else {
+                    setLeftPanel('documents');
+                    setRightPanel(null); // Close right panel
+                  }
                 }}
-                isActive={isDocumentsPanelOpen}
+                isActive={leftPanel === 'documents'}
                 title="Documents"
-                data-sidebar-toggle=""
               >
                 <PanelLeft className="h-4 w-4" />
               </MenuButton>
 
               <MenuButton
                 onClick={() => {
-                  if (isCommentsPanelOpen && panelTab !== 'comments') {
-                    setPanelTab('comments')
+                  if (rightPanel === 'comments') {
+                    setRightPanel(null);
                   } else {
-                    setIsCommentsPanelOpen(!isCommentsPanelOpen)
-                    if (!isCommentsPanelOpen) {
-                      setPanelTab('comments')
-                    }
+                    setRightPanel('comments');
+                    setLeftPanel(null); // Close left panel
                   }
                 }}
-                isActive={isCommentsPanelOpen && panelTab === 'comments'}
+                isActive={rightPanel === 'comments'}
                 title="Comments"
               >
                 <MessageSquare className="h-4 w-4" />
@@ -1855,16 +1985,14 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
               <MenuButton
                 onClick={() => {
-                  if (isCommentsPanelOpen && panelTab !== 'tools') {
-                    setPanelTab('tools')
+                  if (rightPanel === 'tools') {
+                    setRightPanel(null);
                   } else {
-                    setIsCommentsPanelOpen(!isCommentsPanelOpen)
-                    if (!isCommentsPanelOpen) {
-                      setPanelTab('tools')
-                    }
+                    setRightPanel('tools');
+                    setLeftPanel(null); // Close left panel
                   }
                 }}
-                isActive={isCommentsPanelOpen && panelTab === 'tools'}
+                isActive={rightPanel === 'tools'}
                 title="Tools"
               >
                 <Wrench className="h-4 w-4" />
@@ -1872,16 +2000,14 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
               <MenuButton
                 onClick={() => {
-                  if (isCommentsPanelOpen && panelTab !== 'toc') {
-                    setPanelTab('toc')
+                  if (rightPanel === 'toc') {
+                    setRightPanel(null);
                   } else {
-                    setIsCommentsPanelOpen(!isCommentsPanelOpen)
-                    if (!isCommentsPanelOpen) {
-                      setPanelTab('toc')
-                    }
+                    setRightPanel('toc');
+                    setLeftPanel(null); // Close left panel
                   }
                 }}
-                isActive={isCommentsPanelOpen && panelTab === 'toc'}
+                isActive={rightPanel === 'toc'}
                 title="Table of Contents"
               >
                 <BookMarked className="h-4 w-4" />
@@ -1923,39 +2049,139 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
             )}
           </div>
         
-        {/* Main content area with LEFT documents panel, editor, and RIGHT comments panel */}
+        {/* Main content area */}
         <div className="flex-1 relative overflow-hidden bg-background" style={{ zIndex: 1 }}>
-          {/* LEFT Documents Panel */}
-          {isDocumentsPanelOpen && (
-            <div
-              className={cn(
-                "absolute z-50 transition-transform duration-300 ease-in-out bg-background border border-border shadow-sm overflow-y-auto scrollbar-hide",
-                // Desktop: left margin, fixed width, rounded corners
-                "md:left-2 md:top-2 md:bottom-2 md:w-64 md:rounded-lg",
-                // Mobile: full width, no margins, square corners
-                "left-0 top-0 bottom-0 right-0 w-full rounded-none"
-              )}
-              style={{
-                transform: isDocumentsPanelOpen ? 'translateX(0)' : 'translateX(-100%)',
-              }}
-            >
-              <AppSidebar
-                onDocumentSelect={onDocumentSelect}
-                selectedDocumentId={selectedDocumentId}
-              />
-            </div>
-          )}
-
-          {/* Editor Content */}
-          <div className={cn(
-            "h-full transition-all duration-300 ease-in-out",
-            isDocumentsPanelOpen && "md:pl-[17.5rem]",
-            isCommentsPanelOpen && "md:pr-[21.5rem]",
-            viewMode !== 'editor' && "p-4 overflow-y-auto scrollbar-hide bg-background"
-          )}>
-            {viewMode === 'editor' ? (
-              <MultiPageRenderer editor={editor} />
-            ) : (
+          {viewMode === 'editor' ? (
+            <MultiPageRenderer
+              editor={editor}
+              leftPanel={leftPanel}
+              rightPanel={rightPanel}
+              leftPanelContent={
+                leftPanel === 'documents' ? (
+                  <AppSidebar
+                    onDocumentSelect={onDocumentSelect}
+                    selectedDocumentId={selectedDocumentId}
+                  />
+                ) : null
+              }
+              rightPanelContent={
+                rightPanel === 'comments' ? (
+                  <CommentsPanel
+                    comments={comments}
+                    activeCommentId={activeCommentId}
+                    onCommentClick={handleCommentClick}
+                    onCommentResolve={handleCommentResolve}
+                    onCommentDelete={handleCommentDelete}
+                    onAddComment={handleAddComment}
+                    isOpen={true}
+                    onToggle={() => {}}
+                  />
+                ) : rightPanel === 'tools' ? (
+                  <div className="h-full overflow-y-auto">
+                    {!activeTool ? (
+                      <div className="p-4">
+                        <h3 className="font-semibold mb-4">Tools</h3>
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => setActiveTool('stats')}
+                            className="w-full text-left p-3 rounded-lg border bg-white dark:bg-[#3A3A3A] hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="text-sm font-medium">Text Statistics</div>
+                            <div className="text-xs text-muted-foreground">Word count, reading time, etc.</div>
+                          </button>
+                          <button
+                            onClick={() => setActiveTool('find')}
+                            className="w-full text-left p-3 rounded-lg border bg-white dark:bg-[#3A3A3A] hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="text-sm font-medium">Find Text</div>
+                            <div className="text-xs text-muted-foreground">Search for text in document</div>
+                          </button>
+                          <button
+                            onClick={() => setActiveTool('readability')}
+                            className="w-full text-left p-3 rounded-lg border bg-white dark:bg-[#3A3A3A] hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="text-sm font-medium">Readability Score</div>
+                            <div className="text-xs text-muted-foreground">Analyze text complexity</div>
+                          </button>
+                          <button
+                            onClick={() => setActiveTool('headings')}
+                            className="w-full text-left p-3 rounded-lg border bg-white dark:bg-[#3A3A3A] hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="text-sm font-medium">Document Outline</div>
+                            <div className="text-xs text-muted-foreground">View heading structure</div>
+                          </button>
+                          <button
+                            onClick={() => setActiveTool('replace')}
+                            className="w-full text-left p-3 rounded-lg border bg-white dark:bg-[#3A3A3A] hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="text-sm font-medium">Find & Replace</div>
+                            <div className="text-xs text-muted-foreground">Search and replace text</div>
+                          </button>
+                          <button
+                            onClick={() => setActiveTool('duplicates')}
+                            className="w-full text-left p-3 rounded-lg border bg-white dark:bg-[#3A3A3A] hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="text-sm font-medium">Find Duplicates</div>
+                            <div className="text-xs text-muted-foreground">Detect repeated text</div>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-full flex flex-col">
+                        <div className="p-2 border-b flex items-center gap-2">
+                          <button
+                            onClick={() => setActiveTool(null)}
+                            className="p-1 hover:bg-muted rounded"
+                          >
+                            <ArrowLeft className="h-4 w-4" />
+                          </button>
+                          <span className="text-sm font-medium">Back to Tools</span>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                          {activeTool === 'stats' && <TextStatsWidget editor={editor} />}
+                          {activeTool === 'find' && <FindStringWidget editor={editor} />}
+                          {activeTool === 'readability' && <ReadabilityWidget editor={editor} />}
+                          {activeTool === 'headings' && <HeadingsWidget editor={editor} />}
+                          {activeTool === 'replace' && <FindReplaceWidget editor={editor} />}
+                          {activeTool === 'duplicates' && <DuplicatesWidget editor={editor} />}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : rightPanel === 'toc' ? (
+                  <div className="p-4">
+                    <h3 className="font-semibold mb-4">Table of Contents</h3>
+                    {headings.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Add headings to your document to see them here.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {headings.map((heading) => (
+                          <TOCItem
+                            key={heading.id}
+                            heading={heading}
+                            editor={editor}
+                            expandedIds={expandedIds}
+                            onToggle={(id) => {
+                              const newExpanded = new Set(expandedIds);
+                              if (newExpanded.has(id)) {
+                                newExpanded.delete(id);
+                              } else {
+                                newExpanded.add(id);
+                              }
+                              setExpandedIds(newExpanded);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : null
+              }
+              onLeftPanelClose={() => setLeftPanel(null)}
+              onRightPanelClose={() => setRightPanel(null)}
+            />
+          ) : (
+            <div className="h-full p-4 overflow-y-auto scrollbar-hide bg-background">
               <div className="w-full h-full border rounded-md overflow-hidden">
                 <Editor
                   height="100%"
@@ -1977,27 +2203,8 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                   }}
                 />
               </div>
-            )}
-          </div>
-
-          {/* RIGHT Tabbed Side Panel (Comments + Tools) */}
-          <TabbedSidePanel
-            comments={comments}
-            activeCommentId={activeCommentId}
-            onCommentClick={handleCommentClick}
-            onCommentResolve={handleCommentResolve}
-            onCommentDelete={handleCommentDelete}
-            onAddComment={handleAddComment}
-            isOpen={isCommentsPanelOpen}
-            onToggle={() => setIsCommentsPanelOpen(!isCommentsPanelOpen)}
-            activeTab={panelTab}
-            onTabChange={setPanelTab}
-            activeTool={activeTool}
-            onToolChange={setActiveTool}
-            activeCommentTab={activeCommentTab}
-            onCommentTabChange={setActiveCommentTab}
-            editor={editor}
-          />
+            </div>
+          )}
         </div>
         
         {/* Bubble Menu - v0 Version */}
@@ -2248,4 +2455,81 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       />
     </>
   )
+}
+
+// TOC Item Component
+interface TOCItemProps {
+  heading: {
+    id: string;
+    level: number;
+    text: string;
+    position: number;
+    children: any[];
+  };
+  editor: Editor | null;
+  expandedIds: Set<string>;
+  onToggle: (id: string) => void;
+}
+
+function TOCItem({ heading, editor, expandedIds, onToggle }: TOCItemProps) {
+  const hasChildren = heading.children && heading.children.length > 0;
+  const isExpanded = expandedIds.has(heading.id);
+
+  const scrollToHeading = () => {
+    if (!editor) return;
+
+    // Find the heading node by position
+    const { state } = editor;
+    const resolvedPos = state.doc.resolve(heading.position);
+
+    // Set selection to the heading
+    editor.commands.setTextSelection(heading.position);
+
+    // Scroll into view
+    editor.commands.scrollIntoView();
+  };
+
+  return (
+    <div>
+      <button
+        onClick={scrollToHeading}
+        className={cn(
+          "w-full text-left px-2 py-1 rounded hover:bg-muted/50 transition-colors text-sm flex items-center gap-1",
+          `pl-${(heading.level - 1) * 3 + 2}`
+        )}
+        style={{ paddingLeft: `${(heading.level - 1) * 12 + 8}px` }}
+      >
+        {hasChildren && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(heading.id);
+            }}
+            className="p-0.5 hover:bg-muted rounded"
+          >
+            {isExpanded ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+          </button>
+        )}
+        <span className="truncate">{heading.text}</span>
+      </button>
+
+      {hasChildren && isExpanded && (
+        <div>
+          {heading.children.map((child: any) => (
+            <TOCItem
+              key={child.id}
+              heading={child}
+              editor={editor}
+              expandedIds={expandedIds}
+              onToggle={onToggle}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

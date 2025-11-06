@@ -11,6 +11,15 @@ interface GenerateElementorSystemPromptOptions {
   webSearch: boolean;
   currentSection: any;
   globalCss?: string;
+  fileInclusions?: {
+    html: boolean;
+    css: boolean;
+    js: boolean;
+    php: boolean;
+    hubl: boolean;
+    pluginMainFile: boolean;
+    readme: boolean;
+  };
 }
 
 export function generateElementorSystemPrompt({
@@ -19,6 +28,15 @@ export function generateElementorSystemPrompt({
   webSearch,
   currentSection,
   globalCss = '',
+  fileInclusions = {
+    html: true,
+    css: true,
+    js: true,
+    php: true,
+    hubl: true,
+    pluginMainFile: true,
+    readme: true,
+  },
 }: GenerateElementorSystemPromptOptions): string {
   // Get current date and time for context
   const now = new Date();
@@ -91,41 +109,48 @@ ${includeContext && currentSection && (currentSection.html || currentSection.css
 
 **Section Name:** ${currentSection.name || 'Untitled'}
 
-**📄 HTML FILE (${currentSection.html?.length || 0} characters):**
+${fileInclusions.html && currentSection.html ? `**📄 HTML FILE (${currentSection.html?.length || 0} characters):**
 \`\`\`html
 ${currentSection.html?.substring(0, 5000) || '(empty file)'}
 ${currentSection.html?.length > 5000 ? '\n...(file continues - total ' + currentSection.html.length + ' chars. You can see first 5000 chars. If you need to edit text beyond this, ask user for surrounding context)' : ''}
 \`\`\`
-
-**🎨 CSS FILE (${currentSection.css?.length || 0} characters):**
+` : ''}
+${fileInclusions.css && currentSection.css ? `**🎨 CSS FILE (${currentSection.css?.length || 0} characters):**
 \`\`\`css
 ${currentSection.css?.substring(0, 5000) || '(empty file)'}
 ${currentSection.css?.length > 5000 ? '\n...(file continues - total ' + currentSection.css.length + ' chars. You can see first 5000 chars)' : ''}
 \`\`\`
-
-**⚡ JS FILE (${currentSection.js?.length || 0} characters):**
+` : ''}
+${fileInclusions.js && currentSection.js ? `**⚡ JS FILE (${currentSection.js?.length || 0} characters):**
 \`\`\`javascript
 ${currentSection.js?.substring(0, 3000) || '(empty file)'}
 ${currentSection.js?.length > 3000 ? '\n...(file continues - total ' + currentSection.js.length + ' chars. You can see first 3000 chars)' : ''}
 \`\`\`
-
-**🔧 PHP FILE (${currentSection.php?.length || 0} characters):**
+` : ''}
+${fileInclusions.php && currentSection.php ? `**🔧 PHP FILE (${currentSection.php?.length || 0} characters):**
 \`\`\`php
 ${currentSection.php?.substring(0, 5000) || '(empty file)'}
 ${currentSection.php?.length > 5000 ? '\n...(file continues - total ' + currentSection.php.length + ' chars. You can see first 5000 chars)' : ''}
 \`\`\`
-
-**🧡 HubL FILE (${currentSection.hubl?.length || 0} characters):**
+` : ''}
+${fileInclusions.hubl && currentSection.hubl ? `**🧡 HubL FILE (${currentSection.hubl?.length || 0} characters):**
 \`\`\`hubl
 ${currentSection.hubl?.substring(0, 5000) || '(empty file)'}
 ${currentSection.hubl?.length > 5000 ? '\n...(file continues - total ' + currentSection.hubl.length + ' chars. You can see first 5000 chars)' : ''}
 \`\`\`
-
-**📖 README.md (Project Documentation) (${currentSection.projectManifest?.length || 0} characters):**
+` : ''}
+${fileInclusions.pluginMainFile && currentSection.pluginMainFile ? `**🔌 PLUGIN MAIN FILE (${currentSection.pluginMainFile?.length || 0} characters):**
+\`\`\`php
+${currentSection.pluginMainFile?.substring(0, 5000) || '(empty file)'}
+${currentSection.pluginMainFile?.length > 5000 ? '\n...(file continues - total ' + currentSection.pluginMainFile.length + ' chars. You can see first 5000 chars)' : ''}
+\`\`\`
+` : ''}
+${fileInclusions.readme && currentSection.projectManifest ? `**📖 README.md (Project Documentation) (${currentSection.projectManifest?.length || 0} characters):**
 \`\`\`markdown
 ${currentSection.projectManifest?.substring(0, 3000) || '(no README)'}
 ${currentSection.projectManifest?.length > 3000 ? '\n...(file continues - total ' + currentSection.projectManifest.length + ' chars. You can see first 3000 chars)' : ''}
 \`\`\`
+` : ''}
 
 **IMPORTANT:**
 - You CAN see the code above (first 3000-5000 characters of each file)

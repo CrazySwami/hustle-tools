@@ -20,12 +20,15 @@ All system prompts now include **Current Date & Time** context in the format:
 **Location:** `/src/app/api/generate-project/route.ts`
 
 ### 1.1 Elementor Widget Generation
-- **Lines:** ~48-100
-- **Purpose:** Generate WordPress Elementor widgets with PHP, CSS, and JS
+- **Lines:** ~279-360
+- **Purpose:** Generate WordPress Elementor widgets as a SINGLE PHP file with inline CSS/JS
 - **Key Features:**
+  - Generates ONLY ONE PHP file with CSS/JS inline in render() method
+  - NO separate CSS or JS files
   - Enforces user instructions as highest priority
-  - Scoped CSS with `{{WRAPPER}}` prefix
-  - Comprehensive Elementor controls
+  - Scoped CSS with `{{WRAPPER}}` prefix inside <style> tag
+  - JavaScript wrapped in IIFE inside <script> tag (if needed)
+  - Comprehensive Elementor controls for ALL editable elements
   - Security best practices (nonce verification, sanitization, escaping)
   - Professional PHP structure with proper namespacing
 

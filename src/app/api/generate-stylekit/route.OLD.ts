@@ -4,71 +4,43 @@ import defaultTemplate from '@/lib/default-stylekit-template.json';
 export const maxDuration = 60;
 
 // STAGE 1: Generate brand colors (4 system colors + custom colors if needed)
-const STAGE1_COLORS_PROMPT = (context: string) => `**CRITICAL TASK: Generate brand color palette that EXACTLY matches user requirements**
+const STAGE1_COLORS_PROMPT = `Generate brand color palette. Return ONLY valid JSON.
 
-${context}
-
-**YOUR TASK WILL BE CONSIDERED FAILED IF:**
-- You ignore "Brand Colors Available" listed above
-- You use generic colors when specific brand colors are provided
-- You do not prioritize user-specified colors above all else
-
-**SUCCESS CRITERIA:**
-1. If "Brand Colors Available" are listed above → YOU MUST USE THEM EXACTLY for primary/secondary/accent
-2. If user mentions specific colors in "Style Preferences" → YOU MUST USE THEM
-3. Only generate complementary colors if user provides 1-2 colors (not 4)
-4. Text color must have WCAG AA contrast (4.5:1) against backgrounds
-
-**REQUIRED OUTPUT FORMAT:**
+GENERATE:
 {
   "system_colors": [
-    {"_id": "primary", "title": "Primary", "color": "#HEX-FROM-USER-INPUT"},
-    {"_id": "secondary", "title": "Secondary", "color": "#HEX-FROM-USER-INPUT"},
-    {"_id": "text", "title": "Text", "color": "#HEX-ENSURE-CONTRAST"},
-    {"_id": "accent", "title": "Accent", "color": "#HEX-FROM-USER-INPUT-OR-COMPLEMENT"}
+    {"_id": "primary", "title": "Primary", "color": "#HEX"},
+    {"_id": "secondary", "title": "Secondary", "color": "#HEX"},
+    {"_id": "text", "title": "Text", "color": "#HEX"},
+    {"_id": "accent", "title": "Accent", "color": "#HEX"}
   ],
   "custom_colors": [
-    {"_id": "custom1", "title": "Descriptive Name", "color": "#HEX"}
+    {"_id": "custom1", "title": "Custom Color Name", "color": "#HEX"}
   ]
 }
 
-**CRITICAL REMINDER:** User requirements in context above are MANDATORY. Following them = success. Ignoring them = failure.
-
-Return ONLY valid JSON. No markdown, no explanations.`;
+RULES:
+- Use provided brand colors for primary/secondary/accent
+- Generate complementary colors if only 1-2 brand colors provided
+- Text color must have WCAG AA contrast (4.5:1)
+- Add 2-3 custom_colors for additional brand colors if available`;
 
 // STAGE 2: Generate font selections and system typography with COMPLETE structure
-const STAGE2_FONTS_PROMPT = (context: string) => `**CRITICAL TASK: Select fonts that EXACTLY match user requirements - THIS IS THE MOST IMPORTANT PART**
+const STAGE2_FONTS_PROMPT = `Generate typography font selections with COMPLETE nested structure. Return ONLY valid JSON.
 
-${context}
+YOU HAVE ACCESS TO:
+- Brand colors: {{COLORS}}
 
-**YOUR TASK WILL BE CONSIDERED FAILED IF:**
-- You ignore "Brand Fonts Available" listed in context above
-- You ignore font names mentioned in "Style Preferences" (e.g., "Use Futura", "Roboto for headings")
-- You use placeholder names like "Font Name" instead of actual font names
-- You choose random fonts when the user specified specific fonts
-
-**ABSOLUTE PRIORITY - FONT SELECTION INSTRUCTIONS:**
-1. **FIRST:** Check "Brand Fonts Available" in context above
-   - If present, YOU MUST USE THESE FONTS EXACTLY AS LISTED
-   - Example: If "Brand Fonts Available: Futura, Helvetica" → primary_font MUST be "Futura"
-
-2. **SECOND:** Check "Style Preferences" for ANY font mentions
-   - "Use Futura" → primary_font MUST be "Futura"
-   - "Roboto for headings" → primary_font MUST be "Roboto"
-   - "Inter for body text" → secondary_font MUST be "Inter"
-
-3. **ONLY IF NO FONTS SPECIFIED:** Choose appropriate Google Fonts or web-safe fonts
-
-**REQUIRED OUTPUT (ALL 4 system_typography items with COMPLETE nested properties):**
+GENERATE COMPLETE system_typography array (ALL 4 items with ALL nested properties):
 {
-  "primary_font": "ACTUAL-FONT-NAME-FROM-USER-INPUT-OR-YOUR-CHOICE",
-  "secondary_font": "ACTUAL-FONT-NAME-FROM-USER-INPUT-OR-YOUR-CHOICE",
+  "primary_font": "Font Name for headings",
+  "secondary_font": "Font Name for body text",
   "system_typography": [
     {
       "_id": "primary",
       "title": "Primary",
       "typography_typography": "custom",
-      "typography_font_family": "MUST-MATCH-primary_font-EXACTLY",
+      "typography_font_family": "Font Name",
       "typography_font_size": {"unit": "px", "size": 48, "sizes": []},
       "typography_font_size_tablet": {"unit": "px", "size": 40, "sizes": []},
       "typography_font_size_mobile": {"unit": "px", "size": 32, "sizes": []},
@@ -83,7 +55,7 @@ ${context}
       "_id": "secondary",
       "title": "Secondary",
       "typography_typography": "custom",
-      "typography_font_family": "MUST-MATCH-primary_font-OR-secondary_font-IF-SPECIFIED",
+      "typography_font_family": "Font Name",
       "typography_font_size": {"unit": "px", "size": 32, "sizes": []},
       "typography_font_size_tablet": {"unit": "px", "size": 28, "sizes": []},
       "typography_font_size_mobile": {"unit": "px", "size": 24, "sizes": []},
@@ -95,7 +67,7 @@ ${context}
       "_id": "text",
       "title": "Text",
       "typography_typography": "custom",
-      "typography_font_family": "MUST-MATCH-secondary_font-EXACTLY",
+      "typography_font_family": "Font Name",
       "typography_font_size": {"unit": "px", "size": 16, "sizes": []},
       "typography_font_size_tablet": {"unit": "px", "size": 16, "sizes": []},
       "typography_font_size_mobile": {"unit": "px", "size": 14, "sizes": []},
@@ -106,7 +78,7 @@ ${context}
       "_id": "accent",
       "title": "Accent",
       "typography_typography": "custom",
-      "typography_font_family": "MUST-MATCH-primary_font-EXACTLY",
+      "typography_font_family": "Font Name",
       "typography_font_size": {"unit": "px", "size": 14, "sizes": []},
       "typography_font_size_tablet": {"unit": "px", "size": 14, "sizes": []},
       "typography_font_size_mobile": {"unit": "px", "size": 12, "sizes": []},
@@ -116,40 +88,26 @@ ${context}
   ]
 }
 
-**VALIDATION CHECKLIST (Check before responding):**
-✓ Did I read "Brand Fonts Available" in context?
-✓ Did I check "Style Preferences" for font mentions?
-✓ Did I use those EXACT font names in my output?
-✓ Are all typography_font_family values actual font names (not placeholders)?
-✓ Do all 4 system_typography items have typography_font_family set?
-
-**CRITICAL REMINDER:** 
-- Using user-specified fonts = SUCCESS
-- Ignoring user-specified fonts = FAILURE
-- This is the #1 priority for this task
-
-Return ONLY valid JSON. No markdown, no explanations.`;
+RULES:
+- **CRITICAL**: If user specifies brand fonts in their instructions, YOU MUST use them EXACTLY as specified - this is NON-NEGOTIABLE
+- If no specific fonts are mentioned, choose appropriate Google Fonts or web-safe fonts
+- Primary font for headings, secondary for body (can be same font if user specifies)
+- Only deviate from user-specified fonts if they are technically unavailable (not a Google Font or web-safe font)
+- Use Google Fonts or web-safe fonts only
+- MUST include ALL nested properties shown above (sizes, line-height, etc.)`;
 
 // STAGE 3: Generate all heading typography (h1-h6) with responsive sizes
-const STAGE3_HEADINGS_PROMPT = (context: string, primaryFont: string, secondaryFont: string) => `**CRITICAL TASK: Generate heading typography using EXACT fonts specified**
+const STAGE3_HEADINGS_PROMPT = `Generate heading typography (h1-h6). Return ONLY valid JSON.
 
-${context}
+YOU HAVE ACCESS TO:
+- Brand colors: {{COLORS}}
+- Selected fonts: {{FONTS}}
 
-**YOUR TASK WILL BE CONSIDERED FAILED IF:**
-- You change the font families specified below
-- You ignore user color preferences from context above
-- You use different fonts than what's provided in the template
-
-**ABSOLUTE PRIORITY:**
-- Primary Font: ${primaryFont} ← THIS MUST BE USED FOR ALL HEADINGS (H1-H6, Accent)
-- Secondary Font: ${secondaryFont} ← THIS MUST BE USED FOR BODY TEXT
-- These fonts were selected based on user requirements - DO NOT CHANGE THEM
-
-**REQUIRED OUTPUT:**
+GENERATE:
 {
   "h1_typography": {
     "typography_typography": "custom",
-    "typography_font_family": "${primaryFont}",
+    "typography_font_family": "{{PRIMARY_FONT}}",
     "typography_font_size": {"unit": "px", "size": 56, "sizes": []},
     "typography_font_size_tablet": {"unit": "px", "size": 40, "sizes": []},
     "typography_font_size_mobile": {"unit": "px", "size": 32, "sizes": []},
@@ -160,7 +118,7 @@ ${context}
   },
   "h2_typography": {
     "typography_typography": "custom",
-    "typography_font_family": "${primaryFont}",
+    "typography_font_family": "{{PRIMARY_FONT}}",
     "typography_font_size": {"unit": "px", "size": 40, "sizes": []},
     "typography_font_size_tablet": {"unit": "px", "size": 32, "sizes": []},
     "typography_font_size_mobile": {"unit": "px", "size": 24, "sizes": []},
@@ -171,7 +129,7 @@ ${context}
   },
   "h3_typography": {
     "typography_typography": "custom",
-    "typography_font_family": "${primaryFont}",
+    "typography_font_family": "{{PRIMARY_FONT}}",
     "typography_font_size": {"unit": "px", "size": 32, "sizes": []},
     "typography_font_size_tablet": {"unit": "px", "size": 28, "sizes": []},
     "typography_font_size_mobile": {"unit": "px", "size": 20, "sizes": []},
@@ -182,7 +140,7 @@ ${context}
   },
   "h4_typography": {
     "typography_typography": "custom",
-    "typography_font_family": "${primaryFont}",
+    "typography_font_family": "{{PRIMARY_FONT}}",
     "typography_font_size": {"unit": "px", "size": 24, "sizes": []},
     "typography_font_size_tablet": {"unit": "px", "size": 20, "sizes": []},
     "typography_font_size_mobile": {"unit": "px", "size": 18, "sizes": []},
@@ -193,7 +151,7 @@ ${context}
   },
   "h5_typography": {
     "typography_typography": "custom",
-    "typography_font_family": "${primaryFont}",
+    "typography_font_family": "{{PRIMARY_FONT}}",
     "typography_font_size": {"unit": "px", "size": 18, "sizes": []},
     "typography_font_size_tablet": {"unit": "px", "size": 16, "sizes": []},
     "typography_font_size_mobile": {"unit": "px", "size": 14, "sizes": []},
@@ -204,7 +162,7 @@ ${context}
   },
   "h6_typography": {
     "typography_typography": "custom",
-    "typography_font_family": "${primaryFont}",
+    "typography_font_family": "{{PRIMARY_FONT}}",
     "typography_font_size": {"unit": "px", "size": 14, "sizes": []},
     "typography_font_size_tablet": {"unit": "px", "size": 14, "sizes": []},
     "typography_font_size_mobile": {"unit": "px", "size": 12, "sizes": []},
@@ -216,7 +174,7 @@ ${context}
   },
   "body_typography": {
     "typography_typography": "custom",
-    "typography_font_family": "${secondaryFont}",
+    "typography_font_family": "{{SECONDARY_FONT}}",
     "typography_font_size": {"unit": "px", "size": 16, "sizes": []},
     "typography_font_size_tablet": {"unit": "px", "size": 16, "sizes": []},
     "typography_font_size_mobile": {"unit": "px", "size": 14, "sizes": []},
@@ -228,42 +186,25 @@ ${context}
   "link_normal_color": "#HEX"
 }
 
-**VALIDATION CHECKLIST (Check before responding):**
-✓ Did I use "${primaryFont}" for ALL headings (H1-H6)?
-✓ Did I use "${secondaryFont}" for body_typography?
-✓ Did I check context for color preferences?
-✓ Did I keep font families EXACTLY as specified in template above?
-
-**CRITICAL REMINDER:**
-- Font families are PRE-SET based on user requirements - DO NOT MODIFY THEM
-- Your job is to set sizes, weights, and colors that match the style preferences
+RULES:
+- **CRITICAL**: Use {{PRIMARY_FONT}} and {{SECONDARY_FONT}} EXACTLY as provided - DO NOT change font families
 - H1 largest (48-64px), H6 smallest (14-16px)
 - Line height increases as size decreases (1.2 → 1.6)
 - Mobile sizes 60-70% of desktop
-
-Return ONLY valid JSON. No markdown, no explanations.`;
+- Use primary color for headings`;
 
 // STAGE 4: Generate component styles (buttons, forms, images)
-const STAGE4_COMPONENTS_PROMPT = (context: string, primaryFont: string, secondaryFont: string) => `**CRITICAL TASK: Generate component styles using EXACT fonts and colors from user requirements**
+const STAGE4_COMPONENTS_PROMPT = `Generate component styles (buttons, forms, images). Return ONLY valid JSON.
 
-${context}
+YOU HAVE ACCESS TO:
+- Brand colors: {{COLORS}}
+- Selected fonts: {{FONTS}}
 
-**YOUR TASK WILL BE CONSIDERED FAILED IF:**
-- You change the font families specified below
-- You ignore brand colors from context above
-- You use different fonts than what's provided in the template
-
-**ABSOLUTE PRIORITY:**
-- Primary Font: ${primaryFont} ← THIS MUST BE USED FOR BUTTONS
-- Secondary Font: ${secondaryFont} ← THIS MUST BE USED FOR FORM FIELDS
-- Brand Colors: Check context above for button_background_color, form_field colors
-- These fonts/colors were selected based on user requirements - DO NOT CHANGE THEM
-
-**REQUIRED OUTPUT:**
+GENERATE:
 {
   "button_typography": {
     "typography_typography": "custom",
-    "typography_font_family": "${primaryFont}",
+    "typography_font_family": "{{PRIMARY_FONT}}",
     "typography_font_size": {"unit": "px", "size": 16, "sizes": []},
     "typography_font_weight": "600",
     "typography_line_height": {"unit": "em", "size": 1.3, "sizes": []},
@@ -276,7 +217,7 @@ ${context}
   "button_border_radius": {"unit": "px", "top": "5", "right": "5", "bottom": "5", "left": "5", "isLinked": true},
   "form_field_typography": {
     "typography_typography": "custom",
-    "typography_font_family": "${secondaryFont}",
+    "typography_font_family": "{{SECONDARY_FONT}}",
     "typography_font_size": {"unit": "px", "size": 16, "sizes": []},
     "typography_font_weight": "400",
     "typography_line_height": {"unit": "em", "size": 1.5, "sizes": []},
@@ -294,21 +235,11 @@ ${context}
   "viewport_lg": 1025
 }
 
-**VALIDATION CHECKLIST (Check before responding):**
-✓ Did I use "${primaryFont}" for button_typography?
-✓ Did I use "${secondaryFont}" for form_field_typography?
-✓ Did I check context for brand colors?
-✓ Did I use brand colors for button_background_color if specified?
-✓ Did I keep font families EXACTLY as specified in template above?
-
-**CRITICAL REMINDER:**
-- Font families are PRE-SET based on user requirements - DO NOT MODIFY THEM
-- Brand colors in context must be prioritized for buttons/forms
-- Button hover should be 10-20% darker than base color
-- Form focus should use primary/accent color
-- Maintain 4px/8px spacing patterns
-
-Return ONLY valid JSON. No markdown, no explanations.`;
+RULES:
+- **CRITICAL**: Use {{PRIMARY_FONT}} and {{SECONDARY_FONT}} EXACTLY as provided - DO NOT change font families
+- Button hover 10-20% darker than base
+- Form focus uses primary/accent color
+- Maintain 4px/8px spacing patterns`;
 
 // Helper: Deep merge objects
 function deepMerge(target: any, source: any): any {
@@ -344,7 +275,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Map to AI Gateway model format
+    // Map to AI Gateway model format (provider/model) - routes through your AI_GATEWAY_API_KEY
     let selectedModel: string;
     switch (model) {
       case 'claude-haiku-4.5':
@@ -363,29 +294,20 @@ export async function POST(req: Request) {
         });
     }
 
-    // Build base context for all stages - PUT USER REQUIREMENTS FIRST WITH MAXIMUM EMPHASIS
-    let baseContext = '╔═══════════════════════════════════════════════════════════╗\n';
-    baseContext += '║  🚨 CRITICAL: USER REQUIREMENTS - ABSOLUTE PRIORITY 🚨  ║\n';
-    baseContext += '║  Following these requirements = SUCCESS                  ║\n';
-    baseContext += '║  Ignoring these requirements = FAILURE                   ║\n';
-    baseContext += '╚═══════════════════════════════════════════════════════════╝\n\n';
-    
+    // Build base context for all stages
+    let baseContext = '';
     if (brandfetchData?.colors?.length) {
-      baseContext += `🎨 Brand Colors Available (MUST USE): ${brandfetchData.colors.join(', ')}\n`;
+      baseContext += `\nBrand Colors Available: ${brandfetchData.colors.join(', ')}`;
     }
     if (brandfetchData?.fonts?.length) {
-      baseContext += `🔤 Brand Fonts Available (MUST USE): ${brandfetchData.fonts.join(', ')}\n`;
+      baseContext += `\nBrand Fonts Available: ${brandfetchData.fonts.join(', ')}`;
     }
     if (stylePreferences) {
-      baseContext += `✨ Style Preferences (MUST FOLLOW): ${stylePreferences}\n`;
+      baseContext += `\nStyle Preferences: ${stylePreferences}`;
     }
     if (industry) {
-      baseContext += `🏢 Industry Context: ${industry}\n`;
+      baseContext += `\nIndustry: ${industry}`;
     }
-    
-    baseContext += '\n╔═══════════════════════════════════════════════════════════╗\n';
-    baseContext += '║  ⚠️ REMINDER: Above requirements are NON-NEGOTIABLE ⚠️   ║\n';
-    baseContext += '╚═══════════════════════════════════════════════════════════╝\n\n';
 
     // Create a ReadableStream for progress updates
     const encoder = new TextEncoder();
@@ -401,10 +323,12 @@ export async function POST(req: Request) {
           let styleKit = JSON.parse(JSON.stringify(defaultTemplate));
 
           // Determine which stages to run
-          const stagesToRun = stage ? [stage] : [1, 2, 3, 4];
+          const stagesToRun = stage ? [stage] : [1, 2, 3, 4]; // If stage specified, run only that stage, otherwise run all
 
           let stage1Data: any = null;
           let stage2Data: any = null;
+          let colorsContext = '';
+          let fontsContext = '';
 
           // ===== STAGE 1: Generate Colors =====
           if (stagesToRun.includes(1)) {
@@ -412,18 +336,14 @@ export async function POST(req: Request) {
             console.log('🎨 Stage 1: Generating colors...');
             const stage1Result = await generateText({
               model: selectedModel,
-              prompt: STAGE1_COLORS_PROMPT(baseContext),
+              prompt: STAGE1_COLORS_PROMPT + baseContext,
               temperature: 0.7,
               maxTokens: 1000,
             });
 
             stage1Data = parseAIResponse(stage1Result.text);
             styleKit = deepMerge(styleKit, stage1Data);
-            
-            console.log('✅ Stage 1 complete:', {
-              systemColors: stage1Data.system_colors?.length,
-              customColors: stage1Data.custom_colors?.length
-            });
+            colorsContext = `\nGenerated Colors: ${JSON.stringify(stage1Data.system_colors)}`;
           }
 
           // ===== STAGE 2: Generate Fonts =====
@@ -432,68 +352,52 @@ export async function POST(req: Request) {
             console.log('🔤 Stage 2: Generating typography...');
             const stage2Result = await generateText({
               model: selectedModel,
-              prompt: STAGE2_FONTS_PROMPT(baseContext),
+              prompt: STAGE2_FONTS_PROMPT.replace('{{COLORS}}', colorsContext) + baseContext,
               temperature: 0.7,
               maxTokens: 3000,
             });
 
             stage2Data = parseAIResponse(stage2Result.text);
             styleKit = deepMerge(styleKit, stage2Data);
-            
-            console.log('✅ Stage 2 complete:', {
-              primaryFont: stage2Data.primary_font,
-              secondaryFont: stage2Data.secondary_font,
-              systemTypography: stage2Data.system_typography?.length
-            });
-            
-            // VALIDATION: Check if fonts were actually set
-            if (!stage2Data.primary_font || stage2Data.primary_font === 'Font Name') {
-              console.error('⚠️ WARNING: primary_font not set properly!', stage2Data);
-            }
+            fontsContext = `\nPrimary Font: ${stage2Data.primary_font}\nSecondary Font: ${stage2Data.secondary_font}`;
           }
 
           // ===== STAGE 3: Generate Heading Typography =====
           if (stagesToRun.includes(3)) {
             sendProgress(3, 'Generating heading styles...');
             console.log('📐 Stage 3: Generating heading styles...');
-            
-            const primaryFont = stage2Data?.primary_font || styleKit.primary_font || 'Inter';
-            const secondaryFont = stage2Data?.secondary_font || styleKit.secondary_font || 'Inter';
-            
-            console.log('Using fonts:', { primaryFont, secondaryFont });
-            
             const stage3Result = await generateText({
               model: selectedModel,
-              prompt: STAGE3_HEADINGS_PROMPT(baseContext, primaryFont, secondaryFont),
+              prompt: STAGE3_HEADINGS_PROMPT
+                .replace('{{COLORS}}', colorsContext)
+                .replace('{{FONTS}}', fontsContext)
+                .replace(/\{\{PRIMARY_FONT\}\}/g, stage2Data?.primary_font || 'Roboto')
+                .replace(/\{\{SECONDARY_FONT\}\}/g, stage2Data?.secondary_font || 'Roboto'),
               temperature: 0.7,
               maxTokens: 3000,
             });
 
             const stage3Data = parseAIResponse(stage3Result.text);
             styleKit = deepMerge(styleKit, stage3Data);
-            
-            console.log('✅ Stage 3 complete');
           }
 
           // ===== STAGE 4: Generate Component Styles =====
           if (stagesToRun.includes(4)) {
             sendProgress(4, 'Generating component styles...');
             console.log('🎛️ Stage 4: Generating component styles...');
-            
-            const primaryFont = stage2Data?.primary_font || styleKit.primary_font || 'Inter';
-            const secondaryFont = stage2Data?.secondary_font || styleKit.secondary_font || 'Inter';
-            
             const stage4Result = await generateText({
               model: selectedModel,
-              prompt: STAGE4_COMPONENTS_PROMPT(baseContext, primaryFont, secondaryFont),
+              prompt: STAGE4_COMPONENTS_PROMPT
+                .replace('{{COLORS}}', colorsContext)
+                .replace('{{FONTS}}', fontsContext)
+                .replace(/\{\{PRIMARY_FONT\}\}/g, stage2Data?.primary_font || 'Roboto')
+                .replace(/\{\{SECONDARY_FONT\}\}/g, stage2Data?.secondary_font || 'Roboto'),
               temperature: 0.7,
               maxTokens: 2000,
             });
 
             const stage4Data = parseAIResponse(stage4Result.text);
             styleKit = deepMerge(styleKit, stage4Data);
-            
-            console.log('✅ Stage 4 complete');
           }
 
           // Add title if provided
@@ -574,4 +478,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

@@ -661,12 +661,12 @@ export const validateWidgetTool = tool({
   },
 });
 
-// Generate New Project (HTML Section or Elementor Widget)
+// Generate New Project (HTML Section, Elementor Plugin, or HubSpot Module)
 export const generateProjectTool = tool({
-  description: 'Generate a complete new project from scratch. Use this ONLY when user explicitly requests a NEW PROJECT (e.g., "create a new project", "generate a new widget", "start a new section"). Shows modal to choose between HTML Section or Elementor Widget, then streams complete code (HTML, CSS, JS) based on user description. Auto-generates project name. DO NOT use for editing existing code - use editCodeWithMorph instead.',
+  description: 'Generate a complete new project from scratch. Use this ONLY when user explicitly requests a NEW PROJECT (e.g., "create a new project", "generate a new widget/plugin", "start a new section"). Supports HTML sections, Elementor plugins (WordPress), and HubSpot modules. Elementor projects generate a complete WordPress plugin with main plugin file + widget file. HubSpot projects generate email or page modules with HubL tokenization. Streams complete code based on user description. Auto-generates project name. DO NOT use for editing existing code - use editCodeWithMorph instead.',
   inputSchema: z.object({
-    description: z.string().describe('Description of what the project should be/do (e.g., "hero section with call-to-action", "pricing table widget", "contact form")'),
-    projectType: z.enum(['html', 'elementor']).describe('Type of project: "html" for HTML section or "elementor" for Elementor widget'),
+    description: z.string().describe('Description of what the project should be/do (e.g., "hero section with call-to-action", "pricing table widget", "contact form", "email newsletter", "hubspot landing page module")'),
+    projectType: z.enum(['html', 'elementor', 'hubspot']).describe('Type of project: "html" for HTML section, "elementor" for Elementor plugin (WordPress), or "hubspot" for HubSpot module. IMPORTANT: If user mentions "hubspot", "hubl", "email module", or "hubspot template", use "hubspot".'),
     suggestedName: z.string().optional().describe('Optional: Suggested name for the project (will be auto-generated if not provided)'),
   }),
   execute: async ({ description, projectType, suggestedName }) => {
@@ -692,7 +692,7 @@ export const generateProjectTool = tool({
       projectName,
       description,
       timestamp: new Date().toISOString(),
-      message: `Starting generation of ${projectType === 'html' ? 'HTML section' : 'Elementor widget'}: "${projectName}"`,
+      message: `Starting generation of ${projectType === 'html' ? 'HTML section' : projectType === 'hubspot' ? 'HubSpot module' : 'Elementor plugin'}: "${projectName}"`,
     };
 
     console.log('✅ generateProject tool returning:', result);

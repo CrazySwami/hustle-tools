@@ -657,6 +657,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
         {/* Desktop: Two-panel layout with chat and editor */}
         {!isMobile && isEditorVisible && isChatVisible && (
           <TwoPanelChatLayout
+            defaultSplitPercent={35}
             leftPanel={
               <div
                 ref={chatPanelRef}
@@ -837,21 +838,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
               />
             )}
 
-            {/* Sidebar Panel - 80% width slide-over from left (mobile) */}
-            <div
-              className="absolute left-0 top-0 bottom-0 w-[80%] max-w-sm bg-background border-r border-border z-[11] shadow-2xl transition-transform duration-300 ease-out"
-              style={{
-                transform: isSidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
-              }}
-            >
-              <AppSidebar
-                onDocumentSelect={(id) => {
-                  setSelectedDocumentId(id);
-                  setIsSidebarVisible(false); // Auto-close on mobile after selecting
-                }}
-                selectedDocumentId={selectedDocumentId}
-              />
-            </div>
+            {/* Documents panel now handled internally by TiptapEditor */}
 
             <TiptapEditor
               initialContent={documentContent}

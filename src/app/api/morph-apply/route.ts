@@ -14,7 +14,7 @@ export async function POST(req: Request) {
       instruction: string;
       originalCode: string;
       lazyEdit: string;
-      fileType: 'html' | 'css' | 'js' | 'php';
+      fileType: 'html' | 'css' | 'js' | 'php' | 'document';
     } = await req.json();
 
     // Check if this is a new file (empty originalCode)

@@ -83,8 +83,15 @@ export const useDocumentContent = create<DocumentState>((set, get) => ({
    * @param skipEditorUpdate - If true, only update state without touching editor (for user typing)
    */
   updateContent: async (content, skipEditorUpdate = false) => {
-    const { editor } = get();
+    const { editor, content: currentContent } = get();
     console.log('💾 [STORE] updateContent called (skipEditorUpdate:', skipEditorUpdate, ')');
+
+    // Only update if content actually changed
+    if (content === currentContent) {
+      console.log('⏭️ [STORE] Content unchanged, skipping update');
+      return;
+    }
+
     if (editor && !skipEditorUpdate) {
       console.log('🔧 [STORE] Calling editor.commands.setContent (THIS RESETS CURSOR!)');
       // Content is already HTML, just set it directly

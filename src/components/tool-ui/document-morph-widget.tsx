@@ -41,11 +41,27 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
   const [mergedDoc, setMergedDoc] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [stats, setStats] = useState<any>(null);
+  const [hasAutoTriggered, setHasAutoTriggered] = useState(false);
 
-  // Load current document on mount
+  // Load current document and auto-trigger preview on mount
   useEffect(() => {
-    setOriginalDoc(content);
-  }, [content]);
+    // Set original doc on first load
+    if (!originalDoc && content) {
+      console.log('📄 [Morph Widget] Setting original doc:', { length: content.length });
+      setOriginalDoc(content);
+    }
+
+    // Auto-trigger preview when we have content and haven't triggered yet
+    if (content && state === 'idle' && !hasAutoTriggered && originalDoc) {
+      console.log('🚀 [Morph Widget] Auto-triggering preview...');
+      setHasAutoTriggered(true);
+      // Small delay to ensure state is properly set
+      setTimeout(() => {
+        handlePreviewChanges();
+      }, 100);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, originalDoc, state, hasAutoTriggered])
 
   // Auto-collapse after successful application
   useEffect(() => {
@@ -56,6 +72,12 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
 
   const handlePreviewChanges = async () => {
     try {
+      console.log('🔀 [Morph Widget] Starting preview...', {
+        instruction: data.instruction?.substring(0, 50),
+        originalLength: originalDoc.length,
+        lazyEditLength: data.lazyEdit?.length,
+      });
+
       setState('loading');
       setErrorMessage('');
 
@@ -70,7 +92,18 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
         }),
       });
 
+      console.log('📡 [Morph Widget] API response:', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText
+      });
+
       const result = await response.json();
+      console.log('📊 [Morph Widget] API result:', {
+        success: result.success,
+        hasMergedCode: !!result.mergedCode,
+        errorMessage: result.error
+      });
 
       if (!response.ok || !result.success) {
         throw new Error(result.error || `Morph API failed: ${response.statusText}`);
@@ -80,8 +113,9 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
       setMergedDoc(result.mergedCode);
       setStats(result.stats);
       setState('previewing');
+      console.log('✅ [Morph Widget] Preview ready');
     } catch (error: any) {
-      console.error('❌ Morph merge failed:', error);
+      console.error('❌ [Morph Widget] Morph merge failed:', error);
       setErrorMessage(error.message || 'Unknown error occurred');
       setState('error');
     }

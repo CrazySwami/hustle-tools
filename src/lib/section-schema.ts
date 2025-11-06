@@ -136,6 +136,8 @@ export interface Section {
   settings: SectionSettings;
   createdAt: number;
   updatedAt: number;
+  generationState?: 'generating' | 'ready' | 'error'; // AI generation status
+  generationError?: string; // Error message if generation failed
 }
 
 // Style Kit interface - reusable CSS stylesheets

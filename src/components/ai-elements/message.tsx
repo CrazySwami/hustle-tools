@@ -32,8 +32,11 @@ export const MessageContent = ({
 }: MessageContentProps) => (
   <div
     className={cn(
-      'flex flex-col gap-2 rounded-lg text-sm text-foreground px-4 py-3 overflow-x-auto overflow-y-hidden break-words max-w-full',
-      'group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground',
+      'flex flex-col gap-2 rounded-lg text-sm px-4 py-3 overflow-x-auto overflow-y-hidden break-words max-w-full',
+      // User messages: dark bg in light mode, light bg in dark mode
+      'group-[.is-user]:bg-gray-800 group-[.is-user]:text-white',
+      'dark:group-[.is-user]:bg-gray-200 dark:group-[.is-user]:text-gray-900',
+      // Assistant messages: normal foreground
       'group-[.is-assistant]:text-foreground',
       className,
     )}

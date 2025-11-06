@@ -6,6 +6,7 @@ import { Zap, CheckCircle2, XCircle, ChevronDown, ChevronUp, GitCompare } from '
 import { useDocumentContent } from '@/hooks/useDocumentContent';
 import { useUsageTracking } from '@/hooks/useUsageTracking';
 import { DiffEditor } from '@monaco-editor/react';
+import { useTheme } from 'next-themes';
 
 interface DocumentMorphWidgetProps {
   data: {
@@ -32,6 +33,7 @@ function LoadingDots() {
 export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
   const { content, updateContent, updateContentWithAnimation } = useDocumentContent();
   const { recordUsage } = useUsageTracking();
+  const { theme } = useTheme();
 
   const [state, setState] = useState<WidgetState>('idle');
   const [isExpanded, setIsExpanded] = useState(true);
@@ -224,7 +226,7 @@ export function DocumentMorphWidget({ data }: DocumentMorphWidgetProps) {
                   original={originalDoc}
                   modified={mergedDoc}
                   language="markdown"
-                  theme="vs-dark"
+                  theme={theme === 'dark' ? 'vs-dark' : 'light'}
                   options={{
                     readOnly: true,
                     minimap: { enabled: false },

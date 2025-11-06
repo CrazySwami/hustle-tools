@@ -37,7 +37,13 @@ export const CodeBlock = ({
   <CodeBlockContext.Provider value={{ code }}>
     <div
       className={cn(
-        'relative w-full overflow-hidden rounded-md border bg-background text-foreground',
+        'relative w-full overflow-hidden rounded-md border text-foreground',
+        // In user messages (light mode): darker bg to contrast with gray-800 bubble
+        'group-[.is-user]:bg-gray-700 group-[.is-user]:border-gray-600',
+        // In user messages (dark mode): lighter bg to contrast with gray-200 bubble
+        'dark:group-[.is-user]:bg-gray-300 dark:group-[.is-user]:border-gray-400',
+        // In assistant messages: normal background
+        'group-[.is-assistant]:bg-background group-[.is-assistant]:border-border',
         className,
       )}
       {...props}
@@ -50,12 +56,13 @@ export const CodeBlock = ({
             margin: 0,
             padding: '1rem',
             fontSize: '0.875rem',
-            background: 'hsl(var(--background))',
-            color: 'hsl(var(--foreground))',
+            background: 'transparent',
+            color: 'inherit',
           }}
           showLineNumbers={showLineNumbers}
           lineNumberStyle={{
-            color: 'hsl(var(--muted-foreground))',
+            color: 'currentColor',
+            opacity: 0.6,
             paddingRight: '1rem',
             minWidth: '2.5rem',
           }}
@@ -73,12 +80,13 @@ export const CodeBlock = ({
             margin: 0,
             padding: '1rem',
             fontSize: '0.875rem',
-            background: 'hsl(var(--background))',
-            color: 'hsl(var(--foreground))',
+            background: 'transparent',
+            color: 'inherit',
           }}
           showLineNumbers={showLineNumbers}
           lineNumberStyle={{
-            color: 'hsl(var(--muted-foreground))',
+            color: 'currentColor',
+            opacity: 0.6,
             paddingRight: '1rem',
             minWidth: '2.5rem',
           }}

@@ -5020,6 +5020,288 @@ Replace the placeholder values with actual client information and format it as v
                 </div>
               </div>
             )}
+            </>
+            )}
+
+            {/* Variables Tab */}
+            {activeTab === 'variables' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Variable Bank</h2>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setBulkMode(!bulkMode)}
+                  >
+                    {bulkMode ? 'Exit Bulk Mode' : 'Bulk Mode'}
+                  </Button>
+                </div>
+
+                {/* Built-in Variables */}
+                <div className="space-y-2">
+                  <h3 className="font-semibold mb-2 text-sm flex items-center gap-2">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                      Built-in
+                    </span>
+                    Available Variables
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { tag: 'BUSINESS_NAME', value: contentForm.businessName || 'Not set', desc: 'Business/Company Name' },
+                      { tag: 'NICHE', value: contentForm.niche || 'Not set', desc: 'Business Niche/Industry' },
+                      { tag: 'KEYWORDS', value: contentForm.keywords.join(', ') || 'Not set', desc: 'SEO Keywords' },
+                      { tag: 'TARGET_AUDIENCE', value: contentForm.targetAudience || 'Not set', desc: 'Target Audience' },
+                      { tag: 'GEO_LOCATIONS', value: contentForm.geoLocations || 'Not set', desc: 'Geographic Locations' },
+                      { tag: 'INTENDED_RESULT', value: contentForm.intendedResult || 'Not set', desc: 'Content Goal/CTA' },
+                      { tag: 'RESEARCH', value: researchResponse ? `${researchResponse.substring(0, 50)}...` : 'Not generated', desc: 'Research Results' },
+                      { tag: 'OUTLINE', value: outline.length > 0 ? `${outline.length} sections` : 'Not generated', desc: 'Content Outline' },
+                      { tag: 'CONTENT', value: generatedContent ? `${generatedContent.substring(0, 50)}...` : 'Not generated', desc: 'Generated Content' },
+                    ].map(v => (
+                      <div key={v.tag} className="p-3 border rounded bg-gray-50">
+                        <div className="flex items-center justify-between mb-1">
+                          <code className="text-xs bg-blue-100 px-1.5 py-0.5 rounded text-blue-700 font-mono">
+                            {`{${v.tag}}`}
+                          </code>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={() => copyVariableTag(v.tag)}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-gray-600 mb-1">{v.desc}</p>
+                        <p className="text-xs text-gray-500 truncate">{v.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Variables */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                      Custom
+                    </span>
+                    Your Variables
+                  </h3>
+
+                  {/* Add New Variable Form */}
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="font-semibold mb-3 text-sm">Add New Variable</h4>
+                    <div className="space-y-3">
+                      <Input
+                        placeholder="Variable Name (e.g., Company Mission)"
+                        id="new-var-name-tab"
+                        className="text-sm"
+                      />
+                      <Input
+                        placeholder="Tag (e.g., COMPANY_MISSION)"
+                        id="new-var-tag-tab"
+                        className="text-sm font-mono"
+                      />
+                      <Textarea
+                        placeholder="Variable Content..."
+                        id="new-var-content-tab"
+                        rows={3}
+                        className="text-sm"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const name = (document.getElementById('new-var-name-tab') as HTMLInputElement).value
+                          const tag = (document.getElementById('new-var-tag-tab') as HTMLInputElement).value
+                          const content = (document.getElementById('new-var-content-tab') as HTMLTextAreaElement).value
+                          if (name && tag && content) {
+                            addCustomVariable(name, tag, content);
+                            (document.getElementById('new-var-name-tab') as HTMLInputElement).value = '';
+                            (document.getElementById('new-var-tag-tab') as HTMLInputElement).value = '';
+                            (document.getElementById('new-var-content-tab') as HTMLTextAreaElement).value = '';
+                          }
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Variable
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Custom Variables List */}
+                  <div className="space-y-2">
+                    {customVariables.map(v => (
+                      <div key={v.id} className="p-4 border rounded bg-white hover:border-purple-300 transition-colors">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <code className="text-sm bg-purple-100 px-2 py-1 rounded text-purple-700 font-mono">
+                                {`{${v.tag}}`}
+                              </code>
+                              <span className="text-sm font-semibold text-gray-900">{v.name}</span>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-2">{v.content}</p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => copyVariableTag(v.tag)}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => deleteCustomVariable(v.id)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {customVariables.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No custom variables yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Clients Tab */}
+            {activeTab === 'clients' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Clients</h2>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowAddClient(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Client
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowClientImporter(true)}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Import
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {clients.map(client => (
+                    <div
+                      key={client.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                        selectedClient?.id === client.id
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => setSelectedClient(client)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="text-3xl">{client.logo}</span>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 truncate">{client.name}</h3>
+                          <p className="text-xs text-gray-500 truncate">{client.url}</p>
+                          <p className="text-sm text-gray-600 mt-2 line-clamp-2">{client.bio}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {clients.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-lg font-semibold mb-2">No clients yet</p>
+                    <p className="text-sm mb-4">Add your first client to get started</p>
+                    <Button onClick={() => setShowAddClient(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Client
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Settings Tab */}
+            {activeTab === 'settings' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Settings</h2>
+
+                <div className="space-y-4">
+                  <div className="p-6 bg-white border rounded-lg">
+                    <h3 className="font-semibold text-lg mb-4">Workflow Management</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Button
+                        variant="outline"
+                        className="h-auto py-4 flex flex-col items-start"
+                        onClick={exportWorkflow}
+                      >
+                        <Download className="h-5 w-5 mb-2" />
+                        <div className="text-left">
+                          <div className="font-semibold">Export Workflow</div>
+                          <div className="text-xs text-gray-500">Save current configuration</div>
+                        </div>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-auto py-4 flex flex-col items-start"
+                        onClick={() => {
+                          const input = document.createElement('input')
+                          input.type = 'file'
+                          input.accept = '.json'
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0]
+                            if (file) importWorkflow(file)
+                          }
+                          input.click()
+                        }}
+                      >
+                        <FolderOpen className="h-5 w-5 mb-2" />
+                        <div className="text-left">
+                          <div className="font-semibold">Import Workflow</div>
+                          <div className="text-xs text-gray-500">Load saved configuration</div>
+                        </div>
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="p-6 bg-white border rounded-lg">
+                    <h3 className="font-semibold text-lg mb-4">Bulk Mode</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Enable bulk mode to run workflows for multiple clients at once
+                    </p>
+                    <Button
+                      onClick={() => setBulkMode(!bulkMode)}
+                      variant={bulkMode ? 'default' : 'outline'}
+                    >
+                      {bulkMode ? 'Disable' : 'Enable'} Bulk Mode
+                    </Button>
+                  </div>
+
+                  <div className="p-6 bg-white border rounded-lg">
+                    <h3 className="font-semibold text-lg mb-4">About</h3>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <p><strong>Blog Builder</strong> - AI-powered content creation workflow</p>
+                      <p>Version: 1.0.0</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
           </div>
           </div>
           </div>

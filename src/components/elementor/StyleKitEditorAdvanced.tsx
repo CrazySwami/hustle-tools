@@ -1737,36 +1737,99 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
           </p>
         </div>
 
-        {/* INLINE PREVIEW */}
-        <div style={{ marginBottom: '32px', padding: '20px', backgroundColor: 'var(--card)', border: '2px solid var(--primary)', borderRadius: '12px' }}>
-          <h4 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600, color: 'var(--primary)' }}>
-            Live Preview
+        {/* COMPREHENSIVE PREVIEW */}
+        <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: 'var(--card)', border: '2px solid var(--primary)', borderRadius: '12px' }}>
+          <h4 style={{ margin: '0 0 20px', fontSize: '16px', fontWeight: 600, color: 'var(--primary)' }}>
+            👁️ Live Preview - All Border Radius & Image Effects
           </h4>
-          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-            <div style={{ width: '250px' }}>
-              <div
-                style={{
-                  width: '100%',
-                  height: '180px',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  boxShadow: s.image_styles?.image_box_shadow || '0 4px 12px rgba(0,0,0,0.08)',
-                  objectFit: s.image_styles?.image_object_fit || 'cover',
-                  ...getImageStyle(),
-                }}
-              />
-              {s.image_styles?.image_caption_typography && (
-                <div style={{
-                  marginTop: '8px',
-                  fontFamily: s.image_styles.image_caption_typography.typography_font_family || 'inherit',
-                  fontSize: s.image_styles.image_caption_typography.typography_font_size?.size + (s.image_styles.image_caption_typography.typography_font_size?.unit || 'px'),
-                  fontWeight: s.image_styles.image_caption_typography.typography_font_weight || 400,
-                  lineHeight: s.image_styles.image_caption_typography.typography_line_height?.size || 1.4,
-                  color: s.image_styles.image_caption_color || '#333',
-                  textAlign: 'center',
-                }}>
-                  Image with caption styling
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+            
+            {/* Images */}
+            <div>
+              <h5 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)' }}>🖼️ Images</h5>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>Square</div>
+                  <div style={{ width: '100%', height: '120px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', ...getImageStyle(), borderRadius: '0px' }} />
                 </div>
-              )}
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>Rounded</div>
+                  <div style={{ width: '100%', height: '120px', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', ...getImageStyle() }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>Circle</div>
+                  <div style={{ width: '120px', height: '120px', background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', ...getImageStyle(), borderRadius: '50%', margin: '0 auto' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div>
+              <h5 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)' }}>🔘 Buttons</h5>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>Sharp</div>
+                  <button style={{ ...getButtonStyle(), borderRadius: '0px', width: '100%' }}>Sharp Button</button>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>Rounded</div>
+                  <button style={{ ...getButtonStyle(), width: '100%' }}>Rounded Button</button>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>Pill</div>
+                  <button style={{ ...getButtonStyle(), borderRadius: '999px', width: '100%' }}>Pill Button</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Cards */}
+            <div>
+              <h5 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)' }}>📦 Cards</h5>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: `${s.image_border_radius?.top || 8}px`, border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>Card Title</div>
+                  <div style={{ fontSize: '13px', color: 'var(--muted-foreground)' }}>Card with border radius</div>
+                </div>
+                <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>Rounded Card</div>
+                  <div style={{ fontSize: '13px', color: 'var(--muted-foreground)' }}>More rounded corners</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Form Fields */}
+            <div>
+              <h5 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)' }}>📝 Form Fields</h5>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>Input</div>
+                  <input type="text" placeholder="Enter text..." style={getFormInputStyle()} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>Rounded Input</div>
+                  <input type="text" placeholder="Rounded..." style={{ ...getFormInputStyle(), borderRadius: '12px' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>Textarea</div>
+                  <textarea placeholder="Multi-line..." rows={3} style={{ ...getFormInputStyle(), resize: 'vertical' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* CSS Filters */}
+            <div>
+              <h5 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)' }}>🎨 CSS Filters</h5>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>Normal</div>
+                  <div style={{ width: '100%', height: '80px', background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', ...getImageStyle(), filter: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', marginBottom: '6px' }}>With Filters</div>
+                  <div style={{ width: '100%', height: '80px', background: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)', ...getImageStyle() }} />
+                </div>
+              </div>
             </div>
           </div>
         </div>

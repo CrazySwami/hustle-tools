@@ -1368,6 +1368,29 @@ export function HtmlSectionEditor({
     return () => clearTimeout(timeoutId);
   }, [editorHtml, editorCss, editorJs, editorPhp, editorHubl, fileGroups.activeGroup?.id, activeWidgetId]);
 
+  // Auto-convert HTML to HubL whenever HTML changes in HubSpot projects
+  useEffect(() => {
+    if (!fileGroups.activeGroup || fileGroups.activeGroup.type !== 'hubspot') return;
+    if (!editorHtml) return;
+
+    const timeoutId = setTimeout(() => {
+      console.log('🧡 HubSpot project HTML changed - auto-converting to HubL...');
+      try {
+        const result = convertHtmlToHubL(editorHtml, { kind: 'page' });
+        console.log('✅ Auto-conversion successful:', result.fields.length, 'fields detected');
+        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'hubl', result.moduleHtml);
+        updateContent('hubl', result.moduleHtml);
+      } catch (error) {
+        console.error('❌ Auto-conversion failed:', error);
+        // Fall back to copying HTML as-is
+        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'hubl', editorHtml);
+        updateContent('hubl', editorHtml);
+      }
+    }, 800); // Longer debounce to avoid converting on every keystroke
+
+    return () => clearTimeout(timeoutId);
+  }, [editorHtml, fileGroups.activeGroup?.id, fileGroups.activeGroup?.type]);
+
   // Track unsaved changes for PHP widget projects
   useEffect(() => {
     // Only track for PHP widget projects

@@ -139,12 +139,35 @@ export function TwoPanelChatLayout({
     }
   }, [isResizing, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
 
-  // Mobile layout: Content main view, chat drawer from bottom
+  // Mobile layout: Stack based on navigation position
   if (isMobile) {
+    // When nav is on left, show left panel on top, right panel below
+    if (navigationBarPosition === 'left') {
+      return (
+        <div className="flex flex-col h-full w-full overflow-auto">
+          {/* Navigation bar at top */}
+          {navigationBarProps && (
+            <NavigationBar {...navigationBarProps} />
+          )}
+
+          {/* Left panel (workflow/tabs) */}
+          <div className="flex-shrink-0">
+            {leftPanel}
+          </div>
+
+          {/* Right panel (client content) */}
+          <div className="flex-1">
+            {rightPanel}
+          </div>
+        </div>
+      );
+    }
+
+    // When nav is on right (default), show right panel on top, left panel as drawer below
     return (
       <div className="flex flex-col h-full w-full">
         {/* Navigation bar at top if positioned on right panel */}
-        {navigationBarProps && navigationBarPosition === 'right' && (
+        {navigationBarProps && (
           <NavigationBar {...navigationBarProps} />
         )}
 
@@ -157,10 +180,6 @@ export function TwoPanelChatLayout({
         {/* Note: The actual drawer mechanism is handled by the chat component itself */}
         {/* This just ensures proper z-index stacking */}
         <div className="relative z-[3200] flex flex-col">
-          {/* Navigation bar inside chat drawer if positioned on left panel */}
-          {navigationBarProps && navigationBarPosition === 'left' && (
-            <NavigationBar {...navigationBarProps} />
-          )}
           {leftPanel}
         </div>
       </div>

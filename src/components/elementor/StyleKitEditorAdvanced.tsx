@@ -431,10 +431,26 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     const s = kit.page_settings || {};
     const prefix = level;
     const typo = s[`${prefix}_typography`] || {};
+    
+    // Get responsive font size based on device mode
+    let fontSizeObj;
+    if (deviceMode === 'tablet') {
+      fontSizeObj = typo.typography_font_size_tablet || s[`${prefix}_typography_font_size_tablet`];
+    } else if (deviceMode === 'mobile') {
+      fontSizeObj = typo.typography_font_size_mobile || s[`${prefix}_typography_font_size_mobile`];
+    } else {
+      fontSizeObj = typo.typography_font_size || s[`${prefix}_typography_font_size`];
+    }
+    
+    // Fallback to desktop size if responsive size not set
+    if (!fontSizeObj || !fontSizeObj.size) {
+      fontSizeObj = typo.typography_font_size || s[`${prefix}_typography_font_size`] || { size: 48, unit: 'px' };
+    }
+    
     return {
       fontFamily: typo.typography_font_family || (s[`${prefix}_typography`]?.typography_font_family || s[`${prefix}_typography_font_family`]) || 'Inter',
       fontWeight: typo.typography_font_weight || (s[`${prefix}_typography`]?.typography_font_weight || s[`${prefix}_typography_font_weight`]) || '700',
-      fontSize: `${typo.typography_font_size?.size || (s[`${prefix}_typography`]?.typography_font_size || s[`${prefix}_typography_font_size`])?.size || 48}${typo.typography_font_size?.unit || (s[`${prefix}_typography`]?.typography_font_size || s[`${prefix}_typography_font_size`])?.unit || 'px'}`,
+      fontSize: `${fontSizeObj.size || 48}${fontSizeObj.unit || 'px'}`,
       lineHeight: typo.typography_line_height?.size || (s[`${prefix}_typography`]?.typography_line_height || s[`${prefix}_typography_line_height`])?.size || 1.2,
       letterSpacing: `${typo.typography_letter_spacing?.size || (s[`${prefix}_typography`]?.typography_letter_spacing || s[`${prefix}_typography_letter_spacing`])?.size || 0}${typo.typography_letter_spacing?.unit || (s[`${prefix}_typography`]?.typography_letter_spacing || s[`${prefix}_typography_letter_spacing`])?.unit || 'px'}`,
       textTransform: typo.typography_text_transform || (s[`${prefix}_typography`]?.typography_text_transform || s[`${prefix}_typography_text_transform`]) || 'none',
@@ -444,12 +460,29 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
 
   const getBodyStyle = () => {
     const s = kit.page_settings || {};
+    const bodyTypo = s.body_typography || {};
+    
+    // Get responsive font size based on device mode
+    let fontSizeObj;
+    if (deviceMode === 'tablet') {
+      fontSizeObj = bodyTypo.typography_font_size_tablet || s.body_typography_font_size_tablet;
+    } else if (deviceMode === 'mobile') {
+      fontSizeObj = bodyTypo.typography_font_size_mobile || s.body_typography_font_size_mobile;
+    } else {
+      fontSizeObj = bodyTypo.typography_font_size || s.body_typography_font_size;
+    }
+    
+    // Fallback to desktop size if responsive size not set
+    if (!fontSizeObj || !fontSizeObj.size) {
+      fontSizeObj = bodyTypo.typography_font_size || s.body_typography_font_size || { size: 16, unit: 'px' };
+    }
+    
     return {
-      fontFamily: s.body_typography_font_family || 'Inter',
-      fontWeight: s.body_typography_font_weight || '400',
-      fontSize: `${s.body_typography_font_size?.size || 16}${s.body_typography_font_size?.unit || 'px'}`,
-      lineHeight: s.body_typography_line_height?.size || 1.7,
-      letterSpacing: `${s.body_typography_letter_spacing?.size || 0}${s.body_typography_letter_spacing?.unit || 'px'}`,
+      fontFamily: bodyTypo.typography_font_family || s.body_typography_font_family || 'Inter',
+      fontWeight: bodyTypo.typography_font_weight || s.body_typography_font_weight || '400',
+      fontSize: `${fontSizeObj.size || 16}${fontSizeObj.unit || 'px'}`,
+      lineHeight: bodyTypo.typography_line_height?.size || s.body_typography_line_height?.size || 1.7,
+      letterSpacing: `${bodyTypo.typography_letter_spacing?.size || s.body_typography_letter_spacing?.size || 0}${bodyTypo.typography_letter_spacing?.unit || s.body_typography_letter_spacing?.unit || 'px'}`,
       color: s.body_color || '#333333',
     };
   };
@@ -813,14 +846,37 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
             backgroundColor: 'var(--muted)',
             borderRadius: '6px'
           }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', textTransform: 'uppercase' }}>
-              {prefix.toUpperCase()} PREVIEW
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
+                {prefix.toUpperCase()} PREVIEW
+              </div>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {(['desktop', 'tablet', 'mobile'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setDeviceMode(mode)}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '10px',
+                      fontWeight: deviceMode === mode ? 600 : 400,
+                      backgroundColor: deviceMode === mode ? 'var(--primary)' : 'var(--muted)',
+                      color: deviceMode === mode ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
             </div>
             <div style={headingStyle}>
               The quick brown fox jumps over the lazy dog
             </div>
             <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>
-              {headingStyle.fontFamily?.split(',')[0].replace(/'/g, '')} • {headingStyle.fontSize} • {headingStyle.fontWeight}
+              {headingStyle.fontFamily?.split(',')[0].replace(/'/g, '')} • {headingStyle.fontSize} ({deviceMode}) • {headingStyle.fontWeight}
             </div>
           </div>
 

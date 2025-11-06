@@ -4,6 +4,9 @@ import { useState, useCallback } from 'react';
 import { AiFillHtml5 } from 'react-icons/ai';
 import { FaWordpress } from 'react-icons/fa';
 import { SiHubspot } from 'react-icons/si';
+import { streamWithLegacyCallbacks } from '@/lib/project-generation/streaming';
+import { getAvailableModels, getModelsByProvider } from '@/lib/project-generation/config';
+import type { ProjectType } from '@/lib/project-generation/types';
 
 interface GenerateProjectWidgetProps {
   toolResult: {
@@ -16,7 +19,7 @@ interface GenerateProjectWidgetProps {
   };
   onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot', generationState?: 'generating' | 'ready' | 'error') => string; // Returns new project ID
   onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
-  onProjectMetadataUpdate?: (projectId: string, metadata: Partial<{ isPlugin: boolean; pluginMainFile: string; pluginName: string; pluginSlug: string }>) => void; // Update plugin metadata
+  onProjectMetadataUpdate?: (projectId: string, metadata: any) => void; // Update plugin metadata
   onProjectStateUpdate?: (projectId: string, state: 'generating' | 'ready' | 'error', error?: string) => void; // Update generation state
   onSwitchCodeTab?: (tab: 'html' | 'css' | 'js' | 'php' | 'hubl') => void;
   onSwitchTab?: (tab: string) => void; // Switch main tab (e.g., to 'json')
@@ -54,6 +57,9 @@ export function GenerateProjectWidget({
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState('');
   const [currentPhase, setCurrentPhase] = useState<'html' | 'css' | 'js' | 'php' | 'hubl' | null>(null);
+
+  // Get models grouped by provider for dropdown
+  const modelsByProvider = getModelsByProvider();
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -106,15 +112,14 @@ export function GenerateProjectWidget({
       return;
     }
 
-    // Create project FIRST with 'generating' state (use editable projectName)
+    // Create project FIRST with 'generating' state
     const projectId = onProjectCreate(
       projectName,
       projectType === 'elementor' ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html',
-      'generating' // Set initial state to 'generating'
+      'generating'
     );
 
-    // Plugin metadata is now set by createNewPlugin(), no need for manual patching
-    console.log('📦 Created project via widget:', projectName, 'ID:', projectId, 'State: generating', projectType === 'elementor' ? '(PLUGIN)' : '');
+    console.log('📦 Created project via widget:', projectName, 'ID:', projectId, 'State: generating');
 
     // Switch to Code Editor tab
     if (onSwitchTab) {
@@ -125,21 +130,14 @@ export function GenerateProjectWidget({
     // Switch to appropriate file tab
     const targetFileType = projectType === 'elementor' ? 'php' : 'html';
     if (onSwitchCodeTab) {
-      if (projectType === 'elementor') {
-        onSwitchCodeTab('php');
-      } else if (projectType === 'hubspot') {
-        onSwitchCodeTab('html');
-      } else {
-        onSwitchCodeTab('html');
-      }
+      onSwitchCodeTab(targetFileType as any);
     }
 
-    // Wait for Monaco editor to actually mount (not just arbitrary delay)
-    // Check every 50ms, max 5 seconds timeout
+    // Wait for Monaco editor to actually mount
     if (isEditorReady) {
       console.log(`⏳ Waiting for ${targetFileType} editor to mount...`);
       const startTime = Date.now();
-      const maxWaitTime = 5000; // 5 seconds max
+      const maxWaitTime = 5000;
 
       while (!isEditorReady(targetFileType)) {
         if (Date.now() - startTime > maxWaitTime) {
@@ -152,201 +150,35 @@ export function GenerateProjectWidget({
       const waitTime = Date.now() - startTime;
       console.log(`✅ ${targetFileType} editor ready after ${waitTime}ms`);
     } else {
-      // Fallback to old behavior if isEditorReady not provided
       console.warn('⚠️ isEditorReady callback not provided, using 300ms delay fallback');
       await new Promise(resolve => setTimeout(resolve, 300));
     }
 
     try {
-      const response = await fetch('/api/generate-project', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: description, // Use editable description
-          projectType: projectType,
-          projectName: projectName, // Use editable projectName
-          model: selectedModel, // Use selected model from dropdown
-          globalCSS: includeGlobalCSS ? globalCSS : undefined,
-          hubspotModuleType: projectType === 'hubspot' ? hubspotModuleType : undefined,
+      // Use unified streaming with legacy callbacks
+      await streamWithLegacyCallbacks(
+        {
+          projectType: projectType as ProjectType,
+          projectName,
+          description,
+          subtype: projectType === 'hubspot' ? hubspotModuleType : undefined,
           images: includeImages && uploadedImages.length > 0 ? uploadedImages : [],
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Generation failed');
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let fullCode = '';
-
-      if (reader) {
-        // Set initial phase
-        if (projectType === 'elementor') {
-          setCurrentPhase('php');
-          setProgress('Generating PHP Widget...');
-        } else if (projectType === 'hubspot') {
-          setCurrentPhase('html');
-          setProgress('Generating HTML...');
-        } else {
-          setCurrentPhase('html');
-          setProgress('Generating HTML...');
+          model: selectedModel,
+          globalCSS: includeGlobalCSS ? globalCSS : undefined,
+        },
+        projectId,
+        {
+          onProjectUpdate,
+          onProjectMetadataUpdate,
+          onProjectStateUpdate,
+          onSwitchCodeTab,
+          setProgress,
+          setCurrentPhase
         }
+      );
 
-        let loggedFirstChunk = false;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+      console.log('✅ Generation complete!');
 
-          const chunk = decoder.decode(value);
-          fullCode += chunk;
-
-          // DEBUG: Log the first chunk and format to diagnose regex matching
-          if (!loggedFirstChunk && fullCode.length > 0) {
-            console.log('🔍 First 500 chars of API response:', fullCode.substring(0, 500));
-            console.log('🔍 Chunk received:', chunk);
-            loggedFirstChunk = true;
-          }
-
-          // Stream updates to project files
-          if (projectId && onProjectUpdate) {
-            console.log(`🔍 Checking matches for projectType: ${projectType}, fullCode length: ${fullCode.length}`);
-            if (projectType === 'elementor') {
-              // Elementor plugins: Parse TWO PHP files (main-plugin.php and widget.php)
-              // Look for php code blocks and match them to the correct files
-
-              // Strategy: Find ALL php blocks, then identify which is which by content
-              const phpBlocks = fullCode.match(/```php\n([\s\S]*?)```/gi) || [];
-
-              console.log(`🔍 Found ${phpBlocks.length} PHP blocks in Elementor response`);
-
-              // Extract content from each block
-              const phpContents = phpBlocks.map(block => {
-                const match = block.match(/```php\n([\s\S]*?)```/);
-                return match ? match[1].trim() : '';
-              });
-
-              // Identify which block is which:
-              // Main plugin file: contains "Plugin Name:" header
-              // Widget file: contains "class" and "extends \\Elementor\\Widget_Base"
-
-              let mainPluginCode = '';
-              let widgetCode = '';
-
-              for (const code of phpContents) {
-                if (code.includes('Plugin Name:') && code.includes('add_action')) {
-                  mainPluginCode = code;
-                  console.log(`📦 Found main-plugin.php (${code.length} chars)`);
-                } else if (code.includes('class ') && code.includes('extends \\Elementor\\Widget_Base')) {
-                  widgetCode = code;
-                  console.log(`🎨 Found widget.php (${code.length} chars)`);
-                }
-              }
-
-              // Update project with found files
-              if (mainPluginCode && onProjectMetadataUpdate) {
-                console.log(`📝 Streaming main-plugin.php (${mainPluginCode.length} chars)`);
-                onProjectMetadataUpdate(projectId, {
-                  isPlugin: true,
-                  pluginMainFile: mainPluginCode
-                });
-              }
-
-              if (widgetCode && onProjectMetadataUpdate) {
-                console.log(`📝 Streaming widget.php (${widgetCode.length} chars)`);
-
-                // Extract class name from generated widget
-                const classNameMatch = widgetCode.match(/class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends/);
-                const className = classNameMatch ? classNameMatch[1] : 'Generated_Widget';
-                const widgetSlug = className.toLowerCase().replace(/_/g, '-');
-                const widgetName = className.replace(/_/g, ' ').replace(/\bWidget\b/, '').trim() || projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-
-                // Generate new widget ID to replace Hello World widget
-                const widgetId = `widget_${Date.now()}`;
-
-                // Replace Hello World widget with generated widget in widgetFiles
-                onProjectMetadataUpdate(projectId, {
-                  widgetFiles: {
-                    [widgetId]: {
-                      name: widgetName,
-                      slug: widgetSlug,
-                      content: widgetCode,
-                      className: className,
-                    }
-                  }
-                });
-
-                console.log(`🎨 Replaced Hello World widget with ${widgetName} (ID: ${widgetId})`);
-              }
-
-              // Warn if we didn't find both files
-              if (!mainPluginCode || !widgetCode) {
-                console.warn(`⚠️ Missing files: Main Plugin=${!!mainPluginCode}, Widget=${!!widgetCode}`);
-              }
-            } else if (projectType === 'hubspot') {
-              const htmlMatch = fullCode.match(/```html\n([\s\S]*?)(?:```|$)/);
-              const hublMatch = fullCode.match(/```hubl\n([\s\S]*?)(?:```|$)/);
-
-              console.log(`🔍 HubSpot matches: HTML=${!!htmlMatch}, HubL=${!!hublMatch}`);
-
-              if (htmlMatch) {
-                console.log(`📝 Widget streaming HTML (${htmlMatch[1].trim().length} chars)`);
-                onProjectUpdate(projectId, 'html', htmlMatch[1].trim());
-              }
-              if (hublMatch) {
-                console.log(`📝 Widget streaming HubL (${hublMatch[1].trim().length} chars)`);
-                onProjectUpdate(projectId, 'hubl', hublMatch[1].trim());
-              }
-            } else {
-              const htmlMatch = fullCode.match(/```html\n([\s\S]*?)(?:```|$)/);
-              const cssMatch = fullCode.match(/```css\n([\s\S]*?)(?:```|$)/);
-              const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)(?:```|$)/);
-
-              console.log(`🔍 HTML project matches: HTML=${!!htmlMatch}, CSS=${!!cssMatch}, JS=${!!jsMatch}`);
-
-              if (htmlMatch) {
-                console.log(`📝 Widget streaming HTML (${htmlMatch[1].trim().length} chars)`);
-                onProjectUpdate(projectId, 'html', htmlMatch[1].trim());
-              }
-              if (cssMatch) {
-                console.log(`📝 Widget streaming CSS (${cssMatch[1].trim().length} chars)`);
-                onProjectUpdate(projectId, 'css', cssMatch[1].trim());
-              }
-              if (jsMatch) {
-                console.log(`📝 Widget streaming JS (${jsMatch[1].trim().length} chars)`);
-                onProjectUpdate(projectId, 'js', jsMatch[1].trim());
-              }
-            }
-
-            // Auto-switch tabs during generation
-            if (projectType === 'html') {
-              if (fullCode.length > 500 && currentPhase === 'html') {
-                setCurrentPhase('css');
-                setProgress('Generating CSS...');
-                onSwitchCodeTab?.('css');
-              } else if (fullCode.length > 1500 && currentPhase === 'css') {
-                setCurrentPhase('js');
-                setProgress('Generating JavaScript...');
-                onSwitchCodeTab?.('js');
-              }
-            } else if (projectType === 'hubspot') {
-              if (fullCode.length > 500 && currentPhase === 'html') {
-                setCurrentPhase('hubl');
-                setProgress('Generating HubL...');
-                onSwitchCodeTab?.('html');
-              }
-            }
-          }
-        }
-
-        setProgress(`✅ Generation complete!`);
-
-        // Mark generation as complete
-        if (onProjectStateUpdate && projectId) {
-          onProjectStateUpdate(projectId, 'ready');
-          console.log('✅ Project generation complete, state updated to ready');
-        }
-      }
     } catch (error: any) {
       setProgress(`❌ Error: ${error.message}`);
 
@@ -371,10 +203,11 @@ export function GenerateProjectWidget({
     globalCSS,
     onProjectCreate,
     onProjectUpdate,
+    onProjectMetadataUpdate,
     onProjectStateUpdate,
     onSwitchCodeTab,
     onSwitchTab,
-    currentPhase
+    isEditorReady
   ]);
 
   const getProjectTypeLabel = () => {
@@ -477,31 +310,15 @@ export function GenerateProjectWidget({
             cursor: generating ? 'not-allowed' : 'pointer',
           }}
         >
-          <optgroup label="Claude">
-            <option value="anthropic/claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-            <option value="anthropic/claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
-            <option value="anthropic/claude-opus-4-1-20250805">Claude Opus 4.1</option>
-            <option value="anthropic/claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
-            <option value="anthropic/claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
-          </optgroup>
-          <optgroup label="OpenAI">
-            <option value="openai/gpt-5">GPT-5</option>
-            <option value="openai/gpt-5-mini">GPT-5 Mini</option>
-            <option value="openai/gpt-5-nano">GPT-5 Nano</option>
-            <option value="openai/gpt-4o">GPT-4o</option>
-            <option value="openai/o3">o3</option>
-          </optgroup>
-          <optgroup label="Google">
-            <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
-            <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
-            <option value="google/gemini-2.0-flash-exp">Gemini 2.0 Flash Exp</option>
-          </optgroup>
-          <optgroup label="Perplexity">
-            <option value="perplexity/sonar">Sonar</option>
-            <option value="perplexity/sonar-pro">Sonar Pro</option>
-            <option value="perplexity/sonar-reasoning">Sonar Reasoning</option>
-            <option value="perplexity/sonar-reasoning-pro">Sonar Reasoning Pro</option>
-          </optgroup>
+          {Object.entries(modelsByProvider).map(([provider, models]) => (
+            <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
+              {models.map(model => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
         </select>
       </div>
 
@@ -598,7 +415,7 @@ export function GenerateProjectWidget({
               disabled={generating}
               style={{
                 flex: 1,
-                padding: '10px 16px',
+                padding: '10px',
                 background: hubspotModuleType === 'page' ? 'var(--primary)' : 'var(--muted)',
                 color: hubspotModuleType === 'page' ? 'var(--primary-foreground)' : 'var(--foreground)',
                 border: `2px solid ${hubspotModuleType === 'page' ? 'var(--primary)' : 'var(--border)'}`,
@@ -606,17 +423,16 @@ export function GenerateProjectWidget({
                 cursor: generating ? 'not-allowed' : 'pointer',
                 fontSize: '13px',
                 fontWeight: 500,
-                transition: 'all 0.2s',
               }}
             >
-              Page Module
+              📄 Page Module
             </button>
             <button
               onClick={() => setHubspotModuleType('email')}
               disabled={generating}
               style={{
                 flex: 1,
-                padding: '10px 16px',
+                padding: '10px',
                 background: hubspotModuleType === 'email' ? 'var(--primary)' : 'var(--muted)',
                 color: hubspotModuleType === 'email' ? 'var(--primary-foreground)' : 'var(--foreground)',
                 border: `2px solid ${hubspotModuleType === 'email' ? 'var(--primary)' : 'var(--border)'}`,
@@ -624,197 +440,181 @@ export function GenerateProjectWidget({
                 cursor: generating ? 'not-allowed' : 'pointer',
                 fontSize: '13px',
                 fontWeight: 500,
-                transition: 'all 0.2s',
               }}
             >
-              Email Module
+              ✉️ Email Module
             </button>
           </div>
+          <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: 'var(--muted-foreground)' }}>
+            {hubspotModuleType === 'email'
+              ? '⚠️ Email: Uses table layouts with inline CSS for email client compatibility'
+              : '✨ Page: Uses modern HTML5, CSS Grid/Flexbox, and JavaScript'
+            }
+          </p>
         </div>
       )}
 
-      {/* Include Images Toggle */}
+      {/* Image Upload */}
       <div style={{ marginBottom: '16px' }}>
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          cursor: 'pointer',
-          padding: '10px',
-          border: '1px solid var(--border)',
-          borderRadius: '6px',
-          background: includeImages ? 'var(--primary)/10' : 'transparent',
-          transition: 'all 0.2s',
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
           <input
             type="checkbox"
+            id="include-images"
             checked={includeImages}
             onChange={(e) => setIncludeImages(e.target.checked)}
             disabled={generating}
-            style={{ margin: 0, cursor: 'pointer' }}
           />
-          <div style={{ flex: 1, fontSize: '13px' }}>
+          <label htmlFor="include-images" style={{ fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>
             Include Reference Images (max 3)
-          </div>
-        </label>
-
+          </label>
+        </div>
         {includeImages && (
-          <div style={{ marginTop: '10px' }}>
+          <div>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/jpg"
+              multiple
+              onChange={handleImageSelect}
+              disabled={generating || uploadedImages.length >= 3}
+              style={{
+                width: '100%',
+                padding: '10px',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                fontSize: '13px',
+                cursor: generating || uploadedImages.length >= 3 ? 'not-allowed' : 'pointer',
+              }}
+            />
             {uploadedImages.length > 0 && (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
-                gap: '8px',
-                marginBottom: '10px',
-              }}>
-                {uploadedImages.map((img, idx) => (
+              <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {uploadedImages.map((img, i) => (
                   <div
-                    key={idx}
+                    key={i}
                     style={{
                       position: 'relative',
-                      paddingBottom: '100%',
+                      width: '80px',
+                      height: '80px',
                       borderRadius: '6px',
                       overflow: 'hidden',
-                      border: '1px solid var(--border)',
+                      border: '2px solid var(--border)',
                     }}
                   >
                     <img
                       src={img.url}
                       alt={img.filename}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      }}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                     <button
-                      onClick={() => removeImage(idx)}
+                      onClick={() => removeImage(i)}
+                      disabled={generating}
                       style={{
                         position: 'absolute',
                         top: '4px',
                         right: '4px',
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
-                        background: 'rgba(0,0,0,0.7)',
+                        background: 'rgba(0, 0, 0, 0.7)',
                         color: 'white',
                         border: 'none',
+                        borderRadius: '50%',
+                        width: '20px',
+                        height: '20px',
                         cursor: 'pointer',
                         fontSize: '12px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        padding: 0,
                       }}
                     >
-                      ✕
+                      ×
                     </button>
                   </div>
                 ))}
               </div>
             )}
-
-            {uploadedImages.length < 3 && (
-              <label style={{
-                display: 'block',
-                padding: '10px',
-                border: '2px dashed var(--border)',
-                borderRadius: '6px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                fontSize: '12px',
-                color: 'var(--muted-foreground)',
-                transition: 'all 0.2s',
-              }}>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg"
-                  multiple
-                  onChange={handleImageSelect}
-                  disabled={generating}
-                  style={{ display: 'none' }}
-                />
-                📷 Upload images ({3 - uploadedImages.length} remaining)
-              </label>
-            )}
           </div>
         )}
       </div>
 
-      {/* Include Global CSS Toggle */}
-      {globalCSS && (
+      {/* Global CSS Option (only for HTML/HubSpot) */}
+      {(projectType === 'html' || projectType === 'hubspot') && globalCSS && (
         <div style={{ marginBottom: '16px' }}>
-          <label style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            padding: '10px',
-            border: '1px solid var(--border)',
-            borderRadius: '6px',
-            background: includeGlobalCSS ? 'var(--primary)/10' : 'transparent',
-            transition: 'all 0.2s',
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input
               type="checkbox"
+              id="include-global-css"
               checked={includeGlobalCSS}
               onChange={(e) => setIncludeGlobalCSS(e.target.checked)}
               disabled={generating}
-              style={{ margin: 0, cursor: 'pointer' }}
             />
-            <div style={{ flex: 1, fontSize: '13px' }}>
-              Include Global CSS ({globalCSS.length.toLocaleString()} chars)
-            </div>
-          </label>
+            <label htmlFor="include-global-css" style={{ fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>
+              Include Global CSS for Consistency
+            </label>
+          </div>
         </div>
       )}
 
-      {/* Progress */}
-      {progress && (
-        <div style={{
-          background: generating ? 'var(--primary)/10' : 'var(--muted)',
-          borderRadius: '6px',
-          padding: '10px',
-          marginBottom: '16px',
-          fontSize: '12px',
-          fontFamily: 'monospace',
-          textAlign: 'center',
-        }}>
-          {progress}
+      {/* Current Configuration Summary */}
+      <div style={{
+        background: 'var(--muted)',
+        padding: '12px',
+        borderRadius: '6px',
+        marginBottom: '16px',
+        fontSize: '13px',
+      }}>
+        <div style={{ marginBottom: '4px' }}>
+          <strong>Configuration:</strong>
         </div>
-      )}
+        <div style={{ color: 'var(--muted-foreground)' }}>
+          • Type: {getProjectTypeLabel()}
+        </div>
+        <div style={{ color: 'var(--muted-foreground)' }}>
+          • Model: {modelsByProvider[Object.keys(modelsByProvider).find(provider =>
+            modelsByProvider[provider].some(m => m.id === selectedModel)
+          )!]?.find(m => m.id === selectedModel)?.name || selectedModel}
+        </div>
+        {includeImages && uploadedImages.length > 0 && (
+          <div style={{ color: 'var(--muted-foreground)' }}>
+            • Images: {uploadedImages.length} reference image{uploadedImages.length > 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
 
-      {/* Start Button */}
+      {/* Generate Button */}
       <button
         onClick={handleGenerate}
-        disabled={generating}
+        disabled={generating || !projectName || !description}
         style={{
           width: '100%',
-          padding: '12px',
+          padding: '12px 24px',
           background: generating ? 'var(--muted)' : 'var(--primary)',
           color: generating ? 'var(--muted-foreground)' : 'var(--primary-foreground)',
           border: 'none',
           borderRadius: '6px',
           fontSize: '14px',
           fontWeight: 600,
-          cursor: generating ? 'not-allowed' : 'pointer',
+          cursor: generating || !projectName || !description ? 'not-allowed' : 'pointer',
           transition: 'all 0.2s',
         }}
       >
-        {generating ? '⏳ Generating...' : `🚀 Generate ${getProjectTypeLabel()}`}
+        {generating ? '⏳ Generating...' : '🚀 Generate Project'}
       </button>
 
-      <p style={{
-        margin: '12px 0 0 0',
-        fontSize: '11px',
-        color: 'var(--muted-foreground)',
-        textAlign: 'center',
-      }}>
-        Code will stream into the editor in real-time
-      </p>
+      {/* Progress */}
+      {generating && progress && (
+        <div style={{
+          marginTop: '16px',
+          padding: '12px',
+          background: 'var(--muted)',
+          borderRadius: '6px',
+          fontSize: '13px',
+        }}>
+          {progress}
+          {currentPhase && (
+            <div style={{ marginTop: '4px', color: 'var(--muted-foreground)' }}>
+              Current phase: {currentPhase.toUpperCase()}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

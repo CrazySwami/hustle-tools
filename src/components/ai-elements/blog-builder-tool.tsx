@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Check,
   Loader2,
   Play,
@@ -383,6 +384,7 @@ export function BlogBuilderTool() {
   const [showClientDropdown, setShowClientDropdown] = useState(false)
   const [showClientBio, setShowClientBio] = useState(false)
   const [editingBio, setEditingBio] = useState(false)
+  const [customPrompt, setCustomPrompt] = useState("")
 
   const [bioText, setBioText] = useState("")
   const [thingsToAvoid, setThingsToAvoid] = useState("")
@@ -399,12 +401,230 @@ export function BlogBuilderTool() {
   const [currentStepForPrompt, setCurrentStepForPrompt] = useState("")
 
   const [steps, setSteps] = useState<Step[]>([
-    { id: "order-form", title: "Generate Content Order Form", status: "pending", expanded: true, position: 0 },
-    { id: "research", title: "Research (Perplexity)", status: "pending", expanded: false, position: 1 },
-    { id: "outline", title: "Generate Outline", status: "pending", expanded: false, position: 2 },
-    { id: "content", title: "Generate Full Content", status: "pending", expanded: false, position: 3 },
-    { id: "analysis", title: "Programmatic Analysis", status: "pending", expanded: false, position: 4 },
-    { id: "review", title: "Content Review & Check", status: "pending", expanded: false, position: 5 },
+    {
+      id: "order-form",
+      title: "Generate Content Order Form",
+      status: "pending",
+      expanded: true,
+      position: 0
+    },
+    {
+      id: "research",
+      title: "Research (Perplexity)",
+      status: "pending",
+      expanded: false,
+      position: 1,
+      model: 'perplexity/llama-3.1-sonar-large-128k-online',
+      responseType: 'text',
+      prompt: 'Research the following topic and provide comprehensive information with sources:\n\n{RESEARCH_TOPIC}\n\nInclude key facts, statistics, trends, and expert insights.'
+    },
+    {
+      id: "outline",
+      title: "Generate Outline",
+      status: "pending",
+      expanded: false,
+      position: 2,
+      model: 'anthropic/claude-sonnet-4-5-20250929',
+      responseType: 'structured',
+      jsonSchema: JSON.stringify({
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The main blog post title"
+          },
+          "metaDescription": {
+            "type": "string",
+            "description": "SEO meta description (150-160 characters)"
+          },
+          "sections": {
+            "type": "array",
+            "description": "Main sections of the blog post",
+            "items": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string",
+                  "description": "Section heading (H2 level)"
+                },
+                "subheadings": {
+                  "type": "array",
+                  "description": "Subsections under this heading (H3 level)",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "keyPoints": {
+                  "type": "array",
+                  "description": "Key points to cover in this section",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["heading", "keyPoints"]
+            }
+          },
+          "targetWordCount": {
+            "type": "number",
+            "description": "Recommended word count for the full article"
+          }
+        },
+        "required": ["title", "metaDescription", "sections"]
+      }, null, 2),
+      prompt: 'Create a comprehensive outline for a blog post based on the following:\n\nTopic: {TOPIC}\nTarget Audience: {TARGET_AUDIENCE}\nKeywords: {KEYWORDS}\n\nCreate a well-structured outline with main sections, subsections, and key points to cover.'
+    },
+    {
+      id: "content",
+      title: "Generate Full Content",
+      status: "pending",
+      expanded: false,
+      position: 3,
+      model: 'anthropic/claude-sonnet-4-5-20250929',
+      responseType: 'text',
+      prompt: 'Generate a comprehensive blog post based on the following outline:\n\n{OUTLINE}\n\nTarget Audience: {TARGET_AUDIENCE}\nKeywords to include: {KEYWORDS}\n\nWrite engaging, informative content that follows the outline structure. Use a professional yet conversational tone.'
+    },
+    {
+      id: "analysis",
+      title: "Programmatic Analysis",
+      status: "pending",
+      expanded: false,
+      position: 4,
+      model: 'anthropic/claude-haiku-4-5-20251001',
+      responseType: 'structured',
+      jsonSchema: JSON.stringify({
+        "type": "object",
+        "properties": {
+          "wordCount": {
+            "type": "number",
+            "description": "Total word count of the content"
+          },
+          "readingTime": {
+            "type": "number",
+            "description": "Estimated reading time in minutes"
+          },
+          "keywordDensity": {
+            "type": "array",
+            "description": "Keyword usage analysis",
+            "items": {
+              "type": "object",
+              "properties": {
+                "keyword": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "number"
+                },
+                "density": {
+                  "type": "string",
+                  "description": "Percentage as string (e.g., '2.5%')"
+                }
+              },
+              "required": ["keyword", "count", "density"]
+            }
+          },
+          "headingStructure": {
+            "type": "object",
+            "properties": {
+              "h1Count": {
+                "type": "number"
+              },
+              "h2Count": {
+                "type": "number"
+              },
+              "h3Count": {
+                "type": "number"
+              }
+            },
+            "required": ["h1Count", "h2Count", "h3Count"]
+          },
+          "seoScore": {
+            "type": "number",
+            "description": "SEO score out of 100",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": ["wordCount", "readingTime", "keywordDensity", "headingStructure", "seoScore"]
+      }, null, 2),
+      prompt: 'Analyze the following blog post content and provide detailed metrics:\n\n{CONTENT}\n\nTarget Keywords: {KEYWORDS}\n\nProvide comprehensive analysis including word count, reading time, keyword density, heading structure, and SEO score.'
+    },
+    {
+      id: "review",
+      title: "Content Review & Check",
+      status: "pending",
+      expanded: false,
+      position: 5,
+      model: 'anthropic/claude-sonnet-4-5-20250929',
+      responseType: 'structured',
+      jsonSchema: JSON.stringify({
+        "type": "object",
+        "properties": {
+          "overallRating": {
+            "type": "number",
+            "description": "Overall quality rating (1-10)",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "strengths": {
+            "type": "array",
+            "description": "List of content strengths",
+            "items": {
+              "type": "string"
+            }
+          },
+          "improvements": {
+            "type": "array",
+            "description": "Suggested improvements",
+            "items": {
+              "type": "object",
+              "properties": {
+                "area": {
+                  "type": "string",
+                  "description": "Area needing improvement"
+                },
+                "suggestion": {
+                  "type": "string",
+                  "description": "Specific improvement suggestion"
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": ["high", "medium", "low"]
+                }
+              },
+              "required": ["area", "suggestion", "priority"]
+            }
+          },
+          "seoChecks": {
+            "type": "object",
+            "properties": {
+              "titleOptimized": {
+                "type": "boolean"
+              },
+              "metaDescriptionPresent": {
+                "type": "boolean"
+              },
+              "keywordsUsedNaturally": {
+                "type": "boolean"
+              },
+              "headingStructureGood": {
+                "type": "boolean"
+              },
+              "internalLinksPresent": {
+                "type": "boolean"
+              }
+            },
+            "required": ["titleOptimized", "metaDescriptionPresent", "keywordsUsedNaturally", "headingStructureGood", "internalLinksPresent"]
+          },
+          "readyToPublish": {
+            "type": "boolean",
+            "description": "Whether content is ready for publication"
+          }
+        },
+        "required": ["overallRating", "strengths", "improvements", "seoChecks", "readyToPublish"]
+      }, null, 2),
+      prompt: 'Review the following blog post content for quality, SEO, and readiness:\n\n{CONTENT}\n\nProvide a comprehensive review with ratings, strengths, suggested improvements, SEO checks, and whether it\'s ready to publish.'
+    },
   ])
 
   // Variable Bank state
@@ -438,26 +658,36 @@ export function BlogBuilderTool() {
     keywords: [] as string[],
     intendedResult: '',
     additionalInstructions: '',
-    competitors: [] as string[],
+    competitors: [] as { name: string; url: string }[],
+    ownUrls: [] as { name: string; url: string }[],
+    locations: [] as { title: string; address: string }[],
+    socialLinks: [] as { label: string; url: string }[],
     includeKeyPoints: true,
     contentPreference: 'create' as 'create' | 'improve'
   })
 
   // AI Client Generator state
   const [clientDescription, setClientDescription] = useState('')
-  const [clientGenModel, setClientGenModel] = useState('anthropic/claude-sonnet-4-20250514')
+  const [clientGenModel, setClientGenModel] = useState('anthropic/claude-sonnet-4-5-20250929')
   const [isGeneratingClient, setIsGeneratingClient] = useState(false)
   const [generatedClientJSON, setGeneratedClientJSON] = useState('')
 
   // Schema generator modal
   const [showSchemaGenerator, setShowSchemaGenerator] = useState(false)
   const [schemaPrompt, setSchemaPrompt] = useState('')
-  const [schemaModel, setSchemaModel] = useState('anthropic/claude-sonnet-4-20250514')
+  const [schemaModel, setSchemaModel] = useState('anthropic/claude-sonnet-4-5-20250929')
   const [generatedSchema, setGeneratedSchema] = useState('')
   const [isGeneratingSchema, setIsGeneratingSchema] = useState(false)
 
+  // Custom step title modal
+  const [showStepTitleModal, setShowStepTitleModal] = useState(false)
+  const [newStepTitle, setNewStepTitle] = useState('')
+  const [newStepPosition, setNewStepPosition] = useState<number>(0)
+
   // Navigation tabs
   const [activeTab, setActiveTab] = useState('workflow')
+  const [clientDetailsTab, setClientDetailsTab] = useState<'info' | 'settings'>('info')
+  const [expandedWorkflowSteps, setExpandedWorkflowSteps] = useState<Set<string>>(new Set())
 
   const [contentForm, setContentForm] = useState<ContentOrderForm>({
     currentUrl: "",
@@ -475,6 +705,7 @@ export function BlogBuilderTool() {
 
   const [researchResponse, setResearchResponse] = useState("")
   const [citations, setCitations] = useState<Citation[]>([])
+  const [stepResponses, setStepResponses] = useState<Record<string, string>>({})
 
   const [outline, setOutline] = useState<OutlineItem[]>([
     { id: "1", level: 2, text: "Introduction to the Topic" },
@@ -745,6 +976,7 @@ If you're ready to explore counseling services, reach out to schedule a consulta
       'KEYWORDS': contentForm.keywords?.join(', ') || '',
       'INTENDED_RESULT': contentForm.intendedResult,
       'GEO_LOCATIONS': contentForm.geoLocations,
+      'CUSTOM_PROMPT': customPrompt || '',
       'RESEARCH': researchResponse || '',
       'OUTLINE': outline.map(item => `${"  ".repeat(item.level - 2)}${"#".repeat(item.level)} ${item.text}`).join("\n"),
       'CONTENT': generatedContent || '',
@@ -802,7 +1034,7 @@ If you're ready to explore counseling services, reach out to schedule a consulta
       expanded: false,
       position,
       isCustom: true,
-      model: 'anthropic/claude-sonnet-4-20250514',
+      model: 'anthropic/claude-sonnet-4-5-20250929',
       prompt: '',
       temperature: 0.7,
       maxTokens: 4000,
@@ -835,6 +1067,32 @@ If you're ready to explore counseling services, reach out to schedule a consulta
       step.position = index
     })
     setSteps(updatedSteps)
+  }
+
+  const moveStepUp = (stepId: string) => {
+    const currentIndex = steps.findIndex(s => s.id === stepId)
+    if (currentIndex > 0) {
+      reorderSteps(currentIndex, currentIndex - 1)
+    }
+  }
+
+  const moveStepDown = (stepId: string) => {
+    const currentIndex = steps.findIndex(s => s.id === stepId)
+    if (currentIndex < steps.length - 1) {
+      reorderSteps(currentIndex, currentIndex + 1)
+    }
+  }
+
+  const toggleWorkflowStepExpansion = (stepId: string) => {
+    setExpandedWorkflowSteps(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(stepId)) {
+        newSet.delete(stepId)
+      } else {
+        newSet.add(stepId)
+      }
+      return newSet
+    })
   }
 
   const cloneStep = (stepId: string) => {
@@ -1075,6 +1333,7 @@ Instructions:
         body: JSON.stringify({
           messages: [
             {
+              id: `schema-gen-${Date.now()}`,
               role: 'user',
               content: `Generate a JSON Schema based on this description: ${schemaPrompt}
 
@@ -1100,9 +1359,7 @@ Example format:
             }
           ],
           model: schemaModel,
-          webSearch: false,
-          enableReasoning: false,
-          enableTools: false
+          webSearch: false
         })
       })
 
@@ -1172,6 +1429,7 @@ Example format:
         body: JSON.stringify({
           messages: [
             {
+              id: `client-gen-${Date.now()}`,
               role: 'user',
               content: `Generate a JSON object for a blog builder client import based on this description:
 
@@ -1220,9 +1478,7 @@ Generate realistic and relevant data based on the description. Ensure all URLs a
             }
           ],
           model: clientGenModel,
-          webSearch: false,
-          enableReasoning: false,
-          enableTools: false
+          webSearch: false
         })
       })
 
@@ -1293,6 +1549,14 @@ Generate realistic and relevant data based on the description. Ensure all URLs a
       return;
     }
 
+    // Validation: Check if step requires client information
+    if (stepId === "order-form") {
+      if (!selectedClient && !customPrompt.trim()) {
+        alert('❌ Validation Error\n\nThis step requires either:\n• A selected client, OR\n• A custom prompt\n\nPlease provide one of these to continue.');
+        return;
+      }
+    }
+
     setSteps(steps.map((step) => (step.id === stepId ? { ...step, status: "running", expanded: true } : step)))
 
     try {
@@ -1305,7 +1569,12 @@ Generate realistic and relevant data based on the description. Ensure all URLs a
         if (primaryKeyword) {
           description += `PRIMARY KEYWORD: ${primaryKeyword}\n\n`;
         }
-        if (selectedClient) {
+
+        // Use custom prompt if provided, otherwise use client info
+        if (customPrompt.trim()) {
+          description += `CUSTOM CONTEXT:\n${customPrompt}\n\n`;
+          description += 'Generate a content order form based on the custom context provided above.';
+        } else if (selectedClient) {
           description += `Generate a content order form for ${selectedClient.name}, a business in the ${contentForm.niche || 'general'} niche. ${selectedClient.bio}`;
         } else {
           description += 'Generate a general content order form.';
@@ -1377,6 +1646,7 @@ Generate realistic and relevant data based on the description. Ensure all URLs a
         const { research, citations: apiCitations } = await response.json();
 
         setResearchResponse(research);
+        setStepResponses(prev => ({ ...prev, [stepId]: research }));
 
         // Use API citations if available, otherwise use empty array
         if (apiCitations && apiCitations.length > 0) {
@@ -1433,6 +1703,7 @@ Generate realistic and relevant data based on the description. Ensure all URLs a
           { id: "2", level: 2, text: "Main Content" },
           { id: "3", level: 2, text: "Conclusion" }
         ]);
+        setStepResponses(prev => ({ ...prev, [stepId]: outlineText }));
       } else if (stepId === "content") {
         // Call the content generation API
         const response = await fetch('/api/blog/content', {
@@ -1458,6 +1729,7 @@ Generate realistic and relevant data based on the description. Ensure all URLs a
 
         const { content } = await response.json();
         setGeneratedContent(content);
+        setStepResponses(prev => ({ ...prev, [stepId]: content }));
       } else if (stepId === "analysis") {
         // Call the analysis API
         const response = await fetch('/api/blog/analysis', {
@@ -1507,6 +1779,38 @@ Generate realistic and relevant data based on the description. Ensure all URLs a
         const { review, suggestedEdits: edits } = await response.json();
         setReviewResponse(review);
         setSuggestedEdits(edits);
+        setStepResponses(prev => ({ ...prev, [stepId]: review }));
+      } else {
+        // Handle custom steps - use generic API endpoint
+        const response = await fetch('/api/blog/generic-step', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stepId,
+            prompt: currentStep.prompt || `Process step: ${currentStep.title}`,
+            model: currentStep.model || 'anthropic/claude-sonnet-4-5-20250929',
+            temperature: currentStep.temperature,
+            maxTokens: currentStep.maxTokens,
+            enableTools: currentStep.enableTools,
+            responseType: currentStep.responseType || 'text',
+            jsonSchema: currentStep.jsonSchema,
+            context: {
+              contentForm,
+              research: researchResponse,
+              outline: outline.map((item) => `${"  ".repeat(item.level - 2)}${"#".repeat(item.level)} ${item.text}`).join("\n"),
+              content: generatedContent,
+              stepResponses
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(`Custom step failed: ${errorData.error || response.statusText}`);
+        }
+
+        const { result } = await response.json();
+        setStepResponses(prev => ({ ...prev, [stepId]: result }));
       }
 
       setSteps((prev) => prev.map((step) => (step.id === stepId ? { ...step, status: "complete" } : step)))
@@ -2641,7 +2945,7 @@ Provide a detailed review with specific feedback and suggested edits.`
                 <label className="text-sm font-medium mb-2 block">Model</label>
                 <select
                   className="w-full p-2 border rounded-lg text-sm"
-                  defaultValue={configuringStep.model || 'anthropic/claude-sonnet-4-20250514'}
+                  defaultValue={configuringStep.model || 'anthropic/claude-sonnet-4-5-20250929'}
                   onChange={(e) => {
                     const updatedSteps = steps.map(s =>
                       s.id === configuringStep.id ? { ...s, model: e.target.value } : s
@@ -2649,17 +2953,24 @@ Provide a detailed review with specific feedback and suggested edits.`
                     setSteps(updatedSteps)
                   }}
                 >
-                  <optgroup label="Anthropic">
-                    <option value="anthropic/claude-opus-4-20250514">Claude Opus 4</option>
-                    <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                    <option value="anthropic/claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+                  <optgroup label="Claude">
                     <option value="anthropic/claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                    <option value="anthropic/claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
+                    <option value="anthropic/claude-opus-4-1-20250805">Claude Opus 4.1</option>
+                    <option value="anthropic/claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+                    <option value="anthropic/claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
                   </optgroup>
                   <optgroup label="OpenAI">
-                    <option value="openai/gpt-4.1">GPT-4.1</option>
-                    <option value="openai/gpt-4.1-mini">GPT-4.1 mini</option>
+                    <option value="openai/gpt-5">GPT-5</option>
+                    <option value="openai/gpt-5-mini">GPT-5 Mini</option>
+                    <option value="openai/gpt-5-nano">GPT-5 Nano</option>
                     <option value="openai/gpt-4o">GPT-4o</option>
                     <option value="openai/o3">o3</option>
+                  </optgroup>
+                  <optgroup label="Google">
+                    <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
+                    <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="google/gemini-2.0-flash-exp">Gemini 2.0 Flash Exp</option>
                   </optgroup>
                   <optgroup label="Perplexity">
                     <option value="perplexity/sonar">Sonar</option>
@@ -2833,6 +3144,46 @@ Provide a detailed review with specific feedback and suggested edits.`
                   </div>
                 )}
               </div>
+
+              {/* Prompt Display Section */}
+              <div className="pt-4 border-t border-gray-200">
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Current Prompt:</label>
+                {configuringStep.prompt || getDefaultPromptForStep(configuringStep.id) ? (
+                  <div className="max-h-[300px] overflow-y-auto p-3 bg-gray-50 border border-gray-200 rounded text-xs text-gray-900 font-mono whitespace-pre-wrap">
+                    {configuringStep.prompt || getDefaultPromptForStep(configuringStep.id)}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 italic p-3 bg-gray-50 border border-gray-200 rounded">No prompt configured</p>
+                )}
+              </div>
+
+              {/* Response Display Section */}
+              {stepResponses[configuringStep.id] && (
+                <div className="pt-4 border-t border-gray-200">
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Response:</label>
+                  <div className="max-h-[300px] overflow-y-auto p-3 bg-white border border-gray-200 rounded text-xs text-gray-900">
+                    {configuringStep.responseType === 'structured' && configuringStep.jsonSchema ? (
+                      // Try to parse and display JSON
+                      (() => {
+                        try {
+                          const parsed = JSON.parse(stepResponses[configuringStep.id])
+                          return (
+                            <pre className="whitespace-pre-wrap font-mono">
+                              {JSON.stringify(parsed, null, 2)}
+                            </pre>
+                          )
+                        } catch {
+                          // If not valid JSON, show as text
+                          return <div className="whitespace-pre-wrap">{stepResponses[configuringStep.id]}</div>
+                        }
+                      })()
+                    ) : (
+                      // Show as text
+                      <div className="whitespace-pre-wrap">{stepResponses[configuringStep.id]}</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-6 border-t flex justify-end">
@@ -2922,7 +3273,10 @@ Provide a detailed review with specific feedback and suggested edits.`
                 setAddClientTab('manual')
                 setNewClientData({
                   name: '', logo: '', url: '', bio: '', thingsToAvoid: '',
-                  niche: '', targetAudience: '', geoLocations: '', keywords: []
+                  niche: '', targetAudience: '', geoLocations: '', keywords: [],
+                  intendedResult: '', additionalInstructions: '',
+                  competitors: [], ownUrls: [], locations: [], socialLinks: [],
+                  includeKeyPoints: true, contentPreference: 'create'
                 })
               }}>
                 <X className="h-4 w-4" />
@@ -3041,6 +3395,206 @@ Provide a detailed review with specific feedback and suggested edits.`
                     />
                   </div>
 
+                  {/* Competitors */}
+                  <div className="pt-4 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium">Competitors</label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7"
+                        onClick={() => setNewClientData({...newClientData, competitors: [...newClientData.competitors, { name: '', url: '' }]})}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Competitor
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {newClientData.competitors.map((comp, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <Input
+                            placeholder="Competitor name"
+                            value={comp.name}
+                            onChange={(e) => {
+                              const updated = [...newClientData.competitors]
+                              updated[idx].name = e.target.value
+                              setNewClientData({...newClientData, competitors: updated})
+                            }}
+                            className="flex-1"
+                          />
+                          <Input
+                            placeholder="https://competitor.com"
+                            value={comp.url}
+                            onChange={(e) => {
+                              const updated = [...newClientData.competitors]
+                              updated[idx].url = e.target.value
+                              setNewClientData({...newClientData, competitors: updated})
+                            }}
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 w-9 p-0"
+                            onClick={() => setNewClientData({...newClientData, competitors: newClientData.competitors.filter((_, i) => i !== idx)})}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Own URLs */}
+                  <div className="pt-4 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium">Own URLs (Company Pages)</label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7"
+                        onClick={() => setNewClientData({...newClientData, ownUrls: [...newClientData.ownUrls, { name: '', url: '' }]})}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add URL
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {newClientData.ownUrls.map((url, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <Input
+                            placeholder="Page name (e.g., About)"
+                            value={url.name}
+                            onChange={(e) => {
+                              const updated = [...newClientData.ownUrls]
+                              updated[idx].name = e.target.value
+                              setNewClientData({...newClientData, ownUrls: updated})
+                            }}
+                            className="flex-1"
+                          />
+                          <Input
+                            placeholder="https://example.com/about"
+                            value={url.url}
+                            onChange={(e) => {
+                              const updated = [...newClientData.ownUrls]
+                              updated[idx].url = e.target.value
+                              setNewClientData({...newClientData, ownUrls: updated})
+                            }}
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 w-9 p-0"
+                            onClick={() => setNewClientData({...newClientData, ownUrls: newClientData.ownUrls.filter((_, i) => i !== idx)})}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Locations */}
+                  <div className="pt-4 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium">Locations</label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7"
+                        onClick={() => setNewClientData({...newClientData, locations: [...newClientData.locations, { title: '', address: '' }]})}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Location
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {newClientData.locations.map((loc, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <Input
+                            placeholder="Location title"
+                            value={loc.title}
+                            onChange={(e) => {
+                              const updated = [...newClientData.locations]
+                              updated[idx].title = e.target.value
+                              setNewClientData({...newClientData, locations: updated})
+                            }}
+                            className="flex-1"
+                          />
+                          <Input
+                            placeholder="Address"
+                            value={loc.address}
+                            onChange={(e) => {
+                              const updated = [...newClientData.locations]
+                              updated[idx].address = e.target.value
+                              setNewClientData({...newClientData, locations: updated})
+                            }}
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 w-9 p-0"
+                            onClick={() => setNewClientData({...newClientData, locations: newClientData.locations.filter((_, i) => i !== idx)})}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Social Links */}
+                  <div className="pt-4 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium">Social Links</label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7"
+                        onClick={() => setNewClientData({...newClientData, socialLinks: [...newClientData.socialLinks, { label: '', url: '' }]})}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Social Link
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {newClientData.socialLinks.map((social, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <Input
+                            placeholder="Platform (e.g., Facebook)"
+                            value={social.label}
+                            onChange={(e) => {
+                              const updated = [...newClientData.socialLinks]
+                              updated[idx].label = e.target.value
+                              setNewClientData({...newClientData, socialLinks: updated})
+                            }}
+                            className="flex-1"
+                          />
+                          <Input
+                            placeholder="https://facebook.com/..."
+                            value={social.url}
+                            onChange={(e) => {
+                              const updated = [...newClientData.socialLinks]
+                              updated[idx].url = e.target.value
+                              setNewClientData({...newClientData, socialLinks: updated})
+                            }}
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 w-9 p-0"
+                            onClick={() => setNewClientData({...newClientData, socialLinks: newClientData.socialLinks.filter((_, i) => i !== idx)})}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Default Form Values Section */}
                   <div className="pt-4 mt-4 border-t">
                     <h3 className="text-sm font-semibold mb-3 text-gray-700">Default Form Values</h3>
@@ -3114,10 +3668,10 @@ Provide a detailed review with specific feedback and suggested edits.`
                         url: newClientData.url,
                         bio: newClientData.bio,
                         thingsToAvoid: newClientData.thingsToAvoid,
-                        competitors: [],
-                        ownUrls: [{ name: 'Homepage', url: newClientData.url }],
-                        locations: [],
-                        socialLinks: [],
+                        competitors: newClientData.competitors,
+                        ownUrls: newClientData.ownUrls.length > 0 ? newClientData.ownUrls : [{ name: 'Homepage', url: newClientData.url }],
+                        locations: newClientData.locations,
+                        socialLinks: newClientData.socialLinks,
                         defaultFormValues: {
                           currentUrl: newClientData.url,
                           businessName: newClientData.name,
@@ -3137,8 +3691,13 @@ Provide a detailed review with specific feedback and suggested edits.`
                       setNewClientData({
                         name: '', logo: '', url: '', bio: '', thingsToAvoid: '',
                         niche: '', targetAudience: '', geoLocations: '', keywords: [],
-                        intendedResult: '', additionalInstructions: '', competitors: [],
-                        includeKeyPoints: true, contentPreference: 'create'
+                        intendedResult: '', additionalInstructions: '',
+                        competitors: [],
+                        ownUrls: [],
+                        locations: [],
+                        socialLinks: [],
+                        includeKeyPoints: true,
+                        contentPreference: 'create'
                       })
                       alert('Client added successfully!')
                     }}
@@ -3175,18 +3734,24 @@ Provide a detailed review with specific feedback and suggested edits.`
                           onChange={(e) => setClientGenModel(e.target.value)}
                           className="text-sm border rounded px-2 py-1 flex-1"
                         >
-                          <optgroup label="Anthropic">
-                            <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                            <option value="anthropic/claude-opus-4-20250514">Claude Opus 4</option>
+                          <optgroup label="Claude">
+                            <option value="anthropic/claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                            <option value="anthropic/claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
+                            <option value="anthropic/claude-opus-4-1-20250805">Claude Opus 4.1</option>
                             <option value="anthropic/claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+                            <option value="anthropic/claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
                           </optgroup>
                           <optgroup label="OpenAI">
-                            <option value="openai/gpt-4.1">GPT-4.1</option>
-                            <option value="openai/gpt-4.1-mini">GPT-4.1 mini</option>
+                            <option value="openai/gpt-5">GPT-5</option>
+                            <option value="openai/gpt-5-mini">GPT-5 Mini</option>
+                            <option value="openai/gpt-5-nano">GPT-5 Nano</option>
+                            <option value="openai/gpt-4o">GPT-4o</option>
+                            <option value="openai/o3">o3</option>
                           </optgroup>
                           <optgroup label="Google">
                             <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
                             <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
+                            <option value="google/gemini-2.0-flash-exp">Gemini 2.0 Flash Exp</option>
                           </optgroup>
                         </select>
                         <Button
@@ -3339,19 +3904,24 @@ Replace the placeholder values with actual client information and format it as v
                   value={schemaModel}
                   onChange={(e) => setSchemaModel(e.target.value)}
                 >
-                  <optgroup label="Anthropic">
-                    <option value="anthropic/claude-opus-4-20250514">Claude Opus 4</option>
-                    <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                  <optgroup label="Claude">
+                    <option value="anthropic/claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                    <option value="anthropic/claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
+                    <option value="anthropic/claude-opus-4-1-20250805">Claude Opus 4.1</option>
                     <option value="anthropic/claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+                    <option value="anthropic/claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
                   </optgroup>
                   <optgroup label="OpenAI">
-                    <option value="openai/gpt-4.1">GPT-4.1</option>
-                    <option value="openai/gpt-4.1-mini">GPT-4.1 mini</option>
+                    <option value="openai/gpt-5">GPT-5</option>
+                    <option value="openai/gpt-5-mini">GPT-5 Mini</option>
+                    <option value="openai/gpt-5-nano">GPT-5 Nano</option>
                     <option value="openai/gpt-4o">GPT-4o</option>
+                    <option value="openai/o3">o3</option>
                   </optgroup>
                   <optgroup label="Google">
                     <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
                     <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="google/gemini-2.0-flash-exp">Gemini 2.0 Flash Exp</option>
                   </optgroup>
                 </select>
               </div>
@@ -3446,22 +4016,36 @@ Replace the placeholder values with actual client information and format it as v
         defaultSplitPercent={35}
         minLeftPercent={25}
         maxLeftPercent={60}
-        navigationBarProps={{
-          logo: 'HT',
-          tabs: [
-            { id: 'workflow', label: 'Workflow', icon: <Sparkles className="h-4 w-4" />, dropdownItems: [] },
-            { id: 'variables', label: 'Variables', icon: <Database className="h-4 w-4" />, dropdownItems: [] },
-            { id: 'clients', label: 'Clients', icon: <Users className="h-4 w-4" />, dropdownItems: [] },
-            { id: 'settings', label: 'Settings', icon: <Settings className="h-4 w-4" />, dropdownItems: [] },
-          ],
-          activeTab,
-          onTabChange: setActiveTab,
-        }}
-        navigationBarPosition="left"
         leftPanel={
-          <div className="flex flex-col h-full overflow-hidden p-4">
-          <div className="flex flex-col h-full bg-white dark:bg-[#2C2C2C] rounded-lg shadow-sm overflow-hidden">
-          <div className="p-4 space-y-4 overflow-y-auto flex-1">
+          <div style={{
+            padding: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
+            <div className="rounded-lg bg-background shadow-sm" style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              width: '100%'
+            }}>
+              <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', overflow: 'hidden' }}>
+                <NavigationBar
+                  logo="HT"
+                  tabs={[
+                    { id: 'workflow', label: 'Workflow', icon: <Sparkles className="h-4 w-4" />, dropdownItems: [] },
+                    { id: 'variables', label: 'Variables', icon: <Database className="h-4 w-4" />, dropdownItems: [] },
+                    { id: 'clients', label: 'Clients', icon: <Users className="h-4 w-4" />, dropdownItems: [] },
+                    { id: 'settings', label: 'Settings', icon: <Settings className="h-4 w-4" />, dropdownItems: [] },
+                  ]}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                />
+              </div>
+              <div className="p-4 space-y-4 overflow-y-auto flex-1">
             {/* Workflow Tab */}
             {activeTab === 'workflow' && (
             <div className="space-y-4">
@@ -3484,7 +4068,7 @@ Replace the placeholder values with actual client information and format it as v
                 <div className="relative">
                   <button
                     onClick={() => setShowClientDropdown(!showClientDropdown)}
-                    className="w-full flex items-center justify-between gap-3 p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-blue-400 transition-all duration-200"
+                    className="w-full flex items-center justify-between gap-3 p-3 bg-white border border-gray-300 rounded-lg hover:border-gray-400 transition-all duration-200"
                   >
                     {selectedClient ? (
                       <div className="flex items-center gap-3">
@@ -3525,13 +4109,34 @@ Replace the placeholder values with actual client information and format it as v
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    className="h-8 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                     onClick={() => setShowClientBio(true)}
                   >
                     <Eye className="h-3.5 w-3.5 mr-1.5" />
                     View/Edit Client Bio
                   </Button>
                 )}
+              </div>
+
+              {/* Custom Prompt - Alternative to Client Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">
+                    Custom Prompt (Alternative)
+                  </label>
+                  <span className="text-xs text-gray-500 px-2 py-1 bg-gray-50 border border-gray-200 rounded">
+                    Optional
+                  </span>
+                </div>
+                <textarea
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  placeholder="Enter custom instructions or context that will be used instead of client information..."
+                  className="w-full min-h-[100px] p-3 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-y"
+                />
+                <p className="text-xs text-gray-500">
+                  Use this when you don't need client-specific information or want to provide custom context for content generation.
+                </p>
               </div>
             </div>
 
@@ -3540,7 +4145,7 @@ Replace the placeholder values with actual client information and format it as v
                 <button
                   onClick={() => setBulkMode(false)}
                   className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                    !bulkMode ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    !bulkMode ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
                   Single Article
@@ -3548,7 +4153,7 @@ Replace the placeholder values with actual client information and format it as v
                 <button
                   onClick={() => setBulkMode(true)}
                   className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                    bulkMode ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    bulkMode ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
                   Bulk Mode
@@ -3559,7 +4164,7 @@ Replace the placeholder values with actual client information and format it as v
                 <button
                   onClick={processAllArticles}
                   disabled={articles.some((a) => a.status === "processing")}
-                  className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {articles.some((a) => a.status === "processing") ? (
                     <>
@@ -4050,18 +4655,67 @@ Replace the placeholder values with actual client information and format it as v
             ) : (
               // Single Article Mode
               <div className="space-y-8">
+                {/* Workflow Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Workflow Steps</h3>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        if (confirm('Start a new workflow? This will reset all steps to pending status.')) {
+                          setSteps(steps.map(s => ({ ...s, status: 'pending', expanded: s.id === 'order-form' })))
+                          setResearchResponse('')
+                          setOutline([
+                            { id: "1", level: 2, text: "Introduction to the Topic" },
+                            { id: "2", level: 2, text: "Key Benefits and Features" },
+                            { id: "3", level: 3, text: "Benefit One: Detailed Explanation" },
+                            { id: "4", level: 3, text: "Benefit Two: Real-world Applications" },
+                            { id: "5", level: 2, text: "Implementation Guide" },
+                            { id: "6", level: 2, text: "Conclusion and Next Steps" },
+                          ])
+                        }
+                      }}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                      New Workflow
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                      onClick={() => {
+                        const newStep: Step = {
+                          id: `custom-step-${Date.now()}`,
+                          title: 'New Custom Step',
+                          status: 'pending',
+                          expanded: false,
+                          position: steps.length,
+                          isCustom: true,
+                          model: 'anthropic/claude-sonnet-4-5-20250929',
+                          responseType: 'text',
+                          prompt: 'Enter your custom prompt here...'
+                        }
+                        setSteps([...steps, newStep])
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Add Step
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Steps */}
                 <div className="space-y-3">
                   {steps.map((step, index) => (
                     <React.Fragment key={step.id}>
                       <div
-                        className={`border-l-4 ${getStatusColor(
-                          step.status,
-                        )} rounded-r-lg transition-all duration-500 hover:shadow-md`}
+                        className="border border-gray-200 rounded-lg transition-all duration-500 hover:shadow-md bg-white"
                       >
                       {/* Step Header */}
                       <div
-                        className={`flex items-center justify-between px-4 cursor-pointer hover:bg-gray-50/50 transition-all duration-300 ${
+                        className={`flex items-center justify-between px-4 cursor-pointer hover:bg-gray-50 transition-all duration-300 ${
                           step.expanded ? "py-3" : "py-2.5"
                         }`}
                         onClick={() => toggleStep(step.id)}
@@ -4072,12 +4726,26 @@ Replace the placeholder values with actual client information and format it as v
                             <span className="text-sm font-semibold tracking-tight text-gray-900">
                               {index + 1}. {step.title}
                             </span>
-                            {step.id === "order-form" && <FileText className="h-3.5 w-3.5 text-blue-600" />}
-                            {step.id === "research" && <Search className="h-3.5 w-3.5 text-blue-600" />}
-                            {step.id === "outline" && <Lightbulb className="h-3.5 w-3.5 text-blue-600" />}
-                            {step.id === "content" && <BookOpen className="h-3.5 w-3.5 text-blue-600" />}
-                            {step.id === "analysis" && <BarChart3 className="h-3.5 w-3.5 text-blue-600" />}
-                            {step.id === "review" && <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />}
+                            {step.id === "order-form" && <FileText className="h-3.5 w-3.5 text-gray-500" />}
+                            {step.id === "research" && <Search className="h-3.5 w-3.5 text-gray-500" />}
+                            {step.id === "outline" && <Lightbulb className="h-3.5 w-3.5 text-gray-500" />}
+                            {step.id === "content" && <BookOpen className="h-3.5 w-3.5 text-gray-500" />}
+                            {step.id === "analysis" && <BarChart3 className="h-3.5 w-3.5 text-gray-500" />}
+                            {step.id === "review" && <CheckCircle2 className="h-3.5 w-3.5 text-gray-500" />}
+                            {/* Output Type Badge */}
+                            {step.responseType === 'structured' && step.jsonSchema ? (
+                              <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded border border-blue-200 font-medium">
+                                JSON
+                              </span>
+                            ) : step.responseType === 'structured' ? (
+                              <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded border border-purple-200 font-medium">
+                                Structured
+                              </span>
+                            ) : (
+                              <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded border border-gray-200 font-medium">
+                                Text
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
@@ -4110,23 +4778,21 @@ Replace the placeholder values with actual client information and format it as v
                             <Copy className="h-3 w-3" />
                           </Button>
 
-                          {/* Delete Step Button (only for custom steps) */}
-                          {step.isCustom && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 hover:bg-red-50 text-red-600"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                if (confirm(`Delete step "${step.title}"?`)) {
-                                  deleteStep(step.id)
-                                }
-                              }}
-                              title="Delete step"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
+                          {/* Delete Step Button */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 hover:bg-red-50 text-red-600"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (confirm(`Delete step "${step.title}"? This cannot be undone.`)) {
+                                deleteStep(step.id)
+                              }
+                            }}
+                            title="Delete step"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
 
                           {/* Prompt Editor Button */}
                           <Button
@@ -5159,13 +5825,10 @@ Replace the placeholder values with actual client information and format it as v
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 text-xs border-dashed border-2 hover:border-blue-500 hover:bg-blue-50 text-gray-600 hover:text-blue-600"
+                        className="h-8 text-xs border-dashed border-2 hover:border-gray-400 hover:bg-gray-50 text-gray-600"
                         onClick={() => {
-                          const newPosition = index + 1
-                          const title = prompt('Enter step title:')
-                          if (title) {
-                            addCustomStep(title, newPosition)
-                          }
+                          setNewStepPosition(index + 1)
+                          setShowStepTitleModal(true)
                         }}
                       >
                         <Plus className="h-3 w-3 mr-1" />
@@ -5180,12 +5843,10 @@ Replace the placeholder values with actual client information and format it as v
                     <Button
                       variant="default"
                       size="default"
-                      className="bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg"
+                      className="bg-gray-900 hover:bg-gray-800 text-white shadow-md hover:shadow-lg"
                       onClick={() => {
-                        const title = prompt('Enter step title:')
-                        if (title) {
-                          addCustomStep(title, steps.length)
-                        }
+                        setNewStepPosition(steps.length)
+                        setShowStepTitleModal(true)
                       }}
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -5493,65 +6154,500 @@ Replace the placeholder values with actual client information and format it as v
                 </div>
               </div>
             )}
-          </div>
-          </div>
+              </div>
+            </div>
           </div>
         }
         rightPanel={
-          <div className="flex flex-col h-full overflow-hidden p-4">
-          <div className="flex flex-col h-full bg-white dark:bg-[#2C2C2C] rounded-lg shadow-sm overflow-hidden">
-            {!selectedClient ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center space-y-4 p-8">
-                  <div className="inline-flex p-4 bg-gray-100 rounded-full">
-                    <Sparkles className="h-12 w-12 text-gray-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-700">Select a client to get started</h3>
-                  <p className="text-gray-500">Choose a client from the dropdown to begin generating content</p>
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 space-y-4 overflow-y-auto">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="text-3xl">{selectedClient.logo}</div>
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">{selectedClient.name}</h2>
-                      <a href={selectedClient.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
-                        {selectedClient.url}
-                      </a>
-                    </div>
-                  </div>
-                  {selectedClient.bio && (
-                    <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-2">About</h3>
-                      <p className="text-sm text-gray-600">{selectedClient.bio}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Progress</h3>
-                  <div className="space-y-3">
-                    {steps.map((step, index) => (
-                      <div key={step.id} className="flex items-center gap-3">
-                        <div className="flex-shrink-0">
-                          {getStatusIcon(step.status)}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-sm text-gray-900">{step.title}</div>
-                          <div className="text-xs text-gray-500 capitalize">{step.status}</div>
-                        </div>
+          <div style={{
+            padding: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%'
+          }}>
+            <div className="rounded-lg shadow-sm" style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'auto',
+              backgroundColor: '#F5F5F5'
+            }}>
+              <div className="p-4 space-y-4">
+                {/* Client Details - Only show if client is selected */}
+                {selectedClient && (
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    {/* Client Header */}
+                    <div className="flex items-center gap-3 p-4 border-b border-gray-200">
+                      <div className="text-2xl">{selectedClient.logo}</div>
+                      <div className="flex-1">
+                        <h2 className="text-lg font-bold text-gray-900">{selectedClient.name}</h2>
+                        <a href={selectedClient.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                          {selectedClient.url}
+                        </a>
                       </div>
-                    ))}
+                    </div>
+
+                    {/* Tab Navigation */}
+                    <div className="border-b border-gray-200 bg-gray-50">
+                      <div className="flex">
+                        <button
+                          onClick={() => setClientDetailsTab('info')}
+                          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                            clientDetailsTab === 'info'
+                              ? 'text-gray-900 border-b-2 border-gray-900 bg-white'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          }`}
+                        >
+                          Client Information
+                        </button>
+                        <button
+                          onClick={() => setClientDetailsTab('settings')}
+                          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                            clientDetailsTab === 'settings'
+                              ? 'text-gray-900 border-b-2 border-gray-900 bg-white'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          }`}
+                        >
+                          Default Settings
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Tab Content */}
+                    <div className="p-4">
+                      {clientDetailsTab === 'info' && (
+                        <div className="space-y-4">
+                          {/* Bio */}
+                          {selectedClient.bio && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Bio</label>
+                              <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                                {selectedClient.bio}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Things to Avoid */}
+                          {selectedClient.thingsToAvoid && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Things to Avoid</label>
+                              <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                                {selectedClient.thingsToAvoid}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Competitors */}
+                          {selectedClient.competitors.length > 0 && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Competitors</label>
+                              <div className="p-3 bg-gray-50 border border-gray-200 rounded space-y-1">
+                                {selectedClient.competitors.map((comp, idx) => (
+                                  <div key={idx} className="text-sm">
+                                    <a href={comp.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                      {comp.name}
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Own URLs */}
+                          {selectedClient.ownUrls.length > 0 && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Company Pages</label>
+                              <div className="p-3 bg-gray-50 border border-gray-200 rounded space-y-1">
+                                {selectedClient.ownUrls.map((page, idx) => (
+                                  <div key={idx} className="text-sm">
+                                    <a href={page.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                      {page.name}
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Locations */}
+                          {selectedClient.locations.length > 0 && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Locations</label>
+                              <div className="p-3 bg-gray-50 border border-gray-200 rounded space-y-2">
+                                {selectedClient.locations.map((loc, idx) => (
+                                  <div key={idx} className="text-sm">
+                                    <div className="font-medium text-gray-900">{loc.title}</div>
+                                    <div className="text-gray-600">{loc.address}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Social Links */}
+                          {selectedClient.socialLinks.length > 0 && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Social Media</label>
+                              <div className="p-3 bg-gray-50 border border-gray-200 rounded space-y-1">
+                                {selectedClient.socialLinks.map((social, idx) => (
+                                  <div key={idx} className="text-sm">
+                                    <a href={social.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                      {social.label}
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {clientDetailsTab === 'settings' && (
+                        <div className="space-y-4">
+                          {/* Current URL */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Current URL</label>
+                            <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                              {selectedClient.defaultFormValues.currentUrl || '—'}
+                            </div>
+                          </div>
+
+                          {/* Business Name */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Business Name</label>
+                            <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                              {selectedClient.defaultFormValues.businessName || '—'}
+                            </div>
+                          </div>
+
+                          {/* Niche */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Niche</label>
+                            <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                              {selectedClient.defaultFormValues.niche || '—'}
+                            </div>
+                          </div>
+
+                          {/* Target Audience */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Target Audience</label>
+                            <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                              {selectedClient.defaultFormValues.targetAudience || '—'}
+                            </div>
+                          </div>
+
+                          {/* Intended Result */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Intended Result</label>
+                            <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                              {selectedClient.defaultFormValues.intendedResult || '—'}
+                            </div>
+                          </div>
+
+                          {/* Geo Locations */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Geographic Locations</label>
+                            <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                              {selectedClient.defaultFormValues.geoLocations || '—'}
+                            </div>
+                          </div>
+
+                          {/* Keywords */}
+                          {selectedClient.defaultFormValues.keywords.length > 0 && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Keywords</label>
+                              <div className="p-3 bg-gray-50 border border-gray-200 rounded">
+                                <div className="flex flex-wrap gap-1">
+                                  {selectedClient.defaultFormValues.keywords.map((keyword, idx) => (
+                                    <span key={idx} className="px-2 py-1 bg-white border border-gray-300 rounded text-xs text-gray-900">
+                                      {keyword}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Competitors */}
+                          {selectedClient.defaultFormValues.competitors.length > 0 && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Competitors (URLs)</label>
+                              <div className="p-3 bg-gray-50 border border-gray-200 rounded">
+                                <div className="flex flex-wrap gap-1">
+                                  {selectedClient.defaultFormValues.competitors.map((comp, idx) => (
+                                    <span key={idx} className="px-2 py-1 bg-white border border-gray-300 rounded text-xs text-gray-900">
+                                      {comp}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Additional Instructions */}
+                          {selectedClient.defaultFormValues.additionalInstructions && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Additional Instructions</label>
+                              <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                                {selectedClient.defaultFormValues.additionalInstructions}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Include Key Points */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Include Key Points</label>
+                            <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                              {selectedClient.defaultFormValues.includeKeyPoints ? 'Yes' : 'No'}
+                            </div>
+                          </div>
+
+                          {/* Content Preference */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Content Preference</label>
+                            <div className="p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900">
+                              {selectedClient.defaultFormValues.contentPreference === 'create' ? 'Create New' : 'Enhance Existing'}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Workflow Progress - Always visible */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Workflow Progress</h3>
+                    {!selectedClient && (
+                      <span className="text-xs text-gray-500 px-2 py-1 bg-yellow-50 border border-yellow-200 rounded">
+                        No client selected
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    {steps.map((step, index) => {
+                      const isExpanded = expandedWorkflowSteps.has(step.id)
+                      return (
+                        <div key={step.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                          {/* Step Header */}
+                          <div className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors">
+                            {/* Position Number */}
+                            <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 rounded-full text-sm font-semibold text-gray-700">
+                              {index + 1}
+                            </div>
+
+                            {/* Status Icon */}
+                            <div className="flex-shrink-0">
+                              {getStatusIcon(step.status)}
+                            </div>
+
+                            {/* Step Title - Clickable */}
+                            <div
+                              className="flex-1 cursor-pointer"
+                              onClick={() => toggleWorkflowStepExpansion(step.id)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="font-medium text-sm text-gray-900">{step.title}</div>
+                                {/* Output Type Badge */}
+                                {step.responseType === 'structured' && step.jsonSchema ? (
+                                  <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded border border-blue-200">
+                                    JSON
+                                  </span>
+                                ) : step.responseType === 'structured' ? (
+                                  <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded border border-purple-200">
+                                    Structured
+                                  </span>
+                                ) : (
+                                  <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded border border-gray-200">
+                                    Text
+                                  </span>
+                                )}
+                                {step.isCustom && (
+                                  <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded border border-green-200">
+                                    Custom
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500 capitalize">{step.status}</div>
+                            </div>
+
+                            {/* Reorder Buttons */}
+                            <div className="flex-shrink-0 flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  moveStepUp(step.id)
+                                }}
+                                disabled={index === 0}
+                                title="Move up"
+                              >
+                                <ChevronUp className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  moveStepDown(step.id)
+                                }}
+                                disabled={index === steps.length - 1}
+                                title="Move down"
+                              >
+                                <ChevronDown className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            {/* Expand/Collapse Icon */}
+                            <div className="flex-shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => toggleWorkflowStepExpansion(step.id)}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Expanded Content */}
+                          {isExpanded && (
+                            <div className="border-t border-gray-200 p-4 bg-gray-50 space-y-4">
+                              {/* Prompt Section */}
+                              <div>
+                                <label className="text-xs font-medium text-gray-700 mb-2 block">Prompt:</label>
+                                {step.prompt ? (
+                                  <div className="max-h-[300px] overflow-y-auto p-3 bg-white border border-gray-200 rounded text-xs text-gray-900 font-mono whitespace-pre-wrap">
+                                    {step.prompt}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-gray-500 italic p-3 bg-white border border-gray-200 rounded">Using default prompt for this step</p>
+                                )}
+                              </div>
+
+                              {/* Response Section */}
+                              {stepResponses[step.id] && (
+                                <div>
+                                  <label className="text-xs font-medium text-gray-700 mb-2 block">Response:</label>
+                                  <div className="max-h-[300px] overflow-y-auto p-3 bg-white border border-gray-200 rounded text-xs text-gray-900">
+                                    {step.responseType === 'structured' && step.jsonSchema ? (
+                                      // Try to parse and display JSON
+                                      (() => {
+                                        try {
+                                          const parsed = JSON.parse(stepResponses[step.id])
+                                          return (
+                                            <pre className="whitespace-pre-wrap font-mono">
+                                              {JSON.stringify(parsed, null, 2)}
+                                            </pre>
+                                          )
+                                        } catch {
+                                          // If not valid JSON, show as text
+                                          return <div className="whitespace-pre-wrap">{stepResponses[step.id]}</div>
+                                        }
+                                      })()
+                                    ) : (
+                                      // Show as text
+                                      <div className="whitespace-pre-wrap">{stepResponses[step.id]}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Show model info */}
+                              <div className="pt-3 border-t border-gray-200">
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <span className="text-gray-600">Model:</span>
+                                    <span className="ml-1 text-gray-900">{step.model || 'Default'}</span>
+                                  </div>
+                                  {step.temperature !== undefined && (
+                                    <div>
+                                      <span className="text-gray-600">Temperature:</span>
+                                      <span className="ml-1 text-gray-900">{step.temperature}</span>
+                                    </div>
+                                  )}
+                                  {step.maxTokens && (
+                                    <div>
+                                      <span className="text-gray-600">Max Tokens:</span>
+                                      <span className="ml-1 text-gray-900">{step.maxTokens}</span>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <span className="text-gray-600">Tools:</span>
+                                    <span className="ml-1 text-gray-900">{step.enableTools ? 'Enabled' : 'Disabled'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
           </div>
         }
       />
+
+      {/* Step Title Modal */}
+      {showStepTitleModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold mb-4">Add New Step</h3>
+            <Input
+              placeholder="Enter step title..."
+              value={newStepTitle}
+              onChange={(e) => setNewStepTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newStepTitle.trim()) {
+                  addCustomStep(newStepTitle, newStepPosition)
+                  setNewStepTitle('')
+                  setShowStepTitleModal(false)
+                }
+                if (e.key === 'Escape') {
+                  setNewStepTitle('')
+                  setShowStepTitleModal(false)
+                }
+              }}
+              autoFocus
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setNewStepTitle('')
+                  setShowStepTitleModal(false)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (newStepTitle.trim()) {
+                    addCustomStep(newStepTitle, newStepPosition)
+                    setNewStepTitle('')
+                    setShowStepTitleModal(false)
+                  }
+                }}
+                disabled={!newStepTitle.trim()}
+              >
+                Add Step
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Client Bio Modal */}
       {showClientBio && selectedClient && (

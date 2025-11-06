@@ -48,6 +48,8 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   const [generationProgress, setGenerationProgress] = useState('');
   const [preSelectedStage, setPreSelectedStage] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
   const [currentGeneratingStage, setCurrentGeneratingStage] = useState<1 | 2 | 3 | 4 | null>(null);
+  const [collapsedStages, setCollapsedStages] = useState<Record<number, boolean>>({1: false, 2: false, 4: false});
+  const toggleStage = (s: number) => setCollapsedStages(prev => ({...prev, [s]: !prev[s]}));
 
   // Debug modal state
   const [showDebugModal, setShowDebugModal] = useState(false);
@@ -2691,10 +2693,10 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                 {/* ===== STAGE 2: TYPOGRAPHY ===== */}
                 <div style={{ marginBottom: '48px', padding: '24px', backgroundColor: 'var(--muted)/10', border: '3px solid var(--primary)', borderRadius: '12px' }}>
                   {/* Stage 2 Header with ONE Regenerate Button */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(2)}>
                     <div>
                       <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        🔤 Stage 2: Typography System
+                        🔤 Stage 2: Typography System {collapsedStages[2] ? "▶" : "▼"}
                       </h2>
                       <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
                         Global fonts, typography presets, and all heading styles
@@ -2742,6 +2744,8 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                     </div>
                   </div>
 
+                  {!collapsedStages[2] && (
+                  <div>
                   {/* Global Fonts Subsection */}
                   <div ref={globalFontsRef} style={{ marginBottom: '24px' }}>
                     <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>📚 Global Font Families</h3>
@@ -2764,6 +2768,8 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                     <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Configure H1-H6 heading styles and body typography</p>
                     {renderThemeTypography()}
                   </div>
+                  </div>
+                  )}
                 </div>
 
                 {/* ===== STAGE 4: COMPONENTS ===== */}
@@ -2772,7 +2778,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)' }}>
                     <div>
                       <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        🔘 Stage 4: Components & Interactions
+                        🔘 Stage 4: Components & Interactions {collapsedStages[4] ? "▶" : "▼"}
                       </h2>
                       <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
                         Button styles, form fields, and interactive element configurations
@@ -2820,6 +2826,8 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                     </div>
                   </div>
 
+                  {!collapsedStages[4] && (
+                  <div>
                   {/* Buttons Subsection */}
                   <div ref={buttonsRef} style={{ marginBottom: '24px' }}>
                     <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>🔘 Buttons</h3>
@@ -2833,6 +2841,8 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                     <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Form field styles, labels, borders, and focus states</p>
                     {renderForms()}
                   </div>
+                  </div>
+                  )}
                 </div>
 
                 {/* Images Section */}

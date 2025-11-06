@@ -63,6 +63,8 @@ interface Step {
   temperature?: number
   maxTokens?: number
   enableTools?: boolean
+  responseType?: 'text' | 'structured' // Response format
+  jsonSchema?: string // JSON schema for structured outputs
   position: number
   isCustom?: boolean // True for user-added steps
 }
@@ -155,7 +157,7 @@ interface Article {
 }
 
 export function BlogBuilderTool() {
-  const [clients] = useState<Client[]>([
+  const [clients, setClients] = useState<Client[]>([
     {
       id: "1",
       name: "Wellness Center",
@@ -420,6 +422,21 @@ export function BlogBuilderTool() {
 
   // Client importer
   const [showClientImporter, setShowClientImporter] = useState(false)
+
+  // Add client modal
+  const [showAddClient, setShowAddClient] = useState(false)
+  const [addClientTab, setAddClientTab] = useState<'manual' | 'import'>('manual')
+  const [newClientData, setNewClientData] = useState({
+    name: '',
+    logo: '',
+    url: '',
+    bio: '',
+    thingsToAvoid: '',
+    niche: '',
+    targetAudience: '',
+    geoLocations: '',
+    keywords: [] as string[]
+  })
 
   const [contentForm, setContentForm] = useState<ContentOrderForm>({
     currentUrl: "",
@@ -1650,6 +1667,113 @@ Instructions:
     }
   }
 
+  // Helper function to get default prompt for a step
+  const getDefaultPromptForStep = (stepId: string): string => {
+    if (stepId === "order-form") {
+      return `ROLE & GOAL
+You are an expert web copy brief generator. Produce a fully completed "Service Page Brief" using verified information from the client's website and minimal Q&A only for gaps.
+
+INPUTS
+- PRIMARY_URL: {BUSINESS_NAME}
+- SERVICE_FOCUS: {NICHE}
+- GEO_FOCUS: {GEO_LOCATIONS}
+- KEYWORDS: {KEYWORDS}
+
+Research first. Fill all fields from PRIMARY_URL. If critical fields remain unknown after research, ask for missing items.
+
+RESEARCH-FIRST POLICY
+- Extract: exact business/brand name, services, CTAs, locations, differentiators
+- If any field isn't stated on the client site, write "N/A"
+
+Generate a detailed content order form.`
+    } else if (stepId === "research") {
+      return `Research the following topic using web sources:
+
+Business: {BUSINESS_NAME}
+Niche: {NICHE}
+Target Audience: {TARGET_AUDIENCE}
+Keywords: {KEYWORDS}
+
+Find information about:
+1. Industry trends and best practices
+2. Target audience pain points and needs
+3. Competitor strategies and positioning
+4. SEO opportunities and content gaps
+5. Local market insights for: {GEO_LOCATIONS}
+
+Provide a comprehensive markdown-formatted research report with citations.`
+    } else if (stepId === "outline") {
+      return `# Master Prompt — {BUSINESS_NAME} Service Page
+
+## FORM INPUTS
+CURRENT_URL: {CURRENT_URL}
+BUSINESS_NAME: {BUSINESS_NAME}
+SERVICE_NAME: {NICHE}
+TARGET_AUDIENCE: {TARGET_AUDIENCE}
+PRIMARY_CTAS: {INTENDED_RESULT}
+LOCATIONS_LIST: {GEO_LOCATIONS}
+KEYWORDS_LIST: {KEYWORDS}
+
+## ROLE & TONE
+You are a senior copywriter and SEO/AEO strategist. Tone is authoritative, precise, and conversion-focused.
+
+## STRUCTURE & FORMATTING RULES
+- H1 once; frequent H2/H3s for skimmability
+- Include a high-visibility At-a-Glance box (6–8 bullets) near the top
+- Include Process map (5 steps) with bold step labels
+- Include Locations & Coverage
+- Include FAQs (5–7 Q&As)
+- Close with a Final CTA
+- Natural keyword placement using KEYWORDS_LIST
+
+Generate a detailed outline first.`
+    } else if (stepId === "content") {
+      return `# Service Page Content Generation
+
+Based on the outline: {OUTLINE}
+
+Transform structured inputs into high-converting, SEO-optimized service page.
+
+## CONTENT REQUIREMENTS
+- Write engaging, conversion-focused copy
+- Use research: {RESEARCH}
+- Target keywords: {KEYWORDS}
+- Geographic focus: {GEO_LOCATIONS}
+- Target audience: {TARGET_AUDIENCE}
+
+Write full-length, professional content that addresses user intent.`
+    } else if (stepId === "analysis") {
+      return `# Content Analysis
+
+Analyze the generated content: {CONTENT}
+
+Provide detailed analysis:
+1. Word count
+2. Readability score (Flesch Reading Ease)
+3. Keyword density for: {KEYWORDS}
+4. SEO recommendations
+5. Content structure assessment
+6. Engagement opportunities
+
+Return analysis in structured JSON format.`
+    } else if (stepId === "review") {
+      return `# Content Review & Quality Check
+
+Review the content: {CONTENT}
+
+Check for:
+1. Accuracy and factual correctness
+2. Brand consistency
+3. SEO optimization
+4. Call-to-action effectiveness
+5. Grammar and style
+6. Target audience alignment
+
+Provide specific, actionable suggestions for improvement.`
+    }
+    return ""
+  }
+
   const viewPrompt = (stepId: string) => {
     let prompt = ""
 
@@ -2050,9 +2174,61 @@ Provide a detailed review with specific feedback and suggested edits.`
                 </div>
               </div>
 
-              {/* Variables List */}
+              {/* Built-in Variables */}
+              <div className="space-y-2 mb-6">
+                <h3 className="font-semibold mb-2 text-sm flex items-center gap-2">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                    Built-in
+                  </span>
+                  Available Variables
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { tag: 'BUSINESS_NAME', value: contentForm.businessName || 'Not set', desc: 'Business/Company Name' },
+                    { tag: 'NICHE', value: contentForm.niche || 'Not set', desc: 'Business Niche/Industry' },
+                    { tag: 'TARGET_AUDIENCE', value: contentForm.targetAudience || 'Not set', desc: 'Target Audience' },
+                    { tag: 'KEYWORDS', value: contentForm.keywords?.join(', ') || 'Not set', desc: 'Keywords List' },
+                    { tag: 'INTENDED_RESULT', value: contentForm.intendedResult || 'Not set', desc: 'Intended Result' },
+                    { tag: 'GEO_LOCATIONS', value: contentForm.geoLocations || 'Not set', desc: 'Geographic Locations' },
+                    { tag: 'RESEARCH', value: researchResponse ? `${researchResponse.substring(0, 50)}...` : 'Not generated yet', desc: 'Research Results' },
+                    { tag: 'OUTLINE', value: outline.length > 0 ? `${outline.length} items` : 'Not generated yet', desc: 'Content Outline' },
+                    { tag: 'CONTENT', value: generatedContent ? `${generatedContent.substring(0, 50)}...` : 'Not generated yet', desc: 'Generated Content' },
+                    { tag: 'WORD_COUNT', value: analysisResults?.wordCount?.toString() || '0', desc: 'Word Count' },
+                    { tag: 'READABILITY_SCORE', value: analysisResults?.readabilityScore?.toString() || '0', desc: 'Readability Score' },
+                    { tag: 'KEYWORD_FREQUENCY', value: analysisResults?.keywordFrequency?.toString() || '0', desc: 'Keyword Frequency' },
+                  ].map(v => (
+                    <div key={v.tag} className="p-3 border rounded bg-gray-50">
+                      <div className="flex items-start justify-between mb-1">
+                        <div className="flex-1 min-w-0">
+                          <code className="text-xs bg-blue-100 px-1.5 py-0.5 rounded text-blue-700 font-mono block truncate">
+                            {`{${v.tag}}`}
+                          </code>
+                          <p className="text-xs text-gray-600 mt-1">{v.desc}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => copyVariableTag(v.tag)}
+                          title="Copy tag"
+                          className="h-6 w-6 p-0 ml-1 flex-shrink-0"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-gray-500 truncate mt-1">{v.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Variables */}
               <div className="space-y-2">
-                <h3 className="font-semibold mb-2 text-sm">Your Variables ({customVariables.length})</h3>
+                <h3 className="font-semibold mb-2 text-sm flex items-center gap-2">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                    Custom
+                  </span>
+                  Your Variables ({customVariables.length})
+                </h3>
                 {customVariables.length === 0 ? (
                   <p className="text-sm text-gray-500 text-center py-8">No custom variables yet. Add one above!</p>
                 ) : (
@@ -2248,11 +2424,11 @@ Provide a detailed review with specific feedback and suggested edits.`
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Custom Prompt (leave empty to use default)</label>
+                <label className="text-sm font-medium mb-2 block">Prompt Template (editable)</label>
                 <Textarea
-                  rows={10}
+                  rows={12}
                   placeholder="Enter custom prompt with {VARIABLES}..."
-                  defaultValue={configuringStep.prompt || ''}
+                  defaultValue={configuringStep.prompt || getDefaultPromptForStep(configuringStep.id)}
                   className="font-mono text-xs"
                   onChange={(e) => {
                     const updatedSteps = steps.map(s =>
@@ -2261,9 +2437,26 @@ Provide a detailed review with specific feedback and suggested edits.`
                     setSteps(updatedSteps)
                   }}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Available variables: {`{BUSINESS_NAME}, {NICHE}, {KEYWORDS}, {RESEARCH}, {OUTLINE}, {CONTENT}`}
-                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-gray-500">
+                    Available variables: {`{BUSINESS_NAME}, {NICHE}, {KEYWORDS}, {RESEARCH}, {OUTLINE}, {CONTENT}`}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-xs"
+                    onClick={() => {
+                      const updatedSteps = steps.map(s =>
+                        s.id === configuringStep.id ? { ...s, prompt: '' } : s
+                      )
+                      setSteps(updatedSteps)
+                      setConfiguringStep({ ...configuringStep, prompt: '' })
+                    }}
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Reset to Default
+                  </Button>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -2278,7 +2471,10 @@ Provide a detailed review with specific feedback and suggested edits.`
                     setSteps(updatedSteps)
                   }}
                 />
-                <label htmlFor="enable-tools" className="text-sm">Enable AI Tools</label>
+                <label htmlFor="enable-tools" className="text-sm">
+                  Enable Tool Calling
+                  <span className="text-xs text-gray-500 ml-1">(web search, calculations, etc.)</span>
+                </label>
               </div>
             </div>
 
@@ -2352,6 +2548,275 @@ Provide a detailed review with specific feedback and suggested edits.`
         </div>
       )}
 
+      {/* Add Client Modal */}
+      {showAddClient && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Plus className="h-6 w-6 text-green-600" />
+                <div>
+                  <h2 className="text-xl font-bold">Add New Client</h2>
+                  <p className="text-sm text-gray-500">Create manually or import from JSON</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => {
+                setShowAddClient(false)
+                setAddClientTab('manual')
+                setNewClientData({
+                  name: '', logo: '', url: '', bio: '', thingsToAvoid: '',
+                  niche: '', targetAudience: '', geoLocations: '', keywords: []
+                })
+              }}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b">
+              <button
+                onClick={() => setAddClientTab('manual')}
+                className={`flex-1 px-6 py-3 text-sm font-medium transition-all ${
+                  addClientTab === 'manual'
+                    ? "text-green-600 border-b-2 border-green-600 bg-green-50/50"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                }`}
+              >
+                Manual Entry
+              </button>
+              <button
+                onClick={() => setAddClientTab('import')}
+                className={`flex-1 px-6 py-3 text-sm font-medium transition-all ${
+                  addClientTab === 'import'
+                    ? "text-green-600 border-b-2 border-green-600 bg-green-50/50"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                }`}
+              >
+                Import with Prompt
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {addClientTab === 'manual' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Client Name *</label>
+                      <Input
+                        value={newClientData.name}
+                        onChange={(e) => setNewClientData({...newClientData, name: e.target.value})}
+                        placeholder="Acme Corp"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Logo Emoji *</label>
+                      <Input
+                        value={newClientData.logo}
+                        onChange={(e) => setNewClientData({...newClientData, logo: e.target.value})}
+                        placeholder="🏢"
+                        maxLength={2}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Website URL *</label>
+                    <Input
+                      value={newClientData.url}
+                      onChange={(e) => setNewClientData({...newClientData, url: e.target.value})}
+                      placeholder="https://example.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Business Niche</label>
+                    <Input
+                      value={newClientData.niche}
+                      onChange={(e) => setNewClientData({...newClientData, niche: e.target.value})}
+                      placeholder="e.g., Local SEO Services"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Target Audience</label>
+                    <Input
+                      value={newClientData.targetAudience}
+                      onChange={(e) => setNewClientData({...newClientData, targetAudience: e.target.value})}
+                      placeholder="e.g., Small business owners"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Geographic Locations</label>
+                    <Input
+                      value={newClientData.geoLocations}
+                      onChange={(e) => setNewClientData({...newClientData, geoLocations: e.target.value})}
+                      placeholder="e.g., Seattle, WA"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Keywords (comma-separated)</label>
+                    <Input
+                      value={newClientData.keywords.join(', ')}
+                      onChange={(e) => setNewClientData({...newClientData, keywords: e.target.value.split(',').map(k => k.trim())})}
+                      placeholder="keyword1, keyword2, keyword3"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Client Bio</label>
+                    <Textarea
+                      value={newClientData.bio}
+                      onChange={(e) => setNewClientData({...newClientData, bio: e.target.value})}
+                      placeholder="Brief description of the business..."
+                      rows={3}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Things to Avoid</label>
+                    <Textarea
+                      value={newClientData.thingsToAvoid}
+                      onChange={(e) => setNewClientData({...newClientData, thingsToAvoid: e.target.value})}
+                      placeholder="Topics, phrases, or approaches to avoid..."
+                      rows={2}
+                    />
+                  </div>
+
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    disabled={!newClientData.name || !newClientData.logo || !newClientData.url}
+                    onClick={() => {
+                      const newClient: Client = {
+                        id: `client-${Date.now()}`,
+                        name: newClientData.name,
+                        logo: newClientData.logo,
+                        url: newClientData.url,
+                        bio: newClientData.bio,
+                        thingsToAvoid: newClientData.thingsToAvoid,
+                        competitors: [],
+                        ownUrls: [{ name: 'Homepage', url: newClientData.url }],
+                        locations: [],
+                        socialLinks: [],
+                        defaultFormValues: {
+                          currentUrl: newClientData.url,
+                          businessName: newClientData.name,
+                          niche: newClientData.niche,
+                          intendedResult: '',
+                          targetAudience: newClientData.targetAudience,
+                          geoLocations: newClientData.geoLocations,
+                          keywords: newClientData.keywords,
+                          additionalInstructions: '',
+                          competitors: [],
+                          includeKeyPoints: true,
+                          contentPreference: 'create'
+                        }
+                      }
+                      setClients([...clients, newClient])
+                      setShowAddClient(false)
+                      setNewClientData({
+                        name: '', logo: '', url: '', bio: '', thingsToAvoid: '',
+                        niche: '', targetAudience: '', geoLocations: '', keywords: []
+                      })
+                      alert('Client added successfully!')
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Client
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h3 className="font-semibold text-sm mb-2">Download Example JSON</h3>
+                    <p className="text-xs text-gray-600 mb-3">Use this template to see the required format</p>
+                    <Button size="sm" variant="outline" onClick={downloadClientTemplate}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download client-template.json
+                    </Button>
+                  </div>
+
+                  <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <h3 className="font-semibold text-sm mb-2">AI Prompt Helper</h3>
+                    <p className="text-xs text-gray-600 mb-3">Copy this prompt and paste into Claude/ChatGPT with your client details:</p>
+                    <div className="bg-white p-3 rounded border text-xs font-mono max-h-48 overflow-y-auto mb-2">
+                      {`Create a JSON object for a blog builder client import with this format:
+
+{
+  "clients": [{
+    "id": "unique-id",
+    "name": "Client Name",
+    "logo": "🏢",
+    "url": "https://example.com",
+    "bio": "Business description",
+    "thingsToAvoid": "Topics/phrases to avoid",
+    "competitors": [
+      {"name": "Competitor 1", "url": "https://comp1.com"}
+    ],
+    "ownUrls": [
+      {"name": "About Page", "url": "https://example.com/about"}
+    ],
+    "locations": [
+      {"title": "Main Office", "address": "123 Main St"}
+    ],
+    "socialLinks": [
+      {"label": "Facebook", "url": "https://facebook.com/example"}
+    ],
+    "defaultFormValues": {
+      "currentUrl": "https://example.com",
+      "businessName": "Client Name",
+      "niche": "Industry",
+      "intendedResult": "Goal",
+      "targetAudience": "Target audience",
+      "geoLocations": "Geographic locations",
+      "keywords": ["keyword1", "keyword2"],
+      "additionalInstructions": "",
+      "competitors": ["Competitor 1"],
+      "includeKeyPoints": true,
+      "contentPreference": "create"
+    }
+  }]
+}
+
+Replace the placeholder values with actual client information and format it as valid JSON.`}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`Create a JSON object for a blog builder client import with this format:\n\n{\n  "clients": [{\n    "id": "unique-id",\n    "name": "Client Name",\n    "logo": "🏢",\n    "url": "https://example.com",\n    "bio": "Business description",\n    "thingsToAvoid": "Topics/phrases to avoid",\n    "competitors": [\n      {"name": "Competitor 1", "url": "https://comp1.com"}\n    ],\n    "ownUrls": [\n      {"name": "About Page", "url": "https://example.com/about"}\n    ],\n    "locations": [\n      {"title": "Main Office", "address": "123 Main St"}\n    ],\n    "socialLinks": [\n      {"label": "Facebook", "url": "https://facebook.com/example"}\n    ],\n    "defaultFormValues": {\n      "currentUrl": "https://example.com",\n      "businessName": "Client Name",\n      "niche": "Industry",\n      "intendedResult": "Goal",\n      "targetAudience": "Target audience",\n      "geoLocations": "Geographic locations",\n      "keywords": ["keyword1", "keyword2"],\n      "additionalInstructions": "",\n      "competitors": ["Competitor 1"],\n      "includeKeyPoints": true,\n      "contentPreference": "create"\n    }\n  }]\n}\n\nReplace the placeholder values with actual client information and format it as valid JSON.`)
+                        alert('Prompt copied to clipboard!')
+                      }}
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy Prompt
+                    </Button>
+                  </div>
+
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h3 className="font-semibold text-sm mb-2">Import JSON File</h3>
+                    <p className="text-xs text-gray-600 mb-3">Upload the JSON file from the AI</p>
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          importClientsFromJSON(file)
+                          setShowAddClient(false)
+                        }
+                      }}
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     {/* Main Layout */}
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Top Toolbar */}
@@ -2367,7 +2832,7 @@ Provide a detailed review with specific feedback and suggested edits.`
                 className="text-xs"
               >
                 <Database className="h-3 w-3 mr-1.5" />
-                Variables ({customVariables.length})
+                Variables ({12 + customVariables.length})
               </Button>
               <Button
                 size="sm"
@@ -2453,7 +2918,18 @@ Provide a detailed review with specific feedback and suggested edits.`
 
               {/* Client Selector */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Select Client</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">Select Client</label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
+                    onClick={() => setShowAddClient(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add Client
+                  </Button>
+                </div>
                 <div className="relative">
                   <button
                     onClick={() => setShowClientDropdown(!showClientDropdown)}
@@ -3567,7 +4043,7 @@ Provide a detailed review with specific feedback and suggested edits.`
                                     <span className="font-semibold text-sm">Research Complete - Found 8 sources</span>
                                   </div>
 
-                                  <div className="p-4 bg-white border-2 border-gray-200 rounded-lg">
+                                  <div className="p-4 bg-white border-2 border-gray-200 rounded-lg max-h-[500px] overflow-y-auto">
                                     <div className="prose prose-sm max-w-none">
                                       <div
                                         className="text-sm text-gray-800 leading-relaxed space-y-3"
@@ -4081,7 +4557,7 @@ Provide a detailed review with specific feedback and suggested edits.`
                                     </span>
                                   </div>
 
-                                  <div className="p-4 bg-white border-2 border-gray-200 rounded-lg">
+                                  <div className="p-4 bg-white border-2 border-gray-200 rounded-lg max-h-[500px] overflow-y-auto">
                                     <div className="prose prose-sm max-w-none">
                                       <div className="text-sm text-gray-800 leading-relaxed space-y-3 whitespace-pre-wrap">
                                         {reviewResponse}

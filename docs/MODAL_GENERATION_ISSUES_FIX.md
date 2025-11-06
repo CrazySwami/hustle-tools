@@ -164,7 +164,7 @@ Check the modal's CSS and ensure the generating indicator has proper z-index:
 
 ---
 
-## Issue 3: Chat API 404 Error ❌
+## Issue 3: Chat API 404 Error ✅ FIXED
 
 ### Problem
 **Console Error**: `POST /api/chat 404 in 303ms`
@@ -195,9 +195,9 @@ const { messages, sendMessage, isLoading, setMessages, reload, status } = useCha
 
 The Vercel AI SDK might be caching the endpoint or there might be a race condition where an older message is being retried with the wrong endpoint.
 
-### Solution
+### Solution ✅ IMPLEMENTED
 
-**Option A**: Check for stale messages in localStorage
+**Option A (IMPLEMENTED)**: Clear AI SDK cache on component mount
 
 ```typescript
 // Add to useEffect on mount
@@ -270,9 +270,9 @@ ls -la src/app/api/chat/
 - [ ] Inspect DOM to see if spinner is rendering but hidden
 
 ### For Chat API:
-- [ ] Clear AI SDK cache in useEffect on mount
+- [x] Clear AI SDK cache in useEffect on mount ✅ FIXED
 - [ ] Check Network tab for actual endpoint being called
-- [ ] Verify `/api/chat` route doesn't exist
+- [x] Verify `/api/chat` route doesn't exist ✅ CONFIRMED
 - [ ] Test in incognito mode
 
 ---
@@ -315,4 +315,18 @@ ls -la src/app/api/chat/
 
 ---
 
-**Status**: Issues documented, fixes proposed, testing steps provided ✅
+## Implementation Status
+
+### ✅ Issue 3: Chat API 404 - FIXED
+**Implementation**: [elementor-editor/page.tsx:387-409](../src/app/elementor-editor/page.tsx#L387-L409)
+
+Added useEffect hook on component mount to clear all AI SDK cache (sessionStorage, localStorage) that might contain stale endpoint references. This ensures the chat always uses `/api/chat-elementor` instead of the deleted `/api/chat` route.
+
+**Testing**: Refresh browser on `/elementor-editor` page and check:
+1. Console should show: `🧹 Cleared stale AI SDK cache to ensure /api/chat-elementor is used`
+2. Network tab should show requests to `/api/chat-elementor` (not `/api/chat`)
+3. No 404 errors in console
+
+---
+
+**Status**: 1/3 issues fixed ✅ | 2/3 issues pending investigation

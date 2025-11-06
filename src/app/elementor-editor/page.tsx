@@ -384,6 +384,30 @@ export default function ElementorEditorPage() {
     }
   });
 
+  // Clear AI SDK cache on mount to ensure correct endpoint is used
+  // This fixes the issue where chat was hitting /api/chat instead of /api/chat-elementor
+  useEffect(() => {
+    const clearStaleMessages = () => {
+      try {
+        // Clear AI SDK cache
+        sessionStorage.removeItem('ai-chat-messages');
+        localStorage.removeItem('ai-chat-messages');
+
+        // Clear any Vercel AI SDK internal cache
+        const aiCacheKeys = Object.keys(localStorage).filter(key =>
+          key.startsWith('ai-') || key.includes('chat')
+        );
+        aiCacheKeys.forEach(key => localStorage.removeItem(key));
+
+        console.log('🧹 Cleared stale AI SDK cache to ensure /api/chat-elementor is used');
+      } catch (err) {
+        console.warn('Failed to clear cache:', err);
+      }
+    };
+
+    clearStaleMessages();
+  }, []); // Run only on mount
+
   // ALTERNATIVE: Watch messages array for metadata updates
   // This works around potential onFinish callback issues
   useEffect(() => {

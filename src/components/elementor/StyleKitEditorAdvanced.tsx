@@ -858,6 +858,98 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
               </div>
             </div>
           </div>
+
+          {/* Line Height */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+              {getStatusIcon(getFieldStatus(s[`${prefix}_typography_line_height`], null))} Line Height
+            </label>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                type="number"
+                step="0.1"
+                value={s[`${prefix}_typography_line_height`]?.size || ''}
+                onChange={(e) => updateSize(`${prefix}_typography_line_height`, 'size', parseFloat(e.target.value))}
+                placeholder="1.5"
+                style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+              />
+              <select
+                value={s[`${prefix}_typography_line_height`]?.unit || 'em'}
+                onChange={(e) => updateSize(`${prefix}_typography_line_height`, 'unit', e.target.value)}
+                style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+              >
+                <option value="em">em</option>
+                <option value="px">px</option>
+                <option value="">default</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Letter Spacing */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+              {getStatusIcon(getFieldStatus(s[`${prefix}_typography_letter_spacing`], null))} Letter Spacing
+            </label>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                type="number"
+                step="0.1"
+                value={s[`${prefix}_typography_letter_spacing`]?.size || ''}
+                onChange={(e) => updateSize(`${prefix}_typography_letter_spacing`, 'size', parseFloat(e.target.value))}
+                placeholder="0"
+                style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+              />
+              <select
+                value={s[`${prefix}_typography_letter_spacing`]?.unit || 'px'}
+                onChange={(e) => updateSize(`${prefix}_typography_letter_spacing`, 'unit', e.target.value)}
+                style={{ padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+              >
+                <option value="px">px</option>
+                <option value="em">em</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            {/* Text Transform */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+                {getStatusIcon(getFieldStatus(s[`${prefix}_typography_text_transform`], null))} Text Transform
+              </label>
+              <select
+                value={s[`${prefix}_typography_text_transform`] || ''}
+                onChange={(e) => updateSetting(`${prefix}_typography_text_transform`, e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+              >
+                <option value="">Default</option>
+                <option value="uppercase">UPPERCASE</option>
+                <option value="lowercase">lowercase</option>
+                <option value="capitalize">Capitalize</option>
+              </select>
+            </div>
+
+            {/* Text Color */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600 }}>
+                {getStatusIcon(getFieldStatus(s[`${prefix}_color`], null))} Text Color
+              </label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input
+                  type="color"
+                  value={s[`${prefix}_color`] || '#000000'}
+                  onChange={(e) => updateSetting(`${prefix}_color`, e.target.value)}
+                  style={{ width: '40px', height: '36px', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}
+                />
+                <input
+                  type="text"
+                  value={s[`${prefix}_color`] || ''}
+                  onChange={(e) => updateSetting(`${prefix}_color`, e.target.value)}
+                  placeholder="#000000"
+                  style={{ flex: 1, padding: '8px 10px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontFamily: 'monospace' }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       );
     };

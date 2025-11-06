@@ -12,6 +12,9 @@ import { convertHtmlToHubL } from '@/lib/hubspot-converter';
 import { SystemPromptViewer } from '@/components/ui/SystemPromptViewer';
 import { getModelContextLimit, estimateTokenCount } from '@/lib/token-validator';
 import { loadEditorState, type FileGroup } from '@/lib/file-group-manager';
+import { streamWithLegacyCallbacks } from '@/lib/project-generation/streaming';
+import { getModelsByProvider } from '@/lib/project-generation/config';
+import type { ProjectType } from '@/lib/project-generation/types';
 
 // Model configurations (same as ChatInterface)
 const MODEL_CONFIGS = {
@@ -565,6 +568,20 @@ Type: ${projectType}`;
         }
       }
 
+      // Set initial phase based on project type
+      if (projectType === 'elementor' || projectType === 'convert-to-elementor') {
+        setCurrentPhase('php');
+        setProgress(projectType === 'convert-to-elementor' ? 'Converting to PHP Widget...' : 'Generating PHP Widget...');
+      } else if (projectType === 'hubspot') {
+        setCurrentPhase('html');
+        setProgress('Generating HTML...');
+      } else {
+        setCurrentPhase('html');
+        setProgress('Generating HTML...');
+      }
+
+      // Use unified streaming with legacy callbacks
+      // Note: We manually handle the fetch here because modal has unique features (existingCode, usage tracking)
       const response = await fetch('/api/generate-project', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -573,10 +590,10 @@ Type: ${projectType}`;
           projectType,
           projectName: generatedName,
           model: selectedModel,
-          existingCode: conversionCode, // Pass existing code if provided (including convert-to-elementor)
-          globalCSS: includeGlobalCSS ? globalCSS : undefined, // Only pass global CSS if user opted in
-          hubspotModuleType: projectType === 'hubspot' ? hubspotModuleType : undefined, // Pass HubSpot module type
-          images: includeImages && uploadedImages.length > 0 ? uploadedImages : [], // Pass images if enabled
+          existingCode: conversionCode,
+          globalCSS: includeGlobalCSS ? globalCSS : undefined,
+          hubspotModuleType: projectType === 'hubspot' ? hubspotModuleType : undefined,
+          images: includeImages && uploadedImages.length > 0 ? uploadedImages : [],
         }),
       });
 
@@ -589,134 +606,94 @@ Type: ${projectType}`;
       let fullCode = '';
 
       if (reader) {
-        // Set initial phase based on project type
-        if (projectType === 'elementor' || projectType === 'convert-to-elementor') {
-          setCurrentPhase('php');
-          setProgress(projectType === 'convert-to-elementor' ? 'Converting to PHP Widget...' : 'Generating PHP Widget...');
-        } else if (projectType === 'hubspot') {
-          setCurrentPhase('html');
-          setProgress('Generating HTML...');
-        } else {
-          setCurrentPhase('html');
-          setProgress('Generating HTML...');
-        }
-
         while (true) {
-          const { done, value} = await reader.read();
+          const { done, value } = await reader.read();
           if (done) break;
 
           const chunk = decoder.decode(value);
           fullCode += chunk;
 
-          // Stream updates to project files in real-time
-          if (projectId && onProjectUpdate) {
-            if (projectType === 'elementor' || projectType === 'convert-to-elementor') {
-              // Find ALL php blocks (expecting 2: main-plugin.php and widget.php)
-              const phpBlocks = fullCode.match(/```php\n([\s\S]*?)(?:```|$)/g) || [];
+          // Use centralized streaming with legacy callbacks
+          // This handles all the parsing and file updates automatically
+          if (projectId) {
+            // Import parsers at runtime to avoid circular deps
+            const { parseProjectCode } = await import('@/lib/project-generation/parser');
+            const parsedFiles = parseProjectCode(
+              fullCode,
+              (projectType === 'elementor' || projectType === 'convert-to-elementor') ? 'elementor' : projectType === 'hubspot' ? 'hubspot' : 'html',
+              projectType === 'hubspot' ? hubspotModuleType : undefined
+            );
 
-              // Identify which is which by content:
-              // Main plugin: contains "Plugin Name:" header
-              // Widget: contains "class" and "extends \Elementor\Widget_Base"
-              let mainPluginCode = '';
-              let widgetCode = '';
-
-              phpBlocks.forEach(block => {
-                const code = block.replace(/```php\n/, '').replace(/```$/, '').trim();
-                if (code.includes('Plugin Name:') && code.includes('add_action')) {
-                  mainPluginCode = code;
-                } else if (code.includes('class') && code.includes('extends') && code.includes('Widget_Base')) {
-                  widgetCode = code;
+            // Update files via callbacks
+            if (onProjectUpdate) {
+              if (parsedFiles.html) onProjectUpdate(projectId, 'html', parsedFiles.html);
+              if (parsedFiles.css) onProjectUpdate(projectId, 'css', parsedFiles.css);
+              if (parsedFiles.js) onProjectUpdate(projectId, 'js', parsedFiles.js);
+              if (parsedFiles.hubl) {
+                // Convert HTML to HubL if needed
+                if (!parsedFiles.hubl && parsedFiles.html) {
+                  try {
+                    const result = convertHtmlToHubL(parsedFiles.html, { kind: 'page' });
+                    onProjectUpdate(projectId, 'hubl', result.moduleHtml);
+                  } catch (error) {
+                    onProjectUpdate(projectId, 'hubl', parsedFiles.html);
+                  }
+                } else {
+                  onProjectUpdate(projectId, 'hubl', parsedFiles.hubl);
                 }
-              });
+              }
+            }
 
-              // Stream main plugin file to pluginMainFile
-              if (mainPluginCode && onProjectMetadataUpdate) {
+            // Update plugin metadata for Elementor
+            if (onProjectMetadataUpdate && (projectType === 'elementor' || projectType === 'convert-to-elementor')) {
+              if (parsedFiles.pluginMainFile) {
                 onProjectMetadataUpdate(projectId, {
-                  pluginMainFile: mainPluginCode
+                  isPlugin: true,
+                  pluginMainFile: parsedFiles.pluginMainFile
                 });
-                console.log(`📦 Streaming main-plugin.php (${mainPluginCode.length} chars)`);
               }
 
-              // Stream widget file to widgetFiles map
-              if (widgetCode && onProjectMetadataUpdate) {
-                console.log(`📝 Streaming widget.php (${widgetCode.length} chars)`);
-
-                // Extract class name from generated widget
-                const classNameMatch = widgetCode.match(/class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends/);
+              if (parsedFiles.php) {
+                // Extract widget metadata
+                const classNameMatch = parsedFiles.php.match(/class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends/);
                 const className = classNameMatch ? classNameMatch[1] : 'Generated_Widget';
                 const widgetSlug = className.toLowerCase().replace(/_/g, '-');
                 const widgetName = className.replace(/_/g, ' ').replace(/\bWidget\b/, '').trim()
                   || projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-
-                // Generate new widget ID to replace Hello World widget
                 const widgetId = `widget_${Date.now()}`;
 
-                // Replace Hello World widget with generated widget in widgetFiles
                 onProjectMetadataUpdate(projectId, {
                   widgetFiles: {
                     [widgetId]: {
                       name: widgetName,
                       slug: widgetSlug,
-                      content: widgetCode,
+                      content: parsedFiles.php,
                       className: className,
                     }
                   }
                 });
+              }
+            }
 
-                console.log(`🎨 Replaced Hello World widget with ${widgetName} (ID: ${widgetId})`);
+            // Auto-switch tabs during generation
+            if (projectType === 'html') {
+              if (fullCode.length > 500 && currentPhase === 'html') {
+                setCurrentPhase('css');
+                setProgress('Generating CSS...');
+                onSwitchCodeTab?.('css');
+              } else if (fullCode.length > 1500 && currentPhase === 'css') {
+                setCurrentPhase('js');
+                setProgress('Generating JavaScript...');
+                onSwitchCodeTab?.('js');
               }
             } else if (projectType === 'hubspot') {
-              // HubSpot: HTML + HubL (inline CSS)
-              const htmlMatch = fullCode.match(/```html\n([\s\S]*?)(?:```|$)/);
-              const hublMatch = fullCode.match(/```hubl\n([\s\S]*?)(?:```|$)/);
-
-              if (htmlMatch) onProjectUpdate(projectId, 'html', htmlMatch[1].trim());
-
-              // If HTML is present but no HubL, convert HTML to HubL programmatically
-              if (htmlMatch && !hublMatch) {
-                try {
-                  const htmlCode = htmlMatch[1].trim();
-                  const result = convertHtmlToHubL(htmlCode, { kind: 'page' });
-                  console.log('✅ HTML to HubL conversion successful:', result.fields.length, 'fields detected');
-                  onProjectUpdate(projectId, 'hubl', result.moduleHtml);
-                } catch (error) {
-                  console.error('❌ HTML to HubL conversion failed:', error);
-                  onProjectUpdate(projectId, 'hubl', htmlMatch[1].trim()); // Use HTML as fallback
-                }
-              } else if (hublMatch) {
-                onProjectUpdate(projectId, 'hubl', hublMatch[1].trim());
+              if (fullCode.length > 500 && currentPhase === 'html') {
+                setCurrentPhase('hubl');
+                setProgress('Generating HubL...');
+                onSwitchCodeTab?.('html');
               }
-            } else {
-              // Regular HTML: HTML + CSS + JS
-              const htmlMatch = fullCode.match(/```html\n([\s\S]*?)(?:```|$)/);
-              const cssMatch = fullCode.match(/```css\n([\s\S]*?)(?:```|$)/);
-              const jsMatch = fullCode.match(/```(?:javascript|js)\n([\s\S]*?)(?:```|$)/);
-
-              if (htmlMatch) onProjectUpdate(projectId, 'html', htmlMatch[1].trim());
-              if (cssMatch) onProjectUpdate(projectId, 'css', cssMatch[1].trim());
-              if (jsMatch) onProjectUpdate(projectId, 'js', jsMatch[1].trim());
             }
           }
-
-          // Update progress based on content length and switch file tabs automatically
-          if (projectType === 'html') {
-            if (fullCode.length > 500 && currentPhase === 'html') {
-              setCurrentPhase('css');
-              setProgress('Generating CSS...');
-              onSwitchCodeTab?.('css');
-            } else if (fullCode.length > 1500 && currentPhase === 'css') {
-              setCurrentPhase('js');
-              setProgress('Generating JavaScript...');
-              onSwitchCodeTab?.('js');
-            }
-          } else if (projectType === 'hubspot') {
-            if (fullCode.length > 500 && currentPhase === 'html') {
-              setCurrentPhase('hubl');
-              setProgress('Generating HubL...');
-              onSwitchCodeTab?.('html'); // HubL content shows in html tab for HubSpot
-            }
-          }
-          // For Elementor, keep showing PHP generation
         }
 
         // Extract usage metadata if present

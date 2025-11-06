@@ -401,7 +401,15 @@ export async function POST(req: Request) {
           let styleKit = JSON.parse(JSON.stringify(defaultTemplate));
 
           // Determine which stages to run
-          const stagesToRun = stage ? [stage] : [1, 2, 3, 4];
+          // Special case: Stage 2 (Typography System) should also run Stage 3 (Headings) since they're grouped in UI
+          let stagesToRun: number[];
+          if (stage === 2) {
+            stagesToRun = [2, 3]; // Run both system typography AND headings
+          } else if (stage) {
+            stagesToRun = [stage];
+          } else {
+            stagesToRun = [1, 2, 3, 4]; // Full generation
+          }
 
           let stage1Data: any = null;
           let stage2Data: any = null;

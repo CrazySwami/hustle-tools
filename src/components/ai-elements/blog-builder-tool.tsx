@@ -1043,6 +1043,13 @@ Instructions:
   }
 
   const runStep = async (stepId: string) => {
+    // Get the step configuration
+    const currentStep = steps.find(s => s.id === stepId);
+    if (!currentStep) {
+      console.error(`Step ${stepId} not found`);
+      return;
+    }
+
     setSteps(steps.map((step) => (step.id === stepId ? { ...step, status: "running", expanded: true } : step)))
 
     try {
@@ -1070,7 +1077,13 @@ Instructions:
             clientBio: selectedClient?.bio,
             currentUrl: contentForm.currentUrl,
             businessName: selectedClient?.name,
-            model: globalModel
+            model: currentStep.model || globalModel,
+            prompt: currentStep.prompt,
+            temperature: currentStep.temperature,
+            maxTokens: currentStep.maxTokens,
+            enableTools: currentStep.enableTools,
+            responseType: currentStep.responseType || 'text',
+            jsonSchema: currentStep.jsonSchema
           })
         });
 
@@ -1104,7 +1117,13 @@ Instructions:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contentForm,
-            model: researchModel
+            model: currentStep.model || researchModel,
+            prompt: currentStep.prompt,
+            temperature: currentStep.temperature,
+            maxTokens: currentStep.maxTokens,
+            enableTools: currentStep.enableTools,
+            responseType: currentStep.responseType || 'text',
+            jsonSchema: currentStep.jsonSchema
           })
         });
 
@@ -1130,7 +1149,13 @@ Instructions:
           body: JSON.stringify({
             contentForm,
             research: researchResponse,
-            model: globalModel
+            model: currentStep.model || globalModel,
+            prompt: currentStep.prompt,
+            temperature: currentStep.temperature,
+            maxTokens: currentStep.maxTokens,
+            enableTools: currentStep.enableTools,
+            responseType: currentStep.responseType || 'text',
+            jsonSchema: currentStep.jsonSchema
           })
         });
 
@@ -1174,7 +1199,13 @@ Instructions:
             contentForm,
             research: researchResponse,
             outline: outline.map((item) => `${"  ".repeat(item.level - 2)}${"#".repeat(item.level)} ${item.text}`).join("\n"),
-            model: globalModel
+            model: currentStep.model || globalModel,
+            prompt: currentStep.prompt,
+            temperature: currentStep.temperature,
+            maxTokens: currentStep.maxTokens,
+            enableTools: currentStep.enableTools,
+            responseType: currentStep.responseType || 'text',
+            jsonSchema: currentStep.jsonSchema
           })
         });
 
@@ -1216,7 +1247,13 @@ Instructions:
             topic: reviewTopic,
             keyword: reviewKeyword,
             additionalCriteria: additionalCheckCriteria,
-            model: globalModel
+            model: currentStep.model || globalModel,
+            prompt: currentStep.prompt,
+            temperature: currentStep.temperature,
+            maxTokens: currentStep.maxTokens,
+            enableTools: currentStep.enableTools,
+            responseType: currentStep.responseType || 'text',
+            jsonSchema: currentStep.jsonSchema
           })
         });
 
@@ -2475,6 +2512,72 @@ Provide a detailed review with specific feedback and suggested edits.`
                   Enable Tool Calling
                   <span className="text-xs text-gray-500 ml-1">(web search, calculations, etc.)</span>
                 </label>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Response Type</label>
+                <div className="flex gap-4 mb-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="response-type"
+                      value="text"
+                      checked={(configuringStep.responseType || 'text') === 'text'}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          const updatedSteps = steps.map(s =>
+                            s.id === configuringStep.id ? { ...s, responseType: 'text', jsonSchema: undefined } : s
+                          )
+                          setSteps(updatedSteps)
+                          setConfiguringStep({ ...configuringStep, responseType: 'text', jsonSchema: undefined })
+                        }
+                      }}
+                    />
+                    <span className="text-sm">Text Response</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="response-type"
+                      value="structured"
+                      checked={configuringStep.responseType === 'structured'}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          const updatedSteps = steps.map(s =>
+                            s.id === configuringStep.id ? { ...s, responseType: 'structured' } : s
+                          )
+                          setSteps(updatedSteps)
+                          setConfiguringStep({ ...configuringStep, responseType: 'structured' })
+                        }
+                      }}
+                    />
+                    <span className="text-sm">Structured JSON</span>
+                  </label>
+                </div>
+
+                {configuringStep.responseType === 'structured' && (
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      JSON Schema
+                      <span className="text-xs text-gray-500 ml-1">(defines the structure of the JSON response)</span>
+                    </label>
+                    <Textarea
+                      rows={8}
+                      placeholder={`Example schema:\n{\n  "type": "object",\n  "properties": {\n    "title": { "type": "string" },\n    "sections": {\n      "type": "array",\n      "items": { "type": "string" }\n    }\n  },\n  "required": ["title", "sections"]\n}`}
+                      defaultValue={configuringStep.jsonSchema || ''}
+                      className="font-mono text-xs"
+                      onChange={(e) => {
+                        const updatedSteps = steps.map(s =>
+                          s.id === configuringStep.id ? { ...s, jsonSchema: e.target.value } : s
+                        )
+                        setSteps(updatedSteps)
+                      }}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Enter a JSON Schema that defines the structure of the expected JSON response
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -4094,7 +4197,7 @@ Replace the placeholder values with actual client information and format it as v
                                               <div className="text-xs text-green-700 truncate mt-0.5">
                                                 {citation.url}
                                               </div>
-                                              <div className="text-xs text-gray-600 mt-2 leading-relaxed">
+                                              <div className="text-xs text-gray-600 mt-2 leading-relaxed whitespace-pre-line">
                                                 {citation.snippet}
                                               </div>
                                             </div>

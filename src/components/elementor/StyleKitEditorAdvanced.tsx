@@ -48,7 +48,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   const [generationProgress, setGenerationProgress] = useState('');
   const [preSelectedStage, setPreSelectedStage] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
   const [currentGeneratingStage, setCurrentGeneratingStage] = useState<1 | 2 | 3 | 4 | null>(null);
-  const [collapsedStages, setCollapsedStages] = useState<Record<number, boolean>>({1: false, 2: false, 4: false});
+  const [collapsedStages, setCollapsedStages] = useState<Record<number, boolean>>({1: false, 2: false, 4: false, 5: false});
   const toggleStage = (s: number) => setCollapsedStages(prev => ({...prev, [s]: !prev[s]}));
 
   // Debug modal state
@@ -2644,24 +2644,32 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
               overflowY: 'auto',
               padding: '16px',
             }}>
-                {/* Colors Section */}
-                <div ref={colorsRef} style={{ marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Colors</h3>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                {/* ===== STAGE 1: COLORS ===== */}
+                <div style={{ marginBottom: '48px', padding: '24px', backgroundColor: 'var(--muted)/10', border: '3px solid var(--primary)', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(1)}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        🎨 Stage 1: Colors {collapsedStages[1] ? "▶" : "▼"}
+                      </h2>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                        System colors and custom color palette
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => viewSectionData('colors')}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                          padding: '8px 16px',
+                          fontSize: '13px',
                           backgroundColor: 'var(--muted)',
                           color: 'var(--foreground)',
                           border: '1px solid var(--border)',
-                          borderRadius: '4px',
+                          borderRadius: '6px',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          fontWeight: 500,
                         }}
                       >
                         🔍 View Data
@@ -2670,24 +2678,30 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                         onClick={() => openDialogForStage(1)}
                         disabled={isGenerating}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
+                          padding: '8px 20px',
+                          fontSize: '13px',
+                          fontWeight: 600,
                           backgroundColor: currentGeneratingStage === 1 ? 'var(--primary)' : 'var(--accent)',
                           color: currentGeneratingStage === 1 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
                           border: 'none',
-                          borderRadius: '4px',
+                          borderRadius: '6px',
                           cursor: isGenerating ? 'not-allowed' : 'pointer',
                           opacity: isGenerating && currentGeneratingStage !== 1 ? 0.5 : 1,
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
                         }}
                       >
-                        {currentGeneratingStage === 1 ? '⏳' : '🔄'} Regenerate
+                        {currentGeneratingStage === 1 ? '⏳ Generating...' : '✨ Regenerate Colors'}
                       </button>
                     </div>
                   </div>
+
+                  {!collapsedStages[1] && (
+                  <div ref={colorsRef}>
                   {renderGlobalColors()}
+                  </div>
+                  )}
                 </div>
 
                 {/* ===== STAGE 2: TYPOGRAPHY ===== */}
@@ -2784,7 +2798,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                         Button styles, form fields, and interactive element configurations
                       </p>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => viewSectionData('components')}
                         style={{

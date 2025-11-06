@@ -498,14 +498,13 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
       // Ensure panel is open for tool actions
       window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'tools', open: true } }));
 
-      // Map display names to tool IDs
+      // Map display names to tool IDs (removed TOC - now a main tab)
       const toolMap: Record<string, string> = {
         'Text Statistics': 'stats',
         'Find Text': 'find',
         'Readability': 'readability',
         'Document Outline': 'headings',
         'Find & Replace': 'replace',
-        'Table of Contents': 'toc',
         'Find Duplicates': 'duplicates',
       };
 
@@ -515,9 +514,21 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
       }
       return;
     }
+
+    // TOC tab actions
+    if (tabId === 'toc') {
+      // Handle Open/Close
+      if (item === 'Open') {
+        window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'toc', open: true } }));
+        return;
+      } else if (item === 'Close') {
+        window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'toc', open: false } }));
+        return;
+      }
+    }
   };
 
-  // Handle tab change - toggle panels for Comments and Tools
+  // Handle tab change - toggle panels for Comments, Tools, and TOC
   const handleTabChange = (tabId: string) => {
     if (tabId === 'documents') {
       // Toggle documents sidebar
@@ -528,6 +539,9 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
     } else if (tabId === 'tools') {
       // Open tools panel (or close if already open)
       window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'tools', open: true } }));
+    } else if (tabId === 'toc') {
+      // Open TOC panel (or close if already open)
+      window.dispatchEvent(new CustomEvent('doc-set-panel', { detail: { tab: 'toc', open: true } }));
     }
   };
 
@@ -559,7 +573,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
     }
   };
 
-  // Navigation tabs configuration - Options, Documents, Comments, Tools as separate tabs
+  // Navigation tabs configuration - Options, Documents, Comments, Tools, TOC as separate tabs
   const navigationTabs: any[] = [
     {
       id: 'options',
@@ -599,8 +613,15 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
         'Readability',
         'Document Outline',
         'Find & Replace',
-        'Table of Contents',
         'Find Duplicates'
+      ],
+    },
+    {
+      id: 'toc',
+      label: 'TOC',
+      icon: null,
+      dropdownItems: [
+        (isPanelOpen && panelTab === 'toc') ? 'Close' : 'Open',
       ],
     }
   ];

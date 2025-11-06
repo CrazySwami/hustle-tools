@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { X, MessageSquare, Wrench, ArrowLeft, FileText, Search, BookOpen, List, Replace, BookMarked, Copy as CopyIcon } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, MessageSquare, Wrench, ArrowLeft, FileText, Search, BookOpen, List, Replace, BookMarked, Copy as CopyIcon, ChevronRight, ChevronDown, BookText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import CommentsPanel, { CommentTabType } from './CommentsPanel'
 import { Comment } from './CommentExtension'
@@ -18,6 +18,15 @@ import { FindReplaceWidget } from '@/components/tool-ui/find-replace-widget'
 import { TOCWidget } from '@/components/tool-ui/toc-widget'
 import { DuplicatesWidget } from '@/components/tool-ui/duplicates-widget'
 
+// TableOfContents types
+interface HeadingNode {
+  id: string;
+  level: number;
+  text: string;
+  position: number;
+  children: HeadingNode[];
+}
+
 interface TabbedSidePanelProps {
   // Comments props
   comments: Comment[]
@@ -30,8 +39,8 @@ interface TabbedSidePanelProps {
   // Panel state
   isOpen: boolean
   onToggle: () => void
-  activeTab?: 'comments' | 'tools'
-  onTabChange?: (tab: 'comments' | 'tools') => void
+  activeTab?: 'comments' | 'tools' | 'toc'
+  onTabChange?: (tab: 'comments' | 'tools' | 'toc') => void
 
   // Tool state
   activeTool?: ActiveTool
@@ -68,8 +77,13 @@ export function TabbedSidePanel({
   onDocumentSelect,
   editor,
 }: TabbedSidePanelProps) {
-  const [internalTab, setInternalTab] = useState<'comments' | 'tools'>('comments')
+  const [internalTab, setInternalTab] = useState<'comments' | 'tools' | 'toc'>('comments')
   const [internalTool, setInternalTool] = useState<ActiveTool>(null)
+
+  // TableOfContents state
+  const [headings, setHeadings] = useState<HeadingNode[]>([]);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
 
   // Use controlled tool if provided, otherwise use internal state
   const activeTool = controlledTool !== undefined ? controlledTool : internalTool
@@ -148,43 +162,242 @@ export function TabbedSidePanel({
     setActiveTool(null)
   }
 
+  // Extract headings for TOC tab
+  useEffect(() => {
+    if (!editor || activeTab !== 'toc') return;
+
+    const extractHeadings = () => {
+      const headingsList: Array<{ level: number; text: string; position: number; id: string }> = [];
+
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "heading") {
+          const level = node.attrs.level;
+
+          // Skip H1 headings
+          if (level === 1) return;
+
+          const text = node.textContent;
+          // Generate stable ID from position and text
+          const id = `heading-${pos}-${text.slice(0, 20).replace(/\s+/g, "-")}`;
+
+          headingsList.push({ level, text, position: pos, id });
+
+          // Add ID to the node if it doesn't have one
+          if (!node.attrs.id) {
+            editor.commands.setNodeSelection(pos);
+            editor.commands.updateAttributes("heading", { id });
+          }
+        }
+      });
+
+      // Build hierarchical structure
+      const buildHierarchy = (items: typeof headingsList): HeadingNode[] => {
+        const root: HeadingNode[] = [];
+        const stack: HeadingNode[] = [];
+
+        items.forEach((item) => {
+          const node: HeadingNode = { ...item, children: [] };
+
+          // Find parent in stack
+          while (stack.length > 0 && stack[stack.length - 1].level >= node.level) {
+            stack.pop();
+          }
+
+          if (stack.length === 0) {
+            root.push(node);
+          } else {
+            stack[stack.length - 1].children.push(node);
+          }
+
+          stack.push(node);
+        });
+
+        return root;
+      };
+
+      setHeadings(buildHierarchy(headingsList));
+
+      // Auto-expand all nodes initially
+      const allIds = new Set(headingsList.map(h => h.id));
+      setExpandedIds(allIds);
+    };
+
+    extractHeadings();
+
+    // Update on every transaction
+    const updateListener = () => extractHeadings();
+    editor.on("update", updateListener);
+
+    return () => {
+      editor.off("update", updateListener);
+    };
+  }, [editor, activeTab]);
+
+  // TOC: Scroll to heading when clicked
+  const scrollToHeading = (position: number, id: string) => {
+    if (!editor) return;
+
+    editor.commands.focus();
+    editor.commands.setTextSelection(position);
+
+    const element = document.querySelector(`[id="${id}"]`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      setActiveHeadingId(id);
+    }
+  };
+
+  // TOC: Toggle expand/collapse
+  const toggleExpand = (id: string) => {
+    const newExpanded = new Set(expandedIds);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedIds(newExpanded);
+  };
+
+  // TOC: Count total headings
+  const countTotalHeadings = (headingNodes: HeadingNode[]): number => {
+    let count = 0;
+    const countRecursive = (nodes: HeadingNode[]) => {
+      nodes.forEach((node) => {
+        count++;
+        if (node.children.length > 0) {
+          countRecursive(node.children);
+        }
+      });
+    };
+    countRecursive(headingNodes);
+    return count;
+  };
+
+  // TOC: Render heading tree recursively
+  const renderHeadingNode = (node: HeadingNode, depth: number = 0) => {
+    const hasChildren = node.children.length > 0;
+    const isExpanded = expandedIds.has(node.id);
+    const isActive = activeHeadingId === node.id;
+
+    return (
+      <div key={node.id} style={{ marginLeft: `${depth * 16}px` }}>
+        <div
+          className={cn(
+            "group flex items-center gap-2 py-2 px-3 rounded-md cursor-pointer hover:bg-muted transition-colors",
+            isActive && "bg-primary/10 text-primary font-semibold"
+          )}
+          onClick={() => scrollToHeading(node.position, node.id)}
+        >
+          {/* Expand/Collapse Icon */}
+          {hasChildren && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpand(node.id);
+              }}
+              className="p-1 hover:bg-muted-foreground/10 rounded flex-shrink-0"
+            >
+              {isExpanded ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronRight className="w-4 h-4" />
+              )}
+            </button>
+          )}
+
+          {/* Heading Text */}
+          <span
+            className="flex-1 truncate"
+            style={{
+              fontSize: node.level === 1 ? "16px" : node.level === 2 ? "15px" : "14px",
+              fontWeight: node.level === 1 ? 700 : node.level === 2 ? 600 : 500,
+              paddingLeft: hasChildren ? 0 : "24px",
+            }}
+          >
+            {node.text || "(Empty heading)"}
+          </span>
+        </div>
+
+        {/* Render children if expanded */}
+        {hasChildren && isExpanded && (
+          <div className="mt-1">
+            {node.children.map((child) => renderHeadingNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div
       className={cn(
-        "fixed bg-background border border-border flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
-        // Mobile: full width, no margins, square corners
-        "top-0 right-0 bottom-0 left-0 w-full rounded-none",
-        // Desktop: right margin, fixed width, rounded corners (overrides mobile)
-        "md:top-2 md:right-2 md:bottom-2 md:left-auto md:rounded-lg md:w-80",
-        // Conditionally apply shadow only when open
-        isOpen ? "translate-x-0 shadow-lg" : "translate-x-full shadow-none"
+        "bg-background border border-border flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
+        // Mobile: below toolbar, full width, no transform (always visible when open)
+        "fixed top-[60px] left-0 right-0 bottom-0 w-full rounded-none",
+        // Desktop: fixed right side, slide in/out
+        "md:fixed md:top-2 md:right-2 md:bottom-2 md:left-auto md:rounded-lg md:w-80",
+        // Desktop slide animation (mobile doesn't slide, just shows/hides)
+        isOpen
+          ? "shadow-lg md:translate-x-0"
+          : "hidden md:block md:translate-x-full md:shadow-none"
       )}
       style={{ zIndex: 50 }}
     >
-      {/* Header - no tabs, just title and close button */}
+      {/* Header with Tab Buttons */}
       <div className="flex-shrink-0 border-b">
-        <div className="flex items-center justify-between p-3">
-          <div className="flex items-center gap-2">
-            {activeTab === 'comments' ? (
-              <>
-                <MessageSquare className="h-4 w-4" />
-                <span className="text-sm font-semibold">Comments</span>
-                {comments.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded-full">
-                    {comments.length}
-                  </span>
-                )}
-              </>
-            ) : (
-              <>
-                <Wrench className="h-4 w-4" />
-                <span className="text-sm font-semibold">Tools</span>
-              </>
-            )}
+        <div className="flex items-center justify-between p-2">
+          {/* Tab Buttons */}
+          <div className="flex items-center gap-1 flex-1">
+            <button
+              onClick={() => setActiveTab('comments')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+                activeTab === 'comments'
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-muted-foreground"
+              )}
+              title="Comments"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>Comments</span>
+              {comments.length > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.5 text-xs bg-primary-foreground/20 rounded-full">
+                  {comments.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('tools')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+                activeTab === 'tools'
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-muted-foreground"
+              )}
+              title="Tools"
+            >
+              <Wrench className="h-3.5 w-3.5" />
+              <span>Tools</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('toc')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+                activeTab === 'toc'
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-muted-foreground"
+              )}
+              title="Table of Contents"
+            >
+              <BookText className="h-3.5 w-3.5" />
+              <span>TOC</span>
+            </button>
           </div>
+
+          {/* Close Button */}
           <button
             onClick={onToggle}
-            className="p-1.5 rounded-md hover:bg-muted transition-colors"
+            className="p-1.5 rounded-md hover:bg-muted transition-colors flex-shrink-0"
             title="Close panel"
           >
             <X className="h-4 w-4" />
@@ -368,6 +581,35 @@ export function TabbedSidePanel({
                 </div>
               </div>
             )}
+          </div>
+        )}
+        {activeTab === 'toc' && (
+          <div className="h-full flex flex-col overflow-hidden">
+            {/* TOC Header */}
+            <div className="p-4 border-b">
+              <h3 className="text-sm font-semibold">Table of Contents</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                {headings.length === 0 ? "No headings yet" : `${countTotalHeadings(headings)} headings`}
+              </p>
+            </div>
+
+            {/* TOC List */}
+            <div className="flex-1 overflow-y-auto p-3">
+              {headings.length === 0 ? (
+                <div className="text-center text-muted-foreground text-sm py-12 px-4">
+                  Add headings to your document to see the outline here.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {headings.map((heading) => renderHeadingNode(heading))}
+                </div>
+              )}
+            </div>
+
+            {/* TOC Footer */}
+            <div className="p-3 border-t text-xs text-muted-foreground text-center">
+              Click any heading to jump to it
+            </div>
           </div>
         )}
       </div>

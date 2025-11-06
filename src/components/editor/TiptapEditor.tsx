@@ -87,7 +87,6 @@ import '@/styles/comments.css'
 import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import { TableOfContents } from './TableOfContents'
 import { MultiPageRenderer } from './MultiPageRenderer'
 import { ExportModal } from './ExportModal'
 
@@ -895,7 +894,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     localStorage.setItem('tiptap-comments', JSON.stringify(comments));
   }, [comments, onCommentsChange]);
   const [isCommentsPanelOpen, setIsCommentsPanelOpen] = useState(false)
-  const [panelTab, setPanelTab] = useState<'comments' | 'tools'>('comments')
+  const [panelTab, setPanelTab] = useState<'comments' | 'tools' | 'toc'>('comments')
   const [activeTool, setActiveTool] = useState<'stats' | 'find' | 'readability' | 'headings' | 'replace' | 'toc' | 'duplicates' | null>(null)
   const [activeCommentTab, setActiveCommentTab] = useState<'active' | 'resolved'>('active')
   const [showAddCommentForm, setShowAddCommentForm] = useState(false)
@@ -904,7 +903,6 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   const [showAIMenu, setShowAIMenu] = useState(false)
   const [isInlineProcessing, setIsInlineProcessing] = useState(false)
   const [isDocumentsPanelOpen, setIsDocumentsPanelOpen] = useState(false)
-  const [isTocOpen, setIsTocOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
   // Get document content store for animations
@@ -1099,6 +1097,15 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
           // Otherwise open tools panel (replacing comments if needed)
           setIsCommentsPanelOpen(true);
           setPanelTab('tools');
+        }
+      } else if (tab === 'toc') {
+        // If already on TOC and panel is open, toggle it off
+        if (panelTab === 'toc' && isCommentsPanelOpen && !open) {
+          setIsCommentsPanelOpen(false);
+        } else {
+          // Otherwise open TOC panel
+          setIsCommentsPanelOpen(true);
+          setPanelTab('toc');
         }
       }
     };
@@ -1864,8 +1871,17 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               </MenuButton>
 
               <MenuButton
-                onClick={() => setIsTocOpen(!isTocOpen)}
-                isActive={isTocOpen}
+                onClick={() => {
+                  if (isCommentsPanelOpen && panelTab !== 'toc') {
+                    setPanelTab('toc')
+                  } else {
+                    setIsCommentsPanelOpen(!isCommentsPanelOpen)
+                    if (!isCommentsPanelOpen) {
+                      setPanelTab('toc')
+                    }
+                  }
+                }}
+                isActive={isCommentsPanelOpen && panelTab === 'toc'}
                 title="Table of Contents"
               >
                 <BookMarked className="h-4 w-4" />
@@ -2222,13 +2238,6 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
           </div>
         </div>
       )}
-
-      {/* Table of Contents Panel */}
-      <TableOfContents
-        editor={editor}
-        isOpen={isTocOpen}
-        onToggle={() => setIsTocOpen(!isTocOpen)}
-      />
 
       {/* Export Modal */}
       <ExportModal

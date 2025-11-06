@@ -23,6 +23,9 @@ export function UnifiedPanel({ type, onClose, position, children }: UnifiedPanel
       className={cn(
         "bg-[#FAFAFA] dark:bg-[#2C2C2C] border flex flex-col rounded-lg",
         "transition-all duration-300 ease-in-out",
+        // Slide-in animation from the side
+        "animate-in fade-in",
+        position === 'left' ? 'slide-in-from-left-5' : 'slide-in-from-right-5',
         // Mobile: full width and full height
         "w-full h-full",
         // Desktop: sticky with reduced max-height, fixed width based on collapsed state

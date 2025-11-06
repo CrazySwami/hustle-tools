@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useRef } from "react"
+import { TwoPanelChatLayout } from '@/components/layouts/TwoPanelChatLayout'
+import { NavigationBar, type TabItem } from '@/components/ai-elements/inner-navigation-bar'
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,6 +42,12 @@ import {
   Search,
   Lightbulb,
   RotateCcw,
+  Database,
+  Settings,
+  Download,
+  FolderOpen,
+  Code,
+  MessageSquare,
 } from "lucide-react"
 
 type StepStatus = "pending" | "running" | "complete" | "error"
@@ -49,6 +57,30 @@ interface Step {
   title: string
   status: StepStatus
   expanded: boolean
+  // Enhanced step configuration
+  model?: string
+  prompt?: string
+  temperature?: number
+  maxTokens?: number
+  enableTools?: boolean
+  position: number
+  isCustom?: boolean // True for user-added steps
+}
+
+interface CustomVariable {
+  id: string
+  name: string // Display name
+  tag: string // The {TAG} used in prompts
+  content: string
+  createdAt: string
+}
+
+interface PromptTemplate {
+  id: string
+  name: string
+  description: string
+  prompt: string
+  category: string
 }
 
 interface Client {
@@ -365,13 +397,29 @@ export function BlogBuilderTool() {
   const [currentStepForPrompt, setCurrentStepForPrompt] = useState("")
 
   const [steps, setSteps] = useState<Step[]>([
-    { id: "order-form", title: "Generate Content Order Form", status: "pending", expanded: true },
-    { id: "research", title: "Research (Perplexity)", status: "pending", expanded: false },
-    { id: "outline", title: "Generate Outline", status: "pending", expanded: false },
-    { id: "content", title: "Generate Full Content", status: "pending", expanded: false },
-    { id: "analysis", title: "Programmatic Analysis", status: "pending", expanded: false },
-    { id: "review", title: "Content Review & Check", status: "pending", expanded: false },
+    { id: "order-form", title: "Generate Content Order Form", status: "pending", expanded: true, position: 0 },
+    { id: "research", title: "Research (Perplexity)", status: "pending", expanded: false, position: 1 },
+    { id: "outline", title: "Generate Outline", status: "pending", expanded: false, position: 2 },
+    { id: "content", title: "Generate Full Content", status: "pending", expanded: false, position: 3 },
+    { id: "analysis", title: "Programmatic Analysis", status: "pending", expanded: false, position: 4 },
+    { id: "review", title: "Content Review & Check", status: "pending", expanded: false, position: 5 },
   ])
+
+  // Variable Bank state
+  const [customVariables, setCustomVariables] = useState<CustomVariable[]>([])
+  const [showVariableBank, setShowVariableBank] = useState(false)
+  const [editingVariable, setEditingVariable] = useState<CustomVariable | null>(null)
+
+  // Prompt Templates state
+  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([])
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false)
+
+  // Step configuration modal
+  const [configuringStep, setConfiguringStep] = useState<Step | null>(null)
+  const [showStepConfig, setShowStepConfig] = useState(false)
+
+  // Client importer
+  const [showClientImporter, setShowClientImporter] = useState(false)
 
   const [contentForm, setContentForm] = useState<ContentOrderForm>({
     currentUrl: "",
@@ -506,6 +554,11 @@ If you're ready to explore counseling services, reach out to schedule a consulta
   // Variable viewer state
   const [viewingVariable, setViewingVariable] = useState<{ tag: string; content: string } | null>(null)
 
+  // Two-panel layout state
+  const [activeNavTab, setActiveNavTab] = useState('workflow')
+  const [isMobile, setIsMobile] = useState(false)
+  const leftPanelRef = useRef<HTMLDivElement>(null)
+
   // Helper functions for parsing AI-generated form text
   const extractField = (text: string, fieldName: string): string => {
     const regex = new RegExp(`${fieldName}:?\\s*(.+?)(?:\\n|$)`, 'i')
@@ -636,8 +689,336 @@ If you're ready to explore counseling services, reach out to schedule a consulta
       case '{{KEYWORD_FREQUENCY}}':
         return analysisResults?.keywordFrequency?.toString() || '0'
       default:
-        return ''
+        // Check custom variables
+        const customVar = customVariables.find(v => `{${v.tag}}` === tag || `{{${v.tag}}}` === tag)
+        return customVar?.content || ''
     }
+  }
+
+  // Variable replacement engine - replaces all {VARIABLE} tags in prompt
+  const replaceVariablesInPrompt = (prompt: string): string => {
+    let replaced = prompt
+
+    // Replace built-in variables
+    const builtInVars: Record<string, string> = {
+      'BUSINESS_NAME': contentForm.businessName,
+      'NICHE': contentForm.niche,
+      'TARGET_AUDIENCE': contentForm.targetAudience,
+      'KEYWORDS': contentForm.keywords?.join(', ') || '',
+      'INTENDED_RESULT': contentForm.intendedResult,
+      'GEO_LOCATIONS': contentForm.geoLocations,
+      'RESEARCH': researchResponse || '',
+      'OUTLINE': outline.map(item => `${"  ".repeat(item.level - 2)}${"#".repeat(item.level)} ${item.text}`).join("\n"),
+      'CONTENT': generatedContent || '',
+      'WORD_COUNT': analysisResults?.wordCount?.toString() || '0',
+      'READABILITY_SCORE': analysisResults?.readabilityScore?.toString() || '0',
+      'KEYWORD_FREQUENCY': analysisResults?.keywordFrequency?.toString() || '0',
+    }
+
+    // Replace built-in variables with both {{VAR}} and {VAR} syntax
+    Object.entries(builtInVars).forEach(([key, value]) => {
+      replaced = replaced.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value)
+      replaced = replaced.replace(new RegExp(`\\{${key}\\}`, 'g'), value)
+    })
+
+    // Replace custom variables
+    customVariables.forEach(variable => {
+      replaced = replaced.replace(new RegExp(`\\{\\{${variable.tag}\\}\\}`, 'g'), variable.content)
+      replaced = replaced.replace(new RegExp(`\\{${variable.tag}\\}`, 'g'), variable.content)
+    })
+
+    return replaced
+  }
+
+  // Custom Variable CRUD
+  const addCustomVariable = (name: string, tag: string, content: string) => {
+    const newVar: CustomVariable = {
+      id: Date.now().toString(),
+      name,
+      tag: tag.toUpperCase().replace(/[^A-Z0-9_]/g, '_'),
+      content,
+      createdAt: new Date().toISOString(),
+    }
+    setCustomVariables([...customVariables, newVar])
+  }
+
+  const updateCustomVariable = (id: string, updates: Partial<CustomVariable>) => {
+    setCustomVariables(customVariables.map(v => v.id === id ? { ...v, ...updates } : v))
+  }
+
+  const deleteCustomVariable = (id: string) => {
+    setCustomVariables(customVariables.filter(v => v.id !== id))
+  }
+
+  const copyVariableTag = (tag: string) => {
+    navigator.clipboard.writeText(`{${tag}}`)
+    alert(`Copied {${tag}} to clipboard!`)
+  }
+
+  // Step Management
+  const addCustomStep = (title: string, position: number) => {
+    const newStep: Step = {
+      id: `custom-${Date.now()}`,
+      title,
+      status: 'pending',
+      expanded: false,
+      position,
+      isCustom: true,
+      model: 'anthropic/claude-sonnet-4-20250514',
+      prompt: '',
+      temperature: 0.7,
+      maxTokens: 4000,
+      enableTools: false,
+    }
+
+    // Insert step at position and reorder
+    const updatedSteps = [...steps]
+    updatedSteps.splice(position, 0, newStep)
+    updatedSteps.forEach((step, index) => {
+      step.position = index
+    })
+
+    setSteps(updatedSteps)
+  }
+
+  const deleteStep = (stepId: string) => {
+    const updatedSteps = steps.filter(s => s.id !== stepId)
+    updatedSteps.forEach((step, index) => {
+      step.position = index
+    })
+    setSteps(updatedSteps)
+  }
+
+  const reorderSteps = (fromIndex: number, toIndex: number) => {
+    const updatedSteps = [...steps]
+    const [removed] = updatedSteps.splice(fromIndex, 1)
+    updatedSteps.splice(toIndex, 0, removed)
+    updatedSteps.forEach((step, index) => {
+      step.position = index
+    })
+    setSteps(updatedSteps)
+  }
+
+  const cloneStep = (stepId: string) => {
+    const step = steps.find(s => s.id === stepId)
+    if (!step) return
+
+    const clonedStep: Step = {
+      ...step,
+      id: `${step.id}-clone-${Date.now()}`,
+      title: `${step.title} (Copy)`,
+      status: 'pending',
+      position: step.position + 1,
+      isCustom: true,
+    }
+
+    const updatedSteps = [...steps]
+    updatedSteps.splice(step.position + 1, 0, clonedStep)
+    updatedSteps.forEach((step, index) => {
+      step.position = index
+    })
+    setSteps(updatedSteps)
+  }
+
+  // Parse Perplexity response into result and citations
+  const parsePerplexityResponse = (response: string): { result: string; citations: string } => {
+    // Perplexity typically includes citations as [1], [2], etc. and a sources section
+    const citationRegex = /\[(\d+)\]/g
+    const sourcesMatch = response.match(/Sources?:?\s*([\s\S]*?)$/i)
+
+    let result = response
+    let citations = ''
+
+    if (sourcesMatch) {
+      // Extract sources section
+      citations = sourcesMatch[1].trim()
+      // Remove sources section from result
+      result = response.substring(0, sourcesMatch.index).trim()
+    }
+
+    return { result, citations }
+  }
+
+  // Client Importer
+  const downloadClientTemplate = () => {
+    const templateJson = {
+      clients: [
+        {
+          id: "example-1",
+          name: "Example Business",
+          logo: "🏢",
+          url: "https://example.com",
+          bio: "A brief description of the business and what they do.",
+          thingsToAvoid: "Things to avoid in content (tone, topics, etc.)",
+          competitors: [
+            { name: "Competitor 1", url: "https://competitor1.com" },
+            { name: "Competitor 2", url: "https://competitor2.com" }
+          ],
+          ownUrls: [
+            { name: "About Page", url: "https://example.com/about" },
+            { name: "Services", url: "https://example.com/services" }
+          ],
+          locations: [
+            { title: "Main Office", address: "123 Main St, City, State 12345" }
+          ],
+          socialLinks: [
+            { label: "Facebook", url: "https://facebook.com/example" },
+            { label: "Twitter", url: "https://twitter.com/example" }
+          ],
+          defaultFormValues: {
+            currentUrl: "https://example.com",
+            businessName: "Example Business",
+            niche: "Industry/Niche",
+            intendedResult: "Goal of the content",
+            targetAudience: "Target audience description",
+            geoLocations: "Geographic locations to target",
+            keywords: ["keyword1", "keyword2", "keyword3"],
+            additionalInstructions: "Any additional instructions",
+            competitors: ["Competitor 1", "Competitor 2"],
+            includeKeyPoints: true,
+            contentPreference: "create"
+          }
+        }
+      ]
+    }
+
+    const blob = new Blob([JSON.stringify(templateJson, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'client-template.json'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadClientTemplateCSV = () => {
+    const csvTemplate = `name,logo,url,bio,thingsToAvoid,niche,targetAudience,geoLocations,keywords
+Example Business,🏢,https://example.com,"Brief business description","Things to avoid","Industry/Niche","Target audience","City, State","keyword1,keyword2,keyword3"
+
+Instructions:
+- Fill in each row with client information
+- Use quotes for fields containing commas
+- Multiple keywords should be comma-separated within quotes
+- After filling out, save as CSV and import`
+
+    const blob = new Blob([csvTemplate], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'client-template.csv'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const importClientsFromJSON = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string)
+        if (data.clients && Array.isArray(data.clients)) {
+          setClients([...clients, ...data.clients])
+          alert(`Successfully imported ${data.clients.length} client(s)!`)
+        } else {
+          alert('Invalid JSON format. Please use the template.')
+        }
+      } catch (error) {
+        alert('Error parsing JSON file. Please check the format.')
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const importClientsFromCSV = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string
+        const lines = text.split('\n').filter(line => line.trim() && !line.startsWith('Instructions'))
+        const headers = lines[0].split(',')
+
+        const newClients: Client[] = []
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',')
+          if (values.length >= 9) {
+            const client: Client = {
+              id: `imported-${Date.now()}-${i}`,
+              name: values[0].trim(),
+              logo: values[1].trim(),
+              url: values[2].trim(),
+              bio: values[3].replace(/"/g, '').trim(),
+              thingsToAvoid: values[4].replace(/"/g, '').trim(),
+              competitors: [],
+              ownUrls: [],
+              locations: [],
+              socialLinks: [],
+              defaultFormValues: {
+                currentUrl: values[2].trim(),
+                businessName: values[0].trim(),
+                niche: values[5].trim(),
+                intendedResult: '',
+                targetAudience: values[6].trim(),
+                geoLocations: values[7].trim(),
+                keywords: values[8].replace(/"/g, '').split(',').map(k => k.trim()),
+                additionalInstructions: '',
+                competitors: [],
+                includeKeyPoints: true,
+                contentPreference: 'create'
+              }
+            }
+            newClients.push(client)
+          }
+        }
+
+        setClients([...clients, ...newClients])
+        alert(`Successfully imported ${newClients.length} client(s)!`)
+      } catch (error) {
+        alert('Error parsing CSV file. Please check the format.')
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  // Export/Import Workflow
+  const exportWorkflow = () => {
+    const workflow = {
+      steps,
+      customVariables,
+      promptTemplates,
+      contentForm,
+      exportedAt: new Date().toISOString(),
+    }
+
+    const blob = new Blob([JSON.stringify(workflow, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `workflow-${Date.now()}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const importWorkflow = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const workflow = JSON.parse(e.target?.result as string)
+        if (workflow.steps) setSteps(workflow.steps)
+        if (workflow.customVariables) setCustomVariables(workflow.customVariables)
+        if (workflow.promptTemplates) setPromptTemplates(workflow.promptTemplates)
+        if (workflow.contentForm) setContentForm(workflow.contentForm)
+        alert('Workflow imported successfully!')
+      } catch (error) {
+        alert('Error importing workflow. Please check the file format.')
+      }
+    }
+    reader.readAsText(file)
   }
 
   const toggleStep = (stepId: string) => {
@@ -1610,11 +1991,441 @@ Provide a detailed review with specific feedback and suggested edits.`
   const stepIndexForReset = currentStepIndex === -1 ? steps.length : currentStepIndex
 
   return (
-    // Two-column layout: 35% left (client/steps) / 65% right (content)
+    <>
+      {/* Variable Bank Modal */}
+      {showVariableBank && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Database className="h-6 w-6 text-blue-600" />
+                <div>
+                  <h2 className="text-xl font-bold">Variable Bank</h2>
+                  <p className="text-sm text-gray-500">Manage custom variables for your prompts</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowVariableBank(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              {/* Add New Variable Form */}
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h3 className="font-semibold mb-3 text-sm">Add New Variable</h3>
+                <div className="space-y-3">
+                  <Input
+                    placeholder="Variable Name (e.g., Company Mission)"
+                    id="new-var-name"
+                    className="text-sm"
+                  />
+                  <Input
+                    placeholder="Tag (e.g., COMPANY_MISSION)"
+                    id="new-var-tag"
+                    className="text-sm font-mono"
+                  />
+                  <Textarea
+                    placeholder="Variable Content..."
+                    id="new-var-content"
+                    rows={3}
+                    className="text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const name = (document.getElementById('new-var-name') as HTMLInputElement).value
+                      const tag = (document.getElementById('new-var-tag') as HTMLInputElement).value
+                      const content = (document.getElementById('new-var-content') as HTMLTextAreaElement).value
+                      if (name && tag && content) {
+                        addCustomVariable(name, tag, content);
+                        (document.getElementById('new-var-name') as HTMLInputElement).value = '';
+                        (document.getElementById('new-var-tag') as HTMLInputElement).value = '';
+                        (document.getElementById('new-var-content') as HTMLTextAreaElement).value = ''
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Variable
+                  </Button>
+                </div>
+              </div>
+
+              {/* Variables List */}
+              <div className="space-y-2">
+                <h3 className="font-semibold mb-2 text-sm">Your Variables ({customVariables.length})</h3>
+                {customVariables.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No custom variables yet. Add one above!</p>
+                ) : (
+                  customVariables.map(variable => (
+                    <div key={variable.id} className="p-4 border rounded-lg bg-white hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h4 className="font-semibold text-sm">{variable.name}</h4>
+                          <code className="text-xs bg-gray-100 px-2 py-1 rounded text-blue-600 font-mono">
+                            {`{${variable.tag}}`}
+                          </code>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyVariableTag(variable.tag)}
+                            title="Copy tag"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingVariable(variable)}
+                            title="Edit"
+                          >
+                            <Edit2 className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              if (confirm('Delete this variable?')) deleteCustomVariable(variable.id)
+                            }}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3 w-3 text-red-600" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-600 line-clamp-2">{variable.content}</p>
+                      <p className="text-xs text-gray-400 mt-2">Created: {new Date(variable.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Edit Variable Modal */}
+            {editingVariable && (
+              <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+                  <h3 className="font-bold text-lg mb-4">Edit Variable</h3>
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="Variable Name"
+                      defaultValue={editingVariable.name}
+                      id="edit-var-name"
+                    />
+                    <Input
+                      placeholder="Tag"
+                      defaultValue={editingVariable.tag}
+                      id="edit-var-tag"
+                      className="font-mono"
+                    />
+                    <Textarea
+                      placeholder="Content"
+                      defaultValue={editingVariable.content}
+                      id="edit-var-content"
+                      rows={6}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => {
+                          const name = (document.getElementById('edit-var-name') as HTMLInputElement).value
+                          const tag = (document.getElementById('edit-var-tag') as HTMLInputElement).value
+                          const content = (document.getElementById('edit-var-content') as HTMLTextAreaElement).value
+                          updateCustomVariable(editingVariable.id, { name, tag, content })
+                          setEditingVariable(null)
+                        }}
+                      >
+                        Save Changes
+                      </Button>
+                      <Button variant="outline" onClick={() => setEditingVariable(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Step Configuration Modal */}
+      {showStepConfig && configuringStep && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Settings className="h-6 w-6 text-purple-600" />
+                <div>
+                  <h2 className="text-xl font-bold">Configure Step</h2>
+                  <p className="text-sm text-gray-500">{configuringStep.title}</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowStepConfig(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Step Title</label>
+                <Input
+                  defaultValue={configuringStep.title}
+                  onChange={(e) => {
+                    const updatedSteps = steps.map(s =>
+                      s.id === configuringStep.id ? { ...s, title: e.target.value } : s
+                    )
+                    setSteps(updatedSteps)
+                    setConfiguringStep({ ...configuringStep, title: e.target.value })
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Model</label>
+                <select
+                  className="w-full p-2 border rounded-lg text-sm"
+                  defaultValue={configuringStep.model || 'anthropic/claude-sonnet-4-20250514'}
+                  onChange={(e) => {
+                    const updatedSteps = steps.map(s =>
+                      s.id === configuringStep.id ? { ...s, model: e.target.value } : s
+                    )
+                    setSteps(updatedSteps)
+                  }}
+                >
+                  <optgroup label="Anthropic">
+                    <option value="anthropic/claude-opus-4-20250514">Claude Opus 4</option>
+                    <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                    <option value="anthropic/claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+                    <option value="anthropic/claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                  </optgroup>
+                  <optgroup label="OpenAI">
+                    <option value="openai/gpt-4.1">GPT-4.1</option>
+                    <option value="openai/gpt-4.1-mini">GPT-4.1 mini</option>
+                    <option value="openai/gpt-4o">GPT-4o</option>
+                    <option value="openai/o3">o3</option>
+                  </optgroup>
+                  <optgroup label="Perplexity">
+                    <option value="perplexity/sonar">Sonar</option>
+                    <option value="perplexity/sonar-pro">Sonar Pro</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Temperature</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    defaultValue={configuringStep.temperature || 0.7}
+                    onChange={(e) => {
+                      const updatedSteps = steps.map(s =>
+                        s.id === configuringStep.id ? { ...s, temperature: parseFloat(e.target.value) } : s
+                      )
+                      setSteps(updatedSteps)
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Max Tokens</label>
+                  <Input
+                    type="number"
+                    min="100"
+                    max="8000"
+                    step="100"
+                    defaultValue={configuringStep.maxTokens || 4000}
+                    onChange={(e) => {
+                      const updatedSteps = steps.map(s =>
+                        s.id === configuringStep.id ? { ...s, maxTokens: parseInt(e.target.value) } : s
+                      )
+                      setSteps(updatedSteps)
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Custom Prompt (leave empty to use default)</label>
+                <Textarea
+                  rows={10}
+                  placeholder="Enter custom prompt with {VARIABLES}..."
+                  defaultValue={configuringStep.prompt || ''}
+                  className="font-mono text-xs"
+                  onChange={(e) => {
+                    const updatedSteps = steps.map(s =>
+                      s.id === configuringStep.id ? { ...s, prompt: e.target.value } : s
+                    )
+                    setSteps(updatedSteps)
+                  }}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Available variables: {`{BUSINESS_NAME}, {NICHE}, {KEYWORDS}, {RESEARCH}, {OUTLINE}, {CONTENT}`}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="enable-tools"
+                  defaultChecked={configuringStep.enableTools !== false}
+                  onChange={(e) => {
+                    const updatedSteps = steps.map(s =>
+                      s.id === configuringStep.id ? { ...s, enableTools: e.target.checked } : s
+                    )
+                    setSteps(updatedSteps)
+                  }}
+                />
+                <label htmlFor="enable-tools" className="text-sm">Enable AI Tools</label>
+              </div>
+            </div>
+
+            <div className="p-6 border-t flex justify-end">
+              <Button onClick={() => setShowStepConfig(false)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Client Importer Modal */}
+      {showClientImporter && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Upload className="h-6 w-6 text-green-600" />
+                <div>
+                  <h2 className="text-xl font-bold">Import Clients</h2>
+                  <p className="text-sm text-gray-500">Upload JSON or CSV file</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowClientImporter(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h3 className="font-semibold text-sm mb-2">Step 1: Download Template</h3>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={downloadClientTemplate}>
+                    <Download className="h-4 w-4 mr-2" />
+                    JSON Template
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={downloadClientTemplateCSV}>
+                    <Download className="h-4 w-4 mr-2" />
+                    CSV Template
+                  </Button>
+                </div>
+              </div>
+
+              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                <h3 className="font-semibold text-sm mb-2">Step 2: Upload Filled Template</h3>
+                <input
+                  type="file"
+                  accept=".json,.csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      if (file.name.endsWith('.json')) {
+                        importClientsFromJSON(file)
+                      } else if (file.name.endsWith('.csv')) {
+                        importClientsFromCSV(file)
+                      }
+                      setShowClientImporter(false)
+                    }
+                  }}
+                  className="text-sm"
+                />
+              </div>
+
+              <div className="text-xs text-gray-600 space-y-1">
+                <p><strong>JSON Format:</strong> Complete client data with all fields</p>
+                <p><strong>CSV Format:</strong> Basic client info (name, logo, url, bio, niche, keywords, etc.)</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    {/* Main Layout */}
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="h-screen flex overflow-hidden">
-        {/* LEFT COLUMN - Client Selector & Steps (35%) */}
-        <div className="w-[35%] border-r border-gray-200 bg-white flex flex-col">
+      {/* Top Toolbar */}
+      <div className="bg-white border-b shadow-sm sticky top-0 z-40">
+        <div className="px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h1 className="text-lg font-bold text-gray-900">Blog Builder</h1>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowVariableBank(true)}
+                className="text-xs"
+              >
+                <Database className="h-3 w-3 mr-1.5" />
+                Variables ({customVariables.length})
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowClientImporter(true)}
+                className="text-xs"
+              >
+                <Upload className="h-3 w-3 mr-1.5" />
+                Import Clients
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={exportWorkflow}
+                className="text-xs"
+              >
+                <Download className="h-3 w-3 mr-1.5" />
+                Export Workflow
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const input = document.createElement('input')
+                  input.type = 'file'
+                  input.accept = '.json'
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0]
+                    if (file) importWorkflow(file)
+                  }
+                  input.click()
+                }}
+                className="text-xs"
+              >
+                <FolderOpen className="h-3 w-3 mr-1.5" />
+                Import Workflow
+              </Button>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => setBulkMode(!bulkMode)}
+              variant={bulkMode ? 'default' : 'outline'}
+              className="text-xs"
+            >
+              {bulkMode ? 'Exit Bulk Mode' : 'Bulk Mode'}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <TwoPanelChatLayout
+        defaultSplitPercent={35}
+        minLeftPercent={25}
+        maxLeftPercent={60}
+        leftPanel={
+          <div className="flex flex-col h-full overflow-hidden bg-white">
           <div className="p-6 space-y-4 overflow-y-auto flex-1">
             <div className="space-y-4 pb-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
@@ -2215,12 +3026,12 @@ Provide a detailed review with specific feedback and suggested edits.`
                 {/* Steps */}
                 <div className="space-y-3">
                   {steps.map((step, index) => (
-                    <div
-                      key={step.id}
-                      className={`border-l-4 ${getStatusColor(
-                        step.status,
-                      )} rounded-r-lg transition-all duration-500 hover:shadow-md`}
-                    >
+                    <React.Fragment key={step.id}>
+                      <div
+                        className={`border-l-4 ${getStatusColor(
+                          step.status,
+                        )} rounded-r-lg transition-all duration-500 hover:shadow-md`}
+                      >
                       {/* Step Header */}
                       <div
                         className={`flex items-center justify-between px-4 cursor-pointer hover:bg-gray-50/50 transition-all duration-300 ${
@@ -2242,27 +3053,77 @@ Provide a detailed review with specific feedback and suggested edits.`
                             {step.id === "review" && <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          {/* Configure Step Button */}
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 px-3 text-xs hover:bg-blue-50 text-blue-600 transition-all duration-200"
+                            className="h-7 w-7 p-0 hover:bg-purple-50 text-purple-600"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setConfiguringStep(step)
+                              setShowStepConfig(true)
+                            }}
+                            title="Configure step"
+                          >
+                            <Settings className="h-3 w-3" />
+                          </Button>
+
+                          {/* Clone Step Button */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 hover:bg-green-50 text-green-600"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              cloneStep(step.id)
+                            }}
+                            title="Clone step"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+
+                          {/* Delete Step Button (only for custom steps) */}
+                          {step.isCustom && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 hover:bg-red-50 text-red-600"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (confirm(`Delete step "${step.title}"?`)) {
+                                  deleteStep(step.id)
+                                }
+                              }}
+                              title="Delete step"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+
+                          {/* Prompt Editor Button */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs hover:bg-blue-50 text-blue-600"
                             onClick={(e) => {
                               e.stopPropagation()
                               viewPrompt(step.id)
                             }}
                           >
-                            <Edit2 className="h-3 w-3 mr-1" />
-                            Edit
+                            <MessageSquare className="h-3 w-3 mr-1" />
+                            Prompt
                           </Button>
+
+                          {/* Run Button */}
                           {step.status === "pending" && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 px-3 text-xs hover:bg-gray-100 transition-all duration-200 hover:scale-105"
+                              className="h-7 px-2 text-xs hover:bg-gray-100"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                runStepWrapper(step.id) // Use wrapper
+                                runStepWrapper(step.id)
                               }}
                               disabled={step.id === "order-form" && !selectedClient}
                             >
@@ -2270,10 +3131,12 @@ Provide a detailed review with specific feedback and suggested edits.`
                               Run
                             </Button>
                           )}
+
+                          {/* Expand/Collapse Icon */}
                           {step.expanded ? (
-                            <ChevronUp className="h-4 w-4 text-gray-500 transition-transform duration-300" />
+                            <ChevronUp className="h-4 w-4 text-gray-500 ml-1" />
                           ) : (
-                            <ChevronDown className="h-4 w-4 text-gray-500 transition-transform duration-300" />
+                            <ChevronDown className="h-4 w-4 text-gray-500 ml-1" />
                           )}
                         </div>
                       </div>
@@ -3263,6 +4126,7 @@ Provide a detailed review with specific feedback and suggested edits.`
                         </div>
                       )}
                     </div>
+                  </React.Fragment>
                   ))}
                 </div>
 
@@ -3286,10 +4150,11 @@ Provide a detailed review with specific feedback and suggested edits.`
               </div>
             )}
           </div>
-        </div>
-
-        {/* RIGHT COLUMN - Main Content Area (65%) */}
-        <div className="w-[65%] bg-gray-50 overflow-y-auto p-6">
+          </div>
+        }
+        rightPanel={
+          <div className="flex flex-col h-full overflow-hidden bg-gray-50">
+          <div className="overflow-y-auto p-6 flex-1">
           <div className="max-w-4xl">
             {!selectedClient ? (
               <div className="h-full flex items-center justify-center">
@@ -4267,5 +5132,6 @@ Provide a detailed review with specific feedback and suggested edits.`
         </div>
       )}
     </div>
+    </>
   )
 }

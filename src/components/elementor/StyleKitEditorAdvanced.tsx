@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { StyleKitGeneratorDialog } from './StyleKitGeneratorDialog';
 import defaultStyleKitTemplate from '@/lib/default-stylekit-template.json';
+import { Monitor, Tablet, Smartphone, Menu, RefreshCw, FileDown, FileUp, Download, Upload, Eye, EyeOff, Code, RotateCcw, PanelLeft, ChevronLeft, ChevronRight, Palette, Type as TypeIcon, Layers, Image as ImageIcon, Zap, Copy } from 'lucide-react';
+import { useGlobalStylesheet } from '@/lib/global-stylesheet-context';
+import { stylekitToCSS } from '@/lib/stylekit-to-css';
 
 type FieldStatus = 'missing' | 'default' | 'has-data';
 type EditorTab = 'global-colors' | 'global-typography' | 'theme-typography' | 'buttons' | 'forms' | 'images';
@@ -31,7 +34,16 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   const [deviceMode, setDeviceMode] = useState<DeviceMode>('desktop');
   const [isMobile, setIsMobile] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [showFileMenu, setShowFileMenu] = useState(false);
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { globalCss, setGlobalCss, pushToWordPress } = useGlobalStylesheet();
+  const [isPushingCss, setIsPushingCss] = useState(false);
+  const [isPushingStyleKit, setIsPushingStyleKit] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'split' | 'full'>('split');
+  const [secondaryPanel, setSecondaryPanel] = useState<'preview' | 'css'>('preview');
+  const [isCssAppliedToPreview, setIsCssAppliedToPreview] = useState(true);
 
   // Preview interaction states (must be at top level, not inside renderPreview)
   const [button1Hovered, setButton1Hovered] = useState(false);
@@ -46,9 +58,9 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState('');
-  const [preSelectedStage, setPreSelectedStage] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
-  const [currentGeneratingStage, setCurrentGeneratingStage] = useState<1 | 2 | 3 | 4 | null>(null);
-  const [collapsedStages, setCollapsedStages] = useState<Record<number, boolean>>({1: false, 2: false, 4: false, 5: false});
+  const [preSelectedStage, setPreSelectedStage] = useState<1 | 2 | 3 | 4 | 5 | 6 | undefined>(undefined);
+  const [currentGeneratingStage, setCurrentGeneratingStage] = useState<1 | 2 | 3 | 4 | 5 | 6 | null>(null);
+  const [collapsedStages, setCollapsedStages] = useState<Record<number, boolean>>({1: false, 2: false, 4: false, 5: false, 6: false});
   const toggleStage = (s: number) => setCollapsedStages(prev => ({...prev, [s]: !prev[s]}));
 
   // Debug modal state
@@ -64,6 +76,12 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  useEffect(() => {
+    if (!showPreview && previewMode !== 'split') {
+      setPreviewMode('split');
+    }
+  }, [showPreview, previewMode]);
+
   // Notify parent when kit changes
   useEffect(() => {
     if (onStyleKitChange) {
@@ -71,6 +89,22 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
       onStyleKitChange(kit); // Pass the full kit object, not just page_settings
     }
   }, [kit, onStyleKitChange]);
+
+  useEffect(() => {
+    try {
+      const baseStyleKit = {
+        ...(kit.page_settings || {}),
+        title: kit.title,
+        description: kit.description,
+      };
+      const generatedCss = stylekitToCSS(baseStyleKit);
+      if (generatedCss && generatedCss.trim().length > 0 && generatedCss !== globalCss) {
+        setGlobalCss(generatedCss);
+      }
+    } catch (error) {
+      console.error('Failed to generate CSS from style kit:', error);
+    }
+  }, [kit, globalCss, setGlobalCss]);
 
   // Helper functions
   const getFieldStatus = (value: any, defaultValue: any): FieldStatus => {
@@ -183,24 +217,199 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     }
   };
 
-  const openDialogForStage = (stage: 1 | 2 | 3 | 4) => {
+  const handleViewCSS = (mode: 'split' | 'full' = 'full') => {
+    if (!showPreview) {
+      setShowPreview(true);
+    }
+    setSecondaryPanel('css');
+    setPreviewMode(mode);
+    setShowToolsMenu(false);
+  };
+
+  const handleViewPreview = () => {
+    if (!showPreview) {
+      setShowPreview(true);
+    }
+    setSecondaryPanel('preview');
+    setPreviewMode('split');
+    setShowToolsMenu(false);
+  };
+
+  const handleCopyCss = async () => {
+    try {
+      const css = globalCss && globalCss.trim().length > 0
+        ? globalCss
+        : '/* No global CSS available. Generate or import CSS to preview it here. */';
+      await navigator.clipboard.writeText(css);
+      alert('CSS copied to clipboard');
+    } catch (error) {
+      console.error('Failed to copy CSS:', error);
+      alert('Failed to copy CSS');
+    }
+  };
+
+  const pushStyleKitToPlayground = async (styleKitData: any) => {
+    if (typeof window === 'undefined') {
+      throw new Error('Window object unavailable. Unable to access Elementor Playground.');
+    }
+
+    if ((window as any).setElementorStyleKit) {
+      await (window as any).setElementorStyleKit(styleKitData);
+      return;
+    }
+
+    // Fall back to custom event so legacy listeners (e.g. UnifiedStyleKitSidebar) can handle the push
+    console.warn('Elementor Playground API missing. Falling back to stylekit-push event.');
+    window.dispatchEvent(new CustomEvent('stylekit-push', { detail: styleKitData }));
+  };
+
+  const handlePushStyleKit = async () => {
+    try {
+      setIsPushingStyleKit(true);
+
+      const styleKitPayload = {
+        ...(kit.page_settings || {}),
+        title: kit.title,
+        description: kit.description,
+        content: kit.content || [],
+        type: kit.type || 'kit',
+        version: kit.version || '0.4',
+      };
+
+      await pushStyleKitToPlayground(styleKitPayload);
+      alert('Style Kit pushed to Elementor Playground');
+    } catch (error: any) {
+      console.error('Failed to push style kit:', error);
+      alert(error?.message || 'Failed to push style kit');
+    } finally {
+      setIsPushingStyleKit(false);
+      setShowToolsMenu(false);
+    }
+  };
+
+  const handlePushCss = async () => {
+    try {
+      setIsPushingCss(true);
+
+      const css = globalCss && globalCss.trim().length > 0
+        ? globalCss
+        : stylekitToCSS({
+            ...(kit.page_settings || {}),
+            title: kit.title,
+            description: kit.description,
+          });
+
+      if (css !== globalCss) {
+        setGlobalCss(css);
+      }
+
+      await pushToWordPress(css);
+      alert('CSS pushed to site (Appearance → Additional CSS) successfully');
+    } catch (error: any) {
+      console.error('Failed to push CSS:', error);
+      alert(`Failed to push CSS: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsPushingCss(false);
+      setShowToolsMenu(false);
+    }
+  };
+
+  const togglePreviewMode = () => {
+    if (!showPreview) return;
+    setPreviewMode(prev => prev === 'split' ? 'full' : 'split');
+    setShowToolsMenu(false);
+  };
+
+  const openDialogForStage = (stage: 1 | 2 | 3 | 4 | 5 | 6) => {
     console.log('🎯 openDialogForStage called with stage:', stage);
     setPreSelectedStage(stage);
     setShowAIDialog(true);
     console.log('📊 Dialog state updated:', { preSelectedStage: stage, showAIDialog: true });
   };
 
-  const getStageName = (stage: 1 | 2 | 3 | 4) => {
-    const names = {
+  const getStageName = (stage: 1 | 2 | 3 | 4 | 5 | 6) => {
+    const names: Record<number, string> = {
       1: 'Colors',
-      2: 'Fonts',
-      3: 'Headings',
-      4: 'Components'
+      2: 'Typography',
+      3: 'Typography',
+      4: 'Components',
+      5: 'Images & Layout',
+      6: 'Interactive States',
     };
-    return names[stage];
+    return names[stage] || 'Unknown';
   };
 
-  const viewSectionData = (section: 'colors' | 'fonts' | 'headings' | 'components') => {
+  // Helper to check if a stage has non-default content
+  const hasStageContent = (stage: 1 | 2 | 3 | 4 | 5 | 6): boolean => {
+    const s = kit.page_settings || {};
+    switch (stage) {
+      case 1:
+        return !!(s.system_colors && s.system_colors.length > 0 && s.system_colors.some((c: any) => c.color));
+      case 2:
+        return !!(s.system_typography && s.system_typography.length > 0 && s.system_typography.some((t: any) => t.typography_font_family));
+      case 4:
+        return !!(s.button_background_color || s.form_field_background_color);
+      case 5:
+        return !!(s.image_styles || s.container_width);
+      case 6:
+        return !!(s.button_hover_background_color || s.form_field_focus_border_color);
+      default:
+        return false;
+    }
+  };
+
+  // Helper to render generate button with dynamic states
+  const renderGenerateButton = (stage: 1 | 2 | 3 | 4 | 5 | 6, label: string) => {
+    const hasContent = hasStageContent(stage);
+    const isGeneratingThis = currentGeneratingStage === stage;
+    const isGeneratingOther = isGenerating && currentGeneratingStage !== stage;
+
+    let buttonText = '';
+    let backgroundColor = '';
+    let color = '';
+    
+    if (isGeneratingThis) {
+      buttonText = 'Generating...';
+      backgroundColor = 'var(--primary)';
+      color = 'var(--primary-foreground)';
+    } else if (hasContent) {
+      buttonText = `Regenerate ${label}`;
+      backgroundColor = '#10b981'; // Green
+      color = '#ffffff';
+          } else {
+      buttonText = `Generate ${label}`;
+      backgroundColor = '#1a1a1a'; // Black
+      color = '#ffffff';
+    }
+
+    return (
+      <button
+        onClick={() => openDialogForStage(stage)}
+        disabled={isGenerating}
+        style={{
+          padding: '8px 20px',
+          fontSize: '13px',
+          fontWeight: 600,
+          backgroundColor,
+          color,
+          border: 'none',
+          borderRadius: '6px',
+          cursor: isGenerating ? 'not-allowed' : 'pointer',
+          opacity: isGeneratingOther ? 0.5 : 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        {isGeneratingThis && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+        {buttonText}
+      </button>
+    );
+  };
+
+  const viewSectionData = (
+    section: 'colors' | 'fonts' | 'headings' | 'components' | 'images-layout' | 'interactive'
+  ) => {
     const s = kit.page_settings || {};
     let data: any = {};
     let sectionName = '';
@@ -248,10 +457,37 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
           form_field_border_color: s.form_field_border_color || '',
           form_field_border_radius: s.form_field_border_radius || {},
           form_field_border_width: s.form_field_border_width || {},
+        };
+        break;
+      case 'images-layout':
+        sectionName = 'Images & Layout';
+        data = {
+          image_styles: s.image_styles || {},
+          image_border_radius: s.image_border_radius || {},
+          image_opacity: s.image_opacity || {},
+          image_hover_opacity: s.image_hover_opacity || {},
+          image_css_filters_blur: s.image_css_filters_blur || {},
+          image_css_filters_brightness: s.image_css_filters_brightness || {},
+          image_css_filters_contrast: s.image_css_filters_contrast || {},
+          image_css_filters_saturation: s.image_css_filters_saturation || {},
           container_width: s.container_width || {},
           space_between_widgets: s.space_between_widgets || {},
           viewport_md: s.viewport_md || 768,
           viewport_lg: s.viewport_lg || 1025
+        };
+        break;
+      case 'interactive':
+        sectionName = 'Interactive States';
+        data = {
+          button_padding: s.button_padding || {},
+          button_hover_background_color: s.button_hover_background_color || '',
+          button_hover_text_color: s.button_hover_text_color || '',
+          button_hover_border_color: s.button_hover_border_color || '',
+          button_focus_outline_color: s.button_focus_outline_color || '',
+          button_focus_outline_width: s.button_focus_outline_width || {},
+          form_field_padding: s.form_field_padding || {},
+          form_field_focus_border_color: s.form_field_focus_border_color || '',
+          form_field_focus_shadow_color: s.form_field_focus_shadow_color || '',
         };
         break;
     }
@@ -289,7 +525,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     stylePreferences?: string;
     industry?: string;
     images?: Array<{ url: string; filename: string; description?: string }>;
-    stage?: 1 | 2 | 3 | 4;
+    stage?: 1 | 2 | 3 | 4 | 5 | 6;
   }) => {
     console.log('🎯 handleAIGenerate called with config:', {
       model: config.model,
@@ -377,7 +613,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                 if (data.stage && data.message) {
                   // Update progress based on stage
                   console.log(`📊 Stage ${data.stage}: ${data.message}`);
-                  setGenerationProgress(`Stage ${data.stage}/4: ${data.message}`);
+                  setGenerationProgress(`Stage ${data.stage}/6: ${data.message}`);
                 }
 
                 if (data.styleKit) {
@@ -848,7 +1084,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>
-                {prefix.toUpperCase()} PREVIEW
+              {prefix.toUpperCase()} PREVIEW
               </div>
               <div style={{ display: 'flex', gap: '4px' }}>
                 {(['desktop', 'tablet', 'mobile'] as const).map((mode) => (
@@ -2100,9 +2336,211 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     );
   };
 
+  const renderLayout = () => {
+    const s = kit.page_settings || {};
+    
+    return (
+      <div style={{ padding: '16px' }}>
+        <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Layout Configuration</h3>
+        
+        {/* Container Width */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', fontWeight: 500 }}>Container Width</label>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input
+              type="number"
+              value={s.container_width?.size || 1200}
+              onChange={(e) => updateSize('container_width', 'size', parseFloat(e.target.value) || 0)}
+              style={{ flex: 1, padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+            />
+            <select
+              value={s.container_width?.unit || 'px'}
+              onChange={(e) => updateSize('container_width', 'unit', e.target.value)}
+              style={{ padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+            >
+              <option value="px">px</option>
+              <option value="%">%</option>
+              <option value="rem">rem</option>
+              <option value="em">em</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Space Between Widgets */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', fontWeight: 500 }}>Space Between Widgets</label>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input
+              type="number"
+              value={s.space_between_widgets?.size || 20}
+              onChange={(e) => updateSize('space_between_widgets', 'size', parseFloat(e.target.value) || 0)}
+              style={{ flex: 1, padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+            />
+            <select
+              value={s.space_between_widgets?.unit || 'px'}
+              onChange={(e) => updateSize('space_between_widgets', 'unit', e.target.value)}
+              style={{ padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+            >
+              <option value="px">px</option>
+              <option value="rem">rem</option>
+              <option value="em">em</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Viewport Breakpoints */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', fontWeight: 500 }}>Tablet Breakpoint (viewport_md)</label>
+          <input
+            type="number"
+            value={s.viewport_md || 768}
+            onChange={(e) => updateSetting('viewport_md', parseFloat(e.target.value) || 768)}
+            style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+          />
+        </div>
+
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', fontWeight: 500 }}>Desktop Breakpoint (viewport_lg)</label>
+          <input
+            type="number"
+            value={s.viewport_lg || 1025}
+            onChange={(e) => updateSetting('viewport_lg', parseFloat(e.target.value) || 1025)}
+            style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const renderInteractiveStates = () => {
+    const s = kit.page_settings || {};
+    
+    return (
+      <div style={{ padding: '16px' }}>
+        <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Button Interactive States</h3>
+        
+        {/* Button Padding */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', fontWeight: 500 }}>Button Padding</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
+            {['top', 'right', 'bottom', 'left'].map((side) => (
+              <div key={side}>
+                <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', textTransform: 'capitalize', color: 'var(--muted-foreground)' }}>
+                  {side}
+                </label>
+                <input
+                  type="number"
+                  value={s.button_padding?.[side] || ''}
+                  onChange={(e) => updateDimension('button_padding', side, parseFloat(e.target.value) || 0)}
+                  placeholder="12"
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Button Hover Colors */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', fontWeight: 500 }}>Button Hover Background Color</label>
+          <input
+            type="color"
+            value={s.button_hover_background_color || '#000000'}
+            onChange={(e) => updateSetting('button_hover_background_color', e.target.value)}
+            style={{ width: '100%', height: '40px', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}
+          />
+          <input
+            type="text"
+            value={s.button_hover_background_color || ''}
+            onChange={(e) => updateSetting('button_hover_background_color', e.target.value)}
+            placeholder="#000000"
+            style={{ width: '100%', marginTop: '8px', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+          />
+        </div>
+
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', fontWeight: 500 }}>Button Hover Text Color</label>
+          <input
+            type="color"
+            value={s.button_hover_text_color || '#ffffff'}
+            onChange={(e) => updateSetting('button_hover_text_color', e.target.value)}
+            style={{ width: '100%', height: '40px', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}
+          />
+          <input
+            type="text"
+            value={s.button_hover_text_color || ''}
+            onChange={(e) => updateSetting('button_hover_text_color', e.target.value)}
+            placeholder="#ffffff"
+            style={{ width: '100%', marginTop: '8px', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+          />
+        </div>
+
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', fontWeight: 500 }}>Button Focus Outline Color</label>
+          <input
+            type="color"
+            value={s.button_focus_outline_color || '#000000'}
+            onChange={(e) => updateSetting('button_focus_outline_color', e.target.value)}
+            style={{ width: '100%', height: '40px', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}
+          />
+          <input
+            type="text"
+            value={s.button_focus_outline_color || ''}
+            onChange={(e) => updateSetting('button_focus_outline_color', e.target.value)}
+            placeholder="#000000"
+            style={{ width: '100%', marginTop: '8px', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+          />
+        </div>
+
+        <h3 style={{ margin: '32px 0 16px', fontSize: '16px', fontWeight: 600 }}>Form Interactive States</h3>
+        
+        {/* Form Field Padding */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', fontWeight: 500 }}>Form Field Padding</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
+            {['top', 'right', 'bottom', 'left'].map((side) => (
+              <div key={side}>
+                <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', textTransform: 'capitalize', color: 'var(--muted-foreground)' }}>
+                  {side}
+                </label>
+                <input
+                  type="number"
+                  value={s.form_field_padding?.[side] || ''}
+                  onChange={(e) => updateDimension('form_field_padding', side, parseFloat(e.target.value) || 0)}
+                  placeholder="12"
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', fontWeight: 500 }}>Form Field Focus Border Color</label>
+          <input
+            type="color"
+            value={s.form_field_focus_border_color || '#000000'}
+            onChange={(e) => updateSetting('form_field_focus_border_color', e.target.value)}
+            style={{ width: '100%', height: '40px', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}
+          />
+          <input
+            type="text"
+            value={s.form_field_focus_border_color || ''}
+            onChange={(e) => updateSetting('form_field_focus_border_color', e.target.value)}
+            placeholder="#000000"
+            style={{ width: '100%', marginTop: '8px', padding: '8px', fontSize: '13px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+          />
+        </div>
+      </div>
+    );
+  };
+
   const renderPreview = () => {
     return (
       <div style={{ padding: '24px', overflowY: 'auto', height: '100%' }}>
+        {isCssAppliedToPreview && globalCss && globalCss.trim().length > 0 && (
+          <style>{globalCss}</style>
+        )}
         {/* Device Mode Switcher */}
         <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map((mode) => (
@@ -2693,6 +3131,110 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     );
   };
 
+  const renderCssPanel = () => {
+    const cssContent = globalCss && globalCss.trim().length > 0
+      ? globalCss
+      : '/* No global CSS available. Modify the style kit or import CSS to see it here. */';
+
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Global CSS</h3>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+              Generated directly from your style kit configuration
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setIsCssAppliedToPreview(prev => !prev)}
+              style={{
+                padding: '8px 12px',
+                fontSize: '13px',
+                backgroundColor: isCssAppliedToPreview ? 'var(--primary)' : 'var(--muted)',
+                color: isCssAppliedToPreview ? 'var(--primary-foreground)' : 'var(--foreground)',
+                border: isCssAppliedToPreview ? 'none' : '1px solid var(--border)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 500,
+              }}
+            >
+              {isCssAppliedToPreview ? <EyeOff size={14} /> : <Eye size={14} />}
+              {isCssAppliedToPreview ? 'Hide in Preview' : 'Apply to Preview'}
+            </button>
+            <button
+              onClick={handleCopyCss}
+              style={{
+                padding: '8px 12px',
+                fontSize: '13px',
+                backgroundColor: 'var(--muted)',
+                color: 'var(--foreground)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 500,
+              }}
+            >
+              <Copy size={14} />
+              Copy CSS
+            </button>
+            <button
+              onClick={handlePushCss}
+              style={{
+                padding: '8px 12px',
+                fontSize: '13px',
+                backgroundColor: 'var(--primary)',
+                color: 'var(--primary-foreground)',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 500,
+              }}
+            >
+              {isPushingCss && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+              <Upload size={14} />
+              {isPushingCss ? 'Pushing CSS...' : 'Push CSS to Site'}
+            </button>
+          </div>
+        </div>
+        <textarea
+          value={cssContent}
+          readOnly
+          style={{
+            flex: 1,
+            width: '100%',
+            backgroundColor: 'var(--muted)',
+            color: 'var(--foreground)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            padding: '16px',
+            fontFamily: 'monospace',
+            fontSize: '13px',
+            lineHeight: 1.6,
+            resize: 'vertical',
+            minHeight: '260px',
+          }}
+        />
+      </div>
+    );
+  };
+
+  const renderSecondaryPanel = () => {
+    if (secondaryPanel === 'css') {
+      return renderCssPanel();
+    }
+    return renderPreview();
+  };
+
   // Refs for scroll-to functionality
   const colorsRef = useRef<HTMLDivElement>(null);
   const globalFontsRef = useRef<HTMLDivElement>(null);
@@ -2721,35 +3263,361 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--background)', color: 'var(--foreground)', position: 'relative' }}>
-      {/* Header */}
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--card)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+      {/* Header with Menus and Breakpoint Switcher */}
+      <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--card)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+          {/* Left: Title */}
           <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Style Kit Editor</h2>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            <button onClick={handleResetToDefaults} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 500, backgroundColor: 'var(--destructive)', color: 'var(--destructive-foreground)', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              Reset to Defaults
-            </button>
-            <button onClick={() => setShowAIDialog(true)} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 500, backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              AI Generate
+
+          {/* Center: Breakpoint Switcher Icons */}
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <button
+              onClick={() => setDeviceMode('desktop')}
+              style={{
+                padding: '6px 10px',
+                backgroundColor: deviceMode === 'desktop' ? 'var(--primary)' : 'transparent',
+                color: deviceMode === 'desktop' ? 'var(--primary-foreground)' : 'var(--foreground)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              title="Desktop"
+            >
+              <Monitor size={18} />
             </button>
             <button
-              onClick={() => setShowPreview(!showPreview)}
-              style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 500, backgroundColor: showPreview ? 'var(--accent)' : 'var(--background)', color: showPreview ? 'var(--accent-foreground)' : 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              onClick={() => setDeviceMode('tablet')}
+              style={{
+                padding: '6px 10px',
+                backgroundColor: deviceMode === 'tablet' ? 'var(--primary)' : 'transparent',
+                color: deviceMode === 'tablet' ? 'var(--primary-foreground)' : 'var(--foreground)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              title="Tablet"
             >
-              {showPreview ? 'Hide Preview' : 'Show Preview'}
+              <Tablet size={18} />
             </button>
-            <label style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 500, backgroundColor: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              Import
+            <button
+              onClick={() => setDeviceMode('mobile')}
+              style={{
+                padding: '6px 10px',
+                backgroundColor: deviceMode === 'mobile' ? 'var(--primary)' : 'transparent',
+                color: deviceMode === 'mobile' ? 'var(--primary-foreground)' : 'var(--foreground)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              title="Mobile"
+            >
+              <Smartphone size={18} />
+            </button>
+          </div>
+
+          {/* Right: Menus */}
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {/* AI Generate Menu */}
+            <button
+              onClick={() => setShowAIDialog(true)}
+              style={{
+                padding: '6px 12px',
+                fontSize: '12px',
+                fontWeight: 500,
+                backgroundColor: 'var(--primary)',
+                color: 'var(--primary-foreground)',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Menu size={14} />
+              AI Generate
+            </button>
+            
+            {/* File Menu */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowFileMenu(!showFileMenu)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  backgroundColor: showFileMenu ? 'var(--accent)' : 'transparent',
+                  color: showFileMenu ? 'var(--accent-foreground)' : 'var(--foreground)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <FileDown size={14} />
+                File
+              </button>
+              {showFileMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '4px',
+                    backgroundColor: 'var(--card)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    zIndex: 1000,
+                    minWidth: '160px',
+                    padding: '4px',
+                  }}
+                  onMouseLeave={() => setShowFileMenu(false)}
+                >
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--muted)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <FileUp size={14} />
+                    Import JSON
               <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
             </label>
-            <button onClick={handleExport} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 500, backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
+                  <button
+                    onClick={handleExport}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--muted)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <Download size={14} />
               Download JSON
             </button>
+                </div>
+              )}
+            </div>
+            
+            {/* Tools Menu */}
+            <div style={{ position: 'relative' }}>
+            <button
+                onClick={() => setShowToolsMenu(!showToolsMenu)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  backgroundColor: showToolsMenu ? 'var(--accent)' : 'transparent',
+                  color: showToolsMenu ? 'var(--accent-foreground)' : 'var(--foreground)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Menu size={14} />
+                Tools
+            </button>
+              {showToolsMenu && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '4px',
+                    backgroundColor: 'var(--card)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    zIndex: 1000,
+                    minWidth: '180px',
+                    padding: '4px',
+                  }}
+                  onMouseLeave={() => setShowToolsMenu(false)}
+                >
+            <button
+              onClick={() => {
+                if (showPreview) {
+                  setShowPreview(false);
+                  setSecondaryPanel('preview');
+                  setShowToolsMenu(false);
+                } else {
+                  handleViewPreview();
+                }
+              }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--muted)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <Eye size={14} />
+                    {showPreview ? 'Hide Preview' : 'Show Preview'}
+            </button>
+            <button
+                    onClick={() => {
+                      if (!showPreview) return;
+                      togglePreviewMode();
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: showPreview ? 'pointer' : 'not-allowed',
+                      borderRadius: '4px',
+                      textAlign: 'left',
+                      opacity: showPreview ? 1 : 0.5,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (showPreview) e.currentTarget.style.backgroundColor = 'var(--muted)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Monitor size={14} />
+                    {previewMode === 'split'
+                      ? (secondaryPanel === 'css' ? 'Full Width CSS' : 'Full Width Preview')
+                      : (secondaryPanel === 'css' ? 'Show Editor & CSS' : 'Show Editor & Preview')}
+                  </button>
+                  <button
+                    onClick={() => handleViewCSS()}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--muted)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <Code size={14} />
+                    View CSS
+                  </button>
+                  <button
+                    onClick={handlePushStyleKit}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--muted)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    {isPushingStyleKit && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+              <Upload size={14} />
+                    {isPushingStyleKit ? 'Pushing Style Kit...' : 'Push Style Kit'}
+            </button>
+            <button
+                    onClick={handlePushCss}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--muted)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    {isPushingCss && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                    <Upload size={14} />
+                    {isPushingCss ? 'Pushing CSS...' : 'Push CSS to Site'}
+            </button>
+                  <button
+                    onClick={handleResetToDefaults}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                      textAlign: 'left',
+                      color: 'var(--destructive)',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--muted)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <RotateCcw size={14} />
+              Reset to Defaults
+            </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2783,19 +3651,40 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
 
       {/* Content Area: Sidebar TOC (Desktop) + Scrollable Content + Preview */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Desktop: Sticky TOC Sidebar - 20% */}
+        {/* Desktop: Collapsible TOC Sidebar */}
         {!isMobile && (
+          <>
+            {sidebarVisible && (
           <div style={{
             width: '20%',
             borderRight: '1px solid var(--border)',
             backgroundColor: 'var(--card)',
             overflowY: 'auto',
             flexShrink: 0,
+                transition: 'width 0.2s ease',
           }}>
             <div style={{ padding: '16px 12px' }}>
-              <h3 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Contents
               </h3>
+                    <button
+                      onClick={() => setSidebarVisible(false)}
+                      style={{
+                        padding: '4px',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--muted-foreground)',
+                      }}
+                      title="Hide Sidebar"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                  </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {tocSections.map(section => (
                   <button
@@ -2822,20 +3711,289 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
               </div>
             </div>
           </div>
+            )}
+            {!sidebarVisible && (
+              <button
+                onClick={() => setSidebarVisible(true)}
+                style={{
+                  width: '32px',
+                  borderRight: '1px solid var(--border)',
+                  backgroundColor: 'var(--card)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--muted-foreground)',
+                  flexShrink: 0,
+                }}
+                title="Show Sidebar"
+              >
+                <ChevronRight size={18} />
+              </button>
+            )}
+          </>
         )}
 
-        {/* Scrollable Content Area - 80% (desktop) or 100% (mobile) */}
+        {/* Scrollable Content Area - Adjusts based on sidebar visibility */}
         <div style={{
-          width: isMobile ? '100%' : '80%',
+          width: isMobile ? '100%' : sidebarVisible ? '80%' : '100%',
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
           overflow: 'hidden',
+          transition: 'width 0.2s ease',
         }}>
           {showPreview ? (
-            /* Full-Width Preview Mode */
-            <div style={{ width: '100%', height: '100%', overflowY: 'auto', padding: '16px' }}>
-              {renderPreview()}
+            previewMode === 'split' ? (
+              /* Split View: Left Panel (Editable Fields) + Right Panel (Preview) */
+              <>
+              <div style={{
+                width: '50%',
+                height: '100%',
+                overflowY: 'auto',
+                padding: '12px',
+                borderRight: '1px solid var(--border)',
+              }}>
+                {/* ===== STAGE 1: COLORS ===== */}
+                <div style={{ marginBottom: '48px', padding: '16px', backgroundColor: '#f8f8f8', border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(1)}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Palette size={18} />
+                        <span>Stage 1: Colors</span>
+                        <span>{collapsedStages[1] ? "▶" : "▼"}</span>
+                      </h2>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                        System colors and custom color palette
+                      </p>
             </div>
+                    <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                  <button
+                        onClick={() => viewSectionData('colors')}
+                    style={{
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          backgroundColor: 'var(--muted)',
+                      color: 'var(--foreground)',
+                      border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                          gap: '6px',
+                          fontWeight: 500,
+                    }}
+                  >
+                        🔍 View Data
+                  </button>
+                      {renderGenerateButton(1, 'Colors')}
+                    </div>
+                  </div>
+                  {!collapsedStages[1] && (
+                    <div ref={colorsRef}>
+                      {renderGlobalColors()}
+                    </div>
+                  )}
+                </div>
+
+                {/* ===== STAGES 2 & 3: TYPOGRAPHY ===== */}
+                <div style={{ marginBottom: '48px', padding: '16px', backgroundColor: '#f8f8f8', border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(2)}>
+                  <div>
+                      <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <TypeIcon size={18} />
+                        <span>Stages 2 & 3: Typography System</span>
+                        <span>{collapsedStages[2] ? "▶" : "▼"}</span>
+                      </h2>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                        Global fonts, typography presets, and all heading styles
+                    </p>
+                  </div>
+                    <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => viewSectionData('fonts')}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      {renderGenerateButton(2, 'Typography')}
+                    </div>
+                  </div>
+                  {!collapsedStages[2] && (
+                    <div>
+                      {renderGlobalTypography()}
+                      {renderThemeTypography()}
+                    </div>
+                  )}
+                </div>
+
+                {/* ===== STAGE 4: COMPONENTS ===== */}
+                <div style={{ marginBottom: '48px', padding: '16px', backgroundColor: '#f8f8f8', border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(4)}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Layers size={18} />
+                        <span>Stage 4: Components</span>
+                        <span>{collapsedStages[4] ? "▶" : "▼"}</span>
+                      </h2>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                        Buttons, forms, and interactive elements
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => viewSectionData('components')}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                      fontWeight: 500,
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      {renderGenerateButton(4, 'Components')}
+                    </div>
+                  </div>
+                  {!collapsedStages[4] && (
+                    <div>
+                      {renderButtons()}
+                      {renderForms()}
+                  </div>
+                  )}
+                  </div>
+
+                {/* ===== STAGE 5: IMAGES & LAYOUT ===== */}
+                <div style={{ marginBottom: '48px', padding: '16px', backgroundColor: '#f8f8f8', border: '1px solid #d0d0d0', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(5)}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <ImageIcon size={18} />
+                        <span>Stage 5: Images & Layout</span>
+                        <span>{collapsedStages[5] ? "▶" : "▼"}</span>
+                      </h2>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                        Image styles and layout configuration settings
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => viewSectionData('images-layout')}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      {renderGenerateButton(5, 'Images & Layout')}
+                    </div>
+                  </div>
+                  {!collapsedStages[5] && (
+                    <div>
+                      <div ref={imagesRef} style={{ marginBottom: '24px' }}>
+                        <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>🖼️ Images</h3>
+                        {renderImages()}
+                      </div>
+                      <div ref={layoutRef}>
+                        <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>📐 Layout Settings</h3>
+                        {renderLayout()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ===== STAGE 6: INTERACTIVE STATES ===== */}
+                <div style={{ marginBottom: '48px', padding: '16px', backgroundColor: '#f8f8f8', border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(6)}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Zap size={18} />
+                        <span>Stage 6: Interactive States</span>
+                        <span>{collapsedStages[6] ? "▶" : "▼"}</span>
+                      </h2>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                        Button hover/focus and form focus states
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => viewSectionData('interactive')}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      {renderGenerateButton(6, 'Interactive States')}
+                  </div>
+                  </div>
+                  {!collapsedStages[6] && (
+                    <div>
+                      {renderInteractiveStates()}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div style={{
+                width: '50%',
+                height: '100%',
+                overflowY: 'auto',
+                padding: '16px',
+              }}>
+                {renderSecondaryPanel()}
+              </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  overflowY: 'auto',
+                  padding: '16px',
+                }}
+              >
+                {renderSecondaryPanel()}
+              </div>
+            )
           ) : (
             /* Editor-Only Mode (No Preview) */
             <div style={{
@@ -2845,16 +4003,18 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
               padding: '16px',
             }}>
                 {/* ===== STAGE 1: COLORS ===== */}
-                <div style={{ marginBottom: '48px', padding: '24px', backgroundColor: 'var(--muted)/10', border: '3px solid var(--primary)', borderRadius: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(1)}>
+                <div style={{ marginBottom: '48px', padding: '16px', backgroundColor: '#f8f8f8', border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(1)}>
                     <div>
-                      <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        🎨 Stage 1: Colors {collapsedStages[1] ? "▶" : "▼"}
+                      <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Palette size={18} />
+                        <span>Stage 1: Colors</span>
+                        <span>{collapsedStages[1] ? "▶" : "▼"}</span>
                       </h2>
                       <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
                         System colors and custom color palette
                       </p>
-                    </div>
+                </div>
                     <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => viewSectionData('colors')}
@@ -2874,26 +4034,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                       >
                         🔍 View Data
                       </button>
-                      <button
-                        onClick={() => openDialogForStage(1)}
-                        disabled={isGenerating}
-                        style={{
-                          padding: '8px 20px',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          backgroundColor: currentGeneratingStage === 1 ? 'var(--primary)' : 'var(--accent)',
-                          color: currentGeneratingStage === 1 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: isGenerating ? 'not-allowed' : 'pointer',
-                          opacity: isGenerating && currentGeneratingStage !== 1 ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        {currentGeneratingStage === 1 ? '⏳ Generating...' : '✨ Regenerate Colors'}
-                      </button>
+                      {renderGenerateButton(1, 'Colors')}
                     </div>
                   </div>
 
@@ -2904,13 +4045,14 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                   )}
                 </div>
 
-                {/* ===== STAGE 2: TYPOGRAPHY ===== */}
-                <div style={{ marginBottom: '48px', padding: '24px', backgroundColor: 'var(--muted)/10', border: '3px solid var(--primary)', borderRadius: '12px' }}>
-                  {/* Stage 2 Header with ONE Regenerate Button */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(2)}>
+                {/* ===== STAGES 2 & 3: TYPOGRAPHY ===== */}
+                <div style={{ marginBottom: '48px', padding: '16px', backgroundColor: '#f8f8f8', border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(2)}>
                     <div>
-                      <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        🔤 Stage 2: Typography System {collapsedStages[2] ? "▶" : "▼"}
+                      <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <TypeIcon size={18} />
+                        <span>Stages 2 & 3: Typography System</span>
+                        <span>{collapsedStages[2] ? "▶" : "▼"}</span>
                       </h2>
                       <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
                         Global fonts, typography presets, and all heading styles
@@ -2935,26 +4077,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                       >
                         🔍 View Data
                       </button>
-                      <button
-                        onClick={() => openDialogForStage(2)}
-                        disabled={isGenerating}
-                        style={{
-                          padding: '8px 20px',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          backgroundColor: currentGeneratingStage === 2 ? 'var(--primary)' : 'var(--accent)',
-                          color: currentGeneratingStage === 2 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: isGenerating ? 'not-allowed' : 'pointer',
-                          opacity: isGenerating && currentGeneratingStage !== 2 ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        {currentGeneratingStage === 2 ? '⏳ Generating...' : '✨ Regenerate Typography'}
-                      </button>
+                      {renderGenerateButton(2, 'Typography')}
                     </div>
                   </div>
 
@@ -2980,22 +4103,23 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                   <div ref={headingsRef}>
                     <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>📝 Stage 3: Headings & Body Text</h3>
                     <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>H1-H6 heading styles and body typography (generated with Stage 2)</p>
-                    {renderThemeTypography()}
+                  {renderThemeTypography()}
                   </div>
                   </div>
                   )}
                 </div>
 
                 {/* ===== STAGE 4: COMPONENTS ===== */}
-                <div style={{ marginBottom: '48px', padding: '24px', backgroundColor: 'var(--muted)/10', border: '3px solid var(--primary)', borderRadius: '12px' }}>
-                  {/* Stage 4 Header with ONE Regenerate Button */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(4)}>
+                <div style={{ marginBottom: '48px', padding: '16px', backgroundColor: '#f8f8f8', border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(4)}>
                     <div>
-                      <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        🔘 Stage 4: Components & Interactions {collapsedStages[4] ? "▶" : "▼"}
+                      <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Layers size={18} />
+                        <span>Stage 4: Components</span>
+                        <span>{collapsedStages[4] ? "▶" : "▼"}</span>
                       </h2>
                       <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
-                        Button styles, form fields, and interactive element configurations
+                        Buttons, forms, and interactive elements
                       </p>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
@@ -3017,26 +4141,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                       >
                         🔍 View Data
                       </button>
-                      <button
-                        onClick={() => openDialogForStage(4)}
-                        disabled={isGenerating}
-                        style={{
-                          padding: '8px 20px',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          backgroundColor: currentGeneratingStage === 4 ? 'var(--primary)' : 'var(--accent)',
-                          color: currentGeneratingStage === 4 ? 'var(--primary-foreground)' : 'var(--accent-foreground)',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: isGenerating ? 'not-allowed' : 'pointer',
-                          opacity: isGenerating && currentGeneratingStage !== 4 ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        {currentGeneratingStage === 4 ? '⏳ Generating...' : '✨ Regenerate Components'}
-                      </button>
+                      {renderGenerateButton(4, 'Components')}
                     </div>
                   </div>
 
@@ -3046,33 +4151,108 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                   <div ref={buttonsRef} style={{ marginBottom: '24px' }}>
                     <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>🔘 Buttons</h3>
                     <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Default button styles, typography, colors, and hover states</p>
-                    {renderButtons()}
-                  </div>
+                  {renderButtons()}
+                </div>
 
                   {/* Forms Subsection */}
                   <div ref={formsRef}>
                     <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>📝 Form Fields</h3>
                     <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Form field styles, labels, borders, and focus states</p>
                     {renderForms()}
-                  </div>
+                    </div>
                   </div>
                   )}
                 </div>
 
-                {/* Images Section */}
-                <div ref={imagesRef} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Images</h3>
+                {/* ===== STAGE 5: IMAGES & LAYOUT ===== */}
+                <div style={{ marginBottom: '48px', padding: '16px', backgroundColor: '#f8f8f8', border: '1px solid #d0d0d0', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(5)}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <ImageIcon size={18} />
+                        <span>Stage 5: Images & Layout</span>
+                        <span>{collapsedStages[5] ? "▶" : "▼"}</span>
+                      </h2>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                        Image styles and layout configuration settings
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => viewSectionData('images-layout')}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      {renderGenerateButton(5, 'Images & Layout')}
+                    </div>
+                  </div>
+                  {!collapsedStages[5] && (
+                    <div>
+                      <div ref={imagesRef} style={{ marginBottom: '24px' }}>
+                        <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>🖼️ Images</h3>
                   {renderImages()}
+                      </div>
+                      <div ref={layoutRef}>
+                        <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600, color: 'var(--foreground)' }}>📐 Layout Settings</h3>
+                        {renderLayout()}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Layout Settings Section */}
-                <div ref={layoutRef} style={{ marginBottom: '32px' }}>
-                  <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600 }}>Layout Settings</h3>
-                  <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Container width, spacing, and responsive breakpoints</p>
-                  {/* TODO: Add layout settings editor */}
-                  <div style={{ padding: '16px', backgroundColor: 'var(--muted)', borderRadius: '4px', fontSize: '13px', color: 'var(--muted-foreground)' }}>
-                    Layout settings editor coming soon (container width, widget spacing, breakpoints).
+                {/* ===== STAGE 6: INTERACTIVE STATES ===== */}
+                <div style={{ marginBottom: '48px', padding: '16px', backgroundColor: '#f8f8f8', border: '1px solid #e0e0e0', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '12px', borderBottom: '2px solid var(--border)', cursor: 'pointer' }} onClick={() => toggleStage(6)}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Zap size={18} />
+                        <span>Stage 6: Interactive States</span>
+                        <span>{collapsedStages[6] ? "▶" : "▼"}</span>
+                      </h2>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
+                        Button hover/focus and form focus states
+                      </p>
                   </div>
+                    <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => viewSectionData('interactive')}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--foreground)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        🔍 View Data
+                      </button>
+                      {renderGenerateButton(6, 'Interactive States')}
+                    </div>
+                  </div>
+                  {!collapsedStages[6] && (
+                    <div>
+                      {renderInteractiveStates()}
+                    </div>
+                  )}
                 </div>
             </div>
           )}

@@ -14,6 +14,8 @@
  * - Export/import groups
  */
 
+import { getProjectConfig } from './project-generation/config';
+
 export interface FileGroup {
   id: string;                    // Unique ID
   name: string;                  // User-defined name (e.g., "Hero Section", "Contact Form")
@@ -21,12 +23,12 @@ export interface FileGroup {
   createdAt: number;             // Timestamp
   updatedAt: number;             // Timestamp
 
-  // Files
-  html: string;                  // For type='html' or type='hubspot'
-  css: string;
-  js: string;
-  php?: string;                  // Only for type='php'
-  hubl?: string;                 // Only for type='hubspot' - HubL template
+  // Files - ALL optional for programmatic field creation based on config
+  html?: string;                 // For type='html' or type='hubspot'
+  css?: string;                  // For type='html'
+  js?: string;                   // For type='html'
+  php?: string;                  // For type='php'
+  hubl?: string;                 // For type='hubspot' - HubL template
 
   // Metadata
   description?: string;          // Optional description
@@ -337,13 +339,48 @@ export function saveEditorState(state: EditorState): void {
 }
 
 /**
+ * Get initial file fields based on project type configuration
+ * PROGRAMMATIC: Reads config.fileTypes and creates only those fields
+ */
+function getInitialFieldsForProjectType(
+  type: 'html' | 'php' | 'hubspot',
+  subtype?: string
+): Record<string, string | undefined> {
+  try {
+    // Get project configuration
+    const config = getProjectConfig(type, subtype);
+
+    const fields: Record<string, string | undefined> = {};
+
+    // Programmatically create ONLY fields specified in config.fileTypes
+    for (const fileType of config.fileTypes) {
+      fields[fileType] = '';  // Initialize with empty string
+    }
+
+    return fields;
+  } catch (error) {
+    // Fallback for legacy behavior if config not found
+    console.warn(`Could not get project config for type "${type}", using fallback`, error);
+    if (type === 'html') {
+      return { html: '', css: '', js: '' };
+    } else if (type === 'php') {
+      return { php: '' };
+    } else if (type === 'hubspot') {
+      return { html: '', hubl: '' };
+    }
+    return {};
+  }
+}
+
+/**
  * Create a new file group
  */
 export function createGroup(
   name: string,
   type: 'html' | 'php' | 'hubspot',
   template?: 'empty' | 'hero' | 'contact-form' | 'basic-widget' | 'button-widget' | 'hubspot-hero' | 'hubspot-email',
-  generationState?: 'generating' | 'ready' | 'error'
+  generationState?: 'generating' | 'ready' | 'error',
+  subtype?: string  // NEW: Add subtype parameter for HubSpot email/page distinction
 ): FileGroup {
   const now = Date.now();
   const group: FileGroup = {
@@ -352,11 +389,10 @@ export function createGroup(
     type,
     createdAt: now,
     updatedAt: now,
-    html: '',
-    css: '',
-    js: '',
-    php: type === 'php' ? '' : undefined,
-    hubl: type === 'hubspot' ? '' : undefined,
+
+    // ✅ PROGRAMMATIC: Only create fields from config.fileTypes
+    ...getInitialFieldsForProjectType(type, subtype),
+
     // Add default project manifest based on type
     projectManifest: type === 'html' ? getHtmlManifest()
       : type === 'hubspot' ? getHubSpotManifest()
@@ -1356,11 +1392,7 @@ export function createPlugin(
     },
     createdAt: now,
     updatedAt: now,
-    // For plugins, we DON'T create HTML/CSS/JS files - only PHP
-    // These should be undefined, not empty strings
-    html: '',
-    css: '',
-    js: '',
+    ...getInitialFieldsForProjectType('php'),
     description,
     // Add default plugin manifest
     projectManifest: getPhpPluginManifest(),

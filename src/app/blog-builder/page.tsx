@@ -10,7 +10,7 @@ const BlogBuilderTool = dynamic(
 
 export default function BlogBuilderPage() {
   return (
-    <div className="h-screen w-full overflow-hidden bg-[#FAFAFA] dark:bg-[#1a1a1a]">
+    <div className="h-screen w-full overflow-hidden bg-white dark:bg-[#1a1a1a]">
       <BlogBuilderTool />
     </div>
   );

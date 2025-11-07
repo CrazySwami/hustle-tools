@@ -530,17 +530,18 @@ export default function HubSpotModuleConverter() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-4">
-        <div className="flex items-center gap-3 justify-center">
-          <SiHubspot className="text-3xl text-orange-500" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">HubSpot Module Converter</h1>
+    <div className="h-full overflow-y-auto" style={{ padding: '8px' }}>
+      <div className="h-full rounded-lg bg-background shadow-sm" style={{ backgroundColor: '#F5F5F5' }}>
+        <div className="px-4 sm:px-6 pt-8 pb-4">
+          <div className="flex items-center gap-3 justify-center">
+            <SiHubspot className="text-3xl text-orange-500" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">HubSpot Module Converter</h1>
+          </div>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Left Column: Input Configuration */}
-        <div className="rounded-lg border-2 bg-white border-gray-200 p-4 sm:p-6 transition-colors">
+        <div className="px-4 sm:px-6 pb-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Left Column: Input Configuration */}
+          <div className="rounded-lg border-2 bg-white border-gray-200 p-4 sm:p-6 transition-colors">
           <h2 className="text-lg font-semibold mb-4 text-gray-900">Input Configuration</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
@@ -789,35 +790,36 @@ export default function HubSpotModuleConverter() {
         </div>
       </div>
 
-      {showFields && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-6">
-          <div className="rounded-lg border-2 bg-white border-gray-200 p-4 sm:p-6 transition-colors">
-            <h3 className="text-lg font-semibold mb-3 text-gray-900">Field Manifest</h3>
-            <div className="overflow-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="py-2 pr-3 font-semibold text-gray-700">Label</th>
-                    <th className="py-2 pr-3 font-semibold text-gray-700">Name</th>
-                    <th className="py-2 pr-3 font-semibold text-gray-700">Type</th>
-                    <th className="py-2 pr-3 font-semibold text-gray-700">Group</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.fields.map((f, i) => (
-                    <tr key={i} className="border-b border-gray-100">
-                      <td className="py-2 pr-3 text-gray-700">{f.label}</td>
-                      <td className="py-2 pr-3 font-mono text-orange-600">{f.name}</td>
-                      <td className="py-2 pr-3 text-gray-600">{f.type}</td>
-                      <td className="py-2 pr-3 text-gray-600">{f.group || ""}</td>
+        {showFields && (
+          <div className="px-4 sm:px-6 pb-6">
+            <div className="rounded-lg border-2 bg-white border-gray-200 p-4 sm:p-6 transition-colors">
+              <h3 className="text-lg font-semibold mb-3 text-gray-900">Field Manifest</h3>
+              <div className="overflow-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="py-2 pr-3 font-semibold text-gray-700">Label</th>
+                      <th className="py-2 pr-3 font-semibold text-gray-700">Name</th>
+                      <th className="py-2 pr-3 font-semibold text-gray-700">Type</th>
+                      <th className="py-2 pr-3 font-semibold text-gray-700">Group</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {result.fields.map((f, i) => (
+                      <tr key={i} className="border-b border-gray-100">
+                        <td className="py-2 pr-3 text-gray-700">{f.label}</td>
+                        <td className="py-2 pr-3 font-mono text-orange-600">{f.name}</td>
+                        <td className="py-2 pr-3 text-gray-600">{f.type}</td>
+                        <td className="py-2 pr-3 text-gray-600">{f.group || ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

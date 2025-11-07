@@ -40,6 +40,9 @@ export interface SystemPromptViewerProps {
       hubl?: number;
       readme?: number;
       globalCss?: number;
+      pluginMainFile?: number;
+      widgetFiles?: number;
+      widgetCount?: number;
     };
   };
   /** Optional: Context toggles state */
@@ -305,6 +308,16 @@ export function SystemPromptViewer({
                           {metadata.fileStats.globalCss !== undefined && metadata.fileStats.globalCss > 0 && (
                             <div className="col-span-2">
                               Global CSS: {metadata.fileStats.globalCss.toLocaleString()} chars
+                            </div>
+                          )}
+                          {metadata.fileStats.pluginMainFile !== undefined && metadata.fileStats.pluginMainFile > 0 && (
+                            <div className="col-span-2">
+                              Plugin Main File: {metadata.fileStats.pluginMainFile.toLocaleString()} chars
+                            </div>
+                          )}
+                          {metadata.fileStats.widgetFiles !== undefined && metadata.fileStats.widgetFiles > 0 && (
+                            <div className="col-span-2">
+                              Widget Files ({metadata.fileStats.widgetCount || 0}): {metadata.fileStats.widgetFiles.toLocaleString()} chars total
                             </div>
                           )}
                           {(metadata.fileStats as any).images !== undefined && (metadata.fileStats as any).images > 0 && (

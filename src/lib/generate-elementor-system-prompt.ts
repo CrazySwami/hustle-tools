@@ -145,6 +145,12 @@ ${currentSection.pluginMainFile?.substring(0, 5000) || '(empty file)'}
 ${currentSection.pluginMainFile?.length > 5000 ? '\n...(file continues - total ' + currentSection.pluginMainFile.length + ' chars. You can see first 5000 chars)' : ''}
 \`\`\`
 ` : ''}
+${fileInclusions.php && currentSection.widgetFiles && Object.keys(currentSection.widgetFiles).length > 0 ? Object.entries(currentSection.widgetFiles).map(([widgetId, widget]: [string, any]) => `**📦 WIDGET FILE: ${widget.name} (${widget.slug}.php) (${widget.content?.length || 0} characters):**
+\`\`\`php
+${widget.content?.substring(0, 5000) || '(empty file)'}
+${widget.content?.length > 5000 ? '\n...(file continues - total ' + widget.content.length + ' chars. You can see first 5000 chars)' : ''}
+\`\`\`
+`).join('\n') : ''}
 ${fileInclusions.readme && currentSection.projectManifest ? `**📖 README.md (Project Documentation) (${currentSection.projectManifest?.length || 0} characters):**
 \`\`\`markdown
 ${currentSection.projectManifest?.substring(0, 3000) || '(no README)'}
@@ -441,19 +447,31 @@ HTML (Table-based for email compatibility):
 ` : ''}
 
 ${includeCss && globalCss ? `
-**🎨 GLOBAL CSS (Style Guide):**
+**🎨 ELEMENTOR STYLE KIT CSS (Global Styling Classes):**
 
-The following global CSS is available from the Style Guide. Use these styles as reference when styling components:
+The following CSS classes are generated from the Elementor Style Kit JSON configuration. These define the global design system for typography, colors, buttons, and other styling elements.
+
+**What this is:**
+- CSS class definitions based on Elementor's Global Style Kit settings
+- Global color variables, typography scales, button styles, and design tokens
+- These are the globals to reference and use for consistent styling across your project
+- Generated from: System Colors, Custom Colors, Typography, Button Styles, Form Styles
 
 \`\`\`css
 ${globalCss.substring(0, 3000)}
 ${globalCss.length > 3000 ? '\n...(CSS continues - total ' + globalCss.length + ' chars)' : ''}
 \`\`\`
 
-**IMPORTANT:** These are GLOBAL styles that apply site-wide. DO NOT modify them directly. Instead:
-- Reference these color variables, fonts, and styles in your code
-- Match your styling to fit the existing design system
-- Create component-specific styles that complement the global styles
+**How to use these styles:**
+- **Reference color variables:** Use the color classes (e.g., \`.e-global-color-primary\`) or extract the hex values
+- **Apply typography:** Match the font families, sizes, and weights from the global typography definitions
+- **Button styling:** Follow the button styles defined in the Style Kit for consistency
+- **Design system:** Use these as your source of truth for colors, fonts, and spacing to match the Elementor theme
+
+**IMPORTANT:** These are GLOBAL style kit settings. DO NOT modify them directly. Instead:
+- Use these color values and font definitions in your component styles
+- Match your custom CSS to fit the existing Elementor design system
+- Reference these globals to ensure visual consistency across the site
 ` : ''}
 
 **Tool Usage Rules:**

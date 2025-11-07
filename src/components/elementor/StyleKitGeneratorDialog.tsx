@@ -21,10 +21,10 @@ interface StyleKitGeneratorDialogProps {
     stylePreferences?: string;
     industry?: string;
     images?: Array<{ url: string; filename: string; description?: string }>;
-    stage?: 1 | 2 | 3 | 4; // Optional: generate only specific stage
+    stage?: 1 | 2 | 3 | 4 | 5 | 6; // Optional: generate only specific stage
   }) => Promise<void>;
   onClose: () => void;
-  preSelectedStage?: 1 | 2 | 3 | 4; // NEW: Pre-select a stage when opening dialog
+  preSelectedStage?: 1 | 2 | 3 | 4 | 5 | 6; // NEW: Pre-select a stage when opening dialog
 }
 
 const SYSTEM_PROMPT = `You are an expert Elementor Style Kit customizer. Generate brand-specific customizations that will be merged into a complete template.
@@ -204,7 +204,7 @@ export function StyleKitGeneratorDialog({
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleGenerate = async (stage?: 1 | 2 | 3 | 4) => {
+  const handleGenerate = async (stage?: 1 | 2 | 3 | 4 | 5 | 6) => {
     console.log('📝 handleGenerate called with:', {
       stage,
       preSelectedStage,
@@ -913,6 +913,42 @@ export function StyleKitGeneratorDialog({
               >
                 {preSelectedStage === 4 && '✨ '}🎛️ Stage 4: Components
               </button>
+              <button
+                onClick={() => handleGenerate(5)}
+                disabled={(!stylePreferences.trim() && !brandfetchData && images.length === 0) || isGenerating || isAnalyzing}
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  backgroundColor: preSelectedStage === 5 ? 'var(--primary)' : (isGenerating ? 'var(--muted)' : 'var(--background)'),
+                  color: preSelectedStage === 5 ? 'var(--primary-foreground)' : 'var(--foreground)',
+                  border: preSelectedStage === 5 ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  borderRadius: '6px',
+                  cursor: isGenerating ? 'not-allowed' : 'pointer',
+                  opacity: isGenerating ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {preSelectedStage === 5 && '✨ '}🖼️ Stage 5: Images & Layout
+              </button>
+              <button
+                onClick={() => handleGenerate(6)}
+                disabled={(!stylePreferences.trim() && !brandfetchData && images.length === 0) || isGenerating || isAnalyzing}
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  backgroundColor: preSelectedStage === 6 ? 'var(--primary)' : (isGenerating ? 'var(--muted)' : 'var(--background)'),
+                  color: preSelectedStage === 6 ? 'var(--primary-foreground)' : 'var(--foreground)',
+                  border: preSelectedStage === 6 ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  borderRadius: '6px',
+                  cursor: isGenerating ? 'not-allowed' : 'pointer',
+                  opacity: isGenerating ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {preSelectedStage === 6 && '✨ '}🎯 Stage 6: Interactive States
+              </button>
             </div>
 
             {/* Full Generation Button */}
@@ -929,7 +965,7 @@ export function StyleKitGeneratorDialog({
               ) : (
                 <>
                   <SparklesIcon size={18} style={{ marginRight: '8px' }} />
-                  {preSelectedStage ? `Generate Stage ${preSelectedStage}` : 'Generate Complete Style Kit (All 4 Stages)'}
+                  {preSelectedStage ? `Generate Stage ${preSelectedStage}` : 'Generate Complete Style Kit (All 6 Stages)'}
                 </>
               )}
             </Button>

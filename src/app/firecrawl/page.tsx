@@ -230,23 +230,24 @@ export default function FirecrawlPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-4">
-        <div className="flex items-center gap-3 justify-center">
-          <svg className="w-8 h-8 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
-          </svg>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Firecrawl Site Mapper</h1>
+    <div className="min-h-screen bg-white transition-colors duration-300" style={{ padding: '8px' }}>
+      <div className="h-full rounded-lg shadow-sm" style={{ backgroundColor: '#F5F5F5', overflow: 'auto' }}>
+        <div className="px-4 sm:px-6 pt-8 pb-4">
+          <div className="flex items-center gap-3 justify-center">
+            <svg className="w-8 h-8 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+            </svg>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Firecrawl Site Mapper</h1>
+          </div>
+          <p className="mt-4 text-center text-gray-600">
+            Crawl a website and extract markdown from all pages.
+          </p>
         </div>
-        <p className="mt-4 text-center text-gray-600">
-          Crawl a website and extract markdown from all pages.
-        </p>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex flex-col md:flex-row gap-6 items-start">
-          <section className="w-full md:w-[35%]">
-            <div className="space-y-4 rounded-lg border-2 bg-white border-gray-200 p-4 sm:p-6 transition-colors h-full">
+        <div className="px-4 sm:px-6 pb-6">
+          <div className="flex flex-col md:flex-row gap-6 items-start">
+            <section className="w-full md:w-[35%]">
+              <div className="space-y-4 rounded-lg border-2 bg-white border-gray-200 p-4 sm:p-6 transition-colors h-full">
               <h2 className="text-lg font-semibold text-gray-900">1. Map Site</h2>
               <p className="text-sm text-gray-700">
                 Find all the links on a website.
@@ -403,10 +404,11 @@ export default function FirecrawlPage() {
               )}
             </div>
           </section>
-        </div>
+          </div>
 
-        <div className="mt-10 pb-6 text-xs text-gray-600 text-center">
-          Note: Set FIRECRAWL_API_KEY in your .env.local and restart the dev server.
+          <div className="mt-10 pb-6 text-xs text-gray-600 text-center">
+            Note: Set FIRECRAWL_API_KEY in your .env.local and restart the dev server.
+          </div>
         </div>
       </div>
     </div>

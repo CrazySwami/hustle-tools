@@ -165,10 +165,40 @@ export function ElementorChat({
   // Use globalCss from context if prop is not provided
   const effectiveGlobalCss = globalCss || globalCssFromContext;
 
+  // Debug CSS availability
+  useEffect(() => {
+    console.log('🎨 CSS Debug:', {
+      includeCss,
+      globalCssLength: effectiveGlobalCss?.length || 0,
+      hasGlobalCss: !!effectiveGlobalCss,
+      globalCssPreview: effectiveGlobalCss?.substring(0, 100),
+      willBeIncludedInPrompt: includeCss && !!effectiveGlobalCss
+    });
+
+    if (includeCss && !effectiveGlobalCss) {
+      console.warn('⚠️ CSS toggle is ON but no global CSS available!');
+    }
+  }, [includeCss, effectiveGlobalCss]);
+
+  // Debug currentSection to see what files are available
+  useEffect(() => {
+    console.log('📦 Current Section Debug:', {
+      hasSection: !!currentSection,
+      htmlLength: currentSection?.html?.length || 0,
+      cssLength: currentSection?.css?.length || 0,
+      jsLength: currentSection?.js?.length || 0,
+      phpLength: currentSection?.php?.length || 0,
+      pluginMainFileLength: currentSection?.pluginMainFile?.length || 0,
+      widgetFilesCount: currentSection?.widgetFiles ? Object.keys(currentSection.widgetFiles).length : 0,
+      widgetFileNames: currentSection?.widgetFiles ? Object.values(currentSection.widgetFiles).map((w: any) => w.name) : [],
+      isPlugin: currentSection?.isPlugin || false
+    });
+  }, [currentSection]);
+
   // Generate system prompt client-side (matches API logic)
   // CRITICAL: Use useMemo to prevent infinite re-generation on every render
   const systemPrompt = useMemo(() => {
-    return generateElementorSystemPrompt({
+    const prompt = generateElementorSystemPrompt({
       includeContext,
       includeCss,
       webSearch,
@@ -176,6 +206,15 @@ export function ElementorChat({
       globalCss: effectiveGlobalCss,
       fileInclusions,
     });
+    console.log('📝 System prompt generated:', {
+      includeCss,
+      promptLength: prompt.length,
+      hasStyleKitSection: prompt.includes('ELEMENTOR STYLE KIT CSS'),
+      hasPluginMainFile: prompt.includes('PLUGIN MAIN FILE'),
+      hasWidgetFiles: prompt.includes('WIDGET FILE:'),
+      widgetFileMatches: (prompt.match(/WIDGET FILE:/g) || []).length
+    });
+    return prompt;
   }, [includeContext, includeCss, webSearch, currentSection, effectiveGlobalCss, fileInclusions]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -686,6 +725,11 @@ export function ElementorChat({
                   hubl: currentSection?.hubl?.length || 0,
                   readme: currentSection?.projectManifest?.length || 0,
                   globalCss: includeCss ? effectiveGlobalCss?.length || 0 : 0,
+                  pluginMainFile: currentSection?.pluginMainFile?.length || 0,
+                  widgetFiles: currentSection?.widgetFiles
+                    ? Object.values(currentSection.widgetFiles).reduce((total: number, widget: any) => total + (widget.content?.length || 0), 0)
+                    : 0,
+                  widgetCount: currentSection?.widgetFiles ? Object.keys(currentSection.widgetFiles).length : 0,
                 },
               }}
               contextToggles={{

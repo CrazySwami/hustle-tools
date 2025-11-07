@@ -9,5 +9,9 @@ const HubSpotModuleConverter = dynamic(
 );
 
 export default function HubSpotConverterPage() {
-  return <HubSpotModuleConverter />;
+  return (
+    <div className="h-screen w-full overflow-hidden bg-white dark:bg-[#1a1a1a]">
+      <HubSpotModuleConverter />
+    </div>
+  );
 }

@@ -13,6 +13,7 @@ import {
 import { useGlobalStylesheet } from "@/lib/global-stylesheet-context";
 import { useTheme } from "next-themes";
 import { useEditorContent } from "@/hooks/useEditorContent";
+import { useFileTabs } from "@/hooks/useFileTabs";
 import { ElementInspector } from "./ElementInspector";
 import { HTMLGeneratorDialog } from "@/components/html-generator/HTMLGeneratorDialog";
 import { convertToWidgetProgrammatic } from "@/lib/programmatic-widget-converter";
@@ -24,7 +25,7 @@ import { NewGroupDialog } from "./NewGroupDialog";
 import { HtmlSplitter } from "./HtmlSplitter";
 import { BatchWidgetConverter } from "./BatchWidgetConverter";
 import { WidgetValidationModal } from "./WidgetValidationModal";
-import { GenerateProjectModal } from "./GenerateProjectModal";
+import { GenerateProjectDialog } from "./GenerateProjectDialog";
 import { ElementInspectorModal } from "./ElementInspectorModal";
 import { HublPreviewPanel } from "./HublPreviewPanel";
 import { AddWidgetDialog } from "./AddWidgetDialog";
@@ -141,10 +142,79 @@ export function HtmlSectionEditor({
   const [section, setSection] = useState<Section>(
     initialSection || createSection(),
   );
-  const [internalActiveCodeTab, setInternalActiveCodeTab] = useState<
-    "html" | "css" | "js" | "php" | "hubl"
-  >("html");
-  const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null); // Track which widget file is being edited
+
+  // ====================================================================
+  // NEW: Unified File Tab Management with useFileTabs hook
+  // ====================================================================
+  // This replaces the old 3-layer state system (externalActiveCodeTab, internalActiveCodeTab, activeWidgetId)
+  // with a single source of truth that eliminates widget tab switching issues
+  const {
+    tabs,
+    activeTabId,
+    activeTab,
+    switchTab,
+    updateTabContent,
+    getTabContent
+  } = useFileTabs({
+    project: fileGroups.activeGroup,
+    onTabContentChange: (tabId, content) => {
+      // Save content changes back to file groups
+      if (!fileGroups.activeGroup) return;
+
+      console.log('💾 useFileTabs: Content changed for tab:', tabId, `(${content.length} chars)`);
+
+      // Determine if this is a widget tab
+      if (tabId.startsWith('widget-')) {
+        const widgetId = tabId.replace('widget-', '');
+        // Update widget file content
+        if (fileGroups.activeGroup.widgetFiles?.[widgetId] && fileGroups.onProjectMetadataUpdate) {
+          fileGroups.onProjectMetadataUpdate(fileGroups.activeGroup.id, {
+            widgetFiles: {
+              ...fileGroups.activeGroup.widgetFiles,
+              [widgetId]: {
+                ...fileGroups.activeGroup.widgetFiles[widgetId],
+                content: content
+              }
+            }
+          });
+        }
+      } else {
+        // Update main file content (html, css, js, php, hubl, docs)
+        const updates: any = {};
+
+        if (tabId === 'php') {
+          updates.pluginMainFile = content;
+        } else if (tabId === 'docs') {
+          updates.projectManifest = content;
+        } else {
+          updates[tabId] = content;
+        }
+
+        if (fileGroups.onProjectMetadataUpdate) {
+          fileGroups.onProjectMetadataUpdate(fileGroups.activeGroup.id, updates);
+        }
+      }
+
+      // Also update editor content state for chat access
+      const fileType = tabId.startsWith('widget-') ? 'php' : tabId;
+      updateContent(fileType as any, content);
+    },
+    defaultTab: externalActiveCodeTab || 'html'
+  });
+
+  // Derive legacy activeCodeTab for backward compatibility with existing code
+  const activeCodeTab = activeTab?.type || 'html';
+
+  // Derive legacy activeWidgetId for backward compatibility
+  const activeWidgetId = activeTab?.isWidget ? activeTab.widgetId : null;
+
+  // Sync external prop changes to hook (when parent wants to switch tabs)
+  useEffect(() => {
+    if (externalActiveCodeTab && externalActiveCodeTab !== activeTabId) {
+      console.log('🔄 External tab change detected:', externalActiveCodeTab);
+      switchTab(externalActiveCodeTab);
+    }
+  }, [externalActiveCodeTab, activeTabId, switchTab]);
   const [showPreview, setShowPreview] = useState(false);
   const [showHublPreview, setShowHublPreview] = useState(false); // HubL interactive preview mode
   const [showSettings, setShowSettings] = useState(false);
@@ -153,7 +223,9 @@ export function HtmlSectionEditor({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFileTree, setShowFileTree] = useState(true); // Show by default on desktop
   const [inspectMode, setInspectMode] = useState(false); // Track inspect mode
+  const [selectMode, setSelectMode] = useState(false); // Track select mode (requires confirmation)
   const [inspectSplitView, setInspectSplitView] = useState(false); // Track if inspect mode shows split view (default: full view)
+  const [splitViewOrientation, setSplitViewOrientation] = useState<"row" | "column">("row"); // Split view layout: row (side-by-side) or column (top-bottom)
   const [previewSplitWidth, setPreviewSplitWidth] = useState(50); // Code panel percentage for HTML preview
   const [previewDragging, setPreviewDragging] = useState(false);
   const [inspectedElement, setInspectedElement] = useState<{
@@ -165,6 +237,17 @@ export function HtmlSectionEditor({
     computedStyles: Record<string, string>;
     context: string;
   } | null>(null); // Track inspected element for modal
+  const [pendingInspectElement, setPendingInspectElement] = useState<{
+    html: string;
+    selector: string;
+    classList: string[];
+    tagName: string;
+    attributes: Record<string, string>;
+    computedStyles: Record<string, string>;
+    context: string;
+  } | null>(null); // Track pending element in select mode (waiting for confirmation)
+  const selectedElementRef = useRef<HTMLElement | null>(null); // Track the selected element DOM node for highlighting
+  const overlayRef = useRef<HTMLDivElement | null>(null); // Track the overlay element
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [generateModalConversionMode, setGenerateModalConversionMode] = useState(false); // Track if converting existing code
   const [isGenerating, setIsGenerating] = useState(false); // Track if generation is in progress
@@ -256,7 +339,6 @@ export function HtmlSectionEditor({
 
   // Use external activeCodeTab if provided, otherwise use internal
   // IMPORTANT: This must be computed BEFORE any useEffect that uses it
-  const activeCodeTab = externalActiveCodeTab ?? internalActiveCodeTab;
 
   // Force Monaco Editor to update when Zustand state changes
   // This fixes the issue where Monaco doesn't auto-update from value prop changes
@@ -576,6 +658,9 @@ export function HtmlSectionEditor({
       }
 
       // Clean up markdown code fences if present (AI sometimes wraps output in ```php ... ```)
+      console.log('🔍 Raw widgetPhp length:', widgetPhp.length);
+      console.log('🔍 Raw widgetPhp preview:', widgetPhp.substring(0, 200));
+
       let cleanWidgetPhp = widgetPhp.trim();
       if (cleanWidgetPhp.startsWith('```')) {
         // Remove opening fence (```php or ```)
@@ -584,6 +669,9 @@ export function HtmlSectionEditor({
         cleanWidgetPhp = cleanWidgetPhp.replace(/\n?```\s*$/, '');
         cleanWidgetPhp = cleanWidgetPhp.trim();
       }
+
+      console.log('🔍 Clean widgetPhp length:', cleanWidgetPhp.length);
+      console.log('🔍 Clean widgetPhp preview:', cleanWidgetPhp.substring(0, 200));
 
       // Extract widget class name for project naming
       const classMatch = cleanWidgetPhp.match(/class\s+(\w+)\s+extends/);
@@ -614,14 +702,25 @@ export function HtmlSectionEditor({
         throw new Error('Generated widget PHP is empty. Cannot deploy to WordPress.');
       }
 
+      console.log('✅ Widget PHP validation passed');
+      console.log('📦 Deployment parameters:', {
+        widgetPhpLength: cleanWidgetPhp.length,
+        widgetPhpType: typeof cleanWidgetPhp,
+        scopedCssLength: scopedCss.length,
+        editorJsLength: (editorJs || '').length,
+        widgetClassName
+      });
+
       try {
         // Call the global deployElementorWidget function from playground.js
         if (typeof window !== 'undefined' && (window as any).deployElementorWidget) {
+          console.log('🚀 Calling deployElementorWidget with cleanWidgetPhp:', cleanWidgetPhp.substring(0, 100));
+
           const deployResult = await (window as any).deployElementorWidget(
             cleanWidgetPhp,
             scopedCss,
-            editorJs || '',
-            widgetClassName
+            editorJs || ''
+            // Note: widgetClassName removed - playground.js only expects 3 params
           );
 
           if (deployResult.success) {
@@ -1166,65 +1265,16 @@ export function HtmlSectionEditor({
   const handleCodeTabChange = (tab: "html" | "css" | "js" | "php" | "hubl" | string) => {
     console.log('🔄 Tab change requested:', tab);
 
-    // Check if this is a widget file tab (format: "widget-{widgetId}")
-    if (typeof tab === 'string' && tab.startsWith('widget-')) {
-      const widgetId = tab.replace('widget-', '');
-      console.log('📦 Widget tab clicked:', { widgetId, activeGroup: fileGroups.activeGroup?.name });
+    // NEW: Simply delegate to useFileTabs hook
+    // The hook handles widget tabs, main file tabs, and state management automatically
+    switchTab(tab);
 
-      // IMPORTANT: Set widget ID and tab state FIRST
-      setActiveWidgetId(widgetId);
-
-      // Notify parent if controlled, otherwise use internal state
-      if (onCodeTabChange) {
-        onCodeTabChange('php'); // Widget files are PHP
-      } else {
-        setInternalActiveCodeTab('php');
-      }
-
-      // Load widget content into editor
-      if (fileGroups.activeGroup?.widgetFiles?.[widgetId]) {
-        const widget = fileGroups.activeGroup.widgetFiles[widgetId];
-        const widgetContent = widget.content;
-        console.log('📝 Loading widget content:', {
-          widgetName: widget.name,
-          contentLength: widgetContent?.length || 0,
-          contentPreview: widgetContent?.substring(0, 100)
-        });
-        updateContent('php', widgetContent);
-        console.log('✅ updateContent called for widget');
-      } else {
-        console.error('❌ Widget not found in activeGroup.widgetFiles:', {
-          widgetId,
-          availableWidgets: Object.keys(fileGroups.activeGroup?.widgetFiles || {})
-        });
-      }
-    } else {
-      // Regular file tab
-      console.log('📄 Regular file tab clicked:', tab);
-
-      // IMPORTANT: Clear widget selection FIRST before updating tab state
-      setActiveWidgetId(null);
-
-      // IMPORTANT: Update tab state FIRST before loading content
-      if (onCodeTabChange) {
-        onCodeTabChange(tab as "html" | "css" | "js" | "php" | "hubl");
-      } else {
-        setInternalActiveCodeTab(tab as "html" | "css" | "js" | "php" | "hubl");
-      }
-
-      // THEN load the appropriate content for plugins
-      if (tab === 'php' && fileGroups.activeGroup?.isPlugin) {
-        // Load main plugin file
-        const mainFileContent = fileGroups.activeGroup.pluginMainFile || '';
-        console.log('📝 Loading main plugin file:', {
-          contentLength: mainFileContent.length,
-          contentPreview: mainFileContent.substring(0, 100)
-        });
-        updateContent('php', mainFileContent);
-        console.log('✅ updateContent called for main plugin file');
-      }
+    // Notify parent if needed (for backward compatibility)
+    if (onCodeTabChange && !tab.startsWith('widget-')) {
+      // Only notify parent for main file tabs, not widget tabs
+      // Widget tabs are purely internal to avoid state conflicts
+      onCodeTabChange(tab as "html" | "css" | "js" | "php" | "hubl");
     }
-    // Mobile uses horizontal pills, so no need to close file tree
   };
 
   // Handle accepting diff changes
@@ -1647,15 +1697,61 @@ export function HtmlSectionEditor({
         transition: all 0.1s ease;
       `;
       iframeDoc.body.appendChild(overlay);
+      overlayRef.current = overlay;
 
       // Change cursor to crosshair in inspect mode
       iframeDoc.body.style.cursor = 'crosshair';
 
       // Track current hovered element
       let currentTarget: HTMLElement | null = null;
+      let selectedElement: HTMLElement | null = null; // Track selected element in select mode
+
+      // Function to update overlay position
+      const updateOverlayPosition = (element: HTMLElement) => {
+        if (!element || !iframeDoc) return;
+        const rect = element.getBoundingClientRect();
+        const scrollX = iframeDoc.defaultView?.scrollX || 0;
+        const scrollY = iframeDoc.defaultView?.scrollY || 0;
+
+        overlay.style.display = 'block';
+        overlay.style.left = `${rect.left + scrollX}px`;
+        overlay.style.top = `${rect.top + scrollY}px`;
+        overlay.style.width = `${rect.width}px`;
+        overlay.style.height = `${rect.height}px`;
+      };
+
+      // Function to keep overlay on selected element (for select mode)
+      const keepOverlayOnSelected = () => {
+        if (selectedElement && selectMode && pendingInspectElement) {
+          updateOverlayPosition(selectedElement);
+          // Keep the green highlight for selected element
+          overlay.style.border = '2px solid #10b981';
+          overlay.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+        }
+      };
+
+      // Update overlay position on scroll (for selected element)
+      const handleScroll = () => {
+        const selectedEl = selectedElementRef.current;
+        if (selectedEl && selectMode && pendingInspectElement) {
+          updateOverlayPosition(selectedEl);
+          overlay.style.border = '2px solid #10b981';
+          overlay.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+        }
+      };
 
       // Hover handler - highlight element (react-grab style)
       const handleMouseMove = (e: MouseEvent) => {
+        // If we have a selected element in select mode, don't update on hover
+        const selectedEl = selectedElementRef.current;
+        if (selectedEl && selectMode && pendingInspectElement) {
+          // Keep overlay on selected element - don't let hover interfere
+          updateOverlayPosition(selectedEl);
+          overlay.style.border = '2px solid #10b981';
+          overlay.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+          return;
+        }
+
         const target = e.target as HTMLElement;
         if (!target || target === iframeDoc?.body) {
           overlay.style.display = 'none';
@@ -1663,17 +1759,11 @@ export function HtmlSectionEditor({
         }
 
         currentTarget = target;
-
-        // Position overlay over element
-        const rect = target.getBoundingClientRect();
-        const scrollX = iframeDoc?.defaultView?.scrollX || 0;
-        const scrollY = iframeDoc?.defaultView?.scrollY || 0;
-
-        overlay.style.display = 'block';
-        overlay.style.left = `${rect.left + scrollX}px`;
-        overlay.style.top = `${rect.top + scrollY}px`;
-        overlay.style.width = `${rect.width}px`;
-        overlay.style.height = `${rect.height}px`;
+        updateOverlayPosition(target);
+        
+        // Reset to blue highlight for hover (not selected)
+        overlay.style.border = '2px solid #3b82f6';
+        overlay.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
       };
 
       // Click handler - grab element and open modal
@@ -1731,29 +1821,52 @@ Siblings: ${siblings.map(el => el.tagName).join(', ') || 'none'}
 Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?.children.length || 0}
           `.trim();
 
-          // Store element data and open modal
-          setInspectedElement({
-            html,
-            selector,
-            classList,
-            tagName,
-            attributes,
-            computedStyles,
-            context
-          });
-
-          // Visual feedback - flash green (react-grab style)
-          overlay.style.border = '2px solid #10b981';
-          overlay.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
-          setTimeout(() => {
-            overlay.style.border = '2px solid #3b82f6';
-            overlay.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
-          }, 300);
-
-          // Turn off inspect mode after selection
-          setInspectMode(false);
-
-          console.log('✅ Element grabbed!', { selector, tagName });
+          // In select mode, store as pending and wait for confirmation
+          if (selectMode) {
+            // Store the selected element reference
+            selectedElementRef.current = target;
+            
+            // Keep overlay on selected element with green highlight
+            updateOverlayPosition(target);
+            overlay.style.border = '2px solid #10b981';
+            overlay.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+            
+            // Listen for scroll to keep overlay positioned
+            iframeDoc.defaultView?.addEventListener('scroll', handleScroll, true);
+            
+            setPendingInspectElement({
+              html,
+              selector,
+              classList,
+              tagName,
+              attributes,
+              computedStyles,
+              context
+            });
+            console.log('✅ Element selected (waiting for confirmation)!', { selector, tagName });
+          } else {
+            // Visual feedback - flash green (react-grab style)
+            overlay.style.border = '2px solid #10b981';
+            overlay.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+            setTimeout(() => {
+              overlay.style.border = '2px solid #3b82f6';
+              overlay.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+            }, 300);
+            
+            // Normal mode: open modal immediately
+            setInspectedElement({
+              html,
+              selector,
+              classList,
+              tagName,
+              attributes,
+              computedStyles,
+              context
+            });
+            // Turn off inspect mode after selection (only in normal mode)
+            setInspectMode(false);
+            console.log('✅ Element grabbed!', { selector, tagName });
+          }
         } catch (error) {
           console.error('❌ Error grabbing element:', error);
         }
@@ -1763,6 +1876,17 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
       iframeDoc.addEventListener('mousemove', handleMouseMove);
       iframeDoc.addEventListener('click', handleClick, true); // Capture phase
 
+      // If we have a pending selected element, restore its highlight
+      if (selectedElementRef.current && selectMode && pendingInspectElement) {
+        const selectedEl = selectedElementRef.current;
+        updateOverlayPosition(selectedEl);
+        overlay.style.border = '2px solid #10b981';
+        overlay.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+        overlay.style.display = 'block';
+        // Re-attach scroll listener
+        iframeDoc.defaultView?.addEventListener('scroll', handleScroll, true);
+      }
+
       // Store cleanup function
       cleanupFn = () => {
         try {
@@ -1771,6 +1895,9 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
             iframeDoc.body.style.cursor = '';
           }
 
+          // Remove scroll listener
+          iframeDoc.defaultView?.removeEventListener('scroll', handleScroll, true);
+
           // Remove overlay
           if (overlay && overlay.parentNode) {
             overlay.parentNode.removeChild(overlay);
@@ -1778,6 +1905,10 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
 
           iframeDoc?.removeEventListener('mousemove', handleMouseMove);
           iframeDoc?.removeEventListener('click', handleClick, true);
+          
+          // Clear references
+          selectedElementRef.current = null;
+          overlayRef.current = null;
         } catch (e) {
           // Ignore cleanup errors
         }
@@ -1803,7 +1934,53 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
         cleanupFn();
       }
     };
-  }, [inspectMode, showPreview, onEditElementInChat]);
+  }, [inspectMode, selectMode, showPreview, onEditElementInChat, pendingInspectElement]);
+
+  // Keep overlay positioned on selected element in select mode
+  useEffect(() => {
+    if (!pendingInspectElement || !selectMode || !showPreview || !previewIframeRef.current) {
+      return;
+    }
+
+    const iframe = previewIframeRef.current;
+    let intervalId: NodeJS.Timeout | null = null;
+
+    const updateSelectedOverlay = () => {
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!iframeDoc || !selectedElementRef.current || !overlayRef.current) return;
+
+        const selectedEl = selectedElementRef.current;
+        const overlay = overlayRef.current;
+        
+        const rect = selectedEl.getBoundingClientRect();
+        const scrollX = iframeDoc.defaultView?.scrollX || 0;
+        const scrollY = iframeDoc.defaultView?.scrollY || 0;
+
+        overlay.style.display = 'block';
+        overlay.style.left = `${rect.left + scrollX}px`;
+        overlay.style.top = `${rect.top + scrollY}px`;
+        overlay.style.width = `${rect.width}px`;
+        overlay.style.height = `${rect.height}px`;
+        overlay.style.border = '2px solid #10b981';
+        overlay.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+      } catch (e) {
+        // Ignore errors
+      }
+    };
+
+    // Update immediately
+    updateSelectedOverlay();
+
+    // Update periodically to handle scroll/resize
+    intervalId = setInterval(updateSelectedOverlay, 100);
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [pendingInspectElement, selectMode, showPreview]);
 
   // HTML Preview resizable divider handlers
   useEffect(() => {
@@ -1813,9 +1990,18 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
       if (!container) return;
 
       const containerRect = container.getBoundingClientRect();
-      const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      let newPercentage: number;
+      
+      if (splitViewOrientation === "row") {
+        // Side-by-side: use X coordinate
+        newPercentage = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      } else {
+        // Top-bottom: use Y coordinate
+        newPercentage = ((e.clientY - containerRect.top) / containerRect.height) * 100;
+      }
+      
       // Clamp between 30% and 70%
-      setPreviewSplitWidth(Math.min(Math.max(newWidth, 30), 70));
+      setPreviewSplitWidth(Math.min(Math.max(newPercentage, 30), 70));
     };
 
     const handleMouseUp = () => {
@@ -1825,7 +2011,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
     if (previewDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'ew-resize';
+      document.body.style.cursor = splitViewOrientation === "row" ? 'ew-resize' : 'ns-resize';
       document.body.style.userSelect = 'none';
     }
 
@@ -1835,7 +2021,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [previewDragging]);
+  }, [previewDragging, splitViewOrientation]);
 
   // Generate preview HTML with all styles and scripts (uses global state for latest content)
   const generatePreviewHTML = (): string => {
@@ -2926,7 +3112,36 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     justifyContent: "space-between",
                     alignItems: "center"
                   }}>
-                    <span>Files</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span>Files</span>
+                      {/* Loading Indicator */}
+                      {isGenerating && generatingPhase && (
+                        <div style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          fontSize: "10px",
+                          color: "#10b981",
+                          fontWeight: 500,
+                          textTransform: "none"
+                        }}>
+                          <div style={{
+                            width: "10px",
+                            height: "10px",
+                            border: "2px solid #3e3e3e",
+                            borderTop: "2px solid #10b981",
+                            borderRadius: "50%",
+                            animation: "spin 0.8s linear infinite"
+                          }} />
+                          <span>Generating {generatingPhase.toUpperCase()}...</span>
+                          <style>{`
+                            @keyframes spin {
+                              to { transform: rotate(360deg); }
+                            }
+                          `}</style>
+                        </div>
+                      )}
+                    </div>
                     {/* Close button (mobile only) */}
                     {isMobile && (
                       <button
@@ -2950,87 +3165,22 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
 
                   {/* File List */}
                   <div style={{ flex: 1, overflow: "auto" }}>
-                    {(() => {
-                      const activeGroup = fileGroups.activeGroup;
-                      const isPlugin = activeGroup?.isPlugin;
-                      const projectType = activeGroup?.type;
+                    {tabs.map((tab) => {
+                      // Get icon based on file type
+                      const icon = tab.type === 'html' ? <AiFillHtml5 size={16} color="#E34F26" /> :
+                        tab.type === 'css' ? <DiCss3 size={18} color="#1572B6" /> :
+                        tab.type === 'js' ? <DiJavascript1 size={18} color="#F7DF1E" /> :
+                        tab.type === 'php' ? <DiPhp size={18} color={tab.isWidget ? "#777BB4" : "#9B59B6"} /> :
+                        tab.type === 'hubl' ? <SiHubspot size={16} color="#FF7A59" /> :
+                        <FileText size={16} color="#4CAF50" />;
 
-                      // For WordPress Plugins, show plugin main file + all widget files
-                      if (isPlugin) {
-                        const pluginSlug = activeGroup.pluginSlug || 'plugin';
-                        const files = [
-                          {
-                            tab: 'php',
-                            icon: <DiPhp size={18} color="#9B59B6" />,
-                            name: `${pluginSlug}.php`,
-                            lang: 'PHP',
-                            isMainFile: true
-                          }
-                        ];
-
-                        // Add all widget files
-                        if (activeGroup.widgetFiles) {
-                          Object.entries(activeGroup.widgetFiles).forEach(([widgetId, widget]) => {
-                            files.push({
-                              tab: `widget-${widgetId}`,
-                              icon: <DiPhp size={18} color="#777BB4" />,
-                              name: `${widget.slug}.php`,
-                              lang: 'PHP',
-                              isMainFile: false,
-                              widgetId,
-                              widgetName: widget.name
-                            });
-                          });
-                        }
-
-                        // Add Project Docs tab
-                        files.push({
-                          tab: 'docs',
-                          icon: <FileText size={16} color="#4CAF50" />,
-                          name: 'README.md',
-                          lang: 'Markdown',
-                          isMainFile: false
-                        });
-
-                        return files;
-                      }
-
-                      // For regular PHP widgets (CSS/JS are inline in PHP, so only show PHP and docs)
-                      if (projectType === 'php') {
-                        return [
-                          { tab: 'php', icon: <DiPhp size={18} color="#777BB4" />, name: 'widget.php', lang: 'PHP' },
-                          { tab: 'docs', icon: <FileText size={16} color="#4CAF50" />, name: 'README.md', lang: 'Markdown' }
-                        ];
-                      }
-
-                      // For HubSpot templates
-                      if (projectType === 'hubspot') {
-                        return [
-                          { tab: 'html', icon: <AiFillHtml5 size={16} color="#E34F26" />, name: 'index.html', lang: 'HTML' },
-                          { tab: 'hubl', icon: <SiHubspot size={16} color="#FF7A59" />, name: 'template.hubl', lang: 'HubL' },
-                          { tab: 'docs', icon: <FileText size={16} color="#4CAF50" />, name: 'README.md', lang: 'Markdown' }
-                        ];
-                      }
-
-                      // Default HTML projects
-                      return [
-                        { tab: 'html', icon: <AiFillHtml5 size={16} color="#E34F26" />, name: 'index.html', lang: 'HTML' },
-                        { tab: 'css', icon: <DiCss3 size={18} color="#1572B6" />, name: 'styles.css', lang: 'CSS' },
-                        { tab: 'js', icon: <DiJavascript1 size={18} color="#F7DF1E" />, name: 'script.js', lang: 'JavaScript' },
-                        { tab: 'docs', icon: <FileText size={16} color="#4CAF50" />, name: 'README.md', lang: 'Markdown' }
-                      ];
-                    })().map((file) => {
                       // Check if this tab is active
-                      // For widget files, check if activeWidgetId matches
-                      // For regular files, check if activeCodeTab matches
-                      const isActive = file.tab.startsWith('widget-')
-                        ? (activeWidgetId === file.tab.replace('widget-', '') && activeCodeTab === 'php')
-                        : (activeCodeTab === file.tab);
+                      const isActive = activeTabId === tab.id;
 
                       return (
                       <button
-                        key={file.tab}
-                        onClick={() => handleCodeTabChange(file.tab)}
+                        key={tab.id}
+                        onClick={() => handleCodeTabChange(tab.id)}
                         style={{
                           width: "100%",
                           padding: "8px 12px",
@@ -3058,8 +3208,8 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                           }
                         }}
                       >
-                        <span style={{ display: "flex", alignItems: "center" }}>{file.icon}</span>
-                        <span style={{ flex: 1 }}>{file.name}</span>
+                        <span style={{ display: "flex", alignItems: "center" }}>{icon}</span>
+                        <span style={{ flex: 1 }}>{tab.label}</span>
                       </button>
                       );
                     })}
@@ -3302,27 +3452,12 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     : activeCodeTab
                 }
                 theme={theme === "dark" ? "vs-dark" : "light"}
-                value={
-                  activeCodeTab === "html"
-                    ? editorHtml
-                    : activeCodeTab === "css"
-                    ? editorCss
-                    : activeCodeTab === "js"
-                    ? editorJs
-                    : activeCodeTab === "php"
-                    ? editorPhp
-                    : activeCodeTab === "hubl"
-                    ? editorHubl
-                    : ""
-                }
+                value={activeTab?.content || ""}
                 onChange={(value) => {
-                  // Auto-detect PHP code and redirect to php tab
-                  if (activeCodeTab === "html" && value && value.trim().startsWith('<?php')) {
-                    console.log('🔧 PHP code detected in HTML editor, redirecting to widget.php');
-                    updateSection({ php: value || "", html: "" });
-                    handleCodeTabChange('php');
-                  } else {
-                    updateSection({ [activeCodeTab]: value || "" });
+                  // NEW: Simply delegate to useFileTabs hook
+                  // The hook handles all the complexity (widgets, main files, persistence)
+                  if (value !== undefined && activeTabId) {
+                    updateTabContent(activeTabId, value);
                   }
                 }}
                 onMount={(editor, monaco) => {
@@ -3493,7 +3628,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
               }}
             >
               <span>HTML Preview {inspectSplitView ? '(Split View)' : '(Full View)'}</span>
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                 {onEditElementInChat && (
                   <>
                     <button
@@ -3501,6 +3636,16 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                         const newMode = !inspectMode;
                         console.log('🔘 Inspect button clicked! New mode:', newMode);
                         setInspectMode(newMode);
+                        // Reset select mode when turning off inspect
+                        if (!newMode) {
+                          setSelectMode(false);
+                          setPendingInspectElement(null);
+                          selectedElementRef.current = null;
+                          // Remove overlay if it exists
+                          if (overlayRef.current && overlayRef.current.parentNode) {
+                            overlayRef.current.style.display = 'none';
+                          }
+                        }
                       }}
                       style={{
                         padding: "4px 12px",
@@ -3517,10 +3662,50 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     </button>
                     {inspectMode && (
                       <button
-                        onClick={() => setInspectSplitView(!inspectSplitView)}
+                        onClick={() => {
+                          const newSelectMode = !selectMode;
+                          setSelectMode(newSelectMode);
+                          // Clear pending element and selected element when toggling select mode
+                          if (!newSelectMode) {
+                            setPendingInspectElement(null);
+                            selectedElementRef.current = null;
+                            // Remove overlay if it exists
+                            if (overlayRef.current && overlayRef.current.parentNode) {
+                              overlayRef.current.style.display = 'none';
+                            }
+                          }
+                        }}
                         style={{
                           padding: "4px 12px",
-                          background: inspectSplitView ? "#10b981" : "#6b7280",
+                          background: selectMode ? "#f59e0b" : "#6b7280",
+                          color: "#ffffff",
+                          border: "none",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                        }}
+                        title="Select mode: requires confirmation before opening modal"
+                      >
+                        {selectMode ? "✓ Select Mode" : "○ Select Mode"}
+                      </button>
+                    )}
+                    {pendingInspectElement && (
+                      <button
+                        onClick={() => {
+                          setInspectedElement(pendingInspectElement);
+                          setPendingInspectElement(null);
+                          setInspectMode(false);
+                          // Clear selected element reference
+                          selectedElementRef.current = null;
+                          // Remove overlay if it exists
+                          if (overlayRef.current && overlayRef.current.parentNode) {
+                            overlayRef.current.style.display = 'none';
+                          }
+                        }}
+                        style={{
+                          padding: "4px 12px",
+                          background: "#10b981",
                           color: "#ffffff",
                           border: "none",
                           borderRadius: "4px",
@@ -3529,10 +3714,44 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                           fontWeight: 500,
                         }}
                       >
-                        {inspectSplitView ? "⊞ Split View" : "▢ Full View"}
+                        ✓ Confirm
                       </button>
                     )}
                   </>
+                )}
+                {/* Full View button - always visible */}
+                <button
+                  onClick={() => setInspectSplitView(!inspectSplitView)}
+                  style={{
+                    padding: "4px 12px",
+                    background: inspectSplitView ? "#10b981" : "#6b7280",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    fontWeight: 500,
+                  }}
+                >
+                  {inspectSplitView ? "⊞ Split View" : "▢ Full View"}
+                </button>
+                {inspectSplitView && (
+                  <button
+                    onClick={() => setSplitViewOrientation(splitViewOrientation === "row" ? "column" : "row")}
+                    style={{
+                      padding: "4px 12px",
+                      background: "#6b7280",
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: "4px",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                    title={splitViewOrientation === "row" ? "Switch to top-bottom layout" : "Switch to side-by-side layout"}
+                  >
+                    {splitViewOrientation === "row" ? "↕ Top/Bottom" : "↔ Side-by-Side"}
+                  </button>
                 )}
                 <button
                   onClick={() => setShowPreview(false)}
@@ -3559,14 +3778,17 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 style={{
                   flex: 1,
                   display: "flex",
-                  flexDirection: "row",
+                  flexDirection: splitViewOrientation,
                   overflow: "hidden",
                 }}
               >
                 {/* Left Panel - Code Editor */}
                 <div
                   style={{
-                    width: `${previewSplitWidth}%`,
+                    ...(splitViewOrientation === "row" 
+                      ? { width: `${previewSplitWidth}%` }
+                      : { height: `${previewSplitWidth}%` }
+                    ),
                     display: "flex",
                     flexDirection: "column",
                     background: "var(--background)",
@@ -3583,15 +3805,15 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                       borderBottom: "1px solid var(--border)",
                     }}
                   >
-                    {/* Show appropriate tabs based on project type */}
-                    {(projectType === 'php' ? ["php", "docs"] : projectType === 'hubspot' ? ["html", "hubl", "docs"] : ["html", "css", "js"]).map((tab) => (
+                    {/* Show dynamic tabs from useFileTabs hook - includes widget tabs */}
+                    {tabs.map((tab) => (
                       <button
-                        key={tab}
-                        onClick={() => handleCodeTabChange(tab as "html" | "css" | "js" | "php" | "hubl" | "docs")}
+                        key={tab.id}
+                        onClick={() => handleCodeTabChange(tab.id as "html" | "css" | "js" | "php" | "hubl" | "docs")}
                         style={{
                           padding: "4px 12px",
-                          background: activeCodeTab === tab ? "var(--primary)" : "transparent",
-                          color: activeCodeTab === tab ? "#ffffff" : "var(--foreground)",
+                          background: activeCodeTab === tab.id ? "var(--primary)" : "transparent",
+                          color: activeCodeTab === tab.id ? "#ffffff" : "var(--foreground)",
                           border: "none",
                           borderRadius: "4px",
                           fontSize: "12px",
@@ -3599,7 +3821,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                           fontWeight: 500,
                         }}
                       >
-                        {tab.toUpperCase()}
+                        {tab.label}
                       </button>
                     ))}
                   </div>
@@ -3646,9 +3868,12 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     setPreviewDragging(true);
                   }}
                   style={{
-                    width: "4px",
+                    ...(splitViewOrientation === "row"
+                      ? { width: "4px", height: "100%" }
+                      : { height: "4px", width: "100%" }
+                    ),
                     background: "var(--border)",
-                    cursor: "ew-resize",
+                    cursor: splitViewOrientation === "row" ? "ew-resize" : "ns-resize",
                     flexShrink: 0,
                     position: "relative",
                     transition: previewDragging ? "none" : "background 0.2s",
@@ -3671,8 +3896,10 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                       top: "50%",
                       left: "50%",
                       transform: "translate(-50%, -50%)",
-                      width: "3px",
-                      height: "40px",
+                      ...(splitViewOrientation === "row"
+                        ? { width: "3px", height: "40px" }
+                        : { height: "3px", width: "40px" }
+                      ),
                       background: previewDragging ? "var(--primary)" : "var(--muted-foreground)",
                       borderRadius: "2px",
                       opacity: 0.5,
@@ -3684,7 +3911,10 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 {/* Right Panel - Live Preview */}
                 <div
                   style={{
-                    width: `${100 - previewSplitWidth}%`,
+                    ...(splitViewOrientation === "row"
+                      ? { width: `${100 - previewSplitWidth}%` }
+                      : { height: `${100 - previewSplitWidth}%` }
+                    ),
                     display: "flex",
                     flexDirection: "column",
                     background: "#ffffff",
@@ -4244,7 +4474,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
       />
 
       {/* Generate Project Modal */}
-      <GenerateProjectModal
+      <GenerateProjectDialog
         isOpen={showGenerateModal}
         onClose={() => {
           setShowGenerateModal(false);

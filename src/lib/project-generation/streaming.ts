@@ -150,8 +150,8 @@ export async function streamProjectGeneration(
       const { done, value } = await reader.read();
       if (done) break;
 
-      // Decode chunk
-      const chunk = decoder.decode(value);
+      // Decode chunk with stream: true to handle multi-byte characters across boundaries
+      const chunk = decoder.decode(value, { stream: true });
       fullCode += chunk;
       bytesReceived += value.length;
 
@@ -163,14 +163,36 @@ export async function streamProjectGeneration(
       onFileUpdate?.(parsedFiles);
     }
 
+    // Final decode to flush any remaining bytes
+    const finalChunk = decoder.decode();
+    if (finalChunk) {
+      fullCode += finalChunk;
+    }
+
     // Emit progress: parsing
     onProgress?.('parsing', 'Parsing response...');
 
     // Extract usage metadata (if present)
     const { code: cleanCode, usage, model: usedModel } = extractUsageMetadata(fullCode);
 
+    // Debug: Log what we received
+    console.log('📦 Received code length:', cleanCode.length);
+    console.log('📦 First 500 chars:', cleanCode.substring(0, 500));
+    console.log('📦 Last 500 chars:', cleanCode.substring(cleanCode.length - 500));
+    console.log('📦 Has HTML block:', cleanCode.includes('```html'));
+    console.log('📦 Has CSS block:', cleanCode.includes('```css'));
+    console.log('📦 Has JS block:', cleanCode.includes('```js'));
+
     // Final parse
     const finalFiles = parseProjectCode(cleanCode, projectType, subtype);
+
+    // Debug: Log what was parsed
+    console.log('📦 Parsed HTML length:', finalFiles.html?.length || 0);
+    console.log('📦 Parsed CSS length:', finalFiles.css?.length || 0);
+    console.log('📦 Parsed JS length:', finalFiles.js?.length || 0);
+    if (finalFiles.html) {
+      console.log('📦 HTML preview:', finalFiles.html.substring(0, 200));
+    }
 
     // Extract metadata
     const metadata = extractProjectMetadata(finalFiles, projectType, subtype);
@@ -230,8 +252,8 @@ export async function streamWithLegacyCallbacks(
     setCurrentPhase
   } = callbacks;
 
-  // Track which files we've already updated to avoid redundant calls
-  const updatedFiles = new Set<string>();
+  // Track tab switches to avoid switching multiple times
+  const switchedTabs = new Set<string>();
 
   await streamProjectGeneration({
     ...options,
@@ -255,16 +277,16 @@ export async function streamWithLegacyCallbacks(
 
     onFileUpdate: (files) => {
       // Update files incrementally as they're parsed
+      // DO NOT deduplicate - we want real-time streaming updates!
       if (!onProjectUpdate && !onProjectMetadataUpdate) return;
 
       if (options.projectType === 'elementor') {
         // Elementor: Update plugin files via metadata
-        if (files.pluginMainFile && !updatedFiles.has('pluginMainFile') && onProjectMetadataUpdate) {
+        if (files.pluginMainFile && onProjectMetadataUpdate) {
           onProjectMetadataUpdate(projectId, {
             isPlugin: true,
             pluginMainFile: files.pluginMainFile
           });
-          updatedFiles.add('pluginMainFile');
         }
 
         if (files.php && onProjectMetadataUpdate) {
@@ -286,39 +308,43 @@ export async function streamWithLegacyCallbacks(
               }
             }
           });
-          updatedFiles.add('widget');
         }
       } else if (options.projectType === 'hubspot') {
         // HubSpot: Update HTML and HubL
-        if (files.html && !updatedFiles.has('html') && onProjectUpdate) {
+        if (files.html && onProjectUpdate) {
           onProjectUpdate(projectId, 'html', files.html);
-          updatedFiles.add('html');
         }
-        if (files.hubl && !updatedFiles.has('hubl') && onProjectUpdate) {
+        if (files.hubl && onProjectUpdate) {
           onProjectUpdate(projectId, 'hubl', files.hubl);
-          updatedFiles.add('hubl');
         }
       } else {
-        // HTML: Update HTML, CSS, JS
-        if (files.html && !updatedFiles.has('html') && onProjectUpdate) {
+        // HTML: Update HTML, CSS, JS (allow incremental updates for streaming)
+        if (files.html && onProjectUpdate) {
           onProjectUpdate(projectId, 'html', files.html);
-          updatedFiles.add('html');
         }
-        if (files.css && !updatedFiles.has('css') && onProjectUpdate) {
+
+        if (files.css && onProjectUpdate) {
+          // Always update file content (allows streaming)
           onProjectUpdate(projectId, 'css', files.css);
-          updatedFiles.add('css');
 
-          // Auto-switch to CSS tab
-          if (setCurrentPhase) setCurrentPhase('css');
-          onSwitchCodeTab?.('css');
+          // Only switch tab once
+          if (!switchedTabs.has('css')) {
+            switchedTabs.add('css');
+            if (setCurrentPhase) setCurrentPhase('css');
+            onSwitchCodeTab?.('css');
+          }
         }
-        if (files.js && !updatedFiles.has('js') && onProjectUpdate) {
-          onProjectUpdate(projectId, 'js', files.js);
-          updatedFiles.add('js');
 
-          // Auto-switch to JS tab
-          if (setCurrentPhase) setCurrentPhase('js');
-          onSwitchCodeTab?.('js');
+        if (files.js && onProjectUpdate) {
+          // Always update file content (allows streaming)
+          onProjectUpdate(projectId, 'js', files.js);
+
+          // Only switch tab once
+          if (!switchedTabs.has('js')) {
+            switchedTabs.add('js');
+            if (setCurrentPhase) setCurrentPhase('js');
+            onSwitchCodeTab?.('js');
+          }
         }
       }
     },
@@ -429,4 +455,203 @@ export function createCancellableStream(): {
     signal: controller.signal,
     cancel: () => controller.abort()
   };
+}
+
+/**
+ * Sequential Streaming System
+ *
+ * Streams files sequentially with clear phase transitions:
+ * HTML → CSS → JS (for HTML projects)
+ * PHP → Widget Files → Docs (for Elementor projects)
+ * HTML → HubL (for HubSpot projects)
+ *
+ * Benefits:
+ * - Clear visual progression
+ * - Auto-tab switching between phases
+ * - Better user understanding
+ * - Consistent with auto-run mode design
+ */
+
+export interface SequentialStreamOptions extends StreamGenerationOptions {
+  /** Enable sequential streaming (default: false for backwards compatibility) */
+  sequential?: boolean;
+
+  /** Callback when phase changes (e.g., HTML → CSS) */
+  onPhaseChange?: (fromPhase: string | null, toPhase: string) => void;
+}
+
+/**
+ * Stream with sequential phase indicators
+ *
+ * This function enhances streamProjectGeneration with sequential streaming:
+ * 1. Detects when each code block completes
+ * 2. Calls onPhaseChange when transitioning between files
+ * 3. Provides clearer progress indicators
+ *
+ * @param options - Sequential streaming options
+ */
+export async function streamSequential(
+  options: SequentialStreamOptions
+): Promise<void> {
+  const {
+    projectType,
+    sequential = false,
+    onProgress,
+    onFileUpdate,
+    onPhaseChange,
+    ...restOptions
+  } = options;
+
+  // If sequential mode is disabled, fall back to normal streaming
+  if (!sequential) {
+    return streamProjectGeneration({ ...options, onProgress, onFileUpdate });
+  }
+
+  // Track current phase
+  let currentPhase: string | null = null;
+  let lastParsedFiles: Partial<ParsedFiles> = {};
+
+  // Determine expected phases based on project type
+  const getExpectedPhases = (): string[] => {
+    if (projectType === 'elementor') {
+      return ['pluginMainFile', 'php', 'docs'];
+    } else if (projectType === 'hubspot') {
+      return ['html', 'hubl'];
+    } else {
+      // HTML project
+      return ['html', 'css', 'js'];
+    }
+  };
+
+  const expectedPhases = getExpectedPhases();
+  let currentPhaseIndex = 0;
+
+  // Enhanced file update handler
+  const sequentialFileUpdate = (files: Partial<ParsedFiles>) => {
+    // Check which files have been newly completed
+    const fileKeys = Object.keys(files) as (keyof ParsedFiles)[];
+
+    for (const key of fileKeys) {
+      const fileContent = files[key];
+      const lastContent = lastParsedFiles[key];
+
+      // If this file is new or has grown significantly, it might be a new phase
+      if (fileContent && (!lastContent || fileContent.length > (lastContent as string).length + 100)) {
+        const phaseMapping: Record<string, string> = {
+          html: 'html',
+          css: 'css',
+          js: 'js',
+          php: 'php',
+          pluginMainFile: 'pluginMainFile',
+          hubl: 'hubl',
+          projectManifest: 'docs'
+        };
+
+        const newPhase = phaseMapping[key];
+
+        if (newPhase && newPhase !== currentPhase) {
+          // Phase transition detected
+          const oldPhase = currentPhase;
+          currentPhase = newPhase;
+
+          // Notify phase change
+          if (onPhaseChange) {
+            onPhaseChange(oldPhase, newPhase);
+          }
+
+          // Update progress message
+          const phaseLabels: Record<string, string> = {
+            html: 'HTML',
+            css: 'CSS',
+            js: 'JavaScript',
+            php: 'PHP Widget',
+            pluginMainFile: 'Plugin Main File',
+            hubl: 'HubL Module',
+            docs: 'Documentation'
+          };
+
+          if (onProgress) {
+            onProgress('generating', `Generating ${phaseLabels[newPhase]}...`);
+          }
+
+          currentPhaseIndex++;
+        }
+      }
+    }
+
+    // Update last parsed files
+    lastParsedFiles = { ...lastParsedFiles, ...files };
+
+    // Call original file update handler
+    if (onFileUpdate) {
+      onFileUpdate(files);
+    }
+  };
+
+  // Start streaming with sequential handlers
+  await streamProjectGeneration({
+    ...restOptions,
+    projectType,
+    onProgress: (phase, message) => {
+      // Initial phase
+      if (phase === 'generating' && !currentPhase && expectedPhases.length > 0) {
+        currentPhase = expectedPhases[0];
+        if (onPhaseChange) {
+          onPhaseChange(null, currentPhase);
+        }
+      }
+
+      if (onProgress) {
+        onProgress(phase, message);
+      }
+    },
+    onFileUpdate: sequentialFileUpdate
+  });
+}
+
+/**
+ * Helper: Determine file phase from content
+ *
+ * Analyzes streamed content to determine which file is currently being generated.
+ * This helps detect phase transitions early.
+ *
+ * @param content - Raw streamed content
+ * @returns Detected phase or null
+ */
+export function detectPhaseFromContent(content: string): string | null {
+  // Look for code block markers to identify phase
+  const markers = [
+    { regex: /```html\n/i, phase: 'html' },
+    { regex: /```css\n/i, phase: 'css' },
+    { regex: /```(?:javascript|js)\n/i, phase: 'js' },
+    { regex: /```php\n.*?Plugin Name:/is, phase: 'pluginMainFile' },
+    { regex: /```php\n.*?class.*?extends.*?Widget_Base/is, phase: 'php' },
+    { regex: /```hubl\n/i, phase: 'hubl' },
+    { regex: /```(?:markdown|md)\n/i, phase: 'docs' }
+  ];
+
+  for (const { regex, phase } of markers) {
+    if (regex.test(content)) {
+      return phase;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Helper: Get human-readable phase label
+ */
+export function getPhaseLabeledName(phase: string): string {
+  const labels: Record<string, string> = {
+    html: 'HTML',
+    css: 'CSS',
+    js: 'JavaScript',
+    php: 'PHP Widget',
+    pluginMainFile: 'Plugin Main File',
+    hubl: 'HubL Module',
+    docs: 'Documentation'
+  };
+
+  return labels[phase] || phase;
 }

@@ -28,9 +28,10 @@ export default function ImageEditorPage() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-background">
-      {/* Mobile Header with Menu Toggle */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
+    <div className="h-screen w-full bg-white" style={{ padding: '8px' }}>
+      <div className="flex flex-col md:flex-row h-full rounded-lg shadow-sm overflow-hidden" style={{ backgroundColor: '#F5F5F5' }}>
+        {/* Mobile Header with Menu Toggle */}
+        <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
         <h1 className="text-lg font-semibold">Image Editor</h1>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -200,8 +201,9 @@ export default function ImageEditorPage() {
         />
       </div>
 
-      {/* Bottom Navigation - Mobile Only */}
-      <BottomNav />
+        {/* Bottom Navigation - Mobile Only */}
+        <BottomNav />
+      </div>
     </div>
   );
 }

@@ -2037,6 +2037,15 @@ window.updateAllSectionsPreview = async function(sections, globalCss = '') {
 
 // Deploy Elementor Widget to WordPress Playground
 window.deployElementorWidget = async function(widgetPhp, widgetCss = '', widgetJs = '') {
+    console.log('🎯 deployElementorWidget called with:', {
+        widgetPhpType: typeof widgetPhp,
+        widgetPhpLength: widgetPhp ? widgetPhp.length : 0,
+        widgetPhpIsTruthy: !!widgetPhp,
+        widgetPhpPreview: widgetPhp ? widgetPhp.substring(0, 100) : 'EMPTY',
+        widgetCssLength: widgetCss ? widgetCss.length : 0,
+        widgetJsLength: widgetJs ? widgetJs.length : 0
+    });
+
     if (!playgroundClient) {
         throw new Error('Playground not running. Launch it first.');
     }
@@ -2046,6 +2055,11 @@ window.deployElementorWidget = async function(widgetPhp, widgetCss = '', widgetJ
 
         // Validate widgetPhp parameter
         if (!widgetPhp || typeof widgetPhp !== 'string') {
+            console.error('❌ Widget PHP validation failed:', {
+                widgetPhp,
+                type: typeof widgetPhp,
+                isFalsy: !widgetPhp
+            });
             throw new Error('Invalid widget PHP code. Please provide valid PHP code.');
         }
 

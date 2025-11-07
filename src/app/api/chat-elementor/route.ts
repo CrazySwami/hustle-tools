@@ -77,16 +77,59 @@ export async function POST(req: Request) {
       });
     }
 
+    // Validate and normalize messages before conversion
+    if (!Array.isArray(messages) || messages.length === 0) {
+      console.error('❌ Invalid messages array:', messages);
+      return new Response(
+        JSON.stringify({ error: 'Invalid messages format', details: 'Messages must be a non-empty array' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Ensure each message has proper structure
+    const normalizedMessages = messages.map((msg: any, idx: number) => {
+      if (!msg || typeof msg !== 'object') {
+        throw new Error(`Message at index ${idx} is not an object`);
+      }
+      if (!msg.role) {
+        throw new Error(`Message at index ${idx} missing role`);
+      }
+
+      // Normalize content - ensure it's either a string or parts array
+      if (msg.content && typeof msg.content === 'string') {
+        return {
+          id: msg.id || `msg-${Date.now()}-${idx}`,
+          role: msg.role,
+          content: msg.content
+        };
+      } else if (msg.parts && Array.isArray(msg.parts)) {
+        return {
+          id: msg.id || `msg-${Date.now()}-${idx}`,
+          role: msg.role,
+          parts: msg.parts
+        };
+      } else {
+        // Default to empty content if neither format is present
+        return {
+          id: msg.id || `msg-${Date.now()}-${idx}`,
+          role: msg.role,
+          content: ''
+        };
+      }
+    });
+
+    console.log('✅ Normalized messages:', normalizedMessages.length);
+
     // Convert messages with error handling (same as main chat)
     let convertedMessages;
     try {
-      convertedMessages = convertToModelMessages(messages);
+      convertedMessages = convertToModelMessages(normalizedMessages);
       console.log('✅ Successfully converted messages. Count:', convertedMessages.length);
     } catch (error: any) {
       console.error('❌ Error converting messages:', error);
       console.error('   Error message:', error.message);
       console.error('   Error stack:', error.stack);
-      console.error('   Original messages:', JSON.stringify(messages, null, 2));
+      console.error('   Normalized messages:', JSON.stringify(normalizedMessages, null, 2));
       return new Response(
         JSON.stringify({ error: 'Message conversion failed', details: error.message }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }

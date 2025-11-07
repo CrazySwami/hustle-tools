@@ -116,15 +116,17 @@ export function useFileGroups(): UseFileGroupsReturn {
     name: string,
     type: 'html' | 'php' | 'hubspot',
     template?: string,
-    generationState?: 'generating' | 'ready' | 'error'
+    generationState?: 'generating' | 'ready' | 'error',
+    subtype?: string  // NEW: Add subtype parameter for HubSpot email/page distinction
   ): FileGroup => {
-    const group = createGroup(name, type, template as any, generationState);
+    const group = createGroup(name, type, template as any, generationState, subtype);
     addGroup(group);
     const newState = loadEditorState();
     console.log('🔄 [CREATE_GROUP] setState() triggered:', {
       newActiveId: newState.activeGroupId,
       newActiveGroupName: newState.groups.find(g => g.id === newState.activeGroupId)?.name,
       generationState: generationState,
+      subtype: subtype,
       timestamp: new Date().toISOString(),
     });
     setState(newState);

@@ -38,7 +38,7 @@ const HTML_CONFIG: ProjectConfig = {
   label: 'HTML Section',
   icon: 'AiFillHtml5',
   fileTypes: ['html', 'css', 'js'],
-  defaultModel: 'anthropic/claude-sonnet-4-5-20250929',
+  defaultModel: 'anthropic/claude-haiku-4-5-20251001',
 
   systemPrompt: (() => {
     const { currentDate, currentTime } = getCurrentDateTime();
@@ -57,7 +57,25 @@ The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. 
 5. **Accessibility**: Semantic HTML, ARIA labels where needed, keyboard navigation.
 6. **Responsive**: Mobile-first approach, breakpoints at 768px (tablet) and 1024px (desktop).
 
-**IMPORTANT**: Create standalone, copy-paste ready code that works immediately in any modern browser.`;
+**OUTPUT FORMAT (CRITICAL):**
+Generate the code in THREE SEPARATE CODE BLOCKS in this EXACT order:
+
+\`\`\`html
+<!-- Your HTML code here -->
+\`\`\`
+
+\`\`\`css
+/* Your CSS code here */
+\`\`\`
+
+\`\`\`javascript
+// Your JavaScript code here (or leave empty if not needed)
+\`\`\`
+
+**IMPORTANT**:
+- Always output THREE separate blocks even if JavaScript is empty
+- Each block must be wrapped in proper markdown code fences
+- Create standalone, copy-paste ready code that works immediately in any modern browser`;
   })(),
 
   parseResponse: (code: string): ParsedFiles => {
@@ -81,7 +99,7 @@ const ELEMENTOR_CONFIG: ProjectConfig = {
   label: 'Elementor Widget',
   icon: 'FaWordpress',
   fileTypes: ['php'],
-  defaultModel: 'anthropic/claude-sonnet-4-5-20250929',
+  defaultModel: 'anthropic/claude-haiku-4-5-20251001',
 
   systemPrompt: (() => {
     const { currentDate, currentTime } = getCurrentDateTime();
@@ -204,7 +222,7 @@ const HUBSPOT_EMAIL_CONFIG: ProjectConfig = {
   label: 'HubSpot Email',
   icon: 'SiHubspot',
   fileTypes: ['html', 'hubl'],
-  defaultModel: 'anthropic/claude-sonnet-4-5-20250929',
+  defaultModel: 'anthropic/claude-haiku-4-5-20251001',
 
   systemPrompt: (() => {
     const { currentDate, currentTime } = getCurrentDateTime();
@@ -286,7 +304,7 @@ const HUBSPOT_PAGE_CONFIG: ProjectConfig = {
   label: 'HubSpot Page',
   icon: 'SiHubspot',
   fileTypes: ['html', 'hubl'],
-  defaultModel: 'anthropic/claude-sonnet-4-5-20250929',
+  defaultModel: 'anthropic/claude-haiku-4-5-20251001',
 
   systemPrompt: (() => {
     const { currentDate, currentTime } = getCurrentDateTime();
@@ -354,7 +372,7 @@ The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. 
 <!-- HubL tokenization generated programmatically -->
 \`\`\`
 
-**IMPORTANT**: Page modules support modern web standards. Use flexbox, grid, and interactive features freely.`;
+**IMPORTANT**: Page modules support modern CSS, JavaScript, and responsive design. Use semantic HTML and clean structure for HubL tokenization.`;
   })(),
 
   parseResponse: (code: string): ParsedFiles => {
@@ -398,29 +416,23 @@ export function getProjectConfig(projectType: string, subtype?: string): Project
 
 /**
  * Model configurations
+ * Uses Gateway-compatible model IDs (dashes in version, not dots)
  */
 export const MODEL_CONFIGS: Record<string, ModelConfig> = {
-  // Anthropic Claude models
+  // Anthropic Claude models (use 4-5 with dashes, not 4.5 with dots)
+  'anthropic/claude-haiku-4-5-20251001': {
+    id: 'anthropic/claude-haiku-4-5-20251001',
+    name: 'Claude Haiku 4.5',
+    provider: 'anthropic',
+    contextWindow: 200000,
+    pricing: { input: 0.25, output: 1.25 }
+  },
   'anthropic/claude-sonnet-4-5-20250929': {
     id: 'anthropic/claude-sonnet-4-5-20250929',
     name: 'Claude Sonnet 4.5',
     provider: 'anthropic',
     contextWindow: 200000,
     pricing: { input: 3, output: 15 }
-  },
-  'anthropic/claude-3-5-sonnet-20241022': {
-    id: 'anthropic/claude-3-5-sonnet-20241022',
-    name: 'Claude 3.5 Sonnet',
-    provider: 'anthropic',
-    contextWindow: 200000,
-    pricing: { input: 3, output: 15 }
-  },
-  'anthropic/claude-3-5-haiku-20241022': {
-    id: 'anthropic/claude-3-5-haiku-20241022',
-    name: 'Claude 3.5 Haiku',
-    provider: 'anthropic',
-    contextWindow: 200000,
-    pricing: { input: 0.8, output: 4 }
   },
   'anthropic/claude-opus-4-20250514': {
     id: 'anthropic/claude-opus-4-20250514',
@@ -435,86 +447,23 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
     id: 'openai/gpt-5',
     name: 'GPT-5',
     provider: 'openai',
-    contextWindow: 128000,
+    contextWindow: 272000,
     pricing: { input: 5, output: 15 }
   },
   'openai/gpt-5-mini': {
     id: 'openai/gpt-5-mini',
     name: 'GPT-5 Mini',
     provider: 'openai',
-    contextWindow: 128000,
+    contextWindow: 272000,
     pricing: { input: 0.4, output: 1.2 }
-  },
-  'openai/gpt-5-nano': {
-    id: 'openai/gpt-5-nano',
-    name: 'GPT-5 Nano',
-    provider: 'openai',
-    contextWindow: 128000,
-    pricing: { input: 0.1, output: 0.3 }
-  },
-  'openai/gpt-5-pro': {
-    id: 'openai/gpt-5-pro',
-    name: 'GPT-5 Pro',
-    provider: 'openai',
-    contextWindow: 128000,
-    pricing: { input: 10, output: 30 }
-  },
-  'openai/gpt-4o': {
-    id: 'openai/gpt-4o',
-    name: 'GPT-4o',
-    provider: 'openai',
-    contextWindow: 128000,
-    pricing: { input: 2.5, output: 10 }
-  },
-  'openai/gpt-4o-mini': {
-    id: 'openai/gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    provider: 'openai',
-    contextWindow: 128000,
-    pricing: { input: 0.15, output: 0.6 }
-  },
-  'openai/o1': {
-    id: 'openai/o1',
-    name: 'o1',
-    provider: 'openai',
-    contextWindow: 200000,
-    pricing: { input: 15, output: 60 }
-  },
-  'openai/o1-mini': {
-    id: 'openai/o1-mini',
-    name: 'o1 Mini',
-    provider: 'openai',
-    contextWindow: 128000,
-    pricing: { input: 3, output: 12 }
-  },
-  'openai/o3-mini': {
-    id: 'openai/o3-mini',
-    name: 'o3 Mini',
-    provider: 'openai',
-    contextWindow: 128000,
-    pricing: { input: 1.1, output: 4.4 }
   },
 
   // Google Gemini models
-  'google/gemini-2.0-flash-exp': {
-    id: 'google/gemini-2.0-flash-exp',
-    name: 'Gemini 2.0 Flash',
+  'google/gemini-2.5-pro': {
+    id: 'google/gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
     provider: 'google',
     contextWindow: 1000000,
-    pricing: { input: 0, output: 0 } // Free tier
-  },
-  'google/gemini-2.0-flash-thinking-exp-01-21': {
-    id: 'google/gemini-2.0-flash-thinking-exp-01-21',
-    name: 'Gemini 2.0 Flash Thinking',
-    provider: 'google',
-    contextWindow: 1000000,
-    pricing: { input: 0, output: 0 } // Free tier
-  },
-  'google/gemini-exp-1206': {
-    id: 'google/gemini-exp-1206',
-    name: 'Gemini Experimental',
-    provider: 'google',
-    contextWindow: 2000000,
     pricing: { input: 0, output: 0 } // Free tier
   },
 };
@@ -533,7 +482,7 @@ export function getModelConfig(modelId: string): ModelConfig {
   const config = MODEL_CONFIGS[modelId];
   if (!config) {
     // Return default if not found
-    return MODEL_CONFIGS['anthropic/claude-sonnet-4-5-20250929'];
+    return MODEL_CONFIGS['anthropic/claude-haiku-4-5-20251001'];
   }
   return config;
 }

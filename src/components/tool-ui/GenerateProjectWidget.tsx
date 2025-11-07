@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { AiFillHtml5 } from 'react-icons/ai';
 import { FaWordpress } from 'react-icons/fa';
 import { SiHubspot } from 'react-icons/si';
 import { streamWithLegacyCallbacks } from '@/lib/project-generation/streaming';
-import { getAvailableModels, getModelsByProvider } from '@/lib/project-generation/config';
+import { getAvailableModels, getModelsByProvider, getProjectConfig } from '@/lib/project-generation/config';
+import { getModelContextLimit, estimateTokenCount } from '@/lib/token-validator';
+import { SystemPromptViewer } from '@/components/ui/SystemPromptViewer';
 import type { ProjectType } from '@/lib/project-generation/types';
 
 interface GenerateProjectWidgetProps {
@@ -17,7 +19,7 @@ interface GenerateProjectWidgetProps {
     timestamp: string;
     message: string;
   };
-  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot', generationState?: 'generating' | 'ready' | 'error') => string; // Returns new project ID
+  onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot', generationState?: 'generating' | 'ready' | 'error', subtype?: string) => string; // Returns new project ID
   onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
   onProjectMetadataUpdate?: (projectId: string, metadata: any) => void; // Update plugin metadata
   onProjectStateUpdate?: (projectId: string, state: 'generating' | 'ready' | 'error', error?: string) => void; // Update generation state
@@ -37,7 +39,7 @@ export function GenerateProjectWidget({
   onSwitchCodeTab,
   onSwitchTab,
   isEditorReady,
-  defaultModel = 'anthropic/claude-sonnet-4-5-20250929',
+  defaultModel = 'anthropic/claude-haiku-4-5-20251001',
   globalCSS
 }: GenerateProjectWidgetProps) {
   // Configuration state
@@ -60,6 +62,36 @@ export function GenerateProjectWidget({
 
   // Get models grouped by provider for dropdown
   const modelsByProvider = getModelsByProvider();
+
+  // Build system prompt with global CSS if enabled
+  const systemPrompt = useMemo(() => {
+    const config = getProjectConfig(projectType, hubspotModuleType);
+    if (!config) return '';
+
+    let prompt = config.systemPrompt;
+
+    // Add global CSS if enabled and available
+    if (includeGlobalCSS && globalCSS && globalCSS.trim().length > 0) {
+      prompt += `\n\n**Global CSS Reference** (use these styles for consistency):\n\`\`\`css\n${globalCSS}\n\`\`\`\n\nUse these colors, fonts, and design patterns to maintain consistency.`;
+    }
+
+    return prompt;
+  }, [projectType, hubspotModuleType, includeGlobalCSS, globalCSS]);
+
+  // Token counting for system prompt viewer
+  const contextLimit = getModelContextLimit(selectedModel);
+  const systemTokens = estimateTokenCount(systemPrompt);
+  let inputTokens = estimateTokenCount(description);
+
+  // Add vision tokens for images (if included)
+  // Approximate: 765 tokens per image for high-res vision
+  if (includeImages && uploadedImages.length > 0) {
+    const visionTokens = uploadedImages.length * 765;
+    inputTokens += visionTokens;
+  }
+
+  const totalTokens = systemTokens + inputTokens;
+  const conversationTokens = 0; // No conversation history in generation
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -116,7 +148,8 @@ export function GenerateProjectWidget({
     const projectId = onProjectCreate(
       projectName,
       projectType === 'elementor' ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html',
-      'generating'
+      'generating',
+      projectType === 'hubspot' ? hubspotModuleType : undefined  // Pass subtype for HubSpot
     );
 
     console.log('📦 Created project via widget:', projectName, 'ID:', projectId, 'State: generating');
@@ -292,9 +325,40 @@ export function GenerateProjectWidget({
 
       {/* Model Selector */}
       <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
-          AI Model
-        </label>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <label style={{ fontSize: '14px', fontWeight: 500 }}>
+            AI Model
+          </label>
+          <SystemPromptViewer
+            input={description}
+            systemPrompt={systemPrompt}
+            selectedModel={selectedModel}
+            contextLimit={contextLimit}
+            systemTokens={systemTokens}
+            inputTokens={inputTokens}
+            conversationTokens={conversationTokens}
+            totalTokens={totalTokens}
+            trigger={
+              <button
+                type="button"
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '12px',
+                  background: 'var(--muted)',
+                  color: 'var(--muted-foreground)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                📋 View Prompt
+              </button>
+            }
+          />
+        </div>
         <select
           value={selectedModel}
           onChange={(e) => setSelectedModel(e.target.value)}

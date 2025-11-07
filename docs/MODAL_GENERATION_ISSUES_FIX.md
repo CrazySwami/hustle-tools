@@ -317,15 +317,34 @@ ls -la src/app/api/chat/
 
 ## Implementation Status
 
-### ✅ Issue 3: Chat API 404 - FIXED
-**Implementation**: [elementor-editor/page.tsx:387-409](../src/app/elementor-editor/page.tsx#L387-L409)
+### ✅ Issue 3: Chat API 404 - FIXED (Final Solution)
 
-Added useEffect hook on component mount to clear all AI SDK cache (sessionStorage, localStorage) that might contain stale endpoint references. This ensures the chat always uses `/api/chat-elementor` instead of the deleted `/api/chat` route.
+**Root Cause**: Vercel AI SDK v5.0.11 has a known issue where the `api` parameter in `useChat()` is sometimes ignored, causing it to default to `/api/chat` instead of the specified endpoint.
+
+**Solution Implemented**:
+
+1. **Created proxy route**: [/api/chat/route.ts](../src/app/api/chat/route.ts)
+   - Transparently forwards all requests to `/api/chat-elementor`
+   - Works even if SDK bypasses the `api` parameter
+   - Logs when proxy is used for debugging
+
+2. **Cleaned up useChat config**: [elementor-editor/page.tsx:330-341](../src/app/elementor-editor/page.tsx#L330-L341)
+   - Removed `fetch` override (was causing conflicts)
+   - Added `credentials: 'same-origin'` explicitly
+   - Kept `id: 'elementor-chat'` to prevent state sharing
+   - Added cache clearing on mount
 
 **Testing**: Refresh browser on `/elementor-editor` page and check:
-1. Console should show: `🧹 Cleared stale AI SDK cache to ensure /api/chat-elementor is used`
-2. Network tab should show requests to `/api/chat-elementor` (not `/api/chat`)
-3. No 404 errors in console
+1. Console should show: `🧹 Cleared stale AI SDK cache`
+2. Send a chat message
+3. Check console - if you see `⚠️ /api/chat proxy hit`, the SDK is using the fallback
+4. Chat should work correctly regardless of which endpoint is hit
+5. No 404 errors
+
+**How it works**:
+- Best case: SDK uses `/api/chat-elementor` directly
+- Fallback: SDK hits `/api/chat` → proxy forwards to `/api/chat-elementor`
+- Either way, chat works correctly
 
 ---
 

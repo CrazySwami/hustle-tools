@@ -49,7 +49,7 @@ interface GlobalStylesheetContextType {
   setGlobalCss: (css: string) => void;
   setDesignSystemSummary: (summary: DesignSystemSummary | null) => void;
   pullFromWordPress: () => Promise<void>;
-  pushToWordPress: () => Promise<void>;
+  pushToWordPress: (cssOverride?: string) => Promise<void>;
   parseCssVariables: () => void;
 }
 
@@ -158,7 +158,7 @@ export function GlobalStylesheetProvider({ children }: { children: React.ReactNo
   }, []);
 
   // Push stylesheet to WordPress
-  const pushToWordPress = useCallback(async () => {
+  const pushToWordPress = useCallback(async (cssOverride?: string) => {
     setIsLoading(true);
     setError(null);
 
@@ -170,8 +170,17 @@ export function GlobalStylesheetProvider({ children }: { children: React.ReactNo
         throw new Error('WordPress Playground not available. Please launch WordPress first.');
       }
 
+      const cssToPushRaw = cssOverride ?? globalCss;
+      if (!cssToPushRaw || !cssToPushRaw.trim()) {
+        throw new Error('No CSS content available to push.');
+      }
+
       // Call WordPress Playground function
-      const result = await (window as any).updateGlobalStylesheet(globalCss);
+      const result = await (window as any).updateGlobalStylesheet(cssToPushRaw);
+
+      if (cssOverride !== undefined) {
+        setGlobalCss(cssOverride);
+      }
 
       console.log('✅ Stylesheet pushed successfully:', result);
 
@@ -183,7 +192,7 @@ export function GlobalStylesheetProvider({ children }: { children: React.ReactNo
     } finally {
       setIsLoading(false);
     }
-  }, [globalCss]);
+  }, [globalCss, setGlobalCss]);
 
   const value: GlobalStylesheetContextType = {
     globalCss,

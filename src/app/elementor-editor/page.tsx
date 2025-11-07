@@ -5,6 +5,7 @@ import { useChat } from '@ai-sdk/react';
 import { useEditorContent } from '@/hooks/useEditorContent';
 import { useUsageTracking } from '@/hooks/useUsageTracking';
 import { useFileGroups } from '@/hooks/useFileGroups';
+import { getProjectConfig } from '@/lib/project-generation/config';
 import '../elementor-editor.css';
 
 export const dynamic = 'force-dynamic';
@@ -68,7 +69,7 @@ import { useToast } from '@/hooks/useToast';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { NavigationBar } from '@/components/ai-elements/inner-navigation-bar';
 import { TwoPanelChatLayout } from '@/components/layouts/TwoPanelChatLayout';
-import { GenerateProjectModal } from '@/components/elementor/GenerateProjectModal';
+import { GenerateProjectDialog } from '@/components/elementor/GenerateProjectDialog';
 import { ResizableSplitPanel } from '@/components/layouts/ResizableSplitPanel';
 import {
   Dialog,
@@ -130,7 +131,7 @@ export default function ElementorEditorPage() {
   const [chatVisible, setChatVisible] = useState(true);
   const [tabBarVisible, setTabBarVisible] = useState(true);
   const [streamedCode, setStreamedCode] = useState<{ html: string; css: string; js: string }>({ html: '', css: '', js: '' });
-  const [activeCodeTab, setActiveCodeTab] = useState<'html' | 'css' | 'js'>('html');
+  const [activeCodeTab, setActiveCodeTab] = useState<'html' | 'css' | 'js' | 'php' | 'hubl'>('html');
   // REMOVED: currentSection state - now derived from fileGroups.activeGroup
   // This fixes the race condition where onSectionChange would overwrite project selection
   const [loadedSection, setLoadedSection] = useState<Section | null>(null);
@@ -328,19 +329,16 @@ export default function ElementorEditorPage() {
   const { recordUsage } = useUsageTracking();
 
   // Use AI SDK chat hook - Elementor-specific API endpoint
+  // Note: If AI SDK ignores 'api' param and hits /api/chat, proxy route will forward to /api/chat-elementor
   console.log('🔧 ELEMENTOR PAGE: useChat configured with api:', '/api/chat-elementor');
   const { messages, sendMessage, isLoading, setMessages, reload, status } = useChat({
+    id: 'elementor-chat', // Unique ID to prevent state sharing with other useChat instances
     api: '/api/chat-elementor',
+    credentials: 'same-origin', // Explicitly set credentials
     // Initial body - DO NOT include currentSection here as it captures stale value at mount
     // currentSection MUST be passed in sendMessage options to get fresh value
     body: {
       model: selectedModel,
-    },
-    // Override fetch to force the correct endpoint
-    fetch: async (url, options) => {
-      console.log('🌐 FETCH CALLED - Original URL:', url);
-      console.log('🌐 FETCH - Forcing to /api/chat-elementor');
-      return fetch('/api/chat-elementor', options);
     },
     // Track usage when message finishes
     onFinish: (message, options) => {
@@ -537,7 +535,61 @@ export default function ElementorEditorPage() {
         // Call playground function to deploy widget to live page
         if (typeof window !== 'undefined' && (window as any).deployAndPreviewWidget && currentProject) {
           try {
-            const result = await (window as any).deployAndPreviewWidget(currentProject.php, currentProject.css, currentProject.js, 'live-page');
+            // Debug: Log complete project structure
+            console.log('🔍 [DEPLOY TO LIVE PAGE] Current project structure:', {
+              id: currentProject.id,
+              name: currentProject.name,
+              type: currentProject.type,
+              isPlugin: currentProject.isPlugin,
+              hasWidgetFiles: !!currentProject.widgetFiles,
+              widgetFileKeys: currentProject.widgetFiles ? Object.keys(currentProject.widgetFiles) : [],
+              widgetFileCount: currentProject.widgetFiles ? Object.keys(currentProject.widgetFiles).length : 0,
+              widgetFilesDetail: currentProject.widgetFiles ? Object.entries(currentProject.widgetFiles).map(([id, w]) => ({
+                id,
+                name: w.name,
+                slug: w.slug,
+                className: w.className,
+                contentLength: w.content?.length || 0,
+                hasContent: !!w.content
+              })) : [],
+              hasPHP: !!currentProject.php,
+              phpLength: currentProject.php?.length || 0,
+              hasPluginMainFile: !!currentProject.pluginMainFile,
+              pluginMainFileLength: currentProject.pluginMainFile?.length || 0,
+            });
+
+            // For plugins, deploy the first widget; for single widgets, use php property
+            let widgetPhp: string | undefined;
+            let widgetName: string | undefined;
+
+            if (currentProject.isPlugin && currentProject.widgetFiles) {
+              // Deploy first widget from plugin
+              const widgetEntries = Object.entries(currentProject.widgetFiles);
+              if (widgetEntries.length === 0) {
+                toast.error('No widgets found in plugin. Please generate a widget first.');
+                return;
+              }
+              const [widgetId, widget] = widgetEntries[0];
+              widgetPhp = widget.content;
+              widgetName = widget.name;
+              console.log(`📦 Deploying widget "${widgetName}" from plugin`);
+            } else {
+              widgetPhp = currentProject.php;
+            }
+
+            if (!widgetPhp) {
+              toast.error('No PHP code found to deploy. Please generate a widget first.');
+              return;
+            }
+
+            console.log('🚀 Deploying to Live Page:', {
+              isPlugin: currentProject.isPlugin,
+              widgetName: widgetName || 'Single Widget',
+              widgetPhpLength: widgetPhp.length,
+              widgetCount: currentProject.isPlugin ? Object.keys(currentProject.widgetFiles || {}).length : 1
+            });
+
+            const result = await (window as any).deployAndPreviewWidget(widgetPhp, currentProject.css || '', currentProject.js || '', 'live-page');
 
             // Save deployment metadata to FileGroup
             if (result.success && currentProject.id) {
@@ -555,7 +607,15 @@ export default function ElementorEditorPage() {
               fileGroups.refresh(); // Refresh file groups state
             }
 
-            toast.success(result.message || 'Deployed to live page!');
+            const successMessage = widgetName
+              ? `Deployed "${widgetName}" to live page!`
+              : (result.message || 'Deployed to live page!');
+            toast.success(successMessage);
+
+            // If plugin has multiple widgets, inform user
+            if (currentProject.isPlugin && Object.keys(currentProject.widgetFiles || {}).length > 1) {
+              toast.info(`Note: Only "${widgetName}" was deployed. Other widgets in this plugin need to be deployed separately.`);
+            }
           } catch (error: any) {
             toast.error(`Deployment failed: ${error.message}`);
           }
@@ -570,7 +630,61 @@ export default function ElementorEditorPage() {
         // Call playground function to deploy widget to Elementor editor
         if (typeof window !== 'undefined' && (window as any).deployAndPreviewWidget && currentProject) {
           try {
-            const result = await (window as any).deployAndPreviewWidget(currentProject.php, currentProject.css, currentProject.js, 'elementor-editor');
+            // Debug: Log complete project structure
+            console.log('🔍 [DEPLOY TO ELEMENTOR] Current project structure:', {
+              id: currentProject.id,
+              name: currentProject.name,
+              type: currentProject.type,
+              isPlugin: currentProject.isPlugin,
+              hasWidgetFiles: !!currentProject.widgetFiles,
+              widgetFileKeys: currentProject.widgetFiles ? Object.keys(currentProject.widgetFiles) : [],
+              widgetFileCount: currentProject.widgetFiles ? Object.keys(currentProject.widgetFiles).length : 0,
+              widgetFilesDetail: currentProject.widgetFiles ? Object.entries(currentProject.widgetFiles).map(([id, w]) => ({
+                id,
+                name: w.name,
+                slug: w.slug,
+                className: w.className,
+                contentLength: w.content?.length || 0,
+                hasContent: !!w.content
+              })) : [],
+              hasPHP: !!currentProject.php,
+              phpLength: currentProject.php?.length || 0,
+              hasPluginMainFile: !!currentProject.pluginMainFile,
+              pluginMainFileLength: currentProject.pluginMainFile?.length || 0,
+            });
+
+            // For plugins, deploy the first widget; for single widgets, use php property
+            let widgetPhp: string | undefined;
+            let widgetName: string | undefined;
+
+            if (currentProject.isPlugin && currentProject.widgetFiles) {
+              // Deploy first widget from plugin
+              const widgetEntries = Object.entries(currentProject.widgetFiles);
+              if (widgetEntries.length === 0) {
+                toast.error('No widgets found in plugin. Please generate a widget first.');
+                return;
+              }
+              const [widgetId, widget] = widgetEntries[0];
+              widgetPhp = widget.content;
+              widgetName = widget.name;
+              console.log(`📦 Deploying widget "${widgetName}" from plugin`);
+            } else {
+              widgetPhp = currentProject.php;
+            }
+
+            if (!widgetPhp) {
+              toast.error('No PHP code found to deploy. Please generate a widget first.');
+              return;
+            }
+
+            console.log('🚀 Deploying to Elementor Editor:', {
+              isPlugin: currentProject.isPlugin,
+              widgetName: widgetName || 'Single Widget',
+              widgetPhpLength: widgetPhp.length,
+              widgetCount: currentProject.isPlugin ? Object.keys(currentProject.widgetFiles || {}).length : 1
+            });
+
+            const result = await (window as any).deployAndPreviewWidget(widgetPhp, currentProject.css || '', currentProject.js || '', 'elementor-editor');
 
             // Save deployment metadata to FileGroup
             if (result.success && currentProject.id) {
@@ -590,7 +704,15 @@ export default function ElementorEditorPage() {
               fileGroups.refresh(); // Refresh file groups state
             }
 
-            toast.success(result.message || 'Deployed to Elementor editor!');
+            const successMessage = widgetName
+              ? `Deployed "${widgetName}" to Elementor editor!`
+              : (result.message || 'Deployed to Elementor editor!');
+            toast.success(successMessage);
+
+            // If plugin has multiple widgets, inform user
+            if (currentProject.isPlugin && Object.keys(currentProject.widgetFiles || {}).length > 1) {
+              toast.info(`Note: Only "${widgetName}" was deployed. Other widgets in this plugin need to be deployed separately.`);
+            }
           } catch (error: any) {
             toast.error(`Deployment failed: ${error.message}`);
           }
@@ -1694,7 +1816,7 @@ export default function ElementorEditorPage() {
                         }
                       }
                     }}
-                    onProjectCreate={(name, type, generationState = 'ready') => {
+                    onProjectCreate={(name, type, generationState = 'ready', subtype) => {
                       // Create new project with generation state and return its ID
                       let newGroup;
 
@@ -1705,8 +1827,8 @@ export default function ElementorEditorPage() {
                         console.log('🔌 Plugin created via generateProject tool:', name, 'ID:', newGroup.id, 'State:', generationState);
                       } else {
                         // HTML/HubSpot projects use regular group
-                        newGroup = fileGroups.createNewGroup(name, type, 'empty', generationState);
-                        console.log('📦 Project created via generateProject tool:', name, 'Type:', type, 'ID:', newGroup.id, 'State:', generationState);
+                        newGroup = fileGroups.createNewGroup(name, type, 'empty', generationState, subtype);
+                        console.log('📦 Project created via generateProject tool:', name, 'Type:', type, 'ID:', newGroup.id, 'State:', generationState, 'Subtype:', subtype);
                       }
 
                       fileGroups.selectGroup(newGroup.id);
@@ -1721,59 +1843,27 @@ export default function ElementorEditorPage() {
                       console.log('🔄 Project state updated:', projectId, 'State:', state, error ? `Error: ${error}` : '');
                     }}
                     onProjectUpdate={(projectId, file, content) => {
-                      // Update project file with streaming content
-                      fileGroups.updateGroupFile(projectId, file, content);
+                      const project = fileGroups.groups.find(g => g.id === projectId);
+                      if (!project) {
+                        console.warn(`onProjectUpdate: Project with ID ${projectId} not found.`);
+                        return;
+                      }
 
-                      console.log(`📝 Streaming ${file} to project ${projectId} (${content.length} chars)`, {
-                        projectId,
-                        activeGroupId: fileGroups.activeGroupId,
-                        isActiveProject: projectId === fileGroups.activeGroupId,
-                      });
+                      const config = getProjectConfig(project.type, (project as any).subtype);
 
-                      // ALSO update Monaco editor directly if this is the active project
-                      // This bypasses React batching for smooth real-time streaming
-                      if (projectId === fileGroups.activeGroupId) {
-                        const editorRef = editorRefs[file as keyof typeof editorRefs];
+                      if (config.fileTypes.includes(file)) {
+                        fileGroups.updateGroupFile(projectId, file, content);
 
-                        console.log(`🔍 Editor ref check:`, {
-                          file,
-                          hasRef: !!editorRef,
-                          allRefs: {
-                            html: !!editorRefs.html,
-                            css: !!editorRefs.css,
-                            js: !!editorRefs.js,
-                            php: !!editorRefs.php,
-                            hubl: !!editorRefs.hubl,
+                        if (projectId === fileGroups.activeGroupId) {
+                          const editorRef = editorRefs[file as keyof typeof editorRefs];
+                          if (editorRef) {
+                            const model = editorRef.getModel();
+                            if (model) {
+                              const fullRange = model.getFullModelRange();
+                              model.pushEditOperations([], [{ range: fullRange, text: content }], () => null);
+                            }
                           }
-                        });
-
-                        if (editorRef) {
-                          // Use pushEditOperations for better streaming performance (preserves undo stack, no full re-highlight)
-                          const model = editorRef.getModel();
-                          if (model) {
-                            // Replace all content with new streamed content
-                            const fullRange = model.getFullModelRange();
-                            model.pushEditOperations(
-                              [],
-                              [{
-                                range: fullRange,
-                                text: content
-                              }],
-                              () => null
-                            );
-                            console.log(`✨ Direct Monaco update (pushEditOperations): ${file} (${content.length} chars)`);
-                          } else {
-                            // Fallback to setValue if model not available
-                            editorRef.setValue(content);
-                            console.log(`✨ Direct Monaco update (setValue fallback): ${file} (${content.length} chars)`);
-                          }
-                        } else {
-                          // Fallback to Zustand if editor ref not available yet
-                          editorContent.updateContent(file, content);
-                          console.log(`⚠️ Monaco ref not ready, using Zustand: ${file}`);
                         }
-                      } else {
-                        console.log(`⚠️ SKIPPING Monaco update - project ${projectId} is NOT active (active: ${fileGroups.activeGroupId})`);
                       }
                     }}
                     currentSection={currentSection}
@@ -2457,7 +2547,7 @@ export default function ElementorEditorPage() {
                         }
                       }
                     }}
-                    onProjectCreate={(name, type, generationState = 'ready') => {
+                    onProjectCreate={(name, type, generationState = 'ready', subtype) => {
                       // Create new project with generation state and return its ID
                       let newGroup;
 
@@ -2468,8 +2558,8 @@ export default function ElementorEditorPage() {
                         console.log('🔌 Plugin created via generateProject tool:', name, 'ID:', newGroup.id, 'State:', generationState);
                       } else {
                         // HTML/HubSpot projects use regular group
-                        newGroup = fileGroups.createNewGroup(name, type, 'empty', generationState);
-                        console.log('📦 Project created via generateProject tool:', name, 'Type:', type, 'ID:', newGroup.id, 'State:', generationState);
+                        newGroup = fileGroups.createNewGroup(name, type, 'empty', generationState, subtype);
+                        console.log('📦 Project created via generateProject tool:', name, 'Type:', type, 'ID:', newGroup.id, 'State:', generationState, 'Subtype:', subtype);
                       }
 
                       fileGroups.selectGroup(newGroup.id);
@@ -2484,59 +2574,27 @@ export default function ElementorEditorPage() {
                       console.log('🔄 Project state updated:', projectId, 'State:', state, error ? `Error: ${error}` : '');
                     }}
                     onProjectUpdate={(projectId, file, content) => {
-                      // Update project file with streaming content
-                      fileGroups.updateGroupFile(projectId, file, content);
+                      const project = fileGroups.groups.find(g => g.id === projectId);
+                      if (!project) {
+                        console.warn(`onProjectUpdate: Project with ID ${projectId} not found.`);
+                        return;
+                      }
 
-                      console.log(`📝 Streaming ${file} to project ${projectId} (${content.length} chars)`, {
-                        projectId,
-                        activeGroupId: fileGroups.activeGroupId,
-                        isActiveProject: projectId === fileGroups.activeGroupId,
-                      });
+                      const config = getProjectConfig(project.type, (project as any).subtype);
 
-                      // ALSO update Monaco editor directly if this is the active project
-                      // This bypasses React batching for smooth real-time streaming
-                      if (projectId === fileGroups.activeGroupId) {
-                        const editorRef = editorRefs[file as keyof typeof editorRefs];
+                      if (config.fileTypes.includes(file)) {
+                        fileGroups.updateGroupFile(projectId, file, content);
 
-                        console.log(`🔍 Editor ref check:`, {
-                          file,
-                          hasRef: !!editorRef,
-                          allRefs: {
-                            html: !!editorRefs.html,
-                            css: !!editorRefs.css,
-                            js: !!editorRefs.js,
-                            php: !!editorRefs.php,
-                            hubl: !!editorRefs.hubl,
+                        if (projectId === fileGroups.activeGroupId) {
+                          const editorRef = editorRefs[file as keyof typeof editorRefs];
+                          if (editorRef) {
+                            const model = editorRef.getModel();
+                            if (model) {
+                              const fullRange = model.getFullModelRange();
+                              model.pushEditOperations([], [{ range: fullRange, text: content }], () => null);
+                            }
                           }
-                        });
-
-                        if (editorRef) {
-                          // Use pushEditOperations for better streaming performance (preserves undo stack, no full re-highlight)
-                          const model = editorRef.getModel();
-                          if (model) {
-                            // Replace all content with new streamed content
-                            const fullRange = model.getFullModelRange();
-                            model.pushEditOperations(
-                              [],
-                              [{
-                                range: fullRange,
-                                text: content
-                              }],
-                              () => null
-                            );
-                            console.log(`✨ Direct Monaco update (pushEditOperations): ${file} (${content.length} chars)`);
-                          } else {
-                            // Fallback to setValue if model not available
-                            editorRef.setValue(content);
-                            console.log(`✨ Direct Monaco update (setValue fallback): ${file} (${content.length} chars)`);
-                          }
-                        } else {
-                          // Fallback to Zustand if editor ref not available yet
-                          editorContent.updateContent(file, content);
-                          console.log(`⚠️ Monaco ref not ready, using Zustand: ${file}`);
                         }
-                      } else {
-                        console.log(`⚠️ SKIPPING Monaco update - project ${projectId} is NOT active (active: ${fileGroups.activeGroupId})`);
                       }
                     }}
                     currentSection={currentSection}
@@ -2573,123 +2631,57 @@ export default function ElementorEditorPage() {
         />
       )}
 
-      {/* Generate Project Modal */}
-      <GenerateProjectModal
+      {/* Generate Project Dialog - Uses GenerateProjectWidget (same as chat tool) */}
+      <GenerateProjectDialog
         isOpen={generateDialogOpen}
         onClose={() => setGenerateDialogOpen(false)}
-        onGenerate={(code) => {
-          // Legacy callback for after generation completes
-          // Set streamed code to trigger display in editor
-          setStreamedCode({
-            html: code.html || '',
-            css: code.css || '',
-            js: code.js || '',
-          });
-          // Switch to code editor tab if project already exists
-          if (currentSection?.id) {
-            setActiveTab('json');
-          }
-          setGenerateDialogOpen(false);
-        }}
-        onProjectCreate={(name, type, generationState = 'ready') => {
-          // Create new project with generation state and return its ID
-          // Use same logic as chat tool for consistency
+        onProjectCreate={(name, type, generationState = 'generating', subtype) => {
+          // Create new project and return its ID
           let newGroup;
 
           if (type === 'php') {
-            // For Elementor plugins, use createNewPlugin to get proper structure
-            // Pass generationState directly to createPlugin
             newGroup = fileGroups.createNewPlugin(name, '', generationState);
-            console.log('🔌 Plugin created via modal:', name, 'ID:', newGroup.id, 'State:', generationState);
+            console.log('🔌 Plugin created:', name, 'ID:', newGroup.id);
           } else {
-            // HTML/HubSpot projects use regular group
-            newGroup = fileGroups.createNewGroup(name, type, 'empty', generationState);
-            console.log('📦 Project created via modal:', name, 'Type:', type, 'ID:', newGroup.id, 'State:', generationState);
+            newGroup = fileGroups.createNewGroup(name, type, 'empty', generationState, subtype);
+            console.log('📦 Project created:', name, 'Type:', type, 'ID:', newGroup.id, 'Subtype:', subtype);
           }
 
           fileGroups.selectGroup(newGroup.id);
-          // Switch to Code Editor tab and appropriate file tab
-          setActiveTab('json');
-          setActiveCodeTab(type === 'php' ? 'php' : 'html');
           return newGroup.id;
         }}
-        onProjectMetadataUpdate={(projectId, metadata) => {
-          // Handle plugin metadata updates (pluginMainFile, widgetFiles, etc.)
-          console.log('🔧 Metadata update requested (modal):', projectId, Object.keys(metadata));
-
-          // If updating widgetFiles, merge with existing widgets (don't replace all)
-          if (metadata.widgetFiles) {
-            const currentGroup = fileGroups.groups.find(g => g.id === projectId);
-            if (currentGroup?.widgetFiles) {
-              metadata.widgetFiles = { ...currentGroup.widgetFiles, ...metadata.widgetFiles };
-              console.log('🔀 Merging widget files (modal):', Object.keys(metadata.widgetFiles));
-            }
+        onProjectUpdate={(projectId, file, content) => {
+          const project = fileGroups.groups.find(g => g.id === projectId);
+          if (!project) {
+            return;
           }
 
-          // Update metadata in state
-          fileGroups.updateGroup(projectId, metadata);
-          console.log('✅ Metadata saved to state (modal)');
+          const config = getProjectConfig(project.type, (project as any).subtype);
 
-          // If updating pluginMainFile and it's the active group, update Monaco editor
-          if (projectId === fileGroups.activeGroupId && metadata.pluginMainFile) {
-            if (editorRefs.php) {
-              const model = editorRefs.php.getModel();
-              if (model) {
-                model.pushEditOperations([], [{
-                  range: model.getFullModelRange(),
-                  text: metadata.pluginMainFile
-                }], () => null);
-                console.log('✨ Updated Monaco editor with pluginMainFile (modal)');
+          if (config.fileTypes.includes(file)) {
+            fileGroups.updateGroupFile(projectId, file, content);
+
+            if (projectId === fileGroups.activeGroupId) {
+              const editorRef = editorRefs[file as keyof typeof editorRefs];
+              if (editorRef) {
+                editorRef.setValue(content);
               }
             }
           }
+        }}
+        onProjectMetadataUpdate={(projectId, metadata) => {
+          fileGroups.updateGroup(projectId, metadata);
+          console.log('🔧 Metadata updated:', projectId, metadata);
         }}
         onProjectStateUpdate={(projectId, state, error) => {
-          // Update project generation state
           fileGroups.updateProjectState(projectId, state, error);
-          console.log('🔄 Project state updated (modal):', projectId, 'State:', state, error ? `Error: ${error}` : '');
-        }}
-        onProjectUpdate={(projectId, file, content) => {
-          // Update project file with streaming content (same logic as chat tool)
-          fileGroups.updateGroupFile(projectId, file, content);
-
-          // ALSO update Monaco editor directly if this is the active project
-          // This bypasses React batching for smooth real-time streaming
-          if (projectId === fileGroups.activeGroupId) {
-            const editorRef = editorRefs[file as keyof typeof editorRefs];
-
-            console.log(`🔍 Editor ref check (modal):`, {
-              file,
-              hasRef: !!editorRef,
-              projectId,
-              activeGroupId: fileGroups.activeGroupId,
-              isActive: projectId === fileGroups.activeGroupId,
-              allRefs: {
-                html: !!editorRefs.html,
-                css: !!editorRefs.css,
-                js: !!editorRefs.js,
-                php: !!editorRefs.php,
-                hubl: !!editorRefs.hubl,
-              }
-            });
-
-            if (editorRef) {
-              // Direct Monaco update - instant, no batching
-              editorRef.setValue(content);
-              console.log(`✨ Direct Monaco update (modal): ${file} (${content.length} chars)`);
-            } else {
-              // Fallback to Zustand if editor ref not available yet
-              editorContent.updateContent(file, content);
-              console.log(`⚠️ Monaco ref not ready (modal), using Zustand: ${file}`);
-            }
-          }
-
-          console.log(`📝 Streaming ${file} to project ${projectId} (${content.length} chars) [modal]`);
+          console.log('📊 State updated:', projectId, state, error);
         }}
         onSwitchCodeTab={(tab) => setActiveCodeTab(tab)}
         onSwitchTab={(tab) => setActiveTab(tab)}
-        isEditorReady={isEditorReady}
-        defaultModel={selectedModel}
+        isEditorReady={(fileType) => !!editorRefs[fileType as keyof typeof editorRefs]}
+        defaultModel="anthropic/claude-haiku-4-5-20251001"
+        globalCSS={undefined}
       />
 
       {/* Split View Configuration Modal */}

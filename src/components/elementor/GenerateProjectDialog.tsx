@@ -6,14 +6,18 @@ interface GenerateProjectDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot', generationState?: 'generating' | 'ready' | 'error') => string;
-  onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  onProjectUpdate?: (projectId: string, file: string, content: string) => void;
   onProjectMetadataUpdate?: (projectId: string, metadata: any) => void;
   onProjectStateUpdate?: (projectId: string, state: 'generating' | 'ready' | 'error', error?: string) => void;
-  onSwitchCodeTab?: (tab: 'html' | 'css' | 'js' | 'php' | 'hubl') => void;
+  onSwitchCodeTab?: (tab: string) => void;
   onSwitchTab?: (tab: string) => void;
   isEditorReady?: (fileType: string) => boolean;
   defaultModel?: string;
   globalCSS?: string;
+  targetWidgetId?: string;
+  existingProjectId?: string;
+  targetWidgetLabel?: string;
+  targetPluginName?: string;
 }
 
 /**
@@ -33,7 +37,11 @@ export function GenerateProjectDialog({
   onSwitchTab,
   isEditorReady,
   defaultModel,
-  globalCSS
+  globalCSS,
+  targetWidgetId,
+  existingProjectId,
+  targetWidgetLabel,
+  targetPluginName
 }: GenerateProjectDialogProps) {
   if (!isOpen) return null;
 
@@ -117,6 +125,10 @@ export function GenerateProjectDialog({
             isEditorReady={isEditorReady}
             defaultModel={defaultModel}
             globalCSS={globalCSS}
+            targetWidgetId={targetWidgetId}
+            existingProjectId={existingProjectId}
+            targetWidgetLabel={targetWidgetLabel}
+            targetPluginName={targetPluginName}
           />
         </div>
       </div>

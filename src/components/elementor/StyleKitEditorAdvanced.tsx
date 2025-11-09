@@ -311,6 +311,14 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
     } finally {
       setIsPushingCss(false);
       setShowToolsMenu(false);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('elementor-open-additional-css', {
+          detail: {
+            source: 'stylekit-editor',
+            timestamp: Date.now(),
+          },
+        }));
+      }
     }
   };
 
@@ -3202,7 +3210,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
             >
               {isPushingCss && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
               <Upload size={14} />
-              {isPushingCss ? 'Pushing CSS...' : 'Push CSS to Site'}
+              {isPushingCss ? 'Pushing CSS...' : 'Push CSS and View'}
             </button>
           </div>
         </div>
@@ -3591,7 +3599,7 @@ export function StyleKitEditorAdvanced({ onStyleKitChange }: StyleKitEditorAdvan
                   >
                     {isPushingCss && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
                     <Upload size={14} />
-                    {isPushingCss ? 'Pushing CSS...' : 'Push CSS to Site'}
+                    {isPushingCss ? 'Pushing CSS...' : 'Push CSS and View'}
             </button>
                   <button
                     onClick={handleResetToDefaults}

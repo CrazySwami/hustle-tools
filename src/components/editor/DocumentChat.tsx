@@ -27,8 +27,8 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/source';
 import { ToolResultRenderer } from '@/components/tool-ui/tool-result-renderer';
-import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, PanelRightOpen, FileText, FileIcon, EyeIcon, File, ImageIcon, XIcon, Building2 } from 'lucide-react';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { CopyIcon, RotateCcwIcon, GlobeIcon, SendIcon, PanelRightOpen, FileText, FileIcon, EyeIcon, File, ImageIcon, XIcon, Building2, Folder, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { ConversationTokenData } from '@/components/ui/ConversationTokenIndicator';
 import { MODEL_CONTEXT_LIMITS } from '@/lib/token-validator';
@@ -43,6 +43,7 @@ import { ProjectContextBadge } from '@/components/ai-elements/project-context-ba
 import { ClientSelectorButton } from '@/components/client/ClientSelectorButton';
 import { ClientModal } from '@/components/client/ClientModal';
 import { Client } from '@/components/client/ClientTypes';
+import { getFileIcon } from '@/components/ai-elements/data-sidebar';
 
 interface DocumentChatProps {
   messages: any[];
@@ -72,6 +73,13 @@ interface DocumentChatProps {
   clientContextEnabled?: boolean;
   onClientChange?: (clientId: string) => void;
   onClientContextToggle?: () => void;
+  // Token data callback
+  onTokenDataChange?: (data: { totalTokens: number; contextLimit: number; percentUsed: number }) => void;
+  // Tagged documents
+  taggedDocuments?: Array<{ id: string; name: string; type?: 'file' | 'folder' | 'ditto' }>;
+  onRemoveTaggedDocument?: (id: string) => void;
+  // Available documents for @ mentions
+  availableDocuments?: Array<{ id: string; name: string; type: 'file' | 'folder' | 'ditto'; icon?: string }>;
 }
 
 // Document Context Badge Component
@@ -216,9 +224,21 @@ export function DocumentChat({
   clientContextEnabled = false,
   onClientChange,
   onClientContextToggle,
+  onTokenDataChange,
+  taggedDocuments = [],
+  onRemoveTaggedDocument,
+  availableDocuments = [],
 }: DocumentChatProps) {
   const [input, setInput] = useState('');
   const [includeContext, setIncludeContext] = useState(true);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['files', 'dittos']));
+  const mentionDropdownRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const promptInputRef = useRef<HTMLDivElement>(null);
   const [conversationTokenData, setConversationTokenData] = useState<ConversationTokenData | null>(null);
   const [sendDisabled, setSendDisabled] = useState(false);
   const [showTokenWarning, setShowTokenWarning] = useState(false);
@@ -236,6 +256,173 @@ export function DocumentChat({
   // Image attachment state
   const [attachedImage, setAttachedImage] = useState<{ file: File; preview: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Group and filter documents based on mention query
+  const groupedMentions = useMemo(() => {
+    const query = mentionQuery.toLowerCase();
+    const filtered = mentionQuery 
+      ? availableDocuments.filter(doc => doc.name.toLowerCase().includes(query))
+      : availableDocuments;
+    
+    // Group by type
+    const groups = {
+      dittos: filtered.filter(doc => doc.type === 'ditto'),
+      folders: filtered.filter(doc => doc.type === 'folder'),
+      files: filtered.filter(doc => doc.type === 'file'),
+    };
+    
+    return groups;
+  }, [mentionQuery, availableDocuments]);
+  
+  // Flatten for keyboard navigation
+  const flattenedMentions = useMemo(() => {
+    const result: typeof availableDocuments = [];
+    if (expandedFolders.has('dittos')) result.push(...groupedMentions.dittos);
+    if (expandedFolders.has('folders')) result.push(...groupedMentions.folders);
+    if (expandedFolders.has('files')) result.push(...groupedMentions.files);
+    return result;
+  }, [groupedMentions, expandedFolders]);
+
+  // Calculate dropdown position with bounds checking
+  const calculateDropdownPosition = useCallback(() => {
+    if (!textareaRef.current) return;
+    
+    const textarea = textareaRef.current;
+    const rect = textarea.getBoundingClientRect();
+    const dropdownWidth = 320; // w-80 = 320px
+    const dropdownHeight = mentionDropdownRef.current?.offsetHeight || 384; // Use actual height or max-h-96
+    const padding = 8; // Reduced from 16 to bring menu closer
+    
+    // Calculate initial position (above textarea)
+    let top = rect.top - dropdownHeight - padding;
+    let left = rect.left + 10;
+    
+    // Check if dropdown goes off top of screen
+    if (top < padding) {
+      // Position below textarea instead
+      top = rect.bottom + padding;
+    }
+    
+    // Check if dropdown goes off right side
+    if (left + dropdownWidth > window.innerWidth - padding) {
+      left = window.innerWidth - dropdownWidth - padding;
+    }
+    
+    // Check if dropdown goes off left side
+    if (left < padding) {
+      left = padding;
+    }
+    
+    // Check if dropdown goes off bottom (when positioned below)
+    if (top + dropdownHeight > window.innerHeight - padding) {
+      // Try positioning above again with adjusted height
+      top = rect.top - dropdownHeight - padding;
+      // If still doesn't fit, position at top with scroll
+      if (top < padding) {
+        top = padding;
+      }
+    }
+    
+    setMentionPosition({ top, left });
+  }, []);
+
+  // Recalculate position when dropdown content changes (folders expand/collapse)
+  useEffect(() => {
+    if (showMentionDropdown) {
+      // Use setTimeout to wait for DOM update
+      setTimeout(() => {
+        calculateDropdownPosition();
+      }, 0);
+    }
+  }, [expandedFolders, showMentionDropdown, calculateDropdownPosition]);
+
+  // Handle input change and detect @ mentions
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setInput(value);
+
+    // Check for @ mention
+    const cursorPos = e.target.selectionStart;
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const atMatch = textBeforeCursor.match(/@(\w*)$/);
+
+    if (atMatch) {
+      setMentionQuery(atMatch[1]);
+      setShowMentionDropdown(true);
+      setSelectedMentionIndex(0);
+      calculateDropdownPosition();
+    } else {
+      setShowMentionDropdown(false);
+      setMentionQuery('');
+    }
+  };
+
+  // Handle mention selection
+  const handleMentionSelect = (doc: typeof availableDocuments[0]) => {
+    if (!onRemoveTaggedDocument) return; // Need the tag handler
+    
+    // Add to tagged documents
+    if (!taggedDocuments.some(d => d.id === doc.id)) {
+      // Call parent to add tag
+      const event = new CustomEvent('addTag', { detail: doc });
+      window.dispatchEvent(event);
+    }
+
+    // Remove @ mention from input
+    const cursorPos = textareaRef.current?.selectionStart || 0;
+    const textBeforeCursor = input.slice(0, cursorPos);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+    const newInput = input.slice(0, atIndex) + input.slice(cursorPos);
+    setInput(newInput);
+    setShowMentionDropdown(false);
+    setMentionQuery('');
+    
+    // Focus back on textarea
+    textareaRef.current?.focus();
+  };
+
+  // Handle keyboard navigation in mention dropdown
+  const handleMentionKeyDown = (e: React.KeyboardEvent) => {
+    if (!showMentionDropdown) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedMentionIndex(prev => 
+        prev < flattenedMentions.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedMentionIndex(prev => prev > 0 ? prev - 1 : 0);
+    } else if (e.key === 'Enter' && flattenedMentions.length > 0) {
+      e.preventDefault();
+      handleMentionSelect(flattenedMentions[selectedMentionIndex]);
+    } else if (e.key === 'Escape') {
+      setShowMentionDropdown(false);
+      setMentionQuery('');
+    }
+  };
+
+  // Handle drag and drop from sidebar
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    try {
+      const data = e.dataTransfer.getData('text/plain');
+      const item = JSON.parse(data);
+      
+      // Add to tagged documents
+      if (item.id && item.name) {
+        const event = new CustomEvent('addTag', { detail: item });
+        window.dispatchEvent(event);
+      }
+    } catch (error) {
+      console.error('Failed to parse dropped item:', error);
+    }
+  };
 
   // Detect mobile on mount
   useEffect(() => {
@@ -308,29 +495,76 @@ export function DocumentChat({
   const totalTokensForModal = systemTokensForModal + conversationTokensForModal + inputTokensForModal;
   const totalCharsForModal = actualSystemPrompt.length + input.length;
 
-  // Extract conversation token data from message metadata
+  // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+  const estimateTokens = (text: string): number => {
+    return Math.ceil(text.length / 4);
+  };
+
+  // Calculate real-time token count including current context
   useEffect(() => {
-    // Find the last message with metadata containing contextWindow
+    let totalTokens = 0;
+    const limit = 200000; // Default context limit
+    
+    // Count tokens from existing messages
     const lastMessageWithMetadata = messages
       .slice()
       .reverse()
       .find((msg: any) => msg.metadata?.contextWindow);
 
     if (lastMessageWithMetadata?.metadata?.contextWindow) {
-      const cw = lastMessageWithMetadata.metadata.contextWindow;
-      setConversationTokenData({
-        totalTokens: cw.tokenCount || 0,
-        limit: cw.limit || contextLimit,
-        percentUsed: cw.percentUsed || 0,
-        level: cw.level || 'safe',
-        message: cw.message || 'Token usage is healthy',
-        action: cw.action || 'Continue normally',
-        model: cw.model || selectedModel,
-        messageCount: messages.length,
-        strategy: cw.strategy,
+      totalTokens = lastMessageWithMetadata.metadata.contextWindow.tokenCount || 0;
+    } else {
+      // Estimate from messages if no metadata
+      messages.forEach((msg: any) => {
+        totalTokens += estimateTokens(msg.content || '');
       });
     }
-  }, [messages, selectedModel, contextLimit]);
+    
+    // Add current input tokens
+    if (input) {
+      totalTokens += estimateTokens(input);
+    }
+    
+    // Add document content tokens if context is included
+    if (includeContext && documentContent) {
+      totalTokens += estimateTokens(documentContent);
+    }
+    
+    // Add client context tokens if enabled
+    if (clientContextEnabled && selectedClient) {
+      const clientContext = `Client: ${selectedClient.name}\nBio: ${selectedClient.bio || 'N/A'}\nURL: ${selectedClient.url || 'N/A'}`;
+      totalTokens += estimateTokens(clientContext);
+    }
+    
+    // Add system prompt tokens
+    if (systemPrompt) {
+      totalTokens += estimateTokens(systemPrompt);
+    }
+    
+    const percentUsed = (totalTokens / limit) * 100;
+    
+    const tokenData: ConversationTokenData = {
+      totalTokens,
+      limit,
+      percentUsed,
+      level: (percentUsed > 90 ? 'critical' : percentUsed > 70 ? 'warning' : 'safe') as 'critical' | 'warning' | 'safe' | 'exceeded',
+      message: percentUsed > 90 ? 'Context limit nearly reached' : 'Token usage is healthy',
+      action: percentUsed > 90 ? 'Consider clearing chat' : 'Continue normally',
+      model: selectedModel,
+      messageCount: messages.length,
+    };
+    
+    setConversationTokenData(tokenData);
+    
+    // Call the callback if provided
+    if (onTokenDataChange) {
+      onTokenDataChange({
+        totalTokens: tokenData.totalTokens,
+        contextLimit: tokenData.limit,
+        percentUsed: tokenData.percentUsed,
+      });
+    }
+  }, [messages, input, documentContent, includeContext, selectedClient, clientContextEnabled, systemPrompt, selectedModel, onTokenDataChange]);
 
   // Show warning when approaching 70% token usage
   useEffect(() => {
@@ -386,13 +620,46 @@ export function DocumentChat({
     };
   }, [attachedImage]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading && !sendDisabled) {
+      // Check if any tagged documents are files with content in localStorage
+      let fileToAttach = attachedImage?.file;
+      
+      // If no image attached, check tagged documents for image/document files
+      if (!fileToAttach && taggedDocuments && taggedDocuments.length > 0) {
+        for (const doc of taggedDocuments) {
+          if (doc.type === 'file') {
+            const fileContent = localStorage.getItem(`file-content-${doc.id}`);
+            const fileType = localStorage.getItem(`file-type-${doc.id}`);
+            
+            if (fileContent && fileType) {
+              // Check if it's an image or supported document type
+              if (fileType.startsWith('image/') || 
+                  fileType === 'application/pdf' ||
+                  fileType.includes('document') ||
+                  fileType.includes('text/')) {
+                try {
+                  // Convert data URL or text back to File object
+                  const response = await fetch(fileContent.startsWith('data:') ? fileContent : `data:${fileType};base64,${btoa(fileContent)}`);
+                  const blob = await response.blob();
+                  // Create File object from blob
+                  const file = new (File as any)([blob], doc.name, { type: fileType });
+                  fileToAttach = file;
+                  break; // Use first supported file
+                } catch (e) {
+                  console.warn('Failed to convert file:', e);
+                }
+              }
+            }
+          }
+        }
+      }
+      
       onSendMessage(input, {
         webSearchEnabled: webSearch,
         includeContext,
-        imageFile: attachedImage?.file,
+        imageFile: fileToAttach,
       });
       setInput('');
       handleRemoveImage(); // Clear image after sending
@@ -409,7 +676,7 @@ export function DocumentChat({
   };
 
   return (
-    <div className="chat-background" style={{
+    <div className="chat-background bg-[#fafafa] dark:bg-[#1A1A1A]" style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
@@ -576,6 +843,7 @@ export function DocumentChat({
 
                           // Document-specific tools
                           case 'tool-editDocumentWithMorph':
+                          case 'tool-perplexitySearch':
                           case 'tool-getTextStats':
                           case 'tool-findString':
                           case 'tool-analyzeReadability':
@@ -605,6 +873,7 @@ export function DocumentChat({
                             // Otherwise render loading state (input phase) - similar to DocumentMorphWidget
                             const toolLabels: Record<string, { icon: string; label: string; description: string }> = {
                               editDocumentWithMorph: { icon: '✨', label: 'AI Document Edit', description: 'Analyzing and applying changes...' },
+                              perplexitySearch: { icon: '🔍', label: 'Perplexity Search', description: 'Searching the web...' },
                               getTextStats: { icon: '📊', label: 'Text Statistics', description: 'Analyzing document...' },
                               findString: { icon: '🔍', label: 'Find Text', description: 'Searching document...' },
                               analyzeReadability: { icon: '📖', label: 'Readability Analysis', description: 'Analyzing readability...' },
@@ -769,19 +1038,215 @@ export function DocumentChat({
 
       <PromptInput
         onSubmit={handleSubmit}
-        style={{ flexShrink: 0, margin: '0 auto 10px auto', width: '97%' }}
+        className="bg-[#f8f8f8] dark:bg-[#2a2a2a] border-[rgba(0,0,0,0.1)] dark:border-[rgba(255,255,255,0.15)]"
+        style={{ 
+          flexShrink: 0, 
+          margin: '0 auto 10px auto', 
+          width: '97%'
+        }}
         promptValue={input}
         systemPrompt={actualSystemPrompt}
         contextLimit={contextLimit}
         conversationTokens={conversationTokenData?.totalTokens || 0}
         onSendDisabled={setSendDisabled}
         showTokenCounter={true}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       >
-        <PromptInputTextarea
-          onChange={(e) => setInput(e.target.value)}
-          value={input}
-          placeholder="Ask me to write or edit your document..."
-        />
+        {/* Tagged Documents */}
+        {taggedDocuments && taggedDocuments.length > 0 && (
+          <div className="px-3 py-2 border-b border-border overflow-x-auto bg-[#f8f8f8] dark:bg-[#2a2a2a]">
+            <div className="flex gap-2" style={{ minWidth: 'max-content' }}>
+              {taggedDocuments.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm bg-[#d1fae5] dark:bg-[#1a1a1a] text-[#065f46] dark:text-[#6ee7b7]"
+                >
+                  {doc.type === 'ditto' ? (
+                    <Image
+                      src="/Ditto.png"
+                      alt="Ditto"
+                      width={14}
+                      height={14}
+                      className="shrink-0"
+                    />
+                  ) : doc.type === 'folder' ? (
+                    <Folder size={14} style={{ color: '#6ee7b7' }} />
+                  ) : (
+                    getFileIcon(doc.name, "h-3.5 w-3.5 shrink-0")
+                  )}
+                  <span className="max-w-[150px] truncate">{doc.name}</span>
+                  {onRemoveTaggedDocument && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveTaggedDocument(doc.id)}
+                      className="rounded-full p-0.5 transition-colors"
+                      style={{ backgroundColor: 'rgba(0, 0, 0, 0.1)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)'}
+                      title="Remove document"
+                    >
+                      <XIcon size={12} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="relative">
+          <PromptInputTextarea
+            ref={textareaRef}
+            onChange={handleInputChange}
+            onKeyDown={handleMentionKeyDown}
+            value={input}
+            placeholder="Ask me to write or edit your document... (use @ to mention files)"
+          />
+          {/* Mention Dropdown with Grouped Folders */}
+          {showMentionDropdown && (groupedMentions.dittos.length > 0 || groupedMentions.folders.length > 0 || groupedMentions.files.length > 0) && (
+            <div
+              ref={mentionDropdownRef}
+              className="fixed w-80 max-h-96 bg-white dark:bg-[#2a2a2a] border border-gray-200 dark:border-[rgba(255,255,255,0.15)] rounded-lg shadow-xl flex flex-col"
+              style={{
+                top: `${mentionPosition.top}px`,
+                left: `${mentionPosition.left}px`,
+                zIndex: 9999,
+              }}
+            >
+              {/* Search Input */}
+              <div className="p-2 border-b border-gray-200 dark:border-[rgba(255,255,255,0.1)]">
+                <input
+                  type="text"
+                  value={mentionQuery}
+                  onChange={(e) => setMentionQuery(e.target.value)}
+                  placeholder="Search documents..."
+                  className="w-full px-3 py-1.5 text-sm bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-[rgba(255,255,255,0.15)] text-foreground placeholder:text-muted-foreground rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-[rgba(255,255,255,0.2)]"
+                  autoFocus
+                />
+              </div>
+              
+              {/* Scrollable Content */}
+              <div className="overflow-y-auto flex-1">
+                {/* Dittos Group */}
+                {groupedMentions.dittos.length > 0 && (
+                  <div>
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-[#1a1a1a] cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333]"
+                      onClick={() => {
+                        const newExpanded = new Set(expandedFolders);
+                        if (newExpanded.has('dittos')) {
+                          newExpanded.delete('dittos');
+                        } else {
+                          newExpanded.add('dittos');
+                        }
+                        setExpandedFolders(newExpanded);
+                      }}
+                    >
+                      <ChevronRight className={cn("h-4 w-4 transition-transform", expandedFolders.has('dittos') && "rotate-90")} />
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">DITTOS ({groupedMentions.dittos.length})</span>
+                    </div>
+                    {expandedFolders.has('dittos') && groupedMentions.dittos.map((doc) => {
+                      const flatIndex = flattenedMentions.findIndex(d => d.id === doc.id);
+                      return (
+                        <div
+                          key={doc.id}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-2 pl-8 cursor-pointer transition-colors",
+                            flatIndex === selectedMentionIndex
+                              ? "bg-blue-50 dark:bg-[#333333]"
+                              : "hover:bg-gray-50 dark:hover:bg-[#2a2a2a]"
+                          )}
+                          onClick={() => handleMentionSelect(doc)}
+                        >
+                          <Image src="/Ditto.png" alt="Ditto" width={16} height={16} className="shrink-0" />
+                          <span className="text-sm truncate">{doc.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {/* Folders Group */}
+                {groupedMentions.folders.length > 0 && (
+                  <div>
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-900 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => {
+                        const newExpanded = new Set(expandedFolders);
+                        if (newExpanded.has('folders')) {
+                          newExpanded.delete('folders');
+                        } else {
+                          newExpanded.add('folders');
+                        }
+                        setExpandedFolders(newExpanded);
+                      }}
+                    >
+                      <ChevronRight className={cn("h-4 w-4 transition-transform", expandedFolders.has('folders') && "rotate-90")} />
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">FOLDERS ({groupedMentions.folders.length})</span>
+                    </div>
+                    {expandedFolders.has('folders') && groupedMentions.folders.map((doc) => {
+                      const flatIndex = flattenedMentions.findIndex(d => d.id === doc.id);
+                      return (
+                        <div
+                          key={doc.id}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-2 pl-8 cursor-pointer transition-colors",
+                            flatIndex === selectedMentionIndex
+                              ? "bg-blue-50 dark:bg-[#333333]"
+                              : "hover:bg-gray-50 dark:hover:bg-[#2a2a2a]"
+                          )}
+                          onClick={() => handleMentionSelect(doc)}
+                        >
+                          <Folder className="h-4 w-4 shrink-0" style={{ color: '#6ee7b7' }} />
+                          <span className="text-sm truncate">{doc.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {/* Files Group */}
+                {groupedMentions.files.length > 0 && (
+                  <div>
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-900 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => {
+                        const newExpanded = new Set(expandedFolders);
+                        if (newExpanded.has('files')) {
+                          newExpanded.delete('files');
+                        } else {
+                          newExpanded.add('files');
+                        }
+                        setExpandedFolders(newExpanded);
+                      }}
+                    >
+                      <ChevronRight className={cn("h-4 w-4 transition-transform", expandedFolders.has('files') && "rotate-90")} />
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">FILES ({groupedMentions.files.length})</span>
+                    </div>
+                    {expandedFolders.has('files') && groupedMentions.files.map((doc) => {
+                      const flatIndex = flattenedMentions.findIndex(d => d.id === doc.id);
+                      return (
+                        <div
+                          key={doc.id}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-2 pl-8 cursor-pointer transition-colors",
+                            flatIndex === selectedMentionIndex
+                              ? "bg-blue-50 dark:bg-[#333333]"
+                              : "hover:bg-gray-50 dark:hover:bg-[#2a2a2a]"
+                          )}
+                          onClick={() => handleMentionSelect(doc)}
+                        >
+                          <File className="h-4 w-4 shrink-0 text-gray-500" />
+                          <span className="text-sm truncate">{doc.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         {/* Image Preview */}
         {attachedImage && (
           <div className="px-3 py-2 border-t border-border">
@@ -806,9 +1271,9 @@ export function DocumentChat({
         )}
         <PromptInputToolbar>
           <PromptInputTools>
-            {/* Responsive: Dropdown on narrow, buttons on wide */}
+            {/* Always use dropdown for all actions */}
             <MobilePromptActions
-              breakpoint={550}
+              breakpoint={99999}
               containerWidth={containerWidth}
               actions={[
                 {
@@ -835,8 +1300,7 @@ export function DocumentChat({
                   onClick: () => fileInputRef.current?.click(),
                   title: 'Attach image (PNG/JPEG, max 5MB)',
                 },
-                // Client selector - only in dropdown on mobile (< 550px, same as dropdown breakpoint)
-                ...(containerWidth < 550 ? [{
+                {
                   id: 'select-client',
                   label: selectedClient ? selectedClient.name : 'Client',
                   icon: <Building2 size={18} />,
@@ -845,7 +1309,7 @@ export function DocumentChat({
                   title: selectedClient
                     ? `${selectedClient.name} - Context ${clientContextEnabled ? 'ON' : 'OFF'}`
                     : 'Select client and manage context',
-                }] : []),
+                },
               ]}
             />
             <input
@@ -854,59 +1318,6 @@ export function DocumentChat({
               accept="image/png,image/jpeg,image/jpg"
               onChange={handleImageSelect}
               className="hidden"
-            />
-            {/* Client selector button - hide on mobile (< 550px, same as dropdown breakpoint) */}
-            {containerWidth >= 550 && (
-              <ClientSelectorButton
-                selectedClient={selectedClient}
-                clientContextEnabled={clientContextEnabled}
-                onToggleContext={() => onClientContextToggle?.()}
-                onSelectClient={() => setClientModalOpen(true)}
-              />
-            )}
-            <SystemPromptViewer
-              input={input}
-              systemPrompt={actualSystemPrompt}
-              selectedModel={selectedModel}
-              contextLimit={contextLimit}
-              systemTokens={systemTokensForModal}
-              inputTokens={inputTokensForModal}
-              conversationTokens={conversationTokensForModal}
-              totalTokens={totalTokensForModal}
-              trigger={
-                <PromptInputButton
-                  variant="ghost"
-                  title={`Token Usage: ${totalTokensForModal.toLocaleString()} / ${contextLimit.toLocaleString()} (${((totalTokensForModal / contextLimit) * 100).toFixed(1)}%)`}
-                  className="gap-2"
-                >
-                  <PieChartIcon
-                    percentage={(totalTokensForModal / contextLimit) * 100}
-                    size={16}
-                  />
-                  <span className="text-xs font-mono tabular-nums">
-                    {totalTokensForModal.toLocaleString()}
-                  </span>
-                  <span className="text-xs text-muted-foreground">|</span>
-                  <span className="text-xs font-mono tabular-nums text-muted-foreground">
-                    {((totalTokensForModal / contextLimit) * 100).toFixed(1)}%
-                  </span>
-                </PromptInputButton>
-              }
-              metadata={{
-                documentTitle: currentDocument?.title,
-                projectName: currentProject?.name,
-                wordCount,
-                characterCount: documentCharacterCount,
-              }}
-              contextToggles={{
-                includeContext,
-                webSearch: webSearchEnabled,
-              }}
-              fileContents={{
-                documentContent,
-              }}
-              clientData={selectedClient || undefined}
-              clientContextEnabled={clientContextEnabled}
             />
             <PromptInputModelSelect onValueChange={onModelChange} value={selectedModel}>
               <PromptInputModelSelectTrigger title="Select AI model">

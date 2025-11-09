@@ -19,8 +19,21 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import TiptapHeading from '@tiptap/extension-heading'
 import TiptapParagraph from '@tiptap/extension-paragraph'
+import { Pagination } from 'tiptap-pagination-breaks'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import { common, createLowlight } from 'lowlight'
+import Suggestion from '@tiptap/suggestion'
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import { ReactRenderer } from '@tiptap/react'
+import tippy, { Instance as TippyInstance } from 'tippy.js'
+import { SlashCommandMenu, getDefaultSlashCommands, SlashCommandMenuRef } from './SlashCommandMenu'
+import { ChartNode } from './nodes/ChartNode'
+import { InfoCardNode } from './nodes/InfoCardNode'
 import { AppSidebar } from '@/components/app-sidebar'
 import { marked } from 'marked'
 import Editor from '@monaco-editor/react'
@@ -34,6 +47,10 @@ import {
   Heading2,
   Heading3,
   Link as LinkIcon,
+  Table as TableIcon,
+  TableProperties,
+  Columns,
+  Rows,
   Code,
   Quote,
   Undo,
@@ -71,14 +88,17 @@ import {
   PanelLeft,
   X,
   BookMarked,
-  Download
+  Download,
+  Save,
+  Check,
+  Loader2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
 import CommentExtension, { Comment } from './CommentExtension'
 import CommentsPanel, { AddCommentForm } from './CommentsPanel'
 import { AIBubbleMenuContent } from './AIBubbleMenu'
-import { BubbleMenuV0, AIAction } from './BubbleMenuV0'
+import { BubbleMenuV0, AIAction, InsertAction } from './BubbleMenuV0'
 import { StreamingExtension, updateStreamingState } from './StreamingExtension'
 import { useDocumentContent } from '@/hooks/useDocumentContent'
 import { TextStatsWidget } from '@/components/tool-ui/text-stats-widget'
@@ -801,18 +821,23 @@ interface TiptapEditorProps {
   onAIEdit?: (selectedText: string, instruction: string, enableWebSearch?: boolean) => void;
   selectedModel?: string;
   onToggleSidebar?: () => void;
+  onSave?: () => void;
+  saveStatus?: 'saved' | 'saving' | 'unsaved';
+  lastSaved?: Date | null;
   isSidebarVisible?: boolean;
   selectedDocumentId?: string;
   onDocumentSelect?: (documentId: string) => void;
   onToggleCommentsPanel?: () => void;
   onSetPanelTab?: (tab: 'comments' | 'tools') => void;
+  showContextToggle?: boolean;
+  onToggleContext?: () => void;
 }
 
 const savedContent = typeof window !== 'undefined' ? localStorage.getItem('tiptap-document') : null;
 const initialComments = typeof window !== 'undefined' ? localStorage.getItem('tiptap-comments') : null;
 
-export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions, onAIEdit, selectedModel, onToggleSidebar, isSidebarVisible, selectedDocumentId, onDocumentSelect, onToggleCommentsPanel, onSetPanelTab }: TiptapEditorProps = {}) {
-  const { theme } = useTheme()
+export default function TiptapEditor({ initialContent, onContentChange, onCommentsChange, toolbarActions, onAIEdit, selectedModel, onToggleSidebar, isSidebarVisible, selectedDocumentId, onDocumentSelect, onToggleCommentsPanel, onSetPanelTab, showContextToggle, onToggleContext, onSave, saveStatus = 'saved', lastSaved }: TiptapEditorProps = {}) {
+  const { theme, setTheme } = useTheme()
   const [isMounted, setIsMounted] = useState(false)
   // Consolidated dropdown state for performance
   const [dropdownStates, setDropdownStates] = useState({
@@ -852,6 +877,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
   const [viewMode, setViewMode] = useState<'editor' | 'html' | 'markdown'>('editor')
   const [rawText, setRawText] = useState('') // Stores raw HTML or Markdown
+  const [savedEditorContent, setSavedEditorContent] = useState('') // Backup of editor content before switching
   const [comments, setComments] = useState<Comment[]>(initialComments ? JSON.parse(initialComments) : [])
 
   const isInternalUpdate = useRef(false) // Flag to prevent circular updates
@@ -1023,6 +1049,9 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     };
   }, []);
 
+  // Create lowlight instance for syntax highlighting
+  const lowlight = createLowlight(common)
+
   // Initialize the editor
   const editor = useEditor({
     immediatelyRender: false, // Fix SSR hydration mismatch
@@ -1035,6 +1064,10 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
         orderedList: {
           keepMarks: true,
           keepAttributes: false,
+        },
+        history: {
+          depth: 100,
+          newGroupDelay: 500,
         },
         // Disable these extensions in StarterKit since we're adding them separately below
         strike: false,
@@ -1071,9 +1104,510 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       CommentExtension.configure({
         onCommentActivated: (commentId) => {
           if (commentId) {
-            setIsCommentsPanelOpen(true);
+            // Open comments panel via parent callback
+            if (onSetPanelTab && onToggleCommentsPanel) {
+              onSetPanelTab('comments');
+            }
             setActiveCommentId(commentId);
           }
+        },
+      }),
+      Pagination.configure({
+        pageHeight: 1056, // 11 inches at 96 DPI
+        pageWidth: 816,   // 8.5 inches at 96 DPI
+        pageMargin: 96,   // 1 inch margins
+        showPageNumber: false, // We'll show our own page numbers
+      }),
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableCell,
+      TableHeader,
+      CodeBlockLowlight.configure({
+        lowlight,
+      }),
+      ChartNode,
+      InfoCardNode,
+      Extension.create({
+        name: 'slashCommand',
+        addProseMirrorPlugins() {
+          return [
+            Suggestion({
+              editor: this.editor,
+              char: '/',
+              command: ({ editor, range, props }: any) => {
+                // Delete the slash character and any query text
+                editor.chain().focus().deleteRange(range).run()
+                // Execute the command
+                props.command({ editor, range })
+              },
+              items: ({ query }: any) => {
+                const commands = getDefaultSlashCommands(this.editor)
+                
+                // Add AI text commands with document context
+                const editor = this.editor
+                const getDocContext = () => {
+                  try {
+                    return editor.getHTML()
+                  } catch {
+                    return ''
+                  }
+                }
+                
+                commands.push(
+                  {
+                    id: 'ai-continue',
+                    label: 'Continue Writing (AI)',
+                    description: 'Let AI continue from where you left off',
+                    icon: require('lucide-react').Sparkles,
+                    group: 'ai',
+                    command: async () => {
+                      const docContext = getDocContext()
+                      const selection = editor.state.selection
+                      const textBefore = editor.state.doc.textBetween(Math.max(0, selection.from - 500), selection.from, ' ')
+                      
+                      try {
+                        const response = await fetch('/api/chat', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            messages: [
+                              {
+                                role: 'system',
+                                content: 'You are a helpful writing assistant. Continue the text naturally based on the context provided. Only output the continuation, no explanations.'
+                              },
+                              {
+                                role: 'user',
+                                content: `Continue writing from here:\n\n${textBefore}`
+                              }
+                            ],
+                            model: selectedModel || 'anthropic/claude-3-5-sonnet-20241022',
+                          }),
+                        })
+                        
+                        if (!response.ok) throw new Error('Failed to generate continuation')
+                        
+                        const reader = response.body?.getReader()
+                        const decoder = new TextDecoder()
+                        let continuation = ''
+                        
+                        if (reader) {
+                          while (true) {
+                            const { done, value } = await reader.read()
+                            if (done) break
+                            const chunk = decoder.decode(value)
+                            const lines = chunk.split('\n')
+                            for (const line of lines) {
+                              if (line.startsWith('0:')) {
+                                const text = line.substring(2).trim()
+                                if (text) continuation += text
+                              }
+                            }
+                          }
+                        }
+                        
+                        if (continuation) {
+                          editor.chain().focus().insertContent(' ' + continuation).run()
+                        }
+                      } catch (error) {
+                        console.error('Continue writing failed:', error)
+                        alert('Failed to continue writing. Please try again.')
+                      }
+                    },
+                  },
+                  {
+                    id: 'ai-prompt',
+                    label: 'Ask AI (Custom Prompt)',
+                    description: 'Ask AI anything with document context',
+                    icon: require('lucide-react').MessageSquare,
+                    group: 'ai',
+                    command: async () => {
+                      const userPrompt = window.prompt('What would you like AI to write?')
+                      if (!userPrompt) return
+                      
+                      const docContext = getDocContext()
+                      
+                      try {
+                        const response = await fetch('/api/chat', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            messages: [
+                              {
+                                role: 'system',
+                                content: `You are a helpful writing assistant. You have access to the current document context. Generate content based on the user's request. Only output the requested content, no explanations.\n\nDocument context:\n${docContext.substring(0, 2000)}`
+                              },
+                              {
+                                role: 'user',
+                                content: userPrompt
+                              }
+                            ],
+                            model: selectedModel || 'anthropic/claude-3-5-sonnet-20241022',
+                          }),
+                        })
+                        
+                        if (!response.ok) throw new Error('Failed to generate content')
+                        
+                        const reader = response.body?.getReader()
+                        const decoder = new TextDecoder()
+                        let generatedContent = ''
+                        
+                        if (reader) {
+                          while (true) {
+                            const { done, value } = await reader.read()
+                            if (done) break
+                            const chunk = decoder.decode(value)
+                            const lines = chunk.split('\n')
+                            for (const line of lines) {
+                              if (line.startsWith('0:')) {
+                                const text = line.substring(2).trim()
+                                if (text) generatedContent += text
+                              }
+                            }
+                          }
+                        }
+                        
+                        if (generatedContent) {
+                          editor.chain().focus().insertContent(generatedContent).run()
+                        }
+                      } catch (error) {
+                        console.error('AI prompt failed:', error)
+                        alert('Failed to generate content. Please try again.')
+                      }
+                    },
+                  }
+                )
+                
+                // Add AI component generation commands
+                commands.push(
+                  {
+                    id: 'chart-ai',
+                    label: 'Generate Chart (AI)',
+                    description: 'Create a chart with AI',
+                    icon: require('lucide-react').BarChart3,
+                    group: 'components',
+                    command: async () => {
+                      const promptText = `📊 CHART GENERATOR
+
+Describe the chart you want to create.
+
+CAPABILITIES:
+• Bar charts - Compare values across categories
+• Line graphs - Show trends over time
+• Pie charts - Show proportions of a whole
+• Doughnut charts - Like pie, with center hole
+
+LIMITATIONS:
+• Maximum 12 data points recommended
+• Simple datasets only (no complex nested data)
+• Static charts (not real-time updating)
+
+CONTEXT AWARE:
+• Has access to your document content
+• Will match your document's theme/topic
+
+Example: "Monthly sales data for 2024"
+Example: "Browser market share pie chart"
+Example: "User growth line graph last 6 months"`
+                      
+                      const userPrompt = window.prompt(promptText)
+                      if (!userPrompt) return
+                      
+                      // Get document context
+                      const docText = editor.getText().substring(0, 2000) // First 2000 chars
+                      
+                      try {
+                        const response = await fetch('/api/generate-component', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            componentType: 'chart',
+                            userPrompt,
+                            selectedText: docText,
+                            model: selectedModel || 'anthropic/claude-3-5-sonnet-20241022',
+                          }),
+                        })
+                        
+                        if (!response.ok) throw new Error('Failed to generate component')
+                        
+                        const reader = response.body?.getReader()
+                        const decoder = new TextDecoder()
+                        let fullResponse = ''
+                        
+                        if (reader) {
+                          while (true) {
+                            const { done, value } = await reader.read()
+                            if (done) break
+                            fullResponse += decoder.decode(value)
+                          }
+                        }
+                        
+                        const jsonMatch = fullResponse.match(/\{[\s\S]*\}/)
+                        if (!jsonMatch) throw new Error('Invalid response format')
+                        
+                        const componentData = JSON.parse(jsonMatch[0])
+                        // Insert the chart node
+                        editor.chain().focus().insertContent({
+                          type: 'chart',
+                          attrs: componentData
+                        }).run()
+                      } catch (error) {
+                        console.error('Chart generation failed:', error)
+                        alert('Failed to generate chart. Please try again.')
+                      }
+                    },
+                  },
+                  {
+                    id: 'infocard-ai',
+                    label: 'Generate Info Card (AI)',
+                    description: 'Create an info card with AI',
+                    icon: require('lucide-react').Info,
+                    group: 'components',
+                    command: async () => {
+                      const promptText = `💡 INFO CARD GENERATOR
+
+Describe the info card you want to create.
+
+CAPABILITIES:
+• Info (blue) - General information
+• Warning (yellow) - Cautions and alerts
+• Success (green) - Confirmations and achievements
+• Error (red) - Problems and issues
+
+FEATURES:
+• Title and icon
+• Main content paragraph
+• Bullet point lists
+• Optional footer text
+
+LIMITATIONS:
+• Text-only (no images)
+• Maximum 5 bullet points recommended
+• Static content (not interactive)
+
+CONTEXT AWARE:
+• Has access to your document content
+• Will match your document's theme/topic
+
+Example: "Important security notice"
+Example: "Project milestone completed"
+Example: "Warning about deadline"`
+                      
+                      const userPrompt = window.prompt(promptText)
+                      if (!userPrompt) return
+                      
+                      // Get document context
+                      const docText = editor.getText().substring(0, 2000) // First 2000 chars
+                      
+                      try {
+                        const response = await fetch('/api/generate-component', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            componentType: 'infoCard',
+                            userPrompt,
+                            selectedText: docText,
+                            model: selectedModel || 'anthropic/claude-3-5-sonnet-20241022',
+                          }),
+                        })
+                        
+                        if (!response.ok) throw new Error('Failed to generate component')
+                        
+                        const reader = response.body?.getReader()
+                        const decoder = new TextDecoder()
+                        let fullResponse = ''
+                        
+                        if (reader) {
+                          while (true) {
+                            const { done, value } = await reader.read()
+                            if (done) break
+                            fullResponse += decoder.decode(value)
+                          }
+                        }
+                        
+                        const jsonMatch = fullResponse.match(/\{[\s\S]*\}/)
+                        if (!jsonMatch) throw new Error('Invalid response format')
+                        
+                        const componentData = JSON.parse(jsonMatch[0])
+                        // Insert the info card node
+                        editor.chain().focus().insertContent({
+                          type: 'infoCard',
+                          attrs: componentData
+                        }).run()
+                      } catch (error) {
+                        console.error('Info card generation failed:', error)
+                        alert('Failed to generate info card. Please try again.')
+                      }
+                    },
+                  },
+                  {
+                    id: 'custom-component-ai',
+                    label: 'Custom Component (AI)',
+                    description: 'Generate any custom component',
+                    icon: require('lucide-react').Sparkles,
+                    group: 'components',
+                    command: async () => {
+                      const promptText = `✨ CUSTOM COMPONENT GENERATOR
+
+Describe ANY component you want to create.
+
+CAPABILITIES:
+• Can generate charts, cards, or custom content
+• Flexible output format
+• Context-aware generation
+
+WHAT YOU CAN REQUEST:
+• "Timeline of events"
+• "Comparison table"
+• "Step-by-step guide"
+• "Feature list with icons"
+• "Statistics dashboard"
+• "Quote with attribution"
+• Anything else you can imagine!
+
+LIMITATIONS:
+• Text and basic formatting only
+• No real-time data
+• No external API calls
+
+CONTEXT:
+• Has access to your document
+• Will use selected text if available
+
+Describe what you want:`
+                      
+                      const userPrompt = window.prompt(promptText)
+                      if (!userPrompt) return
+                      
+                      // Get document context and selected text
+                      const { from, to } = editor.state.selection
+                      const selectedText = editor.state.doc.textBetween(from, to, ' ')
+                      const docText = editor.getText().substring(0, 2000)
+                      
+                      // Combine selected text and document context
+                      const contextText = selectedText 
+                        ? `SELECTED TEXT TO REPLACE:\n${selectedText}\n\nDOCUMENT CONTEXT:\n${docText}`
+                        : docText
+                      
+                      try {
+                        const response = await fetch('/api/chat', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            messages: [
+                              {
+                                role: 'system',
+                                content: `You are a helpful content generator. Generate the requested component/content based on the user's description. If there is selected text to replace, use it as context but generate new content. Output clean, formatted text suitable for a document editor.\n\nContext:\n${contextText}`
+                              },
+                              {
+                                role: 'user',
+                                content: userPrompt
+                              }
+                            ],
+                            model: selectedModel || 'anthropic/claude-3-5-sonnet-20241022',
+                          }),
+                        })
+                        
+                        if (!response.ok) throw new Error('Failed to generate component')
+                        
+                        const reader = response.body?.getReader()
+                        const decoder = new TextDecoder()
+                        let generatedContent = ''
+                        
+                        if (reader) {
+                          while (true) {
+                            const { done, value } = await reader.read()
+                            if (done) break
+                            const chunk = decoder.decode(value)
+                            const lines = chunk.split('\n')
+                            for (const line of lines) {
+                              if (line.startsWith('0:')) {
+                                const text = line.substring(2).trim()
+                                if (text) generatedContent += text
+                              }
+                            }
+                          }
+                        }
+                        
+                        if (generatedContent) {
+                          // If there's selected text, replace it; otherwise insert
+                          if (selectedText) {
+                            editor.chain().focus().deleteSelection().insertContent(generatedContent).run()
+                          } else {
+                            editor.chain().focus().insertContent(generatedContent).run()
+                          }
+                        }
+                      } catch (error) {
+                        console.error('Custom component generation failed:', error)
+                        alert('Failed to generate custom component. Please try again.')
+                      }
+                    },
+                  }
+                )
+                
+                return commands.filter((item: any) =>
+                  item.label.toLowerCase().includes(query.toLowerCase())
+                )
+              },
+              render: () => {
+                let component: ReactRenderer<SlashCommandMenuRef>
+                let popup: TippyInstance[]
+
+                return {
+                  onStart: (props: any) => {
+                    component = new ReactRenderer(SlashCommandMenu, {
+                      props,
+                      editor: props.editor,
+                    })
+
+                    popup = tippy('body', {
+                      getReferenceClientRect: props.clientRect as any,
+                      appendTo: () => document.body,
+                      content: component.element,
+                      showOnCreate: true,
+                      interactive: true,
+                      trigger: 'manual',
+                      placement: 'bottom-start',
+                    })
+                  },
+                  onUpdate(props: any) {
+                    component.updateProps(props)
+
+                    popup[0].setProps({
+                      getReferenceClientRect: props.clientRect as any,
+                    })
+                  },
+                  onKeyDown(props: any) {
+                    if (props.event.key === 'Escape') {
+                      popup[0].hide()
+                      return true
+                    }
+
+                    return component.ref?.onKeyDown(props.event) || false
+                  },
+                  onExit() {
+                    // Safely cleanup popup and component
+                    try {
+                      if (popup && popup[0]) {
+                        popup[0].destroy()
+                      }
+                    } catch (e) {
+                      // Ignore cleanup errors
+                    }
+                    
+                    try {
+                      if (component) {
+                        component.destroy()
+                      }
+                    } catch (e) {
+                      // Ignore cleanup errors
+                    }
+                  },
+                }
+              },
+            }),
+          ]
         },
       }),
       CustomPlaceholder,
@@ -1368,11 +1902,14 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   const handleViewModeChange = async (newMode: 'editor' | 'html' | 'markdown') => {
     if (!editor) return;
 
-    // When leaving editor mode, save the content
+    // When switching from editor to code view, save the original content and get the HTML
     if (viewMode === 'editor' && newMode !== 'editor') {
       const html = editor.getHTML();
+      const json = editor.getJSON(); // Save the full JSON structure
+      setSavedEditorContent(JSON.stringify(json)); // Save original content
+
       if (newMode === 'markdown') {
-        // Convert HTML to Markdown using ATX-style headings (# syntax)
+        // Convert HTML to Markdown
         const turndownService = new TurndownService({
           headingStyle: 'atx',  // Use # for headings instead of underlines
           codeBlockStyle: 'fenced',  // Use ``` for code blocks
@@ -1386,20 +1923,30 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
       }
     }
 
-    // When switching back to editor mode, restore the content
+    // When switching back to editor mode, restore the original saved content
     if (viewMode !== 'editor' && newMode === 'editor') {
-      let htmlToRestore = rawText;
-
-      // If coming from markdown, convert to HTML first
-      if (viewMode === 'markdown') {
-        htmlToRestore = await marked(rawText) as string;
+      // Check if we have saved content (original editor state)
+      if (savedEditorContent) {
+        try {
+          const originalContent = JSON.parse(savedEditorContent);
+          isInternalUpdate.current = true;
+          editor.commands.setContent(originalContent);
+          setTimeout(() => {
+            isInternalUpdate.current = false;
+          }, 10);
+        } catch (e) {
+          // Fallback to converting from HTML/Markdown if JSON parse fails
+          let htmlToRestore = rawText;
+          if (viewMode === 'markdown') {
+            htmlToRestore = await marked(rawText) as string;
+          }
+          isInternalUpdate.current = true;
+          editor.commands.setContent(htmlToRestore);
+          setTimeout(() => {
+            isInternalUpdate.current = false;
+          }, 10);
+        }
       }
-
-      isInternalUpdate.current = true;
-      editor.commands.setContent(htmlToRestore);
-      setTimeout(() => {
-        isInternalUpdate.current = false;
-      }, 10);
     }
 
     // Convert between HTML and Markdown when both are code views
@@ -1550,6 +2097,72 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     onAIEdit(selectedText, instruction, enableWebSearch);
     setShowAIMenu(false);
   }
+
+  // Handle AI component generation
+  const handleGenerateComponent = async (componentType: 'chart' | 'infoCard') => {
+    if (!editor) return
+
+    // Show a prompt dialog
+    const userPrompt = window.prompt(
+      componentType === 'chart' 
+        ? 'Describe the chart you want to create (e.g., "Monthly sales data for 2024")'
+        : 'Describe the info card you want to create (e.g., "Important security notice")'
+    )
+
+    if (!userPrompt) return
+
+    try {
+      // Call the component generation API
+      const response = await fetch('/api/generate-component', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          componentType,
+          userPrompt,
+          selectedText: editor.state.doc.textBetween(
+            editor.state.selection.from,
+            editor.state.selection.to
+          ),
+          model: selectedModel || 'anthropic/claude-3-5-sonnet-20241022',
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate component')
+      }
+
+      // Parse the streaming response
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let fullResponse = ''
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          fullResponse += decoder.decode(value)
+        }
+      }
+
+      // Extract JSON from the response (handle streaming format)
+      const jsonMatch = fullResponse.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        throw new Error('Invalid response format')
+      }
+
+      const componentData = JSON.parse(jsonMatch[0])
+
+      // Insert the component into the editor
+      if (componentType === 'chart') {
+        editor.chain().focus().insertChart(componentData).run()
+      } else if (componentType === 'infoCard') {
+        editor.chain().focus().insertInfoCard(componentData).run()
+      }
+    } catch (error) {
+      console.error('Component generation failed:', error)
+      alert('Failed to generate component. Please try again.')
+    }
+  }
   
   // Submit a new comment
   const handleCommentSubmit = (text: string) => {
@@ -1575,7 +2188,10 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     // Reset UI state
     setShowAddCommentForm(false)
     setActiveCommentId(newCommentId)
-    setIsCommentsPanelOpen(true)
+    // Open comments panel via parent callback
+    if (onSetPanelTab && onToggleCommentsPanel) {
+      onSetPanelTab('comments');
+    }
   }
   
   // Handle comment click
@@ -1639,9 +2255,85 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
     <>
       <div className="h-full flex flex-col w-full overflow-x-hidden overflow-y-hidden" style={{ position: 'relative', isolation: 'isolate' }}>
           {/* Toolbar - Google Docs style order */}
-          <div className="flex items-center gap-1 p-2 pl-3 bg-[#EBEBEB] dark:bg-[#2C2C2C] border-b overflow-x-auto overflow-y-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}>
+          <div className="flex items-center gap-1 p-2 pl-3 bg-[#EBEBEB] dark:bg-[#2C2C2C] border-b overflow-x-auto overflow-y-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000, minHeight: '55px', height: '55px' }}>
 
-            {/* 1. Undo/Redo - FIRST */}
+            {/* Dark Mode Toggle - FIRST */}
+            <div className="mr-2 pr-2 border-r">
+              <MenuButton
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                {theme === 'dark' ? (
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                )}
+              </MenuButton>
+            </div>
+
+            {/* Save Button with Status Light */}
+            {onSave && (
+              <div className="mr-2 pr-2 border-r flex items-center gap-1.5">
+                {/* Status Light */}
+                <div 
+                  className={cn(
+                    "w-2 h-2 rounded-full",
+                    saveStatus === 'saved' && "bg-green-500",
+                    saveStatus === 'saving' && "bg-yellow-500 animate-pulse",
+                    saveStatus === 'unsaved' && "bg-yellow-500"
+                  )}
+                  title={
+                    saveStatus === 'saved' ? `Saved${lastSaved ? ` at ${lastSaved.toLocaleTimeString()}` : ''}` :
+                    saveStatus === 'saving' ? 'Saving...' :
+                    'Unsaved changes'
+                  }
+                />
+                <MenuButton
+                  onClick={onSave}
+                  disabled={saveStatus === 'saving'}
+                  title={saveStatus === 'saving' ? 'Saving...' : 'Save document (Cmd+S)'}
+                >
+                  {saveStatus === 'saving' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                </MenuButton>
+              </div>
+            )}
+
+            {/* View Mode Toggle */}
+            <div className="relative mr-2 pr-2 border-r" data-dropdown="viewmode">
+              <MenuButton
+                ref={viewModeButtonRef}
+                onClick={(e) => {
+                  e?.stopPropagation()
+                  const wasOpen = dropdownStates.showViewModeSelector
+                  closeAllDropdowns()
+                  const btn = viewModeButtonRef.current
+                  if (btn) {
+                    const rect = btn.getBoundingClientRect()
+                    setDropdownPositions(prev => ({ ...prev, viewMode: { top: rect.bottom + 4, left: rect.left } }))
+                  }
+                  setDropdownStates(prev => ({ ...prev, showViewModeSelector: !wasOpen }))
+                }}
+                title={`View Mode: ${viewMode === 'editor' ? 'Editor' : viewMode === 'html' ? 'HTML' : 'Markdown'}`}
+              >
+                <div className="flex items-center gap-1">
+                  <Code2 className="h-4 w-4" />
+                  <span className="text-xs font-medium">
+                    {viewMode === 'editor' ? 'Editor' : viewMode === 'html' ? 'HTML' : 'MD'}
+                  </span>
+                  <ChevronDown className="h-3 w-3" />
+                </div>
+              </MenuButton>
+            </div>
+
+            {/* 1. Undo/Redo */}
             <div className="flex gap-1 mr-2 border-r pr-2 flex-shrink-0">
               <MenuButton
                 onClick={() => editor.chain().focus().undo().run()}
@@ -1951,33 +2643,25 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
               </MenuButton>
             </div>
 
-            {/* 10. Panel Toggles - LAST */}
+            {/* 11. Panel Toggles - LAST */}
             <div className="flex gap-1 flex-shrink-0">
-              <MenuButton
-                onClick={() => {
-                  if (leftPanel === 'documents') {
-                    setLeftPanel(null);
-                  } else {
-                    setLeftPanel('documents');
-                    setRightPanel(null); // Close right panel
-                  }
-                }}
-                isActive={leftPanel === 'documents'}
-                title="Documents"
-              >
-                <PanelLeft className="h-4 w-4" />
-              </MenuButton>
+              {showContextToggle && onToggleContext && (
+                <MenuButton
+                  onClick={onToggleContext}
+                  title="Show Context Library"
+                >
+                  <PanelLeft className="h-4 w-4" />
+                </MenuButton>
+              )}
 
               <MenuButton
                 onClick={() => {
-                  if (rightPanel === 'comments') {
-                    setRightPanel(null);
-                  } else {
-                    setRightPanel('comments');
-                    setLeftPanel(null); // Close left panel
+                  // Toggle comments panel
+                  if (onSetPanelTab && onToggleCommentsPanel) {
+                    onSetPanelTab('comments');
+                    onToggleCommentsPanel(); // This will open if closed, or switch if different tab
                   }
                 }}
-                isActive={rightPanel === 'comments'}
                 title="Comments"
               >
                 <MessageSquare className="h-4 w-4" />
@@ -1985,61 +2669,16 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
 
               <MenuButton
                 onClick={() => {
-                  if (rightPanel === 'tools') {
-                    setRightPanel(null);
-                  } else {
-                    setRightPanel('tools');
-                    setLeftPanel(null); // Close left panel
+                  // Toggle TOC panel
+                  if (onSetPanelTab && onToggleCommentsPanel) {
+                    onSetPanelTab('tools');
+                    onToggleCommentsPanel(); // This will open if closed, or switch if different tab
                   }
                 }}
-                isActive={rightPanel === 'tools'}
-                title="Tools"
-              >
-                <Wrench className="h-4 w-4" />
-              </MenuButton>
-
-              <MenuButton
-                onClick={() => {
-                  if (rightPanel === 'toc') {
-                    setRightPanel(null);
-                  } else {
-                    setRightPanel('toc');
-                    setLeftPanel(null); // Close left panel
-                  }
-                }}
-                isActive={rightPanel === 'toc'}
                 title="Table of Contents"
               >
                 <BookMarked className="h-4 w-4" />
               </MenuButton>
-
-
-              {/* View Mode Toggle */}
-              <div className="relative ml-2 pl-2 border-l" data-dropdown="viewmode">
-                <MenuButton
-                  ref={viewModeButtonRef}
-                  onClick={(e) => {
-                    e?.stopPropagation()
-                    const wasOpen = dropdownStates.showViewModeSelector
-                    closeAllDropdowns()
-                    const btn = viewModeButtonRef.current
-                    if (btn) {
-                      const rect = btn.getBoundingClientRect()
-                      setDropdownPositions(prev => ({ ...prev, viewMode: { top: rect.bottom + 4, left: rect.left } }))
-                    }
-                    setDropdownStates(prev => ({ ...prev, showViewModeSelector: !wasOpen }))
-                  }}
-                  title={`View Mode: ${viewMode === 'editor' ? 'Editor' : viewMode === 'html' ? 'HTML' : 'Markdown'}`}
-                >
-                  <div className="flex items-center gap-1">
-                    <Code2 className="h-4 w-4" />
-                    <span className="text-xs font-medium">
-                      {viewMode === 'editor' ? 'Editor' : viewMode === 'html' ? 'HTML' : 'MD'}
-                    </span>
-                    <ChevronDown className="h-3 w-3" />
-                  </div>
-                </MenuButton>
-              </div>
             </div>
 
             {toolbarActions && (
@@ -2262,6 +2901,25 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                     break
                 }
               }}
+              onInsert={(action, text) => {
+                switch (action) {
+                  case 'insert-table':
+                    editor.chain().focus().insertTable({ rows: 3, cols: 3 }).run()
+                    break
+                  case 'insert-code-block':
+                    editor.chain().focus().setCodeBlock().run()
+                    break
+                  case 'insert-task-list':
+                    editor.chain().focus().toggleTaskList().run()
+                    break
+                  case 'generate-chart':
+                    handleGenerateComponent('chart')
+                    break
+                  case 'generate-info-card':
+                    handleGenerateComponent('infoCard')
+                    break
+                }
+              }}
               onAIAction={(action: AIAction, text: string, additionalContext?: string, enableWebSearch?: boolean) => {
                 // Map v0 actions to our existing handlers
                 if (action === 'research' || action === 'ask-ai-edit' || action === 'ask-ai-question') {
@@ -2272,6 +2930,82 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                 }
               }}
             />
+          </BubbleMenu>
+        )}
+
+        {/* Table Bubble Menu - Shows when cursor is in a table */}
+        {editor && editor.isActive('table') && (
+          <BubbleMenu
+            editor={editor}
+            tippyOptions={{
+              duration: 100,
+              zIndex: 40,
+              placement: 'top',
+              appendTo: () => document.body,
+            }}
+            shouldShow={({ editor }) => editor.isActive('table')}
+          >
+            <div className="bg-white dark:bg-[#2C2C2C] border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg p-1 flex gap-1">
+              <button
+                onClick={() => editor.chain().focus().addColumnBefore().run()}
+                className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded transition-colors"
+                title="Add Column Before"
+              >
+                <Columns className="h-4 w-4" />
+              </button>
+              
+              <button
+                onClick={() => editor.chain().focus().addColumnAfter().run()}
+                className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded transition-colors"
+                title="Add Column After"
+              >
+                <Columns className="h-4 w-4 scale-x-[-1]" />
+              </button>
+              
+              <button
+                onClick={() => editor.chain().focus().deleteColumn().run()}
+                className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
+                title="Delete Column"
+              >
+                <Columns className="h-4 w-4 text-red-600" />
+              </button>
+              
+              <div className="w-px bg-neutral-200 dark:bg-neutral-700 my-1" />
+              
+              <button
+                onClick={() => editor.chain().focus().addRowBefore().run()}
+                className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded transition-colors"
+                title="Add Row Before"
+              >
+                <Rows className="h-4 w-4" />
+              </button>
+              
+              <button
+                onClick={() => editor.chain().focus().addRowAfter().run()}
+                className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded transition-colors"
+                title="Add Row After"
+              >
+                <Rows className="h-4 w-4 scale-y-[-1]" />
+              </button>
+              
+              <button
+                onClick={() => editor.chain().focus().deleteRow().run()}
+                className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
+                title="Delete Row"
+              >
+                <Rows className="h-4 w-4 text-red-600" />
+              </button>
+              
+              <div className="w-px bg-neutral-200 dark:bg-neutral-700 my-1" />
+              
+              <button
+                onClick={() => editor.chain().focus().deleteTable().run()}
+                className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
+                title="Delete Table"
+              >
+                <TableIcon className="h-4 w-4 text-red-600" />
+              </button>
+            </div>
           </BubbleMenu>
         )}
       </div>

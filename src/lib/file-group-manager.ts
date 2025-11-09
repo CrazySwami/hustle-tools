@@ -15,11 +15,25 @@
  */
 
 import { getProjectConfig } from './project-generation/config';
+import type { ProjectFileDescriptor } from './project-generation/types';
+
+export type ProjectFileKind = 'html' | 'css' | 'js' | 'php' | 'hubl' | 'docs' | string;
+
+export interface ProjectFileRecord {
+  id: string;
+  label: string;
+  type: ProjectFileKind;
+  language?: string;
+  content: string;
+  order: number;
+  metadata?: Record<string, any>;
+}
 
 export interface FileGroup {
   id: string;                    // Unique ID
   name: string;                  // User-defined name (e.g., "Hero Section", "Contact Form")
   type: 'html' | 'php' | 'hubspot';  // Project type
+  subtype?: string;              // Optional subtype (e.g., hubspot email/page)
   createdAt: number;             // Timestamp
   updatedAt: number;             // Timestamp
 
@@ -66,6 +80,8 @@ export interface FileGroup {
 
   // Project documentation (AI-generated manifest)
   projectManifest?: string;        // Markdown documentation explaining each file's purpose
+  files?: Record<string, ProjectFileRecord>;
+  fileOrder?: string[];
 }
 
 export interface EditorState {
@@ -82,6 +98,78 @@ const CURRENT_VERSION = 1;
  */
 function generateId(): string {
   return `fg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function formatLabelFromId(id: string): string {
+  return id
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[-_/]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    || id;
+}
+
+function inferTypeFromId(id: string): ProjectFileKind {
+  if (id.endsWith('.html')) return 'html';
+  if (id.endsWith('.css')) return 'css';
+  if (id.endsWith('.js')) return 'js';
+  if (id.endsWith('.hubl')) return 'hubl';
+  if (id.endsWith('.md')) return 'docs';
+  if (id.endsWith('.php')) return 'php';
+  return id;
+}
+
+function inferLanguageFromType(type: ProjectFileKind): string {
+  switch (type) {
+    case 'html':
+      return 'html';
+    case 'css':
+      return 'css';
+    case 'js':
+      return 'javascript';
+    case 'php':
+      return 'php';
+    case 'hubl':
+      return 'html';
+    case 'docs':
+      return 'markdown';
+    default:
+      return 'plaintext';
+  }
+}
+
+function setFileRecord(
+  group: FileGroup,
+  fileId: string,
+  content: string,
+  options: Partial<ProjectFileRecord> = {}
+) {
+  if (!group.files) {
+    group.files = {};
+  }
+  if (!group.fileOrder) {
+    group.fileOrder = [];
+  }
+  if (!group.files[fileId]) {
+    group.files[fileId] = {
+      id: fileId,
+      label: options.label || formatLabelFromId(fileId),
+      type: options.type || inferTypeFromId(fileId),
+      language: options.language || inferLanguageFromType(options.type || inferTypeFromId(fileId)),
+      content,
+      order: options.order ?? group.fileOrder.length,
+      metadata: options.metadata,
+    };
+    group.fileOrder.push(fileId);
+  } else {
+    group.files[fileId].content = content;
+    if (options.label) group.files[fileId].label = options.label;
+    if (options.metadata) {
+      group.files[fileId].metadata = {
+        ...(group.files[fileId].metadata || {}),
+        ...options.metadata,
+      };
+    }
+  }
 }
 
 /**
@@ -387,6 +475,7 @@ export function createGroup(
     id: generateId(),
     name,
     type,
+    subtype,
     createdAt: now,
     updatedAt: now,
 
@@ -813,7 +902,50 @@ export function updateGroup(id: string, updates: Partial<FileGroup>): void {
     return;
   }
 
-  Object.assign(group, updates, { updatedAt: Date.now() });
+  const mergedUpdates: Partial<FileGroup> = { ...updates };
+
+  if (updates.widgetFiles) {
+    mergedUpdates.widgetFiles = {
+      ...(group.widgetFiles || {}),
+      ...updates.widgetFiles,
+    };
+  }
+
+  Object.assign(group, mergedUpdates, { updatedAt: Date.now() });
+
+  if (mergedUpdates.widgetFiles) {
+    Object.entries(mergedUpdates.widgetFiles).forEach(([widgetId, widget]) => {
+      setFileRecord(group, `widget:${widgetId}`, widget.content || '', {
+        label: widget.name || formatLabelFromId(widgetId),
+        type: 'php',
+        language: 'php',
+        metadata: { widgetId },
+      });
+    });
+  }
+
+  if (mergedUpdates.pluginMainFile) {
+    setFileRecord(group, 'plugin-main.php', mergedUpdates.pluginMainFile, {
+      label: 'Plugin Main',
+      type: 'php',
+      language: 'php',
+      order: 0,
+    });
+  }
+
+  if (group.isPlugin) {
+    const syncedPluginMain = syncWidgetRegistrations(group.pluginMainFile, group.widgetFiles);
+    if (syncedPluginMain && syncedPluginMain !== group.pluginMainFile) {
+      group.pluginMainFile = syncedPluginMain;
+      setFileRecord(group, 'plugin-main.php', syncedPluginMain, {
+        label: 'Plugin Main',
+        type: 'php',
+        language: 'php',
+        order: 0,
+      });
+    }
+  }
+
   saveEditorState(state);
 }
 
@@ -822,7 +954,7 @@ export function updateGroup(id: string, updates: Partial<FileGroup>): void {
  */
 export function updateGroupContent(
   id: string,
-  file: 'html' | 'css' | 'js' | 'php' | 'hubl',
+  file: string,
   content: string
 ): void {
   const state = loadEditorState();
@@ -833,12 +965,89 @@ export function updateGroupContent(
     return;
   }
 
-  // For plugins, update pluginMainFile when PHP is being edited
-  if (group.isPlugin && file === 'php') {
-    updateGroup(id, { pluginMainFile: content });
-  } else {
-    updateGroup(id, { [file]: content });
+  let handled = false;
+
+  const assignBaseField = (field: keyof FileGroup) => {
+    (group as any)[field] = content;
+    handled = true;
+  };
+
+  switch (file) {
+    case 'html':
+    case 'css':
+    case 'js':
+    case 'php':
+    case 'hubl':
+      assignBaseField(file as keyof FileGroup);
+      break;
+    case 'docs':
+    case 'readme':
+    case 'README':
+      group.projectManifest = content;
+      handled = true;
+      break;
+    case 'plugin-main.php':
+      group.pluginMainFile = content;
+      group.isPlugin = true;
+      handled = true;
+      setFileRecord(group, 'plugin-main.php', content, {
+        label: 'Plugin Main',
+        type: 'php',
+        language: 'php',
+        order: 0,
+      });
+      break;
+    default:
+      break;
   }
+
+  if (file.startsWith('widget:') || file.startsWith('widget-')) {
+    const widgetId = file.replace(/^widget[:\-]/, '');
+    if (!group.widgetFiles) {
+      group.widgetFiles = {};
+    }
+    const existingWidget = group.widgetFiles[widgetId] || {
+      name: `Widget ${Object.keys(group.widgetFiles).length + 1}`,
+      slug: widgetId.replace(/\W+/g, '-'),
+      className: 'Generated_Widget',
+      content: '',
+    };
+
+    group.widgetFiles[widgetId] = {
+      ...existingWidget,
+      content,
+    };
+
+    setFileRecord(group, file, content, {
+      label: existingWidget.name || formatLabelFromId(file),
+      type: 'php',
+      language: 'php',
+      metadata: { widgetId },
+      order: group.fileOrder?.length ?? 1,
+    });
+    handled = true;
+  }
+
+  if (!handled) {
+    setFileRecord(group, file, content);
+  }
+
+  group.updatedAt = Date.now();
+
+  if (group.isPlugin) {
+    const syncedPluginMain = syncWidgetRegistrations(group.pluginMainFile, group.widgetFiles);
+    if (syncedPluginMain && syncedPluginMain !== group.pluginMainFile) {
+      group.pluginMainFile = syncedPluginMain;
+      setFileRecord(group, 'plugin-main.php', syncedPluginMain, {
+        label: 'Plugin Main',
+        type: 'php',
+        language: 'php',
+        order: 0,
+      });
+    }
+  }
+
+  saveEditorState(state);
 }
 
 /**
@@ -846,7 +1055,7 @@ export function updateGroupContent(
  */
 export function updateGroupFile(
   id: string,
-  file: 'html' | 'css' | 'js' | 'php' | 'hubl',
+  file: string,
   content: string
 ): void {
   updateGroupContent(id, file, content);
@@ -1228,6 +1437,44 @@ function registerWidgetInMainFile(mainFile: string, className: string, widgetSlu
 }
 
 /**
+ * Rebuild widget registrations inside plugin main file
+ */
+function syncWidgetRegistrations(
+  mainFile: string | undefined,
+  widgetFiles?: FileGroup['widgetFiles']
+): string | undefined {
+  if (!mainFile || !widgetFiles) return mainFile;
+
+  const placeholderRegex = /[ \t]*\/\/ \[WIDGETS_PLACEHOLDER\]/;
+  if (!placeholderRegex.test(mainFile)) {
+    return mainFile;
+  }
+
+  const registrationBlockRegex = /(\s*\$widgets_manager->register\(new[^\n]+\);\s*\/\/[^\n]*\r?\n)+(?=\s*\/\/ \[WIDGETS_PLACEHOLDER\])/g;
+  const cleanedMainFile = mainFile.replace(registrationBlockRegex, '');
+
+  const widgets = Object.values(widgetFiles).filter((widget) => !!(widget?.className || widget?.content));
+  if (widgets.length === 0) {
+    return cleanedMainFile;
+  }
+
+  const lines = Array.from(new Set(
+    widgets.map((widget) => {
+      const className = widget.className || extractClassNameFromPhp(widget.content || '') || 'Generated_Widget';
+      const slug = widget.slug || widget.name || className;
+      return `    $widgets_manager->register(new ${className}()); // ${slug}`;
+    })
+  ));
+
+  if (lines.length === 0) {
+    return cleanedMainFile;
+  }
+
+  const block = `${lines.join('\n')}\n\n    // [WIDGETS_PLACEHOLDER]`;
+  return cleanedMainFile.replace(placeholderRegex, block);
+}
+
+/**
  * Generate demo "Hello World" widget
  */
 function generateHelloWorldWidget(): string {
@@ -1361,33 +1608,51 @@ export function createPlugin(
     mainFilePreview: mainFileContent.substring(0, 100)
   });
 
-  // Generate demo "Hello World" widget
-  const helloWorldCode = generateHelloWorldWidget();
-  const helloWorldId = generateId();
-  const helloWorldClassName = 'Hello_World_Widget';
-  const helloWorldSlug = 'hello-world';
+  const includeDemoWidget = generationState !== 'generating';
 
-  // Register the demo widget in the main file
-  const mainFileWithWidget = registerWidgetInMainFile(
-    mainFileContent,
-    helloWorldClassName,
-    helloWorldSlug
-  );
+  let pluginMainFile = mainFileContent;
+  let widgetFiles: FileGroup['widgetFiles'] | undefined = {};
 
-  const plugin: FileGroup = {
-    id: generateId(),
-    name,
-    type: 'php',
-    isPlugin: true,
-    pluginName: name,
-    pluginSlug: slug,
-    pluginMainFile: mainFileWithWidget,
-    widgetFiles: {
+  if (includeDemoWidget) {
+    const helloWorldCode = generateHelloWorldWidget();
+    const helloWorldId = generateId();
+    const helloWorldClassName = 'Hello_World_Widget';
+    const helloWorldSlug = 'hello-world';
+
+    pluginMainFile = registerWidgetInMainFile(
+      mainFileContent,
+      helloWorldClassName,
+      helloWorldSlug
+    );
+
+    widgetFiles = {
       [helloWorldId]: {
         name: 'Hello World',
         slug: helloWorldSlug,
         content: helloWorldCode,
         className: helloWorldClassName,
+      }
+    };
+  }
+
+  const pluginId = generateId();
+
+  const pendingWidgetId = `widget_${pluginId}_pending`;
+
+  const plugin: FileGroup = {
+    id: pluginId,
+    name,
+    type: 'php',
+    isPlugin: true,
+    pluginName: name,
+    pluginSlug: slug,
+    pluginMainFile,
+    widgetFiles: includeDemoWidget ? widgetFiles : {
+      [pendingWidgetId]: {
+        name: 'Generated Widget',
+        slug: 'generated-widget',
+        content: '',
+        className: 'Generated_Widget'
       }
     },
     createdAt: now,
@@ -1399,6 +1664,25 @@ export function createPlugin(
     // Set generation state
     generationState,
   };
+
+  setFileRecord(plugin, 'plugin-main.php', pluginMainFile, {
+    label: 'Plugin Main',
+    type: 'php',
+    language: 'php',
+    order: 0,
+  });
+
+  const widgetEntryId = includeDemoWidget
+    ? `widget:${helloWorldId}`
+    : `widget:${pluginId}_pending`;
+
+  setFileRecord(plugin, widgetEntryId, includeDemoWidget ? helloWorldCode : '', {
+    label: includeDemoWidget ? 'Hello World' : 'Widget (generating...)',
+    type: 'php',
+    language: 'php',
+    order: 1,
+    metadata: { widgetId: includeDemoWidget ? helloWorldId : widgetEntryId.replace(/^widget:/, '') },
+  });
 
   console.log('✅ Plugin created with demo widget:', {
     id: plugin.id,
@@ -1416,8 +1700,9 @@ export function createPlugin(
 export function addWidgetToPlugin(
   pluginId: string,
   widgetName: string,
-  widgetCode: string
-): void {
+  widgetCode: string,
+  options?: { skipRegistration?: boolean }
+): string {
   const state = loadEditorState();
   const plugin = state.groups.find(g => g.id === pluginId);
 
@@ -1447,8 +1732,18 @@ export function addWidgetToPlugin(
     className,
   };
 
+  setFileRecord(plugin, `widget:${widgetId}`, widgetCode, {
+    label: widgetName || formatLabelFromId(widgetId),
+    type: 'php',
+    language: 'php',
+    metadata: { widgetId },
+    order: plugin.fileOrder?.length ?? 1,
+  });
+
+  const skipRegistration = options?.skipRegistration ?? false;
+
   // Auto-register widget in main plugin file
-  if (plugin.pluginMainFile) {
+  if (!skipRegistration && plugin.pluginMainFile) {
     plugin.pluginMainFile = registerWidgetInMainFile(
       plugin.pluginMainFile,
       className,
@@ -1459,7 +1754,8 @@ export function addWidgetToPlugin(
   plugin.updatedAt = Date.now();
   saveEditorState(state);
 
-  console.log(`✅ Added widget "${widgetName}" (${className}) to plugin "${plugin.pluginName}"`);
+  console.log(`✅ Added widget "${widgetName}" (${className}) to plugin "${plugin.pluginName}" (skipRegistration=${skipRegistration})`);
+  return widgetId;
 }
 
 /**

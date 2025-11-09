@@ -139,7 +139,7 @@ export const PromptInputTokenCounterSection = ({
   // Always render to show system prompt + conversation tokens
   // (previously only showed when user was typing)
   return (
-    <div className={cn('px-3 py-2 bg-muted/30', className)}>
+    <div className={cn('px-3 py-2 bg-[#f8f8f8] dark:bg-[#2a2a2a]', className)}>
       <PromptTokenCounter
         prompt={promptValue}
         systemPrompt={systemPrompt}

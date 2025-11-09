@@ -42,6 +42,7 @@ export interface ParsedFiles {
   }>;
   hubl?: string;
   json?: string;
+  files?: Record<string, string | undefined>;
 }
 
 /**
@@ -72,11 +73,21 @@ export interface ModelConfig {
  * Core project configuration
  * Single source of truth for each project type
  */
+export interface ProjectFileDescriptor {
+  id: string;
+  label?: string;
+  type?: 'html' | 'css' | 'js' | 'php' | 'hubl' | 'docs' | string;
+  language?: string;
+  extension?: string;
+  order?: number;
+  initialContent?: string;
+}
+
 export interface ProjectConfig {
   name: string;
   label: string;
   icon: string;
-  fileTypes: string[];
+  fileTypes: Array<string | ProjectFileDescriptor>;
   defaultModel: string;
 
   /**
@@ -188,7 +199,7 @@ export type GenerateProjectEvent =
  */
 export type OnProjectUpdate = (
   projectId: string,
-  fileType: 'html' | 'css' | 'js' | 'php' | 'hubl',
+  fileType: string,
   content: string
 ) => void;
 

@@ -1,4 +1,5 @@
-import { tool } from 'ai';
+import { tool, generateText } from 'ai';
+import { gateway } from '@ai-sdk/gateway';
 import { z } from 'zod';
 
 // Google Search tool - search Google and get organic results with rankings
@@ -222,9 +223,9 @@ export const scrapeUrlTool = tool({
 
 // Edit Code with Morph Fast Apply - PREFERRED method for code editing
 export const editCodeWithMorphTool = tool({
-  description: 'Edit code using Morph Fast Apply (98% accuracy, 10x faster than diffs). This is the PREFERRED way to edit existing code. Use lazy edits with "// ... existing code ..." to indicate unchanged sections. Works with ANY model (even Haiku!) because you only write the changes, not complex diff format. Supports HTML, CSS, JavaScript, and PHP files.',
+  description: 'Edit code using Morph Fast Apply (98% accuracy, 10x faster than diffs). Supports ANY editor file: html, css, js, php, plugin-main.php, widget:<id>, section:<slug>, hubl-email, hubl-page, liquid, etc. Use lazy edits with "// ... existing code ..." for unchanged sections.',
   inputSchema: z.object({
-    file: z.enum(['html', 'css', 'js', 'php']).describe('Which file to edit (html, css, js, or php)'),
+    file: z.string().describe('File identifier to edit (html, css, js, plugin-main.php, widget:pricing, section:hero, hubl-email, liquid, etc.)'),
     instruction: z.string().describe('Clear first-person instruction: "I am changing the button color to red" or "I am adding error handling to the auth function"'),
     lazyEdit: z.string().describe('The code changes using "// ... existing code ..." for unchanged parts. Example:\n// ... existing code ...\n.button {\n  background: red;\n}\n// ... existing code ...'),
   }),
@@ -700,8 +701,69 @@ export const generateProjectTool = tool({
   },
 });
 
+// Perplexity Search Tool - AI-powered web search with real-time information
+export const perplexitySearchTool = tool({
+  description: 'Search the web using Perplexity AI for real-time information, news, facts, and current events. This tool provides up-to-date search results with sources and citations. Use this when you need current information, recent developments, or when the user asks about anything that requires real-time data.',
+  inputSchema: z.object({
+    query: z.string().describe('The search query to look up on the web'),
+    focus: z.enum(['web', 'academic', 'writing', 'wolfram', 'youtube', 'reddit']).optional().default('web').describe('Search focus area for more targeted results'),
+    maxResults: z.number().optional().default(5).describe('Maximum number of search results to return (1-10)'),
+    includeImages: z.boolean().optional().default(false).describe('Whether to include image search results'),
+    timeframe: z.enum(['day', 'week', 'month', 'year']).optional().describe('Time filter for search results'),
+  }),
+  execute: async ({ query, focus = 'web', maxResults = 5, includeImages = false, timeframe }) => {
+    console.log('🔍 [Perplexity Search Tool] Starting search with AI SDK...', { query });
+
+    try {
+      // Use AI SDK's generateText with gateway - EXACTLY like the toggle does
+      const { text, sources } = await generateText({
+        model: gateway('perplexity/sonar', {
+          apiKey: process.env.AI_GATEWAY_API_KEY!,
+        }),
+        prompt: query,
+      });
+      
+      console.log('✅ [Perplexity Search Tool] Search completed:', {
+        textLength: text.length,
+        sourcesCount: sources?.length || 0,
+        sources: sources,
+      });
+      
+      // Convert sources to citation URLs
+      const citations = sources?.map((s: any) => s.url || s) || [];
+      
+      return {
+        query,
+        focus,
+        maxResults,
+        includeImages,
+        timeframe,
+        status: 'success',
+        timestamp: new Date().toISOString(),
+        message: `Search completed for: "${query}"`,
+        answer: text,
+        citations: citations,
+      };
+    } catch (error: any) {
+      console.error('❌ [Perplexity Search Tool] Error:', error);
+      return {
+        query,
+        focus,
+        maxResults,
+        includeImages,
+        timeframe,
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        message: `Search failed: ${error.message}`,
+        error: error.message,
+      };
+    }
+  },
+});
+
 export const tools = {
   googleSearch: googleSearchTool,
+  perplexitySearch: perplexitySearchTool,
   getWeather: weatherTool,
   calculate: calculatorTool,
   generateCode: codeGeneratorTool,

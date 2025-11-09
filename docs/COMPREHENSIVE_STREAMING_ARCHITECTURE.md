@@ -198,6 +198,42 @@ Chunk 3 (750ms): "<section>\n  <div class="header">\n    <h1>..."
 
 Monaco's efficient differential rendering makes this smooth. Each setValue() only re-renders the **changed portion** of the editor.
 
+---
+
+## Elementor Plugin Workflow (Multi-File Streaming)
+
+Elementor plugins are unique because a single “project” contains multiple PHP files (the plugin bootstrap plus N widget classes). To keep streaming and tab management predictable, the UI now processes widgets in three explicit stages:
+
+1. **Widget Slot Creation**
+   - Clicking **Add Widget** immediately creates a slot inside the active plugin by calling `fileGroups.addWidgetToPlugin(..., { skipRegistration: true })`.
+   - `addWidgetToPlugin` always invokes `setFileRecord` for the new widget so the tab appears instantly (`widget:<id>`). Earlier builds waited until streaming completed, which meant tabs never materialised for blank widgets—this change fixes that for both “Create Blank” and “Generate with AI.”
+   - We log every slot with `[ElementorFlow] Created widget slot...` for easy debugging in DevTools.
+
+2. **Targeted Streaming**
+   - When the user chooses “Generate with AI,” the slot ID and plugin ID are stored (`pendingWidgetTargetId` / `pendingPluginTargetId`), and the generator modal is opened in **widget mode**.
+   - The modal skips the HTML/HubSpot controls, shows a summary (“Plugin: … / Widget Slot: …”), and only requests a widget brief + model. Pressing “Generate Widget” streams directly into the existing `widget:<id>` file (no new project is created). During this mode we suppress all automatic `plugin-main.php` tab switches so the widget tab stays visible the entire time.
+   - Widget slots are listed before `plugin-main.php` and `README`, so the actively streaming tab mirrors the behavior of HTML/HubSpot (first tab = current stream).
+   - When the stream finishes, the placeholder slot is renamed in place (label/slug/class) rather than creating a brand-new widget file. The final class metadata updates the original slot so the tab you watched is the tab you continue editing.
+   - When the stream finishes, the placeholder slot is renamed in place (label/slug/class) rather than creating a brand-new widget file. The final class metadata updates the original slot so the tab you watched is the tab you continue editing.
+   - During streaming, a “pending tab switch” queue waits until the widget tab exists, then switches the Monaco editor exactly once so you never see “tab not found” warnings.
+
+3. **Registration Sync**
+   - After the widget finishes streaming and exposes its class metadata, `syncWidgetRegistrations` rewrites the placeholder block inside `plugin-main.php`, inserting one `register(new Class_Name())` line per widget. Because we dedupe before writing, registration lines no longer multiply during a stream.
+   - A “pending tab switch” queue watches for the newly created widget tab to appear in `useFileTabs`; once the tab exists, it focuses Monaco and logs `[ElementorFlow] Pending tab switch fulfilled`. This prevents “tab not found” warnings and makes blank slots visible immediately.
+
+**Key Debug Hooks**
+- Filter DevTools logs by `[ElementorFlow]` to trace slot creation, tab switches, generator start/end, and metadata updates.
+- Each widget slot/tab uses the ID `widget:<unique-id>`; the plugin bootstrap is always `plugin-main.php`. Morph/edit tools should key off those IDs so prompts can specialize per file type.
+
+**Extending to New Project Types**
+- The same three-stage approach (create slots → stream one file at a time → programmatically update shared files) makes it straightforward to add new multi-file project types later (e.g., Shopify sections, multi-template email bundles). When adding a new type:
+  1. Decide what constitutes a “slot” (e.g., Liquid sections, multiple React components).
+  2. Ensure `file-group-manager` immediately creates a tab record for each slot.
+  3. Pass `targetFileId` / `targetProjectId` through the generator so streaming stays scoped.
+  4. Keep shared bootstrap files updated via deterministic helpers (no AI required).
+
+Document every new slot/file type here so future contributors know how to extend the streaming pipeline without reintroducing placeholder or tab-sync bugs.
+
 ### Tab Switching During Generation
 
 **Location**: `/src/lib/project-generation/streaming.ts:325-348`
@@ -1427,6 +1463,37 @@ extractMetadata: (files: ParsedFiles) => {
   };
 }
 ```
+
+### Recent Stability Fixes (Nov 2025)
+
+| Problem | Resolution | Touchpoints |
+|---------|------------|-------------|
+| Elementor widget tab disappeared mid-stream (selection snapped back to Plugin Main) | Every new plugin seeds a deterministic placeholder widget (`widget_<projectId>_pending`). `streaming.ts` keeps streaming into that ID, so the tab exists before tokens arrive and never changes identity | `src/lib/file-group-manager.ts`, `src/lib/project-generation/streaming.ts`, `src/hooks/useFileTabs.ts` |
+| HubSpot projects spawned CSS/JS tabs even when configs only listed HTML/HubL | File groups seed their fields directly from `config.fileTypes`, and `useFileTabs` relies on `FileGroup.type/subtype` instead of checking for non-empty strings. Empty tabs render immediately, so streaming can target them before the AI finishes | `src/lib/file-group-manager.ts`, `src/hooks/useFileTabs.ts` |
+| Monaco showed an empty editor even while streaming succeeded in the network panel | All `onProjectUpdate` callbacks now write chunks straight to `fileGroups.updateGroupFile` (localStorage-backed) and immediately call `pushEditOperations` on the mounted Monaco instance. The UI no longer waits for a React re-render before updating | `src/app/elementor-editor/page.tsx` |
+
+### Adding Future Project Types (e.g., Shopify sections with Liquid/SCSS/TS)
+
+1. **Declare the config** in `src/lib/project-generation/config.ts`  
+   Add `SHOPIFY_CONFIG` with `fileTypes: ['liquid', 'scss', 'ts']`, a shop-specific system prompt, and a parser that extracts ```liquid```, ```scss```, ```ts``` blocks.
+2. **Register it**  
+   - Append it to `PROJECT_CONFIGS`  
+   - Extend `ProjectType` and `ParsedFiles` (e.g., add `liquid?: string`) in `src/lib/project-generation/types.ts`
+3. **Create file groups automatically**  
+   Calling `createGroup(name, 'shopify', ...)` seeds Liquid/SCSS/TS placeholders because `getInitialFieldsForProjectType` reads the config. Tabs therefore appear (empty) the instant the user clicks Generate.
+4. **Render tabs in the editor**  
+   Update `useFileTabs` to recognize `project.type === 'shopify'` and map those fields to Monaco tabs. No other editor changes are required—`HtmlSectionEditor` and `GenerateProjectWidget` already respect whatever tab IDs the hook exposes.
+5. **Stream output**  
+   As soon as `parseProjectCode` emits `{ liquid, scss, ts }`, `streamWithLegacyCallbacks` fires `onProjectUpdate` for each file. The shared handlers write the chunk to the active `FileGroup` and push it into the appropriate Monaco model, so streaming “just works” for the new generator.
+
+Following this pattern, any future generator (Shopify, React Native, PDFs, etc.) only needs a config entry, optional UI selector, and a `useFileTabs` mapping. Everything else—file creation, placeholder tabs, streaming, and tab switching—remains centralized.
+
+### HTML Splitter Modes
+
+- The splitter dialog now offers two import modes:
+  1. **Separate projects** (default) – each selected section becomes its own project with dedicated HTML/CSS/JS files (same as before).
+  2. **Single combined project** – all sections are stored inside one project, each as its own HTML tab (`section:hero`, `section:testimonials`, etc.) while CSS/JS are merged into shared files. This relies on the new file-ID system described above, so downstream generators can target these tabs individually.
+- Regardless of the mode, the splitter extracts per-section CSS/JS and passes along any global `<style>` blocks so the combined project keeps a single source of truth for styling.
 
 ---
 

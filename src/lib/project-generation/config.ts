@@ -185,27 +185,25 @@ The user's instructions in their prompt are the FINAL SAY and HIGHEST PRIORITY. 
   },
 
   extractMetadata: (files: ParsedFiles) => {
-    if (!files.php) return {};
+    const metadata: Record<string, any> = {};
 
-    // Extract widget class name
-    const classNameMatch = files.php.match(/class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends/);
-    const className = classNameMatch ? classNameMatch[1] : 'Generated_Widget';
-    const widgetSlug = className.toLowerCase().replace(/_/g, '-');
-    const widgetName = className.replace(/_/g, ' ').replace(/\bWidget\b/, '').trim();
+    if (files.pluginMainFile) {
+      metadata.pluginMainFile = files.pluginMainFile;
+    }
 
-    // Generate widget ID
-    const widgetId = `widget_${Date.now()}`;
+    if (files.php) {
+      const classNameMatch = files.php.match(/class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends/);
+      const className = classNameMatch ? classNameMatch[1] : 'Generated_Widget';
+      const widgetSlug = className.toLowerCase().replace(/_/g, '-');
+      const widgetName = className.replace(/_/g, ' ').replace(/\bWidget\b/, '').trim();
+      metadata.widgetMetadata = {
+        className,
+        widgetSlug,
+        widgetName: widgetName || 'Generated Widget'
+      };
+    }
 
-    return {
-      widgetFiles: {
-        [widgetId]: {
-          name: widgetName || 'Generated Widget',
-          slug: widgetSlug,
-          content: files.php,
-          className: className,
-        }
-      }
-    };
+    return metadata;
   },
 
   deployment: {

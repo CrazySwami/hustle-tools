@@ -37,6 +37,24 @@ import { DiCss3, DiJavascript1, DiPhp } from 'react-icons/di';
 import { SiHubspot } from 'react-icons/si';
 import { FileText, RefreshCw, Filter } from 'lucide-react';
 
+type SplitSection = {
+  name?: string;
+  html?: string;
+  css?: string;
+  js?: string;
+  type?: string;
+  classes?: string[];
+};
+
+const getSectionDisplayName = (section: SplitSection, index: number) => {
+  if (section.name) return section.name;
+  const classes = (section as any)?.classes;
+  if (Array.isArray(classes) && classes.length > 0) {
+    return classes.join(' ');
+  }
+  return `${section.type || 'Section'} ${index + 1}`;
+};
+
 interface HtmlSectionEditorProps {
   initialSection?: Section;
   onSectionChange?: (section: Section) => void;
@@ -44,8 +62,8 @@ interface HtmlSectionEditorProps {
   streamedHtml?: string;
   streamedCss?: string;
   streamedJs?: string;
-  activeCodeTab?: "html" | "css" | "js" | "php" | "hubl" | "docs";
-  onCodeTabChange?: (tab: "html" | "css" | "js" | "php" | "hubl" | "docs") => void;
+  activeCodeTab?: string;
+  onCodeTabChange?: (tab: string) => void;
   onSwitchToVisualEditor?: () => void;
   onSwitchToPlayground?: () => void;
   chatVisible?: boolean;
@@ -124,9 +142,62 @@ export function HtmlSectionEditor({
   onEditorReady,
   onEditorReadyStateChange,
 }: HtmlSectionEditorProps) {
+  const logElementor = (...args: any[]) => console.log('[ElementorFlow]', ...args);
   // File Groups Management - use parent's instance if provided, otherwise create local instance
   const localFileGroups = useFileGroups();
   const fileGroups = parentFileGroups || localFileGroups;
+  const createProjectsFromSections = (splitSections: SplitSection[]) => {
+    if (!splitSections.length) return;
+    const createdIds: string[] = [];
+    splitSections.forEach((section, index) => {
+      const projectName = getSectionDisplayName(section, index);
+      const newGroup = fileGroups.createNewGroup(projectName, 'html', 'empty');
+      fileGroups.updateGroupFile(newGroup.id, 'html', (section.html || '').trim());
+      fileGroups.updateGroupFile(newGroup.id, 'css', (section.css || '').trim());
+      fileGroups.updateGroupFile(newGroup.id, 'js', (section.js || '').trim());
+      createdIds.push(newGroup.id);
+    });
+    fileGroups.selectGroup(createdIds[0]);
+    setActiveTab('json');
+    setActiveCodeTab('html');
+    alert(`✅ Created ${createdIds.length} project${createdIds.length === 1 ? '' : 's'} from split sections.`);
+  };
+
+  const createCombinedSectionProject = (splitSections: SplitSection[], extractedCss?: string) => {
+    if (!splitSections.length) return;
+    const firstSectionName = getSectionDisplayName(splitSections[0], 0);
+    const projectName = firstSectionName
+      ? `${firstSectionName} (Combined)`
+      : `Combined Sections (${splitSections.length})`;
+    const newGroup = fileGroups.createNewGroup(projectName, 'html', 'empty');
+
+    let mergedCss = (extractedCss || '').trim();
+    let mergedJs = '';
+
+    splitSections.forEach((section, index) => {
+      const label = getSectionDisplayName(section, index);
+      const fileId = `section:${slugify(label || `${section.type}-${index + 1}`) || index + 1}`;
+      fileGroups.updateGroupFile(newGroup.id, fileId, (section.html || '').trim());
+
+      if (index === 0) {
+        fileGroups.updateGroupFile(newGroup.id, 'html', (section.html || '').trim());
+      }
+
+      if (section.css) {
+        mergedCss += `\n/* ${label} */\n${section.css.trim()}\n`;
+      }
+      if (section.js) {
+        mergedJs += `\n// ${label}\n${section.js.trim()}\n`;
+      }
+    });
+
+    fileGroups.updateGroupFile(newGroup.id, 'css', mergedCss.trim());
+    fileGroups.updateGroupFile(newGroup.id, 'js', mergedJs.trim());
+    fileGroups.selectGroup(newGroup.id);
+    setActiveTab('json');
+    setActiveCodeTab('html');
+    alert(`✅ Created one project with ${splitSections.length} HTML files.`);
+  };
   const [showNewGroupDialog, setShowNewGroupDialog] = useState(false);
   const [showHtmlSplitter, setShowHtmlSplitter] = useState(false);
   const [showBatchConverter, setShowBatchConverter] = useState(false);
@@ -148,6 +219,17 @@ export function HtmlSectionEditor({
   // ====================================================================
   // This replaces the old 3-layer state system (externalActiveCodeTab, internalActiveCodeTab, activeWidgetId)
   // with a single source of truth that eliminates widget tab switching issues
+  const defaultTabId = externalActiveCodeTab
+    ? (externalActiveCodeTab === 'php' ? 'plugin-main.php' : externalActiveCodeTab)
+    : (fileGroups.activeGroup?.type === 'php' ? 'plugin-main.php' : 'html');
+
+  const isWidgetTabId = (tabId: string) => tabId.startsWith('widget-') || tabId.startsWith('widget:');
+  const getEditorContentKey = (tabId: string): 'html' | 'css' | 'js' | 'php' | 'hubl' | null => {
+    if (tabId === 'html' || tabId === 'css' || tabId === 'js') return tabId;
+    if (tabId === 'hubl') return 'hubl';
+    if (tabId === 'php' || tabId === 'plugin-main.php' || isWidgetTabId(tabId)) return 'php';
+    return null;
+  };
   const {
     tabs,
     activeTabId,
@@ -158,63 +240,47 @@ export function HtmlSectionEditor({
   } = useFileTabs({
     project: fileGroups.activeGroup,
     onTabContentChange: (tabId, content) => {
-      // Save content changes back to file groups
       if (!fileGroups.activeGroup) return;
 
       console.log('💾 useFileTabs: Content changed for tab:', tabId, `(${content.length} chars)`);
 
-      // Determine if this is a widget tab
-      if (tabId.startsWith('widget-')) {
-        const widgetId = tabId.replace('widget-', '');
-        // Update widget file content
-        if (fileGroups.activeGroup.widgetFiles?.[widgetId] && fileGroups.onProjectMetadataUpdate) {
-          fileGroups.onProjectMetadataUpdate(fileGroups.activeGroup.id, {
-            widgetFiles: {
-              ...fileGroups.activeGroup.widgetFiles,
-              [widgetId]: {
-                ...fileGroups.activeGroup.widgetFiles[widgetId],
-                content: content
-              }
-            }
-          });
-        }
-      } else {
-        // Update main file content (html, css, js, php, hubl, docs)
-        const updates: any = {};
+      // Persist tab content into the file group (handles widgets, plugin main, docs, etc.)
+      fileGroups.updateGroupFile(fileGroups.activeGroup.id, tabId, content);
 
-        if (tabId === 'php') {
-          updates.pluginMainFile = content;
-        } else if (tabId === 'docs') {
-          updates.projectManifest = content;
-        } else {
-          updates[tabId] = content;
-        }
-
-        if (fileGroups.onProjectMetadataUpdate) {
-          fileGroups.onProjectMetadataUpdate(fileGroups.activeGroup.id, updates);
-        }
+      // Keep global editor state in sync so chat/tools read the active file accurately
+      const editorKey = getEditorContentKey(tabId);
+      if (editorKey) {
+        updateContent(editorKey, content);
       }
-
-      // Also update editor content state for chat access
-      const fileType = tabId.startsWith('widget-') ? 'php' : tabId;
-      updateContent(fileType as any, content);
     },
-    defaultTab: externalActiveCodeTab || 'html'
+    defaultTab: defaultTabId
   });
 
-  // Derive legacy activeCodeTab for backward compatibility with existing code
-  const activeCodeTab = activeTab?.type || 'html';
-
+  // Track active file id/type/language
+  const activeCodeTab = activeTab?.id || 'html';
+  const activeCodeType = activeTab?.type || 'html';
+  const activeTabLanguage = activeTab?.language || (activeCodeType === 'js' ? 'javascript' : activeCodeType);
   // Derive legacy activeWidgetId for backward compatibility
   const activeWidgetId = activeTab?.isWidget ? activeTab.widgetId : null;
 
+  const normalizeTabId = useCallback((tabId: string) => {
+    if (tabId === 'php') {
+      return 'plugin-main.php';
+    }
+    return tabId;
+  }, []);
+
   // Sync external prop changes to hook (when parent wants to switch tabs)
   useEffect(() => {
-    if (externalActiveCodeTab && externalActiveCodeTab !== activeTabId) {
-      console.log('🔄 External tab change detected:', externalActiveCodeTab);
-      switchTab(externalActiveCodeTab);
+    const isWidgetTab = activeTabId.startsWith('widget-') || activeTabId.startsWith('widget:');
+    if (!isWidgetTab && externalActiveCodeTab) {
+      const targetTab = normalizeTabId(externalActiveCodeTab);
+      if (targetTab !== activeTabId) {
+        console.log('🔄 External tab change detected:', externalActiveCodeTab, '→', targetTab);
+        switchTab(targetTab);
+      }
     }
-  }, [externalActiveCodeTab, activeTabId, switchTab]);
+  }, [externalActiveCodeTab, activeTabId, switchTab, normalizeTabId]);
   const [showPreview, setShowPreview] = useState(false);
   const [showHublPreview, setShowHublPreview] = useState(false); // HubL interactive preview mode
   const [showSettings, setShowSettings] = useState(false);
@@ -250,8 +316,12 @@ export function HtmlSectionEditor({
   const overlayRef = useRef<HTMLDivElement | null>(null); // Track the overlay element
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [generateModalConversionMode, setGenerateModalConversionMode] = useState(false); // Track if converting existing code
+  const [pendingWidgetTargetId, setPendingWidgetTargetId] = useState<string | null>(null); // Track which widget slot should receive generation
+  const [pendingPluginTargetId, setPendingPluginTargetId] = useState<string | null>(null); // Track which plugin/project should receive generation
+  const [pendingTabSwitch, setPendingTabSwitch] = useState<string | null>(null); // Queue tab switch once new tab exists
+  const [pendingWidgetName, setPendingWidgetName] = useState<string | null>(null); // Track widget display name for generation modal
   const [isGenerating, setIsGenerating] = useState(false); // Track if generation is in progress
-  const [generatingPhase, setGeneratingPhase] = useState<'html' | 'css' | 'js' | 'php' | null>(null);
+  const [generatingPhase, setGeneratingPhase] = useState<'html' | 'css' | 'js' | 'php' | 'hubl' | null>(null);
   const [generatingTokens, setGeneratingTokens] = useState(0); // Track current file token count
   const [showGenerationComplete, setShowGenerationComplete] = useState(false); // Show completion notification
 
@@ -292,11 +362,6 @@ export function HtmlSectionEditor({
     stats?: any;
   } | null>(null);
 
-  // Save indicator state for PHP widget projects
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const lastSavedContentRef = useRef<{ html: string; css: string; js: string; php: string; hubl: string } | null>(null);
-
   // Plugin dialogs state (NEW)
   const [showAddWidgetDialog, setShowAddWidgetDialog] = useState(false);
   const [showPluginNamingDialog, setShowPluginNamingDialog] = useState(false);
@@ -335,7 +400,38 @@ export function HtmlSectionEditor({
   }, [editorsReady, onEditorReady, onEditorReadyStateChange]);
 
   // Global editor content state (for chat access)
-  const { updateContent, setAllContent, html: editorHtml, css: editorCss, js: editorJs, php: editorPhp, hubl: editorHubl } = useEditorContent();
+  const {
+    updateContent,
+    setAllContent,
+    html: editorHtml,
+    css: editorCss,
+    js: editorJs,
+    php: editorPhp,
+    hubl: editorHubl
+  } = useEditorContent();
+
+  const resolvedActiveContent = (() => {
+    const tabContent = getTabContent(activeTabId);
+    if (tabContent !== undefined) {
+      return tabContent;
+    }
+    switch (activeCodeType) {
+      case 'html':
+        return editorHtml;
+      case 'css':
+        return editorCss;
+      case 'js':
+        return editorJs;
+      case 'php':
+        return editorPhp;
+      case 'hubl':
+        return editorHubl;
+      case 'docs':
+        return fileGroups.activeGroup?.projectManifest || '';
+      default:
+        return activeTab?.content || '';
+    }
+  })();
 
   // Use external activeCodeTab if provided, otherwise use internal
   // IMPORTANT: This must be computed BEFORE any useEffect that uses it
@@ -343,7 +439,7 @@ export function HtmlSectionEditor({
   // Force Monaco Editor to update when Zustand state changes
   // This fixes the issue where Monaco doesn't auto-update from value prop changes
   useEffect(() => {
-    if (phpEditorRef.current && activeCodeTab === 'php') {
+    if (phpEditorRef.current && activeCodeType === 'php' && !activeWidgetId) {
       const currentValue = phpEditorRef.current.getValue();
       // Only update if the values are different to avoid cursor jumps
       if (currentValue !== editorPhp) {
@@ -537,7 +633,7 @@ export function HtmlSectionEditor({
 
       // Switch to PHP tab to show the generated widget
       setConversionProgress('Finalizing widget...');
-      handleCodeTabChange('php');
+      handleCodeTabChange('plugin-main.php', { forcible: true });
 
       // Show completion modal
       setShowCompletionModal(true);
@@ -692,7 +788,7 @@ export function HtmlSectionEditor({
       fileGroups.selectGroup(newGroup.id);
 
       // Switch to PHP tab to show the generated widget
-      handleCodeTabChange('php');
+      handleCodeTabChange('plugin-main.php', { forcible: true });
 
       // Auto-deploy to WordPress Playground
       setConversionProgress('🚀 Deploying to WordPress Playground...');
@@ -973,7 +1069,7 @@ export function HtmlSectionEditor({
           fullMarkdown += chunk;
 
           // Stream into Monaco editor in real-time if on docs tab
-          if (activeCodeTab === 'docs' && docsEditorRef.current) {
+          if (activeCodeType === 'docs' && docsEditorRef.current) {
             const model = docsEditorRef.current.getModel();
             if (model) {
               // Replace all content with accumulated markdown
@@ -990,7 +1086,7 @@ export function HtmlSectionEditor({
             } else {
               console.warn('⚠️ Docs editor model not available');
             }
-          } else if (activeCodeTab === 'docs') {
+          } else if (activeCodeType === 'docs') {
             console.warn('⚠️ Docs editor ref not available');
           }
         }
@@ -1113,6 +1209,8 @@ export function HtmlSectionEditor({
   // Event handlers for dropdown actions (defined with useCallback for stable references)
   const handleGenerateProject = useCallback(() => {
     setGenerateModalConversionMode(false);
+    setPendingWidgetTargetId(null);
+    setPendingPluginTargetId(null);
     setShowGenerateModal(true);
   }, []);
 
@@ -1122,6 +1220,8 @@ export function HtmlSectionEditor({
 
   const handleConvertWidget = useCallback(() => {
     setGenerateModalConversionMode(true);
+    setPendingWidgetTargetId(null);
+    setPendingPluginTargetId(null);
     setShowGenerateModal(true);
   }, []);
 
@@ -1262,20 +1362,39 @@ export function HtmlSectionEditor({
     };
   }, [showPreview]);
 
-  const handleCodeTabChange = (tab: "html" | "css" | "js" | "php" | "hubl" | string) => {
+  const handleCodeTabChange = (tab: string, options?: { forcible?: boolean }) => {
     console.log('🔄 Tab change requested:', tab);
 
     // NEW: Simply delegate to useFileTabs hook
     // The hook handles widget tabs, main file tabs, and state management automatically
-    switchTab(tab);
+    const resolvedTab = normalizeTabId(tab);
+    switchTab(resolvedTab);
 
-    // Notify parent if needed (for backward compatibility)
-    if (onCodeTabChange && !tab.startsWith('widget-')) {
-      // Only notify parent for main file tabs, not widget tabs
-      // Widget tabs are purely internal to avoid state conflicts
-      onCodeTabChange(tab as "html" | "css" | "js" | "php" | "hubl");
+    // Keep Zustand editor content in sync with whichever file is now active.
+    const contentKey = getEditorContentKey(resolvedTab);
+    if (contentKey) {
+      const nextContent = getTabContent(resolvedTab);
+      if (nextContent !== undefined) {
+        updateContent(contentKey, nextContent);
+      }
+    }
+
+    // Notify parent if needed (for tab syncing / streaming)
+    if (onCodeTabChange && !options?.forcible) {
+      onCodeTabChange(resolvedTab);
     }
   };
+
+  useEffect(() => {
+    if (!pendingTabSwitch) return;
+    const normalized = normalizeTabId(pendingTabSwitch);
+    const hasTab = tabs.some(tab => tab.id === normalized);
+    if (hasTab) {
+      console.log('[ElementorFlow] Pending tab switch fulfilled:', normalized);
+      handleCodeTabChange(normalized, { forcible: true });
+      setPendingTabSwitch(null);
+    }
+  }, [pendingTabSwitch, tabs, handleCodeTabChange, normalizeTabId]);
 
   // Handle accepting diff changes
   const handleAcceptDiff = () => {
@@ -1394,10 +1513,12 @@ export function HtmlSectionEditor({
       // Load active group content into editor
       console.log('📂 Loading active group:', fileGroups.activeGroup.name);
 
-      // For plugins, load the plugin main file into PHP editor
-      const phpContent = fileGroups.activeGroup.isPlugin
-        ? (fileGroups.activeGroup.pluginMainFile || '')
-        : (fileGroups.activeGroup.php || '');
+      // For plugins, load the content of the currently active PHP tab (main plugin file or widget)
+      const phpContent = (activeTab?.type === 'php' && activeTab?.content !== undefined)
+        ? activeTab.content
+        : (fileGroups.activeGroup.isPlugin
+          ? (fileGroups.activeGroup.pluginMainFile || '')
+          : (fileGroups.activeGroup.php || ''));
 
       console.log('📄 Loading content for group:', {
         name: fileGroups.activeGroup.name,
@@ -1467,7 +1588,9 @@ export function HtmlSectionEditor({
 
       // Switch to appropriate tab based on group type
       if (fileGroups.activeGroup.type === 'php' && (fileGroups.activeGroup.php || fileGroups.activeGroup.pluginMainFile)) {
-        handleCodeTabChange('php');
+        if (!pendingWidgetTargetId) {
+          handleCodeTabChange('plugin-main.php');
+        }
       } else if (fileGroups.activeGroup.type === 'hubspot' && fileGroups.activeGroup.hubl) {
         handleCodeTabChange('hubl');
       } else {
@@ -1545,91 +1668,8 @@ export function HtmlSectionEditor({
     return () => clearTimeout(timeoutId);
   }, [editorHtml, fileGroups.activeGroup?.id, fileGroups.activeGroup?.type]);
 
-  // Track unsaved changes for PHP widget projects
-  useEffect(() => {
-    // Only track for PHP widget projects
-    if (!fileGroups.activeGroup || fileGroups.activeGroup.type !== 'php') {
-      setHasUnsavedChanges(false);
-      return;
-    }
-
-    // Initialize last saved content on mount
-    if (!lastSavedContentRef.current) {
-      lastSavedContentRef.current = {
-        html: editorHtml,
-        css: editorCss,
-        js: editorJs,
-        php: editorPhp,
-        hubl: editorHubl,
-      };
-      setHasUnsavedChanges(false);
-      return;
-    }
-
-    // Compare current content with last saved
-    const hasChanges =
-      editorHtml !== lastSavedContentRef.current.html ||
-      editorCss !== lastSavedContentRef.current.css ||
-      editorJs !== lastSavedContentRef.current.js ||
-      editorPhp !== lastSavedContentRef.current.php ||
-      editorHubl !== lastSavedContentRef.current.hubl;
-
-    setHasUnsavedChanges(hasChanges);
-  }, [editorHtml, editorCss, editorJs, editorPhp, editorHubl, fileGroups.activeGroup?.type]);
-
-  // Manual save function for PHP widget projects
-  const handleManualSave = useCallback(async () => {
-    if (!fileGroups.activeGroup || fileGroups.activeGroup.type !== 'php') {
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      // Save to localStorage via fileGroups
-      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'html', editorHtml);
-      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'css', editorCss);
-      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'js', editorJs);
-      fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'php', editorPhp);
-      if (editorHubl) {
-        fileGroups.updateGroupFile(fileGroups.activeGroup.id, 'hubl', editorHubl);
-      }
-
-      // Update last saved content ref
-      lastSavedContentRef.current = {
-        html: editorHtml,
-        css: editorCss,
-        js: editorJs,
-        php: editorPhp,
-        hubl: editorHubl,
-      };
-
-      setHasUnsavedChanges(false);
-      console.log('💾 Manual save complete:', fileGroups.activeGroup.name);
-
-      // Small delay to show "Saving..." state
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (error) {
-      console.error('❌ Save failed:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [editorHtml, editorCss, editorJs, editorPhp, editorHubl, fileGroups]);
 
   // Listen for Cmd+S to trigger manual save
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+S (Mac) or Ctrl+S (Windows/Linux)
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault();
-        if (fileGroups.activeGroup?.type === 'php') {
-          handleManualSave();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleManualSave, fileGroups.activeGroup?.type]);
 
   // Listen for select-project event from Project Library
   useEffect(() => {
@@ -2856,37 +2896,37 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     const isHubSpotModule = fileGroups.activeGroup?.type === 'hubspot';
                     const pluginSlug = fileGroups.activeGroup?.pluginSlug || 'plugin';
 
-                    if (activeCodeTab === 'html') return (
+                    if (activeCodeType === 'html') return (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <AiFillHtml5 size={16} color="#E34F26" />
                         index.html
                       </span>
                     );
-                    if (activeCodeTab === 'css') return (
+                    if (activeCodeType === 'css') return (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <DiCss3 size={18} color="#1572B6" />
                         {isPhpWidget ? 'widget.css' : 'styles.css'}
                       </span>
                     );
-                    if (activeCodeTab === 'js') return (
+                    if (activeCodeType === 'js') return (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <DiJavascript1 size={18} color="#F7DF1E" />
                         {isPhpWidget ? 'widget.js' : 'script.js'}
                       </span>
                     );
-                    if (activeCodeTab === 'php') return (
+                    if (activeCodeType === 'php') return (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <DiPhp size={18} color={isPlugin ? "#9B59B6" : "#777BB4"} />
                         {isPlugin ? `${pluginSlug}.php` : 'widget.php'}
                       </span>
                     );
-                    if (activeCodeTab === 'hubl') return (
+                    if (activeCodeType === 'hubl') return (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <SiHubspot size={16} color="#FF7A59" />
                         template.hubl
                       </span>
                     );
-                    if (activeCodeTab === 'docs') return (
+                    if (activeCodeType === 'docs') return (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <FileText size={16} color="#4CAF50" />
                         README.md
@@ -2897,7 +2937,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 </span>
 
                 {/* Regenerate Docs Button - Only when viewing docs tab */}
-                {activeCodeTab === 'docs' && (
+                {activeCodeType === 'docs' && (
                   <button
                     onClick={handleRegenerateDocs}
                     disabled={isRegeneratingDocs}
@@ -2936,63 +2976,6 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     />
                     <span style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
                       {isRegeneratingDocs ? "Analyzing..." : "Regenerate Docs"}
-                    </span>
-                  </button>
-                )}
-
-                {/* Save Indicator - Only for PHP widget projects */}
-                {fileGroups.activeGroup?.type === 'php' && (
-                  <button
-                    onClick={handleManualSave}
-                    disabled={isSaving}
-                    title={
-                      isSaving
-                        ? "Saving..."
-                        : hasUnsavedChanges
-                        ? "Unsaved changes (Click to save or press Cmd+S)"
-                        : "All changes saved"
-                    }
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "4px 10px",
-                      background: isSaving
-                        ? "rgba(59, 130, 246, 0.15)"
-                        : hasUnsavedChanges
-                        ? "rgba(251, 146, 60, 0.15)"
-                        : "rgba(34, 197, 94, 0.15)",
-                      border: `1px solid ${
-                        isSaving
-                          ? "rgba(59, 130, 246, 0.3)"
-                          : hasUnsavedChanges
-                          ? "rgba(251, 146, 60, 0.3)"
-                          : "rgba(34, 197, 94, 0.3)"
-                      }`,
-                      borderRadius: "4px",
-                      color: isSaving
-                        ? "#60a5fa"
-                        : hasUnsavedChanges
-                        ? "#fb923c"
-                        : "#4ade80",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      cursor: isSaving ? "default" : "pointer",
-                      transition: "all 0.2s",
-                      opacity: isSaving ? 0.7 : 1,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "14px",
-                        lineHeight: 1,
-                        animation: isSaving ? "pulse 1.5s ease-in-out infinite" : "none",
-                      }}
-                    >
-                      {isSaving ? "⏳" : hasUnsavedChanges ? "●" : "✓"}
-                    </span>
-                    <span style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                      {isSaving ? "Saving..." : hasUnsavedChanges ? "Unsaved" : "Saved"}
                     </span>
                   </button>
                 )}
@@ -3209,7 +3192,12 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                         }}
                       >
                         <span style={{ display: "flex", alignItems: "center" }}>{icon}</span>
-                        <span style={{ flex: 1 }}>{tab.label}</span>
+                        <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span>{tab.label}</span>
+                          {tab.fileName && (
+                            <span style={{ fontSize: '10px', color: '#9ca3af' }}>{tab.fileName}</span>
+                          )}
+                        </span>
                       </button>
                       );
                     })}
@@ -3356,24 +3344,20 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
                   }}>
                     <span style={{ opacity: 0.7 }}>
-                      {activeCodeTab === 'html' && 'index.html'}
-                      {activeCodeTab === 'css' && 'styles.css'}
-                      {activeCodeTab === 'js' && 'script.js'}
-                      {activeCodeTab === 'php' && (
-                        activeWidgetId
-                          ? fileGroups.activeGroup?.widgetFiles?.[activeWidgetId]?.slug + '.php'
-                          : 'widget.php'
-                      )}
-                      {activeCodeTab === 'hubl' && 'template.hubl'}
-                      {activeCodeTab === 'docs' && 'README.md'}
+                      {activeCodeType === 'html' && 'index.html'}
+                      {activeCodeType === 'css' && 'styles.css'}
+                      {activeCodeType === 'js' && 'script.js'}
+                      {activeCodeType === 'php' && (activeTab?.fileName || (activeWidgetId ? 'widget.php' : 'plugin-main.php'))}
+                      {activeCodeType === 'hubl' && 'template.hubl'}
+                      {activeCodeType === 'docs' && 'README.md'}
                     </span>
                     <span style={{ fontSize: '11px', opacity: 0.5 }}>
-                      {activeCodeTab === 'html' && 'HTML'}
-                      {activeCodeTab === 'css' && 'CSS'}
-                      {activeCodeTab === 'js' && 'JavaScript'}
-                      {activeCodeTab === 'php' && 'PHP'}
-                      {activeCodeTab === 'hubl' && 'HubL Template'}
-                      {activeCodeTab === 'docs' && 'Markdown'}
+                      {activeCodeType === 'html' && 'HTML'}
+                      {activeCodeType === 'css' && 'CSS'}
+                      {activeCodeType === 'js' && 'JavaScript'}
+                      {activeCodeType === 'php' && 'PHP'}
+                      {activeCodeType === 'hubl' && 'HubL Template'}
+                      {activeCodeType === 'docs' && 'Markdown'}
                     </span>
                   </div>
                 )}
@@ -3381,22 +3365,14 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 {/* Debug: Log editor value */}
                 {console.log(
                   `📝 Editor rendering - ${activeCodeTab}:`,
-                  section[activeCodeTab]?.substring(0, 100) || "(empty)",
+                  (resolvedActiveContent || '').substring(0, 100) || "(empty)",
                 )}
 
                 {/* Show DiffEditor when previewing, otherwise show regular Editor */}
                 {showDiffPreview && diffData && diffData.file === activeCodeTab ? (
                   <DiffEditor
                     height="100%"
-                    language={
-                      activeCodeTab === "js"
-                        ? "javascript"
-                        : activeCodeTab === "php"
-                        ? "php"
-                        : activeCodeTab === "hubl"
-                        ? "html" // HubL uses HTML-like syntax
-                        : activeCodeTab
-                    }
+                    language={activeTabLanguage || 'plaintext'}
                     theme={theme === "dark" ? "vs-dark" : "light"}
                     original={diffData.originalCode}
                     modified={diffData.mergedCode}
@@ -3411,7 +3387,7 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                       readOnly: true,
                     }}
                   />
-                ) : activeCodeTab === "docs" ? (
+                ) : activeCodeType === "docs" ? (
                   // Project Manifest (Markdown) - Uses Monaco Editor
                   <Editor
                     key={`docs-${fileGroups.activeGroup?.id}`}
@@ -3420,9 +3396,9 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     theme={theme === "dark" ? "vs-dark" : "light"}
                     value={fileGroups.activeGroup?.projectManifest || ''}
                     onChange={(value) => {
-                      if (fileGroups.activeGroup && value !== undefined) {
-                        fileGroups.updateGroup(fileGroups.activeGroup.id, { projectManifest: value });
-                      }
+        if (fileGroups.activeGroup && value !== undefined) {
+          fileGroups.updateGroup(fileGroups.activeGroup.id, { projectManifest: value });
+        }
                     }}
                     onMount={(editor) => {
                       docsEditorRef.current = editor;
@@ -3442,17 +3418,9 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   <Editor
                 key={`${activeCodeTab}-${activeWidgetId || 'main'}`} // Force remount when switching files
                 height="100%"
-                language={
-                  activeCodeTab === "js"
-                    ? "javascript"
-                    : activeCodeTab === "php"
-                    ? "php"
-                    : activeCodeTab === "hubl"
-                    ? "html" // HubL uses HTML-like syntax
-                    : activeCodeTab
-                }
+                language={activeTabLanguage || 'plaintext'}
                 theme={theme === "dark" ? "vs-dark" : "light"}
-                value={activeTab?.content || ""}
+                value={resolvedActiveContent}
                 onChange={(value) => {
                   // NEW: Simply delegate to useFileTabs hook
                   // The hook handles all the complexity (widgets, main files, persistence)
@@ -3462,23 +3430,23 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                 }}
                 onMount={(editor, monaco) => {
                   // Store editor instance in appropriate ref based on active tab
-                  if (activeCodeTab === 'html') {
+                  if (activeCodeType === 'html') {
                     htmlEditorRef.current = editor;
                     setEditorsReady(prev => ({ ...prev, html: true }));
                     console.log('✅ HTML editor mounted and ready');
-                  } else if (activeCodeTab === 'css') {
+                  } else if (activeCodeType === 'css') {
                     cssEditorRef.current = editor;
                     setEditorsReady(prev => ({ ...prev, css: true }));
                     console.log('✅ CSS editor mounted and ready');
-                  } else if (activeCodeTab === 'js') {
+                  } else if (activeCodeType === 'js') {
                     jsEditorRef.current = editor;
                     setEditorsReady(prev => ({ ...prev, js: true }));
                     console.log('✅ JS editor mounted and ready');
-                  } else if (activeCodeTab === 'php') {
+                  } else if (activeCodeType === 'php') {
                     phpEditorRef.current = editor;
                     setEditorsReady(prev => ({ ...prev, php: true }));
                     console.log('✅ PHP editor mounted and ready');
-                  } else if (activeCodeTab === 'hubl') {
+                  } else if (activeCodeType === 'hubl') {
                     hublEditorRef.current = editor;
                     setEditorsReady(prev => ({ ...prev, hubl: true }));
                     console.log('✅ HubL editor mounted and ready');
@@ -3809,19 +3777,26 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                     {tabs.map((tab) => (
                       <button
                         key={tab.id}
-                        onClick={() => handleCodeTabChange(tab.id as "html" | "css" | "js" | "php" | "hubl" | "docs")}
+                        onClick={() => handleCodeTabChange(tab.id)}
                         style={{
                           padding: "4px 12px",
                           background: activeCodeTab === tab.id ? "var(--primary)" : "transparent",
                           color: activeCodeTab === tab.id ? "#ffffff" : "var(--foreground)",
                           border: "none",
                           borderRadius: "4px",
-                          fontSize: "12px",
+                          fontSize: "11px",
                           cursor: "pointer",
                           fontWeight: 500,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "2px",
+                          alignItems: "center",
                         }}
                       >
-                        {tab.label}
+                        <span>{tab.label}</span>
+                        {tab.fileName && (
+                          <span style={{ fontSize: "9px", opacity: 0.75 }}>{tab.fileName}</span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -3829,23 +3804,12 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
                   {/* Monaco Editor */}
                   <div style={{ flex: 1, overflow: "hidden" }}>
                     <Editor
-                      key={activeCodeTab}
-                      defaultLanguage={activeCodeTab === "js" ? "javascript" : activeCodeTab}
-                      value={
-                        activeCodeTab === "html"
-                          ? editorHtml
-                          : activeCodeTab === "css"
-                          ? editorCss
-                          : editorJs
-                      }
+                      key={`${activeCodeTab}-split`}
+                      defaultLanguage={activeTabLanguage || 'plaintext'}
+                      value={resolvedActiveContent}
                       onChange={(value) => {
-                        const newValue = value || "";
-                        if (activeCodeTab === "html") {
-                          setEditorHtml(newValue);
-                        } else if (activeCodeTab === "css") {
-                          setEditorCss(newValue);
-                        } else if (activeCodeTab === "js") {
-                          setEditorJs(newValue);
+                        if (value !== undefined && activeTabId) {
+                          updateTabContent(activeTabId, value);
                         }
                       }}
                       theme="vs-dark"
@@ -4370,30 +4334,20 @@ Position: ${Array.from(parent?.children || []).indexOf(target) + 1} of ${parent?
       {showHtmlSplitter && (
         <HtmlSplitter
           onClose={() => setShowHtmlSplitter(false)}
-          onImport={(sections) => {
-            // Create a new file group for each selected section
-            sections.forEach((section, index) => {
-              const sectionName = section.classes.length > 0
-                ? section.classes[0] // Use first class as name
-                : `${section.type}-${index + 1}`; // Fallback to type + index
+          onImport={(sections, extractedStyleKitCss, options) => {
+            if (sections.length === 0) {
+              setShowHtmlSplitter(false);
+              alert('No sections imported.');
+              return;
+            }
 
-              const newGroup = fileGroups.createNewGroup(
-                sectionName,
-                'html', // All imported sections are HTML type
-                'empty'
-              );
-
-              // Set the HTML content for this group
-              fileGroups.updateGroupFile(newGroup.id, 'html', section.html);
-
-              // If it's the first section, make it active
-              if (index === 0) {
-                fileGroups.selectGroup(newGroup.id);
-              }
-            });
+            if (options?.combineIntoSingle) {
+              createCombinedSectionProject(sections, extractedStyleKitCss);
+            } else {
+              createProjectsFromSections(sections);
+            }
 
             setShowHtmlSplitter(false);
-            alert(`✅ Created ${sections.length} project${sections.length === 1 ? '' : 's'} from HTML page`);
           }}
         />
       )}
@@ -4479,6 +4433,9 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
         onClose={() => {
           setShowGenerateModal(false);
           setGenerateModalConversionMode(false);
+          setPendingWidgetTargetId(null);
+          setPendingPluginTargetId(null);
+          setPendingWidgetName(null);
         }}
         onGenerationStart={() => {
           // Modal will close and generation will start
@@ -4486,6 +4443,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           setIsGenerating(true);
           setGeneratingPhase('html'); // Default to HTML phase
           console.log('🎬 Generation starting from modal');
+          logElementor('Generation start', { targetWidgetId: pendingWidgetTargetId });
         }}
         onGenerationEnd={() => {
           // Generation finished
@@ -4493,14 +4451,22 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           setGeneratingPhase(null);
           setShowGenerationComplete(true);
           console.log('🏁 Generation ended from modal');
+          logElementor('Generation end', { targetWidgetId: pendingWidgetTargetId });
+          setPendingWidgetTargetId(null);
+          setPendingPluginTargetId(null);
+          setPendingWidgetName(null);
 
           // Auto-hide completion notification after 3 seconds
           setTimeout(() => {
             setShowGenerationComplete(false);
           }, 3000);
         }}
-        defaultModel={undefined}
-        globalCSS={globalCss} // Pass global CSS for context
+        defaultModel={pendingWidgetTargetId ? 'anthropic/claude-haiku-4-5-20251001' : undefined}
+        globalCSS={pendingWidgetTargetId ? undefined : globalCss}
+        targetWidgetId={pendingWidgetTargetId || undefined}
+        existingProjectId={pendingPluginTargetId || undefined}
+        targetWidgetLabel={pendingWidgetName || undefined}
+        targetPluginName={pendingPluginTargetId ? fileGroups.activeGroup?.name : undefined}
         existingCode={generateModalConversionMode ? {
           html: editorHtml,
           css: editorCss,
@@ -4510,6 +4476,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           // Check if specific editor is mounted and ready
           return editorsReady[fileType as keyof typeof editorsReady] || false;
         }}
+        onSwitchCodeTab={handleCodeTabChange}
         onProjectCreate={(name, type, generationState) => {
           let newGroup;
 
@@ -4534,7 +4501,7 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
 
           // Auto-switch to the first tab
           if (type === 'php') {
-            onCodeTabChange?.('php');
+            onCodeTabChange?.('plugin-main.php');
           } else {
             onCodeTabChange?.('html');
           }
@@ -4549,26 +4516,30 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
           if (content && content.trim().length > 0) {
             const tokens = Math.ceil(content.length / 4); // Estimate: 1 token ≈ 4 characters
             console.log(`📝 Streaming ${file} (${content.length} chars, ~${tokens.toLocaleString()} tokens)`);
+            const editorKey = getEditorContentKey(file);
+            const isWidgetFile = isWidgetTabId(file);
+            const isPluginMainFile = file === 'plugin-main.php';
+            const isActiveFileTab = activeTabId === file;
 
             // Switch to the active file tab (include hubl)
-            if (file === 'html' || file === 'css' || file === 'js' || file === 'php' || file === 'hubl') {
-              setGeneratingPhase(file);
+            if (editorKey) {
+              setGeneratingPhase(editorKey);
               setGeneratingTokens(tokens);
-              // Only switch tabs for standard files (not hubl, since there's no hubl tab)
-              if (file !== 'hubl') {
-                onCodeTabChange?.(file);
-              }
             }
 
             // Stream into Monaco editor in real-time using pushEditOperations
             // This provides smooth streaming like README regeneration
-            const editorRef = file === 'html' ? htmlEditorRef :
-                             file === 'css' ? cssEditorRef :
-                             file === 'js' ? jsEditorRef :
-                             file === 'php' ? phpEditorRef :
-                             file === 'hubl' ? hublEditorRef : null;
+            const editorRef = editorKey === 'html' ? htmlEditorRef :
+                             editorKey === 'css' ? cssEditorRef :
+                             editorKey === 'js' ? jsEditorRef :
+                             editorKey === 'php' ? phpEditorRef :
+                             editorKey === 'hubl' ? hublEditorRef : null;
+            const shouldUpdateLiveEditor = isActiveFileTab;
+            if (editorKey) {
+              updateContent(editorKey, content);
+            }
 
-            if (editorRef?.current) {
+            if (shouldUpdateLiveEditor && editorRef?.current) {
               const model = editorRef.current.getModel();
               if (model) {
                 // Replace all content with new streamed content
@@ -4584,11 +4555,13 @@ Please fix all the failed validation checks in the current PHP widget file. Use 
                 console.log(`✨ Streamed ${content.length} chars to ${file} editor via pushEditOperations`);
               } else {
                 console.warn(`⚠️ ${file} editor model not available, falling back to updateContent`);
-                updateContent(file, content);
+                // Already synced via updateContent above
               }
             } else {
-              console.warn(`⚠️ ${file} editor ref not available, falling back to updateContent`);
-              updateContent(file, content);
+              console.log('⏭️ Skipping live editor update for inactive tab', {
+                file,
+                activeTabId,
+              });
             }
           }
         }}
@@ -4741,13 +4714,53 @@ ${elementData.context}`;
           setShowAddWidgetDialog(false);
 
           if (shouldGenerate) {
-            // Open the Generate Widget modal to create the widget code with AI
+            const className = widgetName.replace(/[^a-zA-Z0-9]+/g, '_') || 'Generated_Widget';
+            const widgetSlug = widgetName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            const placeholderCode = `<?php
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
+
+class ${className} extends \\Elementor\\Widget_Base {
+    public function get_name() {
+        return '${widgetSlug}';
+    }
+
+    public function get_title() {
+        return esc_html__('${widgetName}', 'text-domain');
+    }
+
+    public function get_icon() {
+        return 'eicon-code';
+    }
+
+    public function get_categories() {
+        return ['general'];
+    }
+
+    protected function register_controls() {
+        // Controls will be generated by AI
+    }
+
+    protected function render() {
+        echo '<div class="${widgetSlug}">Generated widget placeholder</div>';
+    }
+}
+`;
+
+            const widgetId = fileGroups.addWidgetToPlugin(
+              fileGroups.activeGroup.id,
+              widgetName,
+              placeholderCode,
+              { skipRegistration: true }
+            );
+            logElementor('Created widget slot for AI generation', { widgetId, widgetName, pluginId: fileGroups.activeGroup.id });
+            setPendingWidgetTargetId(widgetId);
+            setPendingPluginTargetId(fileGroups.activeGroup.id);
+            setPendingWidgetName(widgetName);
+            setPendingTabSwitch(`widget:${widgetId}`);
             setGenerateModalConversionMode(true);
             setShowGenerateModal(true);
-
-            // Store the widget name for later use when widget is generated
-            (window as any).__pendingWidgetName = widgetName;
-            (window as any).__pendingPluginId = fileGroups.activeGroup.id;
           } else {
             // Create blank widget immediately
             const className = widgetName.replace(/[^a-zA-Z0-9]+/g, '_');
@@ -4807,13 +4820,17 @@ class ${className} extends \\Elementor\\Widget_Base {
 }`;
 
             // Add blank widget to plugin
-            fileGroups.addWidgetToPlugin(
+            const widgetId = fileGroups.addWidgetToPlugin(
               fileGroups.activeGroup.id,
               widgetName,
               blankWidgetCode
             );
 
-            console.log('✅ Created blank widget:', widgetName);
+            logElementor('Created blank widget slot', { widgetId, widgetName, pluginId: fileGroups.activeGroup.id });
+            setPendingTabSwitch(`widget:${widgetId}`);
+            setPendingWidgetTargetId(null);
+            setPendingPluginTargetId(null);
+            setPendingWidgetName(null);
           }
         }}
         pluginName={fileGroups.activeGroup?.isPlugin ? fileGroups.activeGroup.pluginName : undefined}
@@ -4937,3 +4954,9 @@ class ${className} extends \\Elementor\\Widget_Base {
     </div>
   );
 }
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .trim() || 'section';

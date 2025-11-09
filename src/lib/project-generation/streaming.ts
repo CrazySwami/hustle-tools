@@ -55,6 +55,7 @@ export interface StreamGenerationOptions {
   images?: Array<{ url: string; filename: string }>;
   model?: string;
   globalCSS?: string;
+  targetWidgetId?: string;
 
   onProgress?: OnStreamProgress;
   onFileUpdate?: OnStreamFileUpdate;
@@ -238,7 +239,7 @@ export async function streamWithLegacyCallbacks(
     onProjectUpdate?: OnProjectUpdate;
     onProjectMetadataUpdate?: OnProjectMetadataUpdate;
     onProjectStateUpdate?: (projectId: string, state: 'generating' | 'ready' | 'error', error?: string) => void;
-    onSwitchCodeTab?: (tab: 'html' | 'css' | 'js' | 'php' | 'hubl') => void;
+    onSwitchCodeTab?: (tab: string) => void;
     setProgress?: (message: string) => void;
     setCurrentPhase?: (phase: 'html' | 'css' | 'js' | 'php' | 'hubl' | null) => void;
   }
@@ -254,6 +255,11 @@ export async function streamWithLegacyCallbacks(
 
   // Track tab switches to avoid switching multiple times
   const switchedTabs = new Set<string>();
+  // Keep a stable widget ID per generation so tabs don't reset mid-stream
+  let generatedWidgetId: string | null = options.targetWidgetId || null;
+  if (options.projectType === 'elementor' && generatedWidgetId) {
+    console.log('[ElementorFlow] Streaming to existing widget slot:', generatedWidgetId);
+  }
 
   await streamProjectGeneration({
     ...options,
@@ -281,14 +287,6 @@ export async function streamWithLegacyCallbacks(
       if (!onProjectUpdate && !onProjectMetadataUpdate) return;
 
       if (options.projectType === 'elementor') {
-        // Elementor: Update plugin files via metadata
-        if (files.pluginMainFile && onProjectMetadataUpdate) {
-          onProjectMetadataUpdate(projectId, {
-            isPlugin: true,
-            pluginMainFile: files.pluginMainFile
-          });
-        }
-
         if (files.php && onProjectMetadataUpdate) {
           // Extract widget metadata
           const classNameMatch = files.php.match(/class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends/);
@@ -296,7 +294,13 @@ export async function streamWithLegacyCallbacks(
           const widgetSlug = className.toLowerCase().replace(/_/g, '-');
           const widgetName = className.replace(/_/g, ' ').replace(/\bWidget\b/, '').trim()
             || options.projectName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-          const widgetId = `widget_${Date.now()}`;
+          if (!generatedWidgetId) {
+            generatedWidgetId = options.targetWidgetId || `widget_${projectId}_pending`;
+          }
+          const widgetId = generatedWidgetId;
+          if (options.targetWidgetId) {
+            console.log('[ElementorFlow] Widget metadata uses target slot', { widgetId });
+          }
 
           onProjectMetadataUpdate(projectId, {
             widgetFiles: {
@@ -308,6 +312,18 @@ export async function streamWithLegacyCallbacks(
               }
             }
           });
+        }
+
+        if (files.php && onProjectUpdate) {
+          if (!generatedWidgetId) {
+            generatedWidgetId = options.targetWidgetId || `widget_${projectId}_pending`;
+          }
+          const widgetTabId = `widget:${generatedWidgetId}`;
+          onProjectUpdate(projectId, widgetTabId, files.php);
+          if (!switchedTabs.has(widgetTabId) && !options.targetWidgetId) {
+            switchedTabs.add(widgetTabId);
+            onSwitchCodeTab?.(widgetTabId);
+          }
         }
       } else if (options.projectType === 'hubspot') {
         // HubSpot: Update HTML and HubL

@@ -171,50 +171,37 @@ export function ProjectContextBadge({
       <div
         onClick={onClick}
         className={`group relative inline-flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium tracking-tight transition-all duration-500 overflow-hidden w-[95%] mx-auto
-          bg-[#EBEBEB] dark:bg-[#2C2C2C]
           text-gray-900 dark:text-white
-          border-gray-200 dark:border-gray-700
-          ${onClick ? 'cursor-pointer hover:bg-[#D8D8D8] dark:hover:bg-[#353535] active:scale-[0.98]' : 'cursor-default'}
+          bg-[#f8f8f8] dark:bg-[#2a2a2a]
+          border-l-2 border-r-2 border-t-2
+          border-[rgba(0,0,0,0.08)] dark:border-[rgba(255,255,255,0.08)]
+          ${onClick ? 'cursor-pointer hover:bg-[#E8E8E8] dark:hover:bg-[#353535] active:scale-[0.98]' : 'cursor-default'}
           ${animationStage === 0 ? "opacity-0 translate-y-4" : ""}
           ${animationStage === 1 ? "opacity-100 translate-y-4" : ""}
           ${animationStage >= 2 ? "opacity-100 translate-y-0" : ""}
         `}
         style={{
-          borderRadius: "10px 10px 0 0",
-          borderLeft: "2px solid var(--border)",
-          borderRight: "2px solid var(--border)",
-          borderTop: "2px solid var(--border)"
+          borderRadius: "10px 10px 0 0"
         }}
         title={onClick ? "Click to filter files included in AI context" : undefined}
       >
         <div
-          className={`h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full ${includeContext ? "bg-green-500" : "bg-red-500"} transition-all duration-300 flex-shrink-0 relative z-10
+          className={`h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full transition-all duration-300 flex-shrink-0 relative z-10
             ${animationStage >= 5 ? "animate-pulse" : "opacity-0"}
             ${animationStage >= 3 ? "opacity-100" : ""}
           `}
           style={{
+            backgroundColor: includeContext ? "#6ee7b7" : "#ef4444",
             boxShadow: includeContext
-              ? "0 0 8px 2px rgba(34, 197, 94, 0.6), 0 0 16px 4px rgba(34, 197, 94, 0.4)"
+              ? "0 0 8px 2px rgba(110, 231, 183, 0.6), 0 0 16px 4px rgba(110, 231, 183, 0.4)"
               : "0 0 8px 2px rgba(239, 68, 68, 0.6), 0 0 16px 4px rgba(239, 68, 68, 0.4)",
           }}
         />
 
         {animationStage >= 3 && (
           <>
-            <span
-              className="hidden sm:inline text-xs animate-in fade-in slide-in-from-left-2 duration-300 relative z-10 opacity-70 dark:opacity-60"
-            >
-              Current Project
-            </span>
-            <span
-              className="hidden sm:inline text-xs animate-in fade-in duration-300 relative z-10 opacity-50 dark:opacity-40"
-              style={{ animationDelay: "100ms" }}
-            >
-              •
-            </span>
             <ProjectIcon
               className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${iconColor} transition-transform duration-500 group-hover:rotate-12 animate-in fade-in slide-in-from-left-2 duration-300 flex-shrink-0 relative z-10`}
-              style={{ animationDelay: "200ms" }}
             />
             <div
               className="relative overflow-hidden max-w-[120px] sm:max-w-[200px] animate-in fade-in slide-in-from-left-2 duration-300"

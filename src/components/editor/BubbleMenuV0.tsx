@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Bold, Italic, Strikethrough, Underline, Link2, MessageSquare, Sparkles, ChevronRight } from "lucide-react"
+import { Bold, Italic, Strikethrough, Underline, Link2, MessageSquare, Sparkles, ChevronRight, Table, Code, CheckSquare, BarChart3, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label"
 interface BubbleMenuV0Props {
   onFormat?: (action: string) => void
   onAIAction?: (action: AIAction, selectedText: string, additionalContext?: string, enableWebSearch?: boolean) => void
+  onInsert?: (action: InsertAction, selectedText: string) => void
   selectedText?: string
 }
 
@@ -34,13 +35,22 @@ export type AIAction =
   | "change-tone-professional"
   | "change-tone-friendly"
 
+export type InsertAction =
+  | "insert-table"
+  | "insert-code-block"
+  | "insert-task-list"
+  | "generate-chart"
+  | "generate-info-card"
+
 export function BubbleMenuV0({
   onFormat,
   onAIAction,
+  onInsert,
   selectedText = "",
 }: BubbleMenuV0Props) {
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set())
   const [showAIMenu, setShowAIMenu] = useState(false)
+  const [showInsertMenu, setShowInsertMenu] = useState(false)
   const [showToneMenu, setShowToneMenu] = useState(false)
   const [showAskAIMenu, setShowAskAIMenu] = useState(false)
   const [menuPosition, setMenuPosition] = useState<'top' | 'bottom'>('top')
@@ -128,6 +138,19 @@ export function BubbleMenuV0({
     { id: "change-tone-friendly" as AIAction, label: "Friendly", description: "Warm tone" },
   ]
 
+  const insertOptions = [
+    { id: "insert-table" as InsertAction, label: "Table", description: "Insert a table", icon: Table },
+    { id: "insert-code-block" as InsertAction, label: "Code Block", description: "Insert code", icon: Code },
+    { id: "insert-task-list" as InsertAction, label: "Task List", description: "Checklist", icon: CheckSquare },
+    { id: "generate-chart" as InsertAction, label: "Generate Chart (AI)", description: "Create chart with AI", icon: BarChart3 },
+    { id: "generate-info-card" as InsertAction, label: "Generate Info Card (AI)", description: "Create info card with AI", icon: Info },
+  ]
+
+  const handleInsertAction = (action: InsertAction) => {
+    onInsert?.(action, selectedText)
+    setShowInsertMenu(false)
+  }
+
   const getDialogTitle = () => {
     if (pendingAction === "research") return "Research with Web Search"
     if (pendingAction === "ask-ai-edit") return "Edit Selected Text"
@@ -174,6 +197,72 @@ export function BubbleMenuV0({
             )
           })}
 
+          {/* Insert Button */}
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowInsertMenu(!showInsertMenu)}
+              className={`
+                h-8 w-8 p-0
+                transition-all duration-200 ease-out
+                hover:bg-blue-50 hover:scale-110
+                active:scale-95
+                ${showInsertMenu ? "bg-blue-50 text-blue-600" : "text-neutral-600"}
+                animate-in fade-in slide-in-from-bottom-1 duration-200
+              `}
+              style={{
+                animationDelay: `${formatButtons.length * 30}ms`,
+              }}
+              title="Insert"
+            >
+              <Table className="h-4 w-4 transition-transform duration-200" />
+            </Button>
+
+            {showInsertMenu && (
+              <div className={`absolute right-0 w-56 bg-white border border-neutral-200 rounded-lg shadow-xl backdrop-blur-sm animate-in fade-in duration-200 overflow-hidden ${
+                menuPosition === 'top'
+                  ? 'bottom-full mb-2 slide-in-from-bottom-2'
+                  : 'top-full mt-2 slide-in-from-top-2'
+              }`}>
+                <div className="p-1.5 space-y-0.5">
+                  {insertOptions.map((option, index) => {
+                    const Icon = option.icon
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() => handleInsertAction(option.id)}
+                        className={`
+                          w-full text-left px-3 py-2 rounded-md
+                          transition-all duration-200 ease-out
+                          hover:bg-neutral-50 hover:translate-x-0.5
+                          active:scale-[0.98]
+                          group
+                          animate-in fade-in slide-in-from-left-1 duration-200
+                        `}
+                        style={{
+                          animationDelay: `${index * 30}ms`,
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4 text-neutral-600" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-neutral-900 tracking-tight">{option.label}</div>
+                            <div className="text-[10px] text-neutral-500 tracking-tight truncate">
+                              {option.description}
+                            </div>
+                          </div>
+                          <ChevronRight className="h-3 w-3 text-neutral-400 transition-transform duration-200 group-hover:translate-x-0.5" />
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AI Button */}
           <div className="relative">
             <Button
               variant="ghost"
@@ -188,7 +277,7 @@ export function BubbleMenuV0({
                 animate-in fade-in slide-in-from-bottom-1 duration-200
               `}
               style={{
-                animationDelay: `${formatButtons.length * 30}ms`,
+                animationDelay: `${(formatButtons.length + 1) * 30}ms`,
               }}
               title="AI Actions"
             >

@@ -20,20 +20,73 @@ interface ExtractedSection {
   id: string;
   type: string; // 'section', 'header', 'footer', 'article', 'div'
   html: string;
+  css?: string; // NEW: Extracted CSS for this section
+  js?: string; // NEW: Extracted JS for this section
   preview: string; // First 100 chars for preview
   classes: string[]; // CSS classes
+  name: string;
 }
 
 interface HtmlSplitterProps {
   onClose: () => void;
-  onImport: (sections: ExtractedSection[]) => void;
+  onImport: (sections: ExtractedSection[], extractedStyleKitCss?: string, options?: { combineIntoSingle?: boolean }) => void;
+  extractedStyleKitCss?: string; // NEW: Global CSS extracted from the full HTML page
 }
 
-export function HtmlSplitter({ onClose, onImport }: HtmlSplitterProps) {
+export function HtmlSplitter({ onClose, onImport, extractedStyleKitCss }: HtmlSplitterProps) {
   const [htmlInput, setHtmlInput] = useState('');
   const [sections, setSections] = useState<ExtractedSection[]>([]);
   const [selectedSections, setSelectedSections] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
+  const [combineMode, setCombineMode] = useState<'multiple' | 'single'>('multiple');
+
+/**
+ * Helper function to extract <style> and <script> tags from an HTML string.
+ * Copied from PageSplitter.tsx to avoid circular dependency.
+ */
+const extractStylesAndScripts = (html: string): { html: string; css: string; js: string } => {
+  // Only run in browser environment
+  if (typeof window === 'undefined') {
+    console.error('extractStylesAndScripts can only be called in the browser');
+    return { html, css: '', js: '' };
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  let css = '';
+  let js = '';
+
+  // Extract <style> tags
+  const styleTags = doc.querySelectorAll('style');
+  styleTags.forEach(style => {
+    css += style.textContent + '\n';
+    style.remove();
+  });
+
+  // Extract <script> tags
+  const scriptTags = doc.querySelectorAll('script');
+  scriptTags.forEach(script => {
+    js += script.textContent + '\n';
+    script.remove();
+  });
+
+  // Get cleaned HTML
+  const cleanedHtml = doc.body.innerHTML;
+
+  return {
+    html: cleanedHtml,
+    css: css.trim(),
+    js: js.trim()
+  };
+};
+
+const deriveSectionName = (tag: string, classes: string[], index: number) => {
+  if (classes.length) {
+    return classes.join(' ');
+  }
+  return `${tag.toUpperCase()} Section ${index + 1}`;
+};
 
   /**
    * Parse HTML and extract sections
@@ -63,16 +116,20 @@ export function HtmlSplitter({ onClose, onImport }: HtmlSplitterProps) {
       sectioningTags.forEach(tag => {
         const elements = doc.querySelectorAll(tag);
         elements.forEach((el, index) => {
-          const html = el.outerHTML;
+          const { html: cleanedHtml, css, js } = extractStylesAndScripts(el.outerHTML);
           const preview = el.textContent?.trim().substring(0, 100) || '(no text content)';
           const classes = Array.from(el.classList);
 
+          const sectionName = deriveSectionName(tag, classes, index);
           extracted.push({
             id: `${tag}_${index}_${Date.now()}`,
             type: tag,
-            html,
+            html: cleanedHtml,
+            css,
+            js,
             preview,
-            classes
+            classes,
+            name: sectionName
           });
         });
       });
@@ -84,16 +141,20 @@ export function HtmlSplitter({ onClose, onImport }: HtmlSplitterProps) {
         });
 
         topLevelDivs.forEach((el, index) => {
-          const html = el.outerHTML;
+          const { html: cleanedHtml, css, js } = extractStylesAndScripts(el.outerHTML);
           const preview = el.textContent?.trim().substring(0, 100) || '(no text content)';
           const classes = Array.from(el.classList);
 
+          const sectionName = deriveSectionName('div', classes, index);
           extracted.push({
             id: `div_${index}_${Date.now()}`,
             type: 'div',
-            html,
+            html: cleanedHtml,
+            css,
+            js,
             preview,
-            classes
+            classes,
+            name: sectionName
           });
         });
       }
@@ -133,7 +194,9 @@ export function HtmlSplitter({ onClose, onImport }: HtmlSplitterProps) {
       setError('Please select at least one section');
       return;
     }
-    onImport(selected);
+    onImport(selected, extractedStyleKitCss, {
+      combineIntoSingle: combineMode === 'single'
+    });
   };
 
   return (
@@ -304,6 +367,9 @@ export function HtmlSplitter({ onClose, onImport }: HtmlSplitterProps) {
                       }}
                     />
                     <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff', marginBottom: '4px' }}>
+                        {section.name || section.type.toUpperCase()}
+                      </div>
                       <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -351,6 +417,46 @@ export function HtmlSplitter({ onClose, onImport }: HtmlSplitterProps) {
                     </div>
                   </label>
                 ))}
+              </div>
+
+              <div style={{
+                marginTop: '16px',
+                padding: '12px',
+                background: '#1e1e1e',
+                borderRadius: '6px',
+                border: '1px solid #3e3e3e',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff' }}>
+                  Import Mode
+                </span>
+                <label style={{ display: 'flex', gap: '8px', fontSize: '12px', color: '#cccccc', alignItems: 'center' }}>
+                  <input
+                    type="radio"
+                    name="combine-mode"
+                    value="multiple"
+                    checked={combineMode === 'multiple'}
+                    onChange={() => setCombineMode('multiple')}
+                  />
+                  Create a separate project for each section
+                </label>
+                <label style={{ display: 'flex', gap: '8px', fontSize: '12px', color: '#cccccc', alignItems: 'center' }}>
+                  <input
+                    type="radio"
+                    name="combine-mode"
+                    value="single"
+                    checked={combineMode === 'single'}
+                    onChange={() => setCombineMode('single')}
+                  />
+                  Combine into a single project with one CSS/JS bundle
+                </label>
+                {combineMode === 'single' && (
+                  <p style={{ margin: 0, fontSize: '11px', color: '#888888' }}>
+                    Each section becomes its own HTML file inside one project. All extracted CSS/JS will be merged into shared files.
+                  </p>
+                )}
               </div>
 
               <button

@@ -15,10 +15,10 @@ interface ExportModalProps {
   documentTitle?: string
 }
 
-type ExportFormat = 'pdf' | 'docx' | 'html' | 'markdown'
+type ExportFormat = 'docx' | 'html' | 'markdown'
 
 export function ExportModal({ isOpen, onClose, editor, documentTitle = 'document' }: ExportModalProps) {
-  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('pdf')
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('docx')
   const [isExporting, setIsExporting] = useState(false)
 
   const handleExport = async () => {
@@ -28,11 +28,6 @@ export function ExportModal({ isOpen, onClose, editor, documentTitle = 'document
 
     try {
       switch (selectedFormat) {
-        case 'pdf':
-          // Use browser print dialog for PDF
-          window.print()
-          break
-
         case 'docx':
           // Dynamic import of docx
           const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
@@ -131,9 +126,7 @@ export function ExportModal({ isOpen, onClose, editor, documentTitle = 'document
       alert('Export failed. Please try again.')
     } finally {
       setIsExporting(false)
-      if (selectedFormat !== 'pdf') {
-        onClose()
-      }
+      onClose()
     }
   }
 
@@ -148,12 +141,6 @@ export function ExportModal({ isOpen, onClose, editor, documentTitle = 'document
   }
 
   const formats: Array<{ value: ExportFormat; label: string; description: string; icon: typeof FileText }> = [
-    {
-      value: 'pdf',
-      label: 'PDF',
-      description: 'Best for sharing and printing',
-      icon: FileText,
-    },
     {
       value: 'docx',
       label: 'Word Document (.docx)',

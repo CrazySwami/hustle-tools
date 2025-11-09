@@ -1119,118 +1119,177 @@ window.setElementorStyleKit = async function(styleKit) {
     }
 };
 
-// Get WordPress theme stylesheet (CSS)
+// Get WordPress Additional CSS (Appearance > Customize > Additional CSS)
 window.getWordPressStylesheet = async function() {
     if (!playgroundClient) {
         throw new Error('Playground not running');
     }
 
-    console.log('📄 Fetching WordPress theme stylesheet...');
+    console.log('📄 Fetching WordPress Additional CSS (Customizer)...');
 
     const phpCode = `<?php
         require_once '/wordpress/wp-load.php';
 
-        // Get active theme information
-        $theme = wp_get_theme();
-        $theme_name = $theme->get_stylesheet();
-        $theme_dir = get_stylesheet_directory();
-        $stylesheet_path = $theme_dir . '/style.css';
+        $theme      = wp_get_theme();
+        $stylesheet = get_stylesheet();
+        $css        = wp_get_custom_css($stylesheet);
+        $post_id    = get_theme_mod('custom_css_post_id');
 
-        $result = array(
-            'theme_name' => $theme_name,
-            'theme_version' => $theme->get('Version'),
-            'stylesheet_path' => $stylesheet_path,
-            'stylesheet_exists' => file_exists($stylesheet_path)
-        );
-
-        // Read the stylesheet if it exists
-        if (file_exists($stylesheet_path)) {
-            $css_content = file_get_contents($stylesheet_path);
-            $result['css'] = $css_content;
-            $result['size'] = strlen($css_content);
-        } else {
-            $result['error'] = 'Stylesheet file not found at: ' . $stylesheet_path;
+        if (!$post_id) {
+            $mapped = get_option('custom_css_post_id_' . $stylesheet);
+            if ($mapped) {
+                $post_id = $mapped;
+            }
         }
 
-        echo json_encode($result);
+        $response = array(
+            'theme_name'    => $theme->get_stylesheet(),
+            'theme_version' => $theme->get('Version'),
+            'css'           => $css ? $css : '',
+            'css_length'    => $css ? strlen($css) : 0,
+            'css_post_id'   => $post_id,
+            'source'        => 'customizer_additional_css'
+        );
+
+        echo json_encode($response);
     ?>`;
 
     const result = await playgroundClient.run({ code: phpCode });
-    const data = JSON.parse(result.text);
 
-    console.log('✅ Stylesheet fetched:', {
+    let data;
+    try {
+        data = JSON.parse(result.text);
+    } catch (error) {
+        console.error('❌ Failed to parse Additional CSS payload:', result.text);
+        throw new Error('Invalid response while fetching Additional CSS');
+    }
+
+    console.log('✅ Additional CSS fetched:', {
         theme: data.theme_name,
         version: data.theme_version,
-        size: data.size ? `${(data.size / 1024).toFixed(2)} KB` : 'N/A'
+        length: data.css_length ? `${(data.css_length / 1024).toFixed(2)} KB` : '0 KB',
+        postId: data.css_post_id || 'none'
     });
-
-    if (data.error) {
-        throw new Error(data.error);
-    }
 
     return {
         themeName: data.theme_name,
         themeVersion: data.theme_version,
         css: data.css || '',
-        path: data.stylesheet_path
+        path: 'appearance/customize.php?autofocus[section]=custom_css',
+        cssPostId: data.css_post_id || null
     };
 };
 
-// Update WordPress global stylesheet (append to theme's style.css)
+// Update WordPress Additional CSS (Appearance > Customize > Additional CSS)
 window.updateGlobalStylesheet = async function(css) {
     if (!playgroundClient) {
         throw new Error('Playground not running');
     }
 
-    console.log('💾 Updating global stylesheet in theme...');
+    console.log('💾 Updating WordPress Additional CSS (Customizer)...');
 
-    // Append custom CSS to Hello Elementor theme's style.css
     const phpCode = `<?php
         require_once '/wordpress/wp-load.php';
 
-        // Get current theme stylesheet path
-        $theme_stylesheet = get_stylesheet_directory() . '/style.css';
+        $stylesheet  = get_stylesheet();
+        $css_content = file_get_contents('/tmp/custom.css');
 
-        // Read existing content
-        $existing_css = file_get_contents($theme_stylesheet);
-
-        // Remove any previous custom CSS block (between markers)
-        $start_marker = '/* === CUSTOM GLOBAL STYLES START === */';
-        $end_marker = '/* === CUSTOM GLOBAL STYLES END === */';
-
-        if (strpos($existing_css, $start_marker) !== false) {
-            $before_custom = substr($existing_css, 0, strpos($existing_css, $start_marker));
-            $after_custom_pos = strpos($existing_css, $end_marker);
-            if ($after_custom_pos !== false) {
-                $after_custom = substr($existing_css, $after_custom_pos + strlen($end_marker));
-                $existing_css = $before_custom . $after_custom;
-            }
+        if ($css_content === false) {
+            echo json_encode(array(
+                'success' => false,
+                'message' => 'Temporary CSS file missing'
+            ));
+            return;
         }
 
-        // Prepare custom CSS with markers
-        $custom_css_block = "\\n\\n" . $start_marker . "\\n" . file_get_contents('/tmp/custom.css') . "\\n" . $end_marker;
+        $result = wp_update_custom_css_post($css_content, array(
+            'stylesheet' => $stylesheet,
+        ));
 
-        // Append custom CSS
-        $new_css = rtrim($existing_css) . $custom_css_block;
+        if (is_wp_error($result)) {
+            echo json_encode(array(
+                'success' => false,
+                'message' => $result->get_error_message(),
+                'code'    => $result->get_error_code()
+            ));
+            return;
+        }
 
-        // Write back to theme stylesheet
-        file_put_contents($theme_stylesheet, $new_css);
+        $post_id = $result->ID;
 
-        echo 'Custom stylesheet appended to theme style.css (frontend only)';
+        if ($post_id) {
+            set_theme_mod('custom_css_post_id', $post_id);
+            update_option('custom_css_post_id_' . $stylesheet, $post_id);
+        }
+
+        echo json_encode(array(
+            'success'    => true,
+            'message'    => 'Additional CSS updated successfully',
+            'post_id'    => $post_id,
+            'css_length' => strlen($css_content),
+            'stylesheet' => $stylesheet
+        ));
     ?>`;
 
-    // Write CSS to temp file for PHP to read
     await playgroundClient.writeFile('/tmp/custom.css', css);
 
     const result = await playgroundClient.run({ code: phpCode });
-    console.log('✅ Stylesheet update result:', result.text);
 
-    return {
-        success: true,
-        message: result.text,
-        path: 'wp-content/themes/hello-elementor/style.css'
-    };
+    let data;
+    try {
+        data = JSON.parse(result.text);
+    } catch (error) {
+        console.error('❌ Failed to parse update response:', result.text);
+        throw new Error('Invalid response while pushing Additional CSS');
+    }
+
+    if (!data.success) {
+        throw new Error(data.message || 'Failed to update Additional CSS');
+    }
+
+    console.log('✅ Additional CSS updated:', {
+        postId: data.post_id,
+        length: data.css_length,
+        stylesheet: data.stylesheet
+    });
+
+    return data;
 };
+
+// Open the WordPress Customizer directly on the Additional CSS panel
+window.openAdditionalCssCustomizer = async function() {
+    console.log('🎯 Received request to open Additional CSS in the Customizer');
+
+    try {
+        if (!playgroundClient) {
+            if (typeof window.openPlaygroundDirect === 'function') {
+                await window.openPlaygroundDirect();
+                // Give WordPress a moment to finish booting before navigating
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            } else {
+                throw new Error('Playground client not initialized');
+            }
+        }
+
+        updatePlaygroundStatus('🎯 Opening WordPress Customizer (Additional CSS)...', 'info');
+        await playgroundClient.goTo('/wp-admin/customize.php?autofocus[section]=custom_css');
+        updatePlaygroundStatus('✅ Additional CSS opened in Customizer', 'success');
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to open Additional CSS panel:', error);
+        updatePlaygroundStatus('❌ Failed to open Additional CSS: ' + (error?.message || error), 'error');
+        throw error;
+    }
+};
+
+// If a React component requested the Additional CSS view before this script loaded, honor it now
+if (window.__pendingAdditionalCssFocus) {
+    setTimeout(() => {
+        window.__pendingAdditionalCssFocus = false;
+        window.openAdditionalCssCustomizer()
+            .catch(error => console.error('Pending Additional CSS request failed:', error));
+    }, 300);
+}
 
 // Fetch all pages from WordPress
 window.getWordPressPages = async function() {

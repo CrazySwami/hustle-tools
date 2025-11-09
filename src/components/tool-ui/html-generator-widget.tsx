@@ -19,7 +19,7 @@ interface HTMLGeneratorWidgetProps {
   onGenerate?: (html: string, css: string, js: string) => void;
   onStreamUpdate?: (type: 'html' | 'css' | 'js', content: string) => void;
   onSwitchToSectionEditor?: () => void;
-  onSwitchCodeTab?: (tab: 'html' | 'css' | 'js') => void;
+  onSwitchCodeTab?: (tab: string) => void;
   model?: string;
   designSystemSummary?: DesignSystemSummary | null;
 }

@@ -131,7 +131,7 @@ export default function ElementorEditorPage() {
   const [chatVisible, setChatVisible] = useState(true);
   const [tabBarVisible, setTabBarVisible] = useState(true);
   const [streamedCode, setStreamedCode] = useState<{ html: string; css: string; js: string }>({ html: '', css: '', js: '' });
-  const [activeCodeTab, setActiveCodeTab] = useState<'html' | 'css' | 'js' | 'php' | 'hubl'>('html');
+  const [activeCodeTab, setActiveCodeTab] = useState<string>('html');
   // REMOVED: currentSection state - now derived from fileGroups.activeGroup
   // This fixes the race condition where onSectionChange would overwrite project selection
   const [loadedSection, setLoadedSection] = useState<Section | null>(null);
@@ -309,6 +309,36 @@ export default function ElementorEditorPage() {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Listen for requests to show the WordPress Additional CSS panel
+  useEffect(() => {
+    const handleOpenAdditionalCss = () => {
+      setActiveTab('playground');
+
+      requestAnimationFrame(() => {
+        const panel = document.getElementById('playgroundPanel');
+        panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+
+      const openCustomizer = () => {
+        if (typeof window === 'undefined') return;
+        const openFn = (window as any).openAdditionalCssCustomizer;
+        if (typeof openFn === 'function') {
+          openFn().catch((error: any) => {
+            console.error('Failed to open Additional CSS customizer:', error);
+          });
+        } else {
+          (window as any).__pendingAdditionalCssFocus = true;
+        }
+      };
+
+      // Give the playground tab a moment to render before navigating inside it
+      setTimeout(openCustomizer, 400);
+    };
+
+    window.addEventListener('elementor-open-additional-css', handleOpenAdditionalCss);
+    return () => window.removeEventListener('elementor-open-additional-css', handleOpenAdditionalCss);
   }, []);
 
   // State management
@@ -1834,7 +1864,7 @@ export default function ElementorEditorPage() {
                       fileGroups.selectGroup(newGroup.id);
                       // Switch to Code Editor tab and appropriate file tab
                       setActiveTab('json');
-                      setActiveCodeTab(type === 'php' ? 'php' : 'html');
+                      setActiveCodeTab(type === 'php' ? 'plugin-main.php' : 'html');
                       return newGroup.id;
                     }}
                     onProjectStateUpdate={(projectId, state, error) => {
@@ -1843,37 +1873,28 @@ export default function ElementorEditorPage() {
                       console.log('🔄 Project state updated:', projectId, 'State:', state, error ? `Error: ${error}` : '');
                     }}
                     onProjectUpdate={(projectId, file, content) => {
-                      const project = fileGroups.groups.find(g => g.id === projectId);
-                      if (!project) {
-                        console.warn(`onProjectUpdate: Project with ID ${projectId} not found.`);
-                        return;
-                      }
+                      fileGroups.updateGroupFile(projectId, file, content);
 
-                      const config = getProjectConfig(project.type, (project as any).subtype);
-
-                      if (config.fileTypes.includes(file)) {
-                        fileGroups.updateGroupFile(projectId, file, content);
-
-                        if (projectId === fileGroups.activeGroupId) {
-                          const editorRef = editorRefs[file as keyof typeof editorRefs];
-                          if (editorRef) {
-                            const model = editorRef.getModel();
-                            if (model) {
-                              const fullRange = model.getFullModelRange();
-                              model.pushEditOperations([], [{ range: fullRange, text: content }], () => null);
-                            }
+                      if (projectId === fileGroups.activeGroupId) {
+                        const editorRef = editorRefs[file as keyof typeof editorRefs];
+                        if (editorRef) {
+                          const model = editorRef.getModel();
+                          if (model) {
+                            console.log(`✨ Streamed ${content.length} chars to ${file} editor (live update to Monaco)`);
+                            const fullRange = model.getFullModelRange();
+                            model.pushEditOperations([], [{ range: fullRange, text: content }], () => null);
                           }
                         }
                       }
                     }}
-                    currentSection={currentSection}
-                    containerWidth={chatPanelWidth}
-                    fileInclusions={fileInclusions}
-                    onOpenFileInclusions={() => {
-                      // Trigger event to open file inclusions modal in HtmlSectionEditor
-                      window.dispatchEvent(new CustomEvent('open-file-inclusions-modal'));
-                    }}
-                  />
+                currentSection={currentSection}
+                containerWidth={chatPanelWidth}
+                fileInclusions={fileInclusions}
+                onOpenFileInclusions={() => {
+                  // Trigger event to open file inclusions modal in HtmlSectionEditor
+                  window.dispatchEvent(new CustomEvent('open-file-inclusions-modal'));
+                }}
+              />
                 </div>
               </div>
             }
@@ -2565,7 +2586,7 @@ export default function ElementorEditorPage() {
                       fileGroups.selectGroup(newGroup.id);
                       // Switch to Code Editor tab and appropriate file tab
                       setActiveTab('json');
-                      setActiveCodeTab(type === 'php' ? 'php' : 'html');
+                      setActiveCodeTab(type === 'php' ? 'plugin-main.php' : 'html');
                       return newGroup.id;
                     }}
                     onProjectStateUpdate={(projectId, state, error) => {
@@ -2574,25 +2595,15 @@ export default function ElementorEditorPage() {
                       console.log('🔄 Project state updated:', projectId, 'State:', state, error ? `Error: ${error}` : '');
                     }}
                     onProjectUpdate={(projectId, file, content) => {
-                      const project = fileGroups.groups.find(g => g.id === projectId);
-                      if (!project) {
-                        console.warn(`onProjectUpdate: Project with ID ${projectId} not found.`);
-                        return;
-                      }
+                      fileGroups.updateGroupFile(projectId, file, content);
 
-                      const config = getProjectConfig(project.type, (project as any).subtype);
-
-                      if (config.fileTypes.includes(file)) {
-                        fileGroups.updateGroupFile(projectId, file, content);
-
-                        if (projectId === fileGroups.activeGroupId) {
-                          const editorRef = editorRefs[file as keyof typeof editorRefs];
-                          if (editorRef) {
-                            const model = editorRef.getModel();
-                            if (model) {
-                              const fullRange = model.getFullModelRange();
-                              model.pushEditOperations([], [{ range: fullRange, text: content }], () => null);
-                            }
+                      if (projectId === fileGroups.activeGroupId) {
+                        const editorRef = editorRefs[file as keyof typeof editorRefs];
+                        if (editorRef) {
+                          const model = editorRef.getModel();
+                          if (model) {
+                            const fullRange = model.getFullModelRange();
+                            model.pushEditOperations([], [{ range: fullRange, text: content }], () => null);
                           }
                         }
                       }
@@ -2651,21 +2662,12 @@ export default function ElementorEditorPage() {
           return newGroup.id;
         }}
         onProjectUpdate={(projectId, file, content) => {
-          const project = fileGroups.groups.find(g => g.id === projectId);
-          if (!project) {
-            return;
-          }
+          fileGroups.updateGroupFile(projectId, file, content);
 
-          const config = getProjectConfig(project.type, (project as any).subtype);
-
-          if (config.fileTypes.includes(file)) {
-            fileGroups.updateGroupFile(projectId, file, content);
-
-            if (projectId === fileGroups.activeGroupId) {
-              const editorRef = editorRefs[file as keyof typeof editorRefs];
-              if (editorRef) {
-                editorRef.setValue(content);
-              }
+          if (projectId === fileGroups.activeGroupId) {
+            const editorRef = editorRefs[file as keyof typeof editorRefs];
+            if (editorRef) {
+              editorRef.setValue(content);
             }
           }
         }}

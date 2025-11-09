@@ -40,7 +40,7 @@ export interface UseFileGroupsReturn {
   // Actions
   createNewGroup: (name: string, type: 'html' | 'php' | 'hubspot', template?: string, generationState?: 'generating' | 'ready' | 'error') => FileGroup;
   selectGroup: (id: string) => void;
-  updateGroupFile: (id: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  updateGroupFile: (id: string, file: string, content: string) => void;
   updateGroup: (id: string, updates: Partial<FileGroup>) => void;
   updateProjectState: (id: string, state: 'generating' | 'ready' | 'error', error?: string) => void;
   renameGroup: (id: string, name: string) => void;
@@ -50,8 +50,8 @@ export interface UseFileGroupsReturn {
   loadFromLibrary: (libraryId: string) => FileGroup | null;
 
   // Plugin Management (NEW)
-  createNewPlugin: (name: string, description?: string) => FileGroup;
-  addWidgetToPlugin: (pluginId: string, widgetName: string, widgetCode: string) => void;
+  createNewPlugin: (name: string, description?: string, generationState?: 'generating' | 'ready' | 'error') => FileGroup;
+  addWidgetToPlugin: (pluginId: string, widgetName: string, widgetCode: string, options?: { skipRegistration?: boolean }) => string;
   removeWidgetFromPlugin: (pluginId: string, widgetId: string) => void;
   updateWidgetInPlugin: (pluginId: string, widgetId: string, newCode: string) => void;
   getAllPlugins: () => FileGroup[];
@@ -158,7 +158,7 @@ export function useFileGroups(): UseFileGroupsReturn {
   // Update file content
   const updateGroupFile = useCallback((
     id: string,
-    file: 'html' | 'css' | 'js' | 'php' | 'hubl',
+    file: string,
     content: string
   ) => {
     updateGroupContent(id, file, content);
@@ -278,8 +278,8 @@ export function useFileGroups(): UseFileGroupsReturn {
     : null;
 
   // Plugin management actions (NEW)
-  const createNewPlugin = useCallback((name: string, description?: string): FileGroup => {
-    const plugin = createPlugin(name, description);
+  const createNewPlugin = useCallback((name: string, description?: string, generationState: 'generating' | 'ready' | 'error' = 'ready'): FileGroup => {
+    const plugin = createPlugin(name, description, generationState);
     addGroup(plugin);
     const newState = loadEditorState();
     console.log('🔄 [CREATE_PLUGIN] setState() triggered:', {
@@ -291,8 +291,8 @@ export function useFileGroups(): UseFileGroupsReturn {
     return plugin;
   }, []);
 
-  const addWidgetToPluginAction = useCallback((pluginId: string, widgetName: string, widgetCode: string) => {
-    addWidgetToPlugin(pluginId, widgetName, widgetCode);
+  const addWidgetToPluginAction = useCallback((pluginId: string, widgetName: string, widgetCode: string, options?: { skipRegistration?: boolean }) => {
+    const widgetId = addWidgetToPlugin(pluginId, widgetName, widgetCode, options);
     const newState = loadEditorState();
     console.log('🔄 [ADD_WIDGET] setState() triggered:', {
       pluginId,
@@ -300,6 +300,7 @@ export function useFileGroups(): UseFileGroupsReturn {
       timestamp: new Date().toISOString(),
     });
     setState(newState);
+    return widgetId;
   }, []);
 
   const removeWidgetFromPluginAction = useCallback((pluginId: string, widgetId: string) => {

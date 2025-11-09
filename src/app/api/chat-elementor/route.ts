@@ -36,7 +36,48 @@ export async function POST(req: Request) {
 
     // Detect project type for validation tool
     const hasPhpCode = currentSection?.php && currentSection.php.length > 0;
-    const projectType = hasPhpCode ? 'PHP Widget' : 'HTML Section';
+    const rawProjectType =
+      currentSection?.type ||
+      (currentSection?.isPlugin ? 'php'
+        : currentSection?.hubl
+          ? 'hubspot'
+          : hasPhpCode
+            ? 'php'
+            : 'html');
+    const hubspotSubtype = currentSection?.subtype || (currentSection as any)?.hubspotModuleType;
+
+    let projectTypeLabel = 'HTML Section';
+    let projectGuidelines = `- Keep markup at the *section* level (no <html>, <head>, or <body> tags)
+- Use semantic HTML5 and match the project’s typography/spacing tokens
+- Place styling in the CSS file and interactivity in the JS file (vanilla only)`;
+
+    if (rawProjectType === 'php') {
+      projectTypeLabel = 'Elementor Plugin (WordPress)';
+      projectGuidelines = `- \`plugin-main.php\` bootstraps the plugin and registers widgets via WordPress hooks. Keep plugin headers/add_action calls intact
+- Each \`widget:<id>\` file is a \\Elementor\\Widget_Base class. Define CONTENT + STYLE controls, scope CSS with {{WRAPPER}}, and escape output (esc_html/esc_attr/esc_url)
+- Do not inject <style> or <script> tags inside PHP—place styling in CSS and behavior in JS files`;
+    } else if (rawProjectType === 'hubspot') {
+      if (hubspotSubtype === 'email') {
+        projectTypeLabel = 'HubSpot Email Module';
+        projectGuidelines = `- Email markup must use table-based layouts with inline styles only (no flex/grid, no <style> tags)
+- No JavaScript. Stay compatible with Gmail, Outlook, Apple Mail, etc.
+- Keep HubL tokens ({{ module.field }}) intact so marketers can edit content`;
+      } else {
+        projectTypeLabel = 'HubSpot Page Module';
+        projectGuidelines = `- Page modules may use modern HTML5, flexbox, grid, and media queries
+- JavaScript is allowed. Keep HubL tokens / modules intact and accessible.
+- Structure content for easy HubL tokenization (repeaters, fields, HubDB, etc.)`;
+      }
+    }
+
+    const fileIdGuidelines = `**File IDs & Usage:**
+- \`html\`, \`css\`, \`js\`: Primary markup, styling, and vanilla JS for this project
+- \`plugin-main.php\`: WordPress plugin bootstrap + widget registration
+- \`widget:<id>\`: Individual Elementor widget classes (extend \\Elementor\\Widget_Base, use {{WRAPPER}}, escape output)
+- \`section:<slug>\`: Additional HTML sections stored inside a single project (HTML splitter “combine” mode)
+- \`hubl\`: HubSpot module markup (respect email/page constraints)
+- \`liquid\`, \`scss\`, \`ts\`: Shopify or other custom generators
+- Always pass the exact file ID to \`editCodeWithMorph\` so the correct tab updates`;
 
     console.log('📨 Elementor Chat request:', {
       model,
@@ -155,6 +196,11 @@ export async function POST(req: Request) {
 
 **Current Date & Time:** ${currentDate}, ${currentTime}
 
+**Project Context:** ${projectTypeLabel}
+${projectGuidelines}
+
+${fileIdGuidelines}
+
 **CRITICAL INSTRUCTIONS:**
 
 **🎯 THE ONLY TOOL YOU NEED - editCodeWithMorph:**
@@ -191,10 +237,11 @@ Use \`editCodeWithMorph\` for EVERYTHING (writing, editing, creating):
 - No complex diff format needed
 - Handles empty AND existing files
 
-**IMPORTANT FILE TYPE DETECTION:**
-- If user shows you code with \`<?php\` tags → Use \`editCodeWithMorph\` with file='php'
-- HTML sections should NEVER contain PHP code - they are client-side only
-- PHP code cannot be previewed in the editor - user must copy to WordPress
+**FILE TARGETING BASICS:**
+- Always pass the exact file ID to \`editCodeWithMorph\` (html, css, js, plugin-main.php, widget:pricing, section:hero, hubl, liquid, etc.)
+- Elementor widgets live inside \`widget:<id>\` files; plugin bootstrap lives in \`plugin-main.php\`
+- HTML/HubSpot sections should NEVER contain PHP—you only use PHP inside widgets/plugins
+- PHP output cannot be previewed in the editor; users must deploy it to WordPress
 
 **📁 CURRENT FILES IN EDITOR:**
 ${includeContext && currentSection && (currentSection.html || currentSection.css || currentSection.js || currentSection.php) ? `
@@ -258,8 +305,8 @@ When user asks "can you see my code", say NO - the editor is empty.
 
 ${currentSection ? `
 **🎯 CURRENT PROJECT:**
-- Name: ${currentSection.name || 'Untitled'}
-- Type: ${projectType}
+  - Name: ${currentSection.name || 'Untitled'}
+  - Type: ${projectTypeLabel}
 - Files: ${['html', 'css', 'js', ...(hasPhpCode ? ['php'] : [])].join(', ')}
 
 When using editCodeWithMorph or validateWidget tools, you are working with the "${currentSection.name || 'Untitled'}" project.
@@ -424,6 +471,10 @@ ${Object.keys(currentJson).length > 0 ? 'Current page has: ' + JSON.stringify(cu
 
     // Add tool calling instructions
     systemPrompt += `\n\n**Available Tools:**
+- **perplexitySearch**: 🔍 AI-powered web search using Perplexity - Provides real-time information, news, and current events with sources
+  - Use when: user asks about current events, recent news, latest technologies, or any query needing up-to-date information
+  - Triggers: "what's new", "latest", "current", "recent", or when you need current data beyond your training
+  - Returns: Search results with titles, snippets, URLs, and sources
 - **generateProject**: 🚀 NEW PROJECT GENERATOR - Creates a NEW project from scratch with complete code generation
   - Use when: "generate a hero section", "create a pricing card", "build a contact form", "make a navigation menu"
   - Triggers: "generate", "create", "build", "make" + description of what to build
@@ -462,7 +513,7 @@ After using a tool, provide a brief explanation of what will happen next.`;
           return {
             error: 'No PHP widget code found in current project',
             projectName: projectName || currentSection?.name || 'unknown',
-            projectType,
+            projectType: projectTypeLabel,
           };
         }
 
@@ -490,7 +541,7 @@ After using a tool, provide a brief explanation of what will happen next.`;
           return {
             ...validationResult,
             projectName: projectName || currentSection.name || 'current',
-            projectType: 'PHP Widget',
+            projectType: projectTypeLabel,
           };
         } catch (error: any) {
           return {
@@ -506,6 +557,7 @@ After using a tool, provide a brief explanation of what will happen next.`;
       calculate: tools.calculate,
       generateCode: tools.generateCode,
       manageTask: tools.manageTask,
+      perplexitySearch: tools.perplexitySearch,    // 🔍 AI-powered web search with Perplexity
       // REMOVED: generateHTML - use editCodeWithMorph instead
       // REMOVED: updateSectionHtml/Css/Js/Php - use editCodeWithMorph instead (handles everything!)
       // REMOVED: testPing - diagnostic tool no longer needed

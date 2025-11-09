@@ -50,7 +50,7 @@ interface ElementorChatProps {
   onReload?: () => void;
   onStreamUpdate?: (type: 'html' | 'css' | 'js', content: string) => void;
   onSwitchToSectionEditor?: () => void;
-  onSwitchCodeTab?: (tab: 'html' | 'css' | 'js') => void;
+  onSwitchCodeTab?: (tab: string) => void;
   onSwitchTab?: (tab: string) => void;
   onUpdateSection?: (updates: { html?: string; css?: string; js?: string }) => void;
   currentSection?: any;
@@ -58,7 +58,7 @@ interface ElementorChatProps {
   navigationBar?: React.ReactNode;
   containerWidth?: number; // Container width for responsive prompt actions
   onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot', generationState?: 'generating' | 'ready' | 'error') => string; // Returns new project ID
-  onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  onProjectUpdate?: (projectId: string, file: string, content: string) => void;
   onProjectMetadataUpdate?: (projectId: string, metadata: Partial<{ isPlugin: boolean; pluginMainFile: string; pluginName: string; pluginSlug: string }>) => void; // Update plugin metadata
   onProjectStateUpdate?: (projectId: string, state: 'generating' | 'ready' | 'error', error?: string) => void; // Update generation state
   isEditorReady?: (fileType: string) => boolean; // Check if editor is mounted and ready

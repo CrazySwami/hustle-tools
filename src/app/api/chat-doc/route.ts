@@ -50,6 +50,10 @@ export async function POST(req: Request) {
     const referer = req.headers.get('referer') || 'unknown';
     console.log('📄 CHAT-DOC ENDPOINT CALLED from:', referer);
 
+    const body = await req.json();
+    console.log('📦 Raw request body keys:', Object.keys(body));
+    console.log('📦 Messages type:', typeof body.messages, 'isArray:', Array.isArray(body.messages));
+    
     const {
       messages = [],
       model = 'anthropic/claude-haiku-4-5-20251001',
@@ -70,24 +74,63 @@ export async function POST(req: Request) {
       documentTitle?: string;
       projectName?: string;
       clientData?: any;
-    } = await req.json();
+    } = body;
 
     console.log('📨 Document Chat request:', {
       model,
-      messageCount: messages.length,
+      messageCount: messages?.length || 0,
       documentLength: documentContent.length,
       webSearch,
       includeContext,
-      commentsCount: comments.length,
+      commentsCount: comments?.length || 0,
       clientName: clientData?.name || 'none',
     });
+
+    // Ensure messages is an array
+    const safeMessages = Array.isArray(messages) ? messages : [];
+    
+    if (safeMessages.length === 0) {
+      console.error('❌ No messages provided');
+      return new Response(
+        JSON.stringify({ error: 'No messages provided' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate message structure - UIMessage has role and content (string or array)
+    const validMessages = safeMessages.filter((msg: any) => {
+      if (!msg || typeof msg !== 'object') {
+        console.warn('Invalid message: not an object', msg);
+        return false;
+      }
+      if (!msg.role) {
+        console.warn('Invalid message: missing role', msg);
+        return false;
+      }
+      // UIMessage can have content as string or array, or parts array
+      if (!msg.content && !msg.parts) {
+        console.warn('Invalid message: missing content/parts', msg);
+        return false;
+      }
+      return true;
+    });
+
+    if (validMessages.length === 0) {
+      console.error('❌ No valid messages after filtering');
+      console.error('Original messages:', JSON.stringify(safeMessages, null, 2));
+      return new Response(
+        JSON.stringify({ error: 'No valid messages provided' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Convert messages with error handling
     let convertedMessages;
     try {
-      convertedMessages = convertToModelMessages(messages);
+      convertedMessages = convertToModelMessages(validMessages);
     } catch (error: any) {
       console.error('Error converting messages:', error);
+      console.error('Messages that failed:', JSON.stringify(validMessages, null, 2));
       return new Response(
         JSON.stringify({ error: 'Message conversion failed', details: error.message }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -306,12 +349,15 @@ ${includeContext ? `
     // Add tool calling instructions
     systemPrompt += `\n\n**🚨 CRITICAL: THESE ARE YOUR ONLY AVAILABLE TOOLS 🚨**
 
-When user asks "what tools do you have" or "what can you do", list ONLY these tools below. DO NOT mention any other tools (no blog tools, no image tools, no search tools, no web scraping tools). If you list tools that don't exist, you will confuse the user.
+When user asks "what tools do you have" or "what can you do", list ONLY these tools below. DO NOT mention any other tools (no blog tools, no image tools, no web scraping tools). If you list tools that don't exist, you will confuse the user.
 
 **Available Tools (COMPLETE LIST):**
 
 **📖 Document Reading:**
 - **getDocumentContent**: Read the current document content programmatically. NOTE: You already have document access in the system prompt, but use this tool if you need to re-fetch the latest content or get it in a structured format.
+
+**🔍 AI-Powered Search:**
+- **perplexitySearch**: 🔍 AI-powered web search using Perplexity - Provides real-time information, news, and current events with sources. Use when user asks about current events, recent news, latest technologies, or any query needing up-to-date information.
 
 **📝 Document Editing:**
 - **editDocumentWithMorph**: 🎯 PRIMARY TOOL - Use this for ALL document writing/editing. Works on empty documents AND existing content. Uses lazy edits (... existing text ...) for precision. 98% accurate, 10x faster than diffs. **CRITICAL: Use this immediately when user asks to add, write, change, fix, or modify ANY content.**
@@ -334,7 +380,6 @@ When user asks "what tools do you have" or "what can you do", list ONLY these to
 - **manageTask**: Create and manage to-do items
 
 **❌ TOOLS YOU DO NOT HAVE:**
-- NO web search (use Perplexity models for that)
 - NO blog planning tools
 - NO image generation/editing tools
 - NO web scraping tools
@@ -373,6 +418,7 @@ After using a tool, provide a brief text response explaining what you did.`;
       calculate: tools.calculate,
       generateCode: tools.generateCode,
       manageTask: tools.manageTask,
+      perplexitySearch: tools.perplexitySearch,  // 🔍 AI-powered web search with Perplexity
 
       // Document reading tool - ONLY available when context is enabled
       ...(includeContext ? {
@@ -570,43 +616,64 @@ After using a tool, provide a brief text response explaining what you did.`;
       console.warn('⚠️ High token usage:', validation.warning);
     }
 
-    // When web search is enabled, filter out tool messages from history
-    // This prevents errors when switching from tool-using models to Perplexity
+    // When web search is enabled, only filter tool messages but preserve conversation flow
     if (webSearch) {
       console.log('🔧 Filtering tool messages for web search mode (chat-doc)');
-      const filteredMessages: any[] = [];
+      const filteredMessages: typeof managedMessages = [];
+      
+      // Keep messages but filter out tool calls and results
       for (let i = 0; i < managedMessages.length; i++) {
         const msg = managedMessages[i];
 
-        // Skip tool-result messages
+        // Skip tool-result messages entirely
         if (msg.role === 'tool') {
           console.log('⚠️ Skipping tool-result message');
           continue;
         }
 
-        // Skip assistant messages that only contain tool-calls
-        if (msg.role === 'assistant' && Array.isArray(msg.content)) {
-          const hasOnlyToolCalls = msg.content.every((part: any) => part.type === 'tool-call');
-          if (hasOnlyToolCalls) {
-            console.log('⚠️ Skipping assistant message with only tool-calls');
-            continue;
+        // Handle assistant messages - keep text content, remove tool calls
+        if (msg.role === 'assistant') {
+          let content = msg.content;
+          
+          // If it's an array, filter out tool calls but keep text
+          if (Array.isArray(content)) {
+            const textContent = content.filter((part: any) => part.type === 'text');
+            
+            // If there's text content, keep the message
+            if (textContent.length > 0) {
+              filteredMessages.push({ ...msg, content: textContent });
+            } else {
+              // Skip if only tool calls
+              console.log('⚠️ Skipping assistant message with only tool-calls');
+              continue;
+            }
+          } else {
+            // Simple text content, keep as-is
+            filteredMessages.push(msg);
           }
-
-          // If message has both text and tool-calls, keep only the text
-          const hasToolCalls = msg.content.some((part: any) => part.type === 'tool-call');
-          if (hasToolCalls) {
-            console.log('⚠️ Filtering tool-calls from assistant message, keeping text');
-            msg.content = msg.content.filter((part: any) => part.type !== 'tool-call');
-          }
+        } else {
+          // User and system messages, keep as-is
+          filteredMessages.push(msg);
         }
-
-        filteredMessages.push(msg);
       }
-      managedMessages = filteredMessages;
+      
+      // Ensure we have at least one message (user message)
+      if (filteredMessages.length === 0 && managedMessages.length > 0) {
+        // Find the last user message to start from
+        const lastUserIndex = managedMessages.findIndex(msg => msg.role === 'user');
+        if (lastUserIndex !== -1) {
+          managedMessages = [managedMessages[lastUserIndex]];
+        } else {
+          managedMessages = [];
+        }
+      } else {
+        managedMessages = filteredMessages;
+      }
+      
       console.log('✅ Filtered messages for web search (chat-doc):', managedMessages.length, 'messages remaining');
     }
 
-    const streamConfig: any = {
+    const streamConfig = {
       model: gateway(model, {
         apiKey: process.env.AI_GATEWAY_API_KEY!,
       }),
@@ -615,22 +682,22 @@ After using a tool, provide a brief text response explaining what you did.`;
       // Disable tools when web search is enabled
       ...(!webSearch && { tools: toolsConfig, maxSteps: 10 }),
       ...(options ? options : {}), // Add search: true for Perplexity if needed
-      onStepStart: ({ stepType, toolCalls }) => {
+      onStepStart: ({ stepType, toolCalls }: any) => {
         // Log when a tool call step starts
         if (stepType === 'tool-call' && toolCalls) {
-          console.log('🔧 TOOL CALL STEP START (chat-doc):', toolCalls.map(tc => ({
+          console.log('🔧 TOOL CALL STEP START (chat-doc):', toolCalls.map((tc: any) => ({
             name: tc.toolName,
             args: tc.args,
           })));
         }
       },
-      onStepFinish: ({ stepType, toolCalls, toolResults, finishReason }) => {
+      onStepFinish: ({ stepType, toolCalls, toolResults, finishReason }: any) => {
         // Log when a tool call step finishes
         if (stepType === 'tool-call') {
           console.log('✅ TOOL CALL STEP FINISH (chat-doc):', {
-            toolCalls: toolCalls?.map(tc => tc.toolName),
+            toolCalls: toolCalls?.map((tc: any) => tc.toolName),
             resultCount: toolResults?.length,
-            results: toolResults?.map(tr => ({
+            results: toolResults?.map((tr: any) => ({
               toolName: tr.toolName,
               hasResult: !!tr.result,
               resultPreview: JSON.stringify(tr.result).substring(0, 200),
@@ -639,7 +706,7 @@ After using a tool, provide a brief text response explaining what you did.`;
           });
         }
       },
-      onFinish: async ({ usage }) => {
+      onFinish: async ({ usage }: any) => {
         const responseTime = Date.now() - startTime;
         const [provider, modelName] = model.includes('/')
           ? model.split('/')
@@ -668,7 +735,6 @@ After using a tool, provide a brief text response explaining what you did.`;
     return result.toUIMessageStreamResponse({
       sendSources: true,
       sendReasoning: true,
-      sendToolResults: true,
       messageMetadata: ({ part }) => {
         if (part.type === 'finish') {
           console.log('✅ Sending usage metadata');

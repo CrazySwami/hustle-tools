@@ -21,6 +21,7 @@ import { StepPlannerWidget } from './step-planner-widget';
 import { BlogPlannerWidget } from './blog-planner-widget';
 import { BlogWriterWidget } from './blog-writer-widget';
 import { GoogleSearchWidget } from './google-search-widget';
+import { PerplexitySearchWidget } from './perplexity-search-widget';
 import { GenerateImageWidget } from './generate-image-widget';
 import { EditImageWidget } from './edit-image-widget';
 import { RemoveBackgroundWidget } from './remove-background-widget';
@@ -49,13 +50,13 @@ interface ToolResultRendererProps {
   toolResult: ToolResult;
   onStreamUpdate?: (type: 'html' | 'css' | 'js', content: string) => void;
   onSwitchToSectionEditor?: () => void;
-  onSwitchCodeTab?: (tab: 'html' | 'css' | 'js') => void;
+  onSwitchCodeTab?: (tab: string) => void;
   onSwitchTab?: (tab: string) => void;
   model?: string;
   designSystemSummary?: DesignSystemSummary | null;
   globalCSS?: string;
   onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot', generationState?: 'generating' | 'ready' | 'error') => string; // Returns new project ID
-  onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  onProjectUpdate?: (projectId: string, file: string, content: string) => void;
   onProjectMetadataUpdate?: (projectId: string, metadata: Partial<{ isPlugin: boolean; pluginMainFile: string; pluginName: string; pluginSlug: string }>) => void; // Update plugin metadata
   onProjectStateUpdate?: (projectId: string, state: 'generating' | 'ready' | 'error', error?: string) => void; // Update generation state
   isEditorReady?: (fileType: string) => boolean; // Check if editor is mounted and ready
@@ -141,6 +142,9 @@ export function ToolResultRenderer({ toolResult, onStreamUpdate, onSwitchToSecti
   switch (toolName) {
     case 'googleSearch':
       return <GoogleSearchWidget result={result} />;
+
+    case 'perplexitySearch':
+      return <PerplexitySearchWidget result={result} />;
 
     case 'getWeather':
       return <WeatherWidget data={result} />;

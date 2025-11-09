@@ -25,6 +25,7 @@ export interface FileTab {
   widgetId?: string;
   language: string;
   fileName?: string; // For display purposes
+  displayId?: string;
 }
 
 interface UseFileTabsOptions {
@@ -39,7 +40,7 @@ interface UseFileTabsReturn {
   activeTab: FileTab | null;
   switchTab: (tabId: string) => void;
   updateTabContent: (tabId: string, content: string) => void;
-  getTabContent: (tabId: string) => string;
+  getTabContent: (tabId: string) => string | undefined;
 }
 
 /**
@@ -57,24 +58,37 @@ function getLanguageForType(type: FileType): string {
   return languageMap[type] || 'plaintext';
 }
 
+function formatIdLabel(id: string): string {
+  return id
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[-_/]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    || id;
+}
+
 /**
  * Determine project type from file group
  */
 function getProjectType(project: FileGroup | null): 'elementor-plugin' | 'elementor-section' | 'hubspot' | 'unknown' {
   if (!project) return 'unknown';
 
-  // Plugin: has pluginMainFile or multiple widget files
-  if (project.pluginMainFile || (project.widgetFiles && Object.keys(project.widgetFiles).length > 0)) {
+  // Treat anything marked as a plugin (or PHP group) as an Elementor plugin
+  if (
+    project.isPlugin ||
+    project.type === 'php' ||
+    !!project.pluginMainFile ||
+    (project.widgetFiles && Object.keys(project.widgetFiles).length > 0)
+  ) {
     return 'elementor-plugin';
   }
 
-  // HubSpot: has hubl file
-  if (project.hubl) {
+  // HubSpot projects are explicitly typed or include HubL output
+  if (project.type === 'hubspot' || project.hubl !== undefined) {
     return 'hubspot';
   }
 
-  // Elementor section: has HTML/CSS/JS
-  if (project.html || project.css || project.js) {
+  // Default to HTML/Elementor sections (html/css/js based projects)
+  if (project.type === 'html' || project.html !== undefined || project.css !== undefined || project.js !== undefined) {
     return 'elementor-section';
   }
 
@@ -126,25 +140,41 @@ function generateTabs(project: FileGroup | null): FileTab[] {
     }
   }
 
-  // Elementor Plugin: Plugin Main File, Widget Files, Docs
-  if (projectType === 'elementor-plugin') {
-    // Plugin main file
-    if (project.pluginMainFile) {
+  // HubSpot: HTML, HubL, Docs
+  if (projectType === 'hubspot') {
+    if (project.html !== undefined) {
       tabs.push({
-        id: 'plugin-main-php',
-        type: 'php',
-        label: 'Plugin Main',
-        content: project.pluginMainFile || '',
-        language: 'php',
-        fileName: 'plugin-main.php'
+        id: 'html',
+        type: 'html',
+        label: 'HTML',
+        content: project.html || '',
+        language: 'html',
+        fileName: 'module.html'
       });
     }
 
-    // Widget files (as separate tabs)
-    if (project.widgetFiles && Object.keys(project.widgetFiles).length > 0) {
-      Object.entries(project.widgetFiles).forEach(([widgetId, widget]: [string, any]) => {
+    if (project.hubl !== undefined) {
+      tabs.push({
+        id: 'hubl',
+        type: 'hubl',
+        label: 'HubL',
+        content: project.hubl || '',
+        language: 'html',
+        fileName: 'module.hubl'
+      });
+    }
+  }
+
+  const hasCustomFiles = project.files && Object.keys(project.files).length > 0;
+
+  // Elementor Plugin fallback (legacy storage without custom file map)
+  if (!hasCustomFiles && projectType === 'elementor-plugin') {
+    const widgetEntries = project.widgetFiles ? Object.entries(project.widgetFiles) : [];
+
+    if (widgetEntries.length > 0) {
+      widgetEntries.forEach(([widgetId, widget]: [string, any]) => {
         tabs.push({
-          id: `widget-${widgetId}`,
+          id: `widget:${widgetId}`,
           type: 'php',
           label: widget.name || 'Widget',
           content: widget.content || '',
@@ -154,41 +184,28 @@ function generateTabs(project: FileGroup | null): FileTab[] {
           fileName: `${widget.slug || 'widget'}.php`
         });
       });
-    }
-  }
-
-  // HubSpot: HubL, CSS, JS, Docs
-  if (projectType === 'hubspot') {
-    if (project.hubl !== undefined) {
+    } else if (project.isPlugin && project.generationState === 'generating') {
+      const pendingWidgetId = `widget_${project.id}_pending`;
       tabs.push({
-        id: 'hubl',
-        type: 'hubl',
-        label: 'HubL',
-        content: project.hubl || '',
-        language: 'html',
-        fileName: 'module.html'
+        id: `widget:${pendingWidgetId}`,
+        type: 'php',
+        label: 'Widget (generating...)',
+        content: '',
+        language: 'php',
+        isWidget: true,
+        widgetId: pendingWidgetId,
+        fileName: 'widget.php'
       });
     }
 
-    if (project.css !== undefined) {
+    if (project.pluginMainFile) {
       tabs.push({
-        id: 'css',
-        type: 'css',
-        label: 'CSS',
-        content: project.css || '',
-        language: 'css',
-        fileName: 'module.css'
-      });
-    }
-
-    if (project.js !== undefined) {
-      tabs.push({
-        id: 'js',
-        type: 'js',
-        label: 'JavaScript',
-        content: project.js || '',
-        language: 'javascript',
-        fileName: 'module.js'
+        id: 'plugin-main.php',
+        type: 'php',
+        label: 'Plugin Main',
+        content: project.pluginMainFile || '',
+        language: 'php',
+        fileName: 'plugin-main.php'
       });
     }
   }
@@ -202,6 +219,32 @@ function generateTabs(project: FileGroup | null): FileTab[] {
       content: project.projectManifest || '',
       language: 'markdown',
       fileName: 'README.md'
+    });
+  }
+
+  // Custom files (multi-section HTML, extra widgets, etc.)
+  if (project.files && Object.keys(project.files).length > 0) {
+    const entries = Object.values(project.files).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    entries.forEach((file) => {
+      const normalizedId = file.id;
+      if (tabs.some(tab => tab.id === normalizedId)) {
+        return;
+      }
+      const tabType = (file.type as FileType) || 'docs';
+      const isWidgetEntry = !!(file.metadata?.widgetId || normalizedId.startsWith('widget:'));
+      tabs.push({
+        id: normalizedId,
+        type: tabType,
+        label: file.label || formatIdLabel(file.id),
+        content: file.content || '',
+        language: file.language || getLanguageForType(tabType),
+        fileName: file.id,
+        displayId: file.id,
+        isWidget: isWidgetEntry,
+        widgetId: isWidgetEntry
+          ? (file.metadata?.widgetId || normalizedId.replace(/^widget:/, ''))
+          : undefined
+      });
     });
   }
 
@@ -267,9 +310,9 @@ export function useFileTabs({
   }, [onTabContentChange]);
 
   // Get content for a specific tab
-  const getTabContent = useCallback((tabId: string): string => {
+  const getTabContent = useCallback((tabId: string): string | undefined => {
     const tab = tabs.find(t => t.id === tabId);
-    return tab?.content || '';
+    return tab?.content;
   }, [tabs]);
 
   return {

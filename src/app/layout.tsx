@@ -96,7 +96,8 @@ export default function RootLayout({
             />
           </>
         )}
-        {process.env.NODE_ENV === 'development' && <ReactScan />}
+        {/* React Scan disabled */}
+        {/* {process.env.NODE_ENV === 'development' && <ReactScan />} */}
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

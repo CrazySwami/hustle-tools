@@ -7121,6 +7121,28 @@ After removing a tool, verify:
    - **Result**: Model might not know when to call the tool
    - **Fix**: Add clear description in system prompt
 
+8. **❌ Tool executes but UI doesn't appear** - Tool works on backend but widget not rendered
+   - **Result**: Tool executes successfully (see logs), but nothing shows in chat
+   - **Symptoms**: 
+     - Backend logs show tool executed: `🎉 [Tool] completed successfully!`
+     - No widget appears in the chat interface
+     - No errors in console
+   - **Root Cause**: Tool not registered in the chat component's switch statement
+   - **Fix**: Add `case 'tool-yourToolName':` to the appropriate chat component
+   - **Example**: For document tools, add to `/src/components/editor/DocumentChat.tsx`:
+     ```typescript
+     // Document-specific tools
+     case 'tool-editDocumentWithMorph':
+     case 'tool-perplexitySearch':  // ← ADD YOUR TOOL HERE
+     case 'tool-getTextStats':
+     // ... other tools
+     ```
+   - **How to debug**:
+     1. Check backend logs - if tool executes, backend is fine
+     2. Search for similar working tool (e.g., `grep "tool-editDocumentWithMorph"`)
+     3. Add your tool to the same switch case
+     4. Tool will now render with the same pattern as other tools
+
 ---
 
 ### Quick Reference Commands

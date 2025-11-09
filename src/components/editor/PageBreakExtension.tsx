@@ -5,9 +5,45 @@ import React from 'react'
 // PageBreak Node View Component
 function PageBreakComponent() {
   return (
-    <NodeViewWrapper className="page-break-wrapper">
-      <div className="page-break" contentEditable={false}>
-        <div className="page-break-label">Page Break</div>
+    <NodeViewWrapper 
+      className="page-break-node" 
+      data-type="page-break"
+      contentEditable={false}
+      style={{
+        margin: '48px 0',
+        userSelect: 'none',
+        position: 'relative',
+        height: '48px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div 
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          height: '1px',
+          background: 'repeating-linear-gradient(to right, #ccc 0px, #ccc 10px, transparent 10px, transparent 20px)',
+        }}
+      />
+      <div 
+        style={{
+          position: 'relative',
+          background: 'white',
+          padding: '4px 16px',
+          fontSize: '11px',
+          fontWeight: '600',
+          color: '#666',
+          border: '1px solid #ccc',
+          borderRadius: '12px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+          zIndex: 1,
+        }}
+      >
+        Page Break
       </div>
     </NodeViewWrapper>
   )
@@ -21,10 +57,17 @@ export const PageBreak = Node.create({
 
   atom: true,
 
+  selectable: true,
+
+  draggable: true,
+
   parseHTML() {
     return [
       {
         tag: 'div[data-type="page-break"]',
+      },
+      {
+        tag: 'hr[data-type="page-break"]',
       },
     ]
   },
@@ -32,8 +75,11 @@ export const PageBreak = Node.create({
   renderHTML({ HTMLAttributes }) {
     return [
       'div',
-      mergeAttributes(HTMLAttributes, { 'data-type': 'page-break', class: 'page-break-wrapper' }),
-      ['div', { class: 'page-break' }, ['div', { class: 'page-break-label' }, 'Page Break']],
+      mergeAttributes(HTMLAttributes, { 
+        'data-type': 'page-break',
+        'class': 'page-break-node',
+        'style': 'page-break-after: always; break-after: page; margin: 48px 0; height: 48px;'
+      }),
     ]
   },
 
@@ -46,7 +92,10 @@ export const PageBreak = Node.create({
       setPageBreak:
         () =>
         ({ commands }) => {
-          return commands.insertContent({ type: this.name })
+          // Insert page break at current position
+          return commands.insertContent({
+            type: this.name,
+          })
         },
     }
   },
@@ -55,6 +104,27 @@ export const PageBreak = Node.create({
     return {
       // Ctrl/Cmd + Enter to insert page break
       'Mod-Enter': () => this.editor.commands.setPageBreak(),
+      // Delete key to remove page break when selected
+      'Backspace': () => {
+        const { $from } = this.editor.state.selection
+        const nodeBefore = $from.nodeBefore
+        
+        if (nodeBefore && nodeBefore.type.name === this.name) {
+          return this.editor.commands.deleteNode(this.name)
+        }
+        
+        return false
+      },
+      'Delete': () => {
+        const { $from } = this.editor.state.selection
+        const nodeAfter = $from.nodeAfter
+        
+        if (nodeAfter && nodeAfter.type.name === this.name) {
+          return this.editor.commands.deleteNode(this.name)
+        }
+        
+        return false
+      },
     }
   },
 })

@@ -66,32 +66,47 @@ export function parseHTMLProject(code: string): ParsedFiles {
  * Extracts main plugin file and widget file
  */
 export function parseElementorProject(code: string): ParsedFiles {
-  // Find ALL PHP code blocks
-  const phpBlocks = code.match(/```php\n([\s\S]*?)```/gi) || [];
+  // Find ALL PHP code blocks (supports unfinished fences while streaming)
+  const phpContents: string[] = [];
+  const blockRegex = /```php\s*\n?([\s\S]*?)(?:```|$)/gi;
+  let blockMatch: RegExpExecArray | null;
 
-  // Extract content from each block
-  const phpContents = phpBlocks.map(block => {
-    const match = block.match(/```php\n([\s\S]*?)```/);
-    return match ? match[1].trim() : '';
-  });
-
-  // Identify which block is which based on content
-  let mainPluginCode = '';
-  let widgetCode = '';
-
-  for (const phpCode of phpContents) {
-    // Main plugin file: contains "Plugin Name:" header and registration hooks
-    if (phpCode.includes('Plugin Name:') && phpCode.includes('add_action')) {
-      mainPluginCode = phpCode;
-    }
-    // Widget file: contains class extending Elementor\Widget_Base
-    else if (phpCode.includes('class ') && phpCode.includes('extends \\Elementor\\Widget_Base')) {
-      widgetCode = phpCode;
+  while ((blockMatch = blockRegex.exec(code)) !== null) {
+    const content = blockMatch[1]?.trim();
+    if (content) {
+      phpContents.push(content);
     }
   }
 
+  // Identify widget class within blocks
+  let widgetCode = '';
+
+  for (const phpCode of phpContents) {
+    const widgetMatch = phpCode.match(/class\s+[A-Za-z_][A-Za-z0-9_]*\s+extends\s+\\?Elementor\\?\\?Widget_Base/i);
+    if (widgetMatch) {
+      const widgetIndex = widgetMatch.index ?? 0;
+      widgetCode = phpCode.slice(widgetIndex).trim();
+      break;
+    }
+  }
+
+  // Fallback: if no fenced block found, scan raw PHP segments
+  if (!widgetCode) {
+    const phpSegments = extractPhpSegments(code);
+    for (const segment of phpSegments) {
+      if (/class\s+[A-Za-z_][A-Za-z0-9_]*\s+extends\s+\\?Elementor\\?\\?Widget_Base/i.test(segment)) {
+        widgetCode = segment.trim();
+        break;
+      }
+    }
+  }
+
+  // Final fallback: use first php block if nothing detected yet
+  if (!widgetCode && phpContents.length > 0) {
+    widgetCode = phpContents[0];
+  }
+
   return {
-    pluginMainFile: mainPluginCode || undefined,
     php: widgetCode || undefined,
   };
 }
@@ -108,6 +123,23 @@ export function parseHubSpotProject(code: string): ParsedFiles {
     html: htmlMatch ? htmlMatch[1].trim() : undefined,
     hubl: hublMatch ? hublMatch[1].trim() : undefined,
   };
+}
+
+/**
+ * Extract PHP segments even without code fences.
+ * Treats each "<?php" ... (next "<?php" or end) as a segment.
+ */
+function extractPhpSegments(input: string): string[] {
+  const segments: string[] = [];
+  const regex = /<\?php([\s\S]*?)(?=(?:\n<\?php)|$)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(input)) !== null) {
+    const content = `<?php${match[1]}`.trim();
+    if (content) {
+      segments.push(content);
+    }
+  }
+  return segments;
 }
 
 /**

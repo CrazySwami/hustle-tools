@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { AiFillHtml5 } from 'react-icons/ai';
 import { FaWordpress } from 'react-icons/fa';
 import { SiHubspot } from 'react-icons/si';
@@ -20,14 +20,18 @@ interface GenerateProjectWidgetProps {
     message: string;
   };
   onProjectCreate?: (name: string, type: 'html' | 'php' | 'hubspot', generationState?: 'generating' | 'ready' | 'error', subtype?: string) => string; // Returns new project ID
-  onProjectUpdate?: (projectId: string, file: 'html' | 'css' | 'js' | 'php' | 'hubl', content: string) => void;
+  onProjectUpdate?: (projectId: string, file: string, content: string) => void;
   onProjectMetadataUpdate?: (projectId: string, metadata: any) => void; // Update plugin metadata
   onProjectStateUpdate?: (projectId: string, state: 'generating' | 'ready' | 'error', error?: string) => void; // Update generation state
-  onSwitchCodeTab?: (tab: 'html' | 'css' | 'js' | 'php' | 'hubl') => void;
+  onSwitchCodeTab?: (tab: string) => void;
   onSwitchTab?: (tab: string) => void; // Switch main tab (e.g., to 'json')
   isEditorReady?: (fileType: string) => boolean; // Check if editor is mounted and ready
   defaultModel?: string;
   globalCSS?: string; // Pass global CSS from parent
+  targetWidgetId?: string;
+  existingProjectId?: string;
+  targetWidgetLabel?: string;
+  targetPluginName?: string;
 }
 
 export function GenerateProjectWidget({
@@ -40,7 +44,11 @@ export function GenerateProjectWidget({
   onSwitchTab,
   isEditorReady,
   defaultModel = 'anthropic/claude-haiku-4-5-20251001',
-  globalCSS
+  globalCSS,
+  targetWidgetId,
+  existingProjectId,
+  targetWidgetLabel,
+  targetPluginName
 }: GenerateProjectWidgetProps) {
   // Configuration state
   const [projectName, setProjectName] = useState(toolResult.projectName);
@@ -59,6 +67,13 @@ export function GenerateProjectWidget({
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState('');
   const [currentPhase, setCurrentPhase] = useState<'html' | 'css' | 'js' | 'php' | 'hubl' | null>(null);
+  const isWidgetGeneration = Boolean(targetWidgetId && existingProjectId);
+
+  useEffect(() => {
+    if (isWidgetGeneration && projectType !== 'elementor') {
+      setProjectType('elementor');
+    }
+  }, [isWidgetGeneration, projectType]);
 
   // Get models grouped by provider for dropdown
   const modelsByProvider = getModelsByProvider();
@@ -92,6 +107,7 @@ export function GenerateProjectWidget({
 
   const totalTokens = systemTokens + inputTokens;
   const conversationTokens = 0; // No conversation history in generation
+  const canGenerate = description.trim().length > 0 && (!isWidgetGeneration ? projectName.trim().length > 0 : true);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -137,54 +153,81 @@ export function GenerateProjectWidget({
     setGenerating(true);
     setProgress('Starting project generation...');
 
-    if (!onProjectCreate || !onProjectUpdate) {
+    if ((!existingProjectId || !targetWidgetId || projectType !== 'elementor') && (!onProjectCreate || !onProjectUpdate)) {
       console.error('❌ Missing callbacks!');
       setProgress('❌ Error: Project creation callbacks not available');
       setGenerating(false);
       return;
     }
 
-    // Create project FIRST with 'generating' state
-    const projectId = onProjectCreate(
-      projectName,
-      projectType === 'elementor' ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html',
-      'generating',
-      projectType === 'hubspot' ? hubspotModuleType : undefined  // Pass subtype for HubSpot
-    );
+    const reuseExistingProject = projectType === 'elementor' && !!targetWidgetId && !!existingProjectId;
+    let projectId: string | undefined;
+    const widgetTarget = reuseExistingProject ? targetWidgetId! : undefined;
 
-    console.log('📦 Created project via widget:', projectName, 'ID:', projectId, 'State: generating');
-
-    // Switch to Code Editor tab
-    if (onSwitchTab) {
-      onSwitchTab('json');
-      console.log('📑 Switched to Code Editor tab');
+    if (reuseExistingProject) {
+      projectId = existingProjectId!;
+      console.log('[ElementorFlow] Reusing existing plugin for widget generation:', { projectId, widgetTarget });
+      if (onProjectStateUpdate) {
+        onProjectStateUpdate(projectId, 'generating');
+      }
+    } else {
+      projectId = onProjectCreate!(
+        projectName,
+        projectType === 'elementor' ? 'php' : projectType === 'hubspot' ? 'hubspot' : 'html',
+        'generating',
+        projectType === 'hubspot' ? hubspotModuleType : undefined
+      );
+      console.log('📦 Created project via widget:', projectName, 'ID:', projectId, 'State: generating');
+      if (projectType === 'elementor') {
+        console.warn('[ElementorFlow] No widget slot specified; generation will use placeholder');
+      }
     }
 
-    // Switch to appropriate file tab
-    const targetFileType = projectType === 'elementor' ? 'php' : 'html';
-    if (onSwitchCodeTab) {
-      onSwitchCodeTab(targetFileType as any);
+    if (!projectId) {
+      setProgress('❌ Error: Unable to determine project ID');
+      setGenerating(false);
+      return;
     }
 
-    // Wait for Monaco editor to actually mount
-    if (isEditorReady) {
-      console.log(`⏳ Waiting for ${targetFileType} editor to mount...`);
-      const startTime = Date.now();
-      const maxWaitTime = 5000;
-
-      while (!isEditorReady(targetFileType)) {
-        if (Date.now() - startTime > maxWaitTime) {
-          console.warn(`⚠️ Timeout waiting for ${targetFileType} editor (${maxWaitTime}ms). Proceeding anyway...`);
-          break;
-        }
-        await new Promise(resolve => setTimeout(resolve, 50));
+    if (!reuseExistingProject) {
+      // Switch to Code Editor tab
+      if (onSwitchTab) {
+        onSwitchTab('json');
+        console.log('📑 Switched to Code Editor tab');
       }
 
-      const waitTime = Date.now() - startTime;
-      console.log(`✅ ${targetFileType} editor ready after ${waitTime}ms`);
-    } else {
-      console.warn('⚠️ isEditorReady callback not provided, using 300ms delay fallback');
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Switch to appropriate file tab
+      const targetFileType = projectType === 'elementor' ? 'php' : 'html';
+      if (onSwitchCodeTab) {
+        onSwitchCodeTab(targetFileType as any);
+      }
+
+      // Wait for Monaco editor to actually mount
+      if (isEditorReady) {
+        console.log(`⏳ Waiting for ${targetFileType} editor to mount...`);
+        const startTime = Date.now();
+        const maxWaitTime = 5000;
+
+        while (!isEditorReady(targetFileType)) {
+          if (Date.now() - startTime > maxWaitTime) {
+            console.warn(`⚠️ Timeout waiting for ${targetFileType} editor (${maxWaitTime}ms). Proceeding anyway...`);
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        const waitTime = Date.now() - startTime;
+        console.log(`✅ ${targetFileType} editor ready after ${waitTime}ms`);
+      } else {
+        console.warn('⚠️ isEditorReady callback not provided, using 300ms delay fallback');
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    } else if (widgetTarget) {
+      const normalized = widgetTarget.startsWith('widget:') ? widgetTarget : `widget:${widgetTarget}`;
+      if (onSwitchCodeTab) {
+        onSwitchCodeTab(normalized);
+      }
+      console.log('[ElementorFlow] Skipping plugin tab auto-switch; targeting widget slot', { projectId, normalized });
     }
 
     try {
@@ -198,6 +241,7 @@ export function GenerateProjectWidget({
           images: includeImages && uploadedImages.length > 0 ? uploadedImages : [],
           model: selectedModel,
           globalCSS: includeGlobalCSS ? globalCSS : undefined,
+          targetWidgetId: widgetTarget,
         },
         projectId,
         {
@@ -234,6 +278,8 @@ export function GenerateProjectWidget({
     includeImages,
     uploadedImages,
     globalCSS,
+    targetWidgetId,
+    existingProjectId,
     onProjectCreate,
     onProjectUpdate,
     onProjectMetadataUpdate,
@@ -244,10 +290,18 @@ export function GenerateProjectWidget({
   ]);
 
   const getProjectTypeLabel = () => {
+    if (isWidgetGeneration) return 'Elementor Widget (existing plugin)';
     if (projectType === 'elementor') return 'Elementor Plugin (with Widget)';
     if (projectType === 'hubspot') return `HubSpot ${hubspotModuleType === 'email' ? 'Email' : 'Page'} Module`;
     return 'HTML Section';
   };
+
+  const headerTitle = isWidgetGeneration ? 'Generate Elementor Widget' : 'Generate New Project';
+  const headerSubtitle = isWidgetGeneration
+    ? `Streams into ${targetPluginName || 'current plugin'}`
+    : 'Configure settings and start generation';
+  const widgetDisplayName = targetWidgetLabel || targetWidgetId || 'Widget Slot';
+  const pluginDisplayName = targetPluginName || existingProjectId || 'Current Plugin';
 
   return (
     <div style={{
@@ -267,41 +321,55 @@ export function GenerateProjectWidget({
         <span style={{ fontSize: '24px' }}>🚀</span>
         <div>
           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-            Generate New Project
+            {headerTitle}
           </h3>
           <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--muted-foreground)' }}>
-            Configure settings and start generation
+            {headerSubtitle}
           </p>
         </div>
       </div>
 
-      {/* Project Name (Editable) */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
-          Project Name
-        </label>
-        <input
-          type="text"
-          value={projectName}
-          onChange={(e) => setProjectName(e.target.value)}
-          disabled={generating}
-          placeholder="Enter project name"
-          style={{
-            width: '100%',
-            padding: '10px',
-            border: '1px solid var(--border)',
-            borderRadius: '6px',
-            fontSize: '13px',
-            background: 'var(--background)',
-            color: 'var(--foreground)',
-          }}
-        />
-      </div>
+      {/* Target summary or Project Name */}
+      {isWidgetGeneration ? (
+        <div style={{
+          marginBottom: '16px',
+          padding: '12px',
+          borderRadius: '6px',
+          border: '1px solid var(--border)',
+          background: 'var(--muted)',
+          fontSize: '13px'
+        }}>
+          <div><strong>Plugin:</strong> {pluginDisplayName}</div>
+          <div><strong>Widget Slot:</strong> {widgetDisplayName}</div>
+        </div>
+      ) : (
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+            Project Name
+          </label>
+          <input
+            type="text"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            disabled={generating}
+            placeholder="Enter project name"
+            style={{
+              width: '100%',
+              padding: '10px',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              fontSize: '13px',
+              background: 'var(--background)',
+              color: 'var(--foreground)',
+            }}
+          />
+        </div>
+      )}
 
       {/* Description (Editable) */}
       <div style={{ marginBottom: '16px' }}>
         <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
-          Description
+          {isWidgetGeneration ? 'Widget Brief' : 'Description'}
         </label>
         <textarea
           value={description}
@@ -387,85 +455,87 @@ export function GenerateProjectWidget({
       </div>
 
       {/* Project Type Selector */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
-          Project Type
-        </label>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setProjectType('html')}
-            disabled={generating}
-            style={{
-              flex: '1 1 auto',
-              minWidth: '120px',
-              padding: '10px 16px',
-              background: projectType === 'html' ? 'var(--primary)' : 'var(--muted)',
-              color: projectType === 'html' ? 'var(--primary-foreground)' : 'var(--foreground)',
-              border: `2px solid ${projectType === 'html' ? 'var(--primary)' : 'var(--border)'}`,
-              borderRadius: '6px',
-              cursor: generating ? 'not-allowed' : 'pointer',
-              fontSize: '13px',
-              fontWeight: 500,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              transition: 'all 0.2s',
-            }}
-          >
-            <AiFillHtml5 size={16} />
-            HTML
-          </button>
-          <button
-            onClick={() => setProjectType('elementor')}
-            disabled={generating}
-            style={{
-              flex: '1 1 auto',
-              minWidth: '120px',
-              padding: '10px 16px',
-              background: projectType === 'elementor' ? 'var(--primary)' : 'var(--muted)',
-              color: projectType === 'elementor' ? 'var(--primary-foreground)' : 'var(--foreground)',
-              border: `2px solid ${projectType === 'elementor' ? 'var(--primary)' : 'var(--border)'}`,
-              borderRadius: '6px',
-              cursor: generating ? 'not-allowed' : 'pointer',
-              fontSize: '13px',
-              fontWeight: 500,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              transition: 'all 0.2s',
-            }}
-          >
-            <FaWordpress size={16} />
-            Elementor
-          </button>
-          <button
-            onClick={() => setProjectType('hubspot')}
-            disabled={generating}
-            style={{
-              flex: '1 1 auto',
-              minWidth: '120px',
-              padding: '10px 16px',
-              background: projectType === 'hubspot' ? 'var(--primary)' : 'var(--muted)',
-              color: projectType === 'hubspot' ? 'var(--primary-foreground)' : 'var(--foreground)',
-              border: `2px solid ${projectType === 'hubspot' ? 'var(--primary)' : 'var(--border)'}`,
-              borderRadius: '6px',
-              cursor: generating ? 'not-allowed' : 'pointer',
-              fontSize: '13px',
-              fontWeight: 500,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              transition: 'all 0.2s',
-            }}
-          >
-            <SiHubspot size={16} />
-            HubSpot
-          </button>
+      {!isWidgetGeneration && (
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+            Project Type
+          </label>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setProjectType('html')}
+              disabled={generating}
+              style={{
+                flex: '1 1 auto',
+                minWidth: '120px',
+                padding: '10px 16px',
+                background: projectType === 'html' ? 'var(--primary)' : 'var(--muted)',
+                color: projectType === 'html' ? 'var(--primary-foreground)' : 'var(--foreground)',
+                border: `2px solid ${projectType === 'html' ? 'var(--primary)' : 'var(--border)'}`,
+                borderRadius: '6px',
+                cursor: generating ? 'not-allowed' : 'pointer',
+                fontSize: '13px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s',
+              }}
+            >
+              <AiFillHtml5 size={16} />
+              HTML
+            </button>
+            <button
+              onClick={() => setProjectType('elementor')}
+              disabled={generating}
+              style={{
+                flex: '1 1 auto',
+                minWidth: '120px',
+                padding: '10px 16px',
+                background: projectType === 'elementor' ? 'var(--primary)' : 'var(--muted)',
+                color: projectType === 'elementor' ? 'var(--primary-foreground)' : 'var(--foreground)',
+                border: `2px solid ${projectType === 'elementor' ? 'var(--primary)' : 'var(--border)'}`,
+                borderRadius: '6px',
+                cursor: generating ? 'not-allowed' : 'pointer',
+                fontSize: '13px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s',
+              }}
+            >
+              <FaWordpress size={16} />
+              Elementor
+            </button>
+            <button
+              onClick={() => setProjectType('hubspot')}
+              disabled={generating}
+              style={{
+                flex: '1 1 auto',
+                minWidth: '120px',
+                padding: '10px 16px',
+                background: projectType === 'hubspot' ? 'var(--primary)' : 'var(--muted)',
+                color: projectType === 'hubspot' ? 'var(--primary-foreground)' : 'var(--foreground)',
+                border: `2px solid ${projectType === 'hubspot' ? 'var(--primary)' : 'var(--border)'}`,
+                borderRadius: '6px',
+                cursor: generating ? 'not-allowed' : 'pointer',
+                fontSize: '13px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s',
+              }}
+            >
+              <SiHubspot size={16} />
+              HubSpot
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* HubSpot Module Type (only show if HubSpot is selected) */}
       {projectType === 'hubspot' && (
@@ -599,7 +669,7 @@ export function GenerateProjectWidget({
       </div>
 
       {/* Global CSS Option (only for HTML/HubSpot) */}
-      {(projectType === 'html' || projectType === 'hubspot') && globalCSS && (
+      {(!isWidgetGeneration && (projectType === 'html' || projectType === 'hubspot') && globalCSS) && (
         <div style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input
@@ -635,6 +705,16 @@ export function GenerateProjectWidget({
             modelsByProvider[provider].some(m => m.id === selectedModel)
           )!]?.find(m => m.id === selectedModel)?.name || selectedModel}
         </div>
+        {isWidgetGeneration && (
+          <>
+            <div style={{ color: 'var(--muted-foreground)' }}>
+              • Plugin: {pluginDisplayName}
+            </div>
+            <div style={{ color: 'var(--muted-foreground)' }}>
+              • Widget Slot: {widgetDisplayName}
+            </div>
+          </>
+        )}
         {includeImages && uploadedImages.length > 0 && (
           <div style={{ color: 'var(--muted-foreground)' }}>
             • Images: {uploadedImages.length} reference image{uploadedImages.length > 1 ? 's' : ''}
@@ -645,7 +725,7 @@ export function GenerateProjectWidget({
       {/* Generate Button */}
       <button
         onClick={handleGenerate}
-        disabled={generating || !projectName || !description}
+        disabled={generating || !canGenerate}
         style={{
           width: '100%',
           padding: '12px 24px',
@@ -655,11 +735,11 @@ export function GenerateProjectWidget({
           borderRadius: '6px',
           fontSize: '14px',
           fontWeight: 600,
-          cursor: generating || !projectName || !description ? 'not-allowed' : 'pointer',
+          cursor: generating || !canGenerate ? 'not-allowed' : 'pointer',
           transition: 'all 0.2s',
         }}
       >
-        {generating ? '⏳ Generating...' : '🚀 Generate Project'}
+        {generating ? '⏳ Generating...' : isWidgetGeneration ? '🚀 Generate Widget' : '🚀 Generate Project'}
       </button>
 
       {/* Progress */}

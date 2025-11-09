@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { useDocumentContent } from '@/hooks/useDocumentContent';
 import TiptapEditor from '@/components/editor/TiptapEditor';
 import { Comment } from '@/components/editor/CommentExtension';
+import CommentsPanel from '@/components/editor/CommentsPanel';
 import { DocumentChat } from '@/components/editor/DocumentChat';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { useDocuments, useProjects, useFolders } from '@/hooks/useProjectHierarchy';
@@ -15,6 +16,10 @@ import { TwoPanelChatLayout } from '@/components/layouts/TwoPanelChatLayout';
 import { NavigationBar } from '@/components/ai-elements/inner-navigation-bar';
 import { CreateItemModal } from '@/components/modals/CreateItemModal';
 import { useSelectedClient } from '@/components/client/ClientStorage';
+import { DataSidebar } from '@/components/ai-elements/data-sidebar';
+import { CreateDittoButton } from '@/components/ai-elements/create-ditto-button';
+import { ChevronRight, Download } from 'lucide-react';
+import Image from 'next/image';
 
 
 const ChatBotDemo = () => {
@@ -35,10 +40,17 @@ const ChatBotDemo = () => {
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | undefined>(undefined);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false); // Project sidebar visibility (overlay on editor)
+  const [isLeftPanelVisible, setIsLeftPanelVisible] = useState(true); // Context library visibility
+  const [tokenData, setTokenData] = useState<{ totalTokens: number; contextLimit: number; percentUsed: number } | null>(null);
+  const [taggedDocuments, setTaggedDocuments] = useState<Array<{ id: string; name: string; type?: 'file' | 'folder' | 'ditto' }>>([]);
 
   // Modal state for creating documents/folders
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createModalType, setCreateModalType] = useState<'document' | 'folder'>('document');
+  
+  // Save state
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
   // Track comments/tools panel state (for dynamic dropdown items)
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -51,11 +63,193 @@ const ChatBotDemo = () => {
   // Document content management - SINGLE source of truth
   const documentContentStore = useDocumentContent();
   const documentContent = documentContentStore.content; // Read directly from store
+  
+  // Extract headings from document for TOC
+  const documentHeadings = useMemo(() => {
+    if (!documentContent || typeof window === 'undefined') return [];
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(documentContent, 'text/html');
+    const headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    return Array.from(headings).map((heading, index) => {
+      // Add ID to heading if it doesn't have one
+      const headingId = `heading-${index}`;
+      heading.setAttribute('id', headingId);
+      return {
+        id: headingId,
+        level: parseInt(heading.tagName.substring(1)),
+        text: heading.textContent || '',
+        tag: heading.tagName.toLowerCase()
+      };
+    });
+  }, [documentContent]);
+
+  // Handle TOC item click - scroll to heading
+  const handleTOCClick = (headingId: string) => {
+    const element = document.getElementById(headingId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Generate TOC content in different formats
+  const generateTOCContent = (format: 'html' | 'markdown' | 'richtext') => {
+    if (documentHeadings.length === 0) return '';
+    
+    if (format === 'html') {
+      let html = '<h2>Table of Contents</h2>\n<ul>\n';
+      documentHeadings.forEach(heading => {
+        const indent = '  '.repeat(heading.level - 1);
+        html += `${indent}<li><a href="#${heading.id}">${heading.text}</a></li>\n`;
+      });
+      html += '</ul>';
+      return html;
+    } else if (format === 'markdown') {
+      let md = '## Table of Contents\n\n';
+      documentHeadings.forEach(heading => {
+        const indent = '  '.repeat(heading.level - 1);
+        md += `${indent}- [${heading.text}](#${heading.id})\n`;
+      });
+      return md;
+    } else {
+      // Rich text format (similar to HTML)
+      return generateTOCContent('html');
+    }
+  };
+
+  // Export TOC
+  const handleExportTOC = (format: 'html' | 'markdown' | 'richtext') => {
+    const content = generateTOCContent(format);
+    if (!content) return;
+    
+    const filename = format === 'html' ? 'toc.html' : format === 'markdown' ? 'toc.md' : 'toc.rtf';
+    const mimeType = format === 'html' ? 'text/html' : format === 'markdown' ? 'text/markdown' : 'application/rtf';
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Insert TOC at top of document
+  const handleInsertTOC = () => {
+    if (!documentContent || documentHeadings.length === 0) return;
+    
+    // Generate TOC HTML
+    const tocHTML = generateTOCContent('html');
+    
+    // Insert at the beginning of the document
+    const newContent = tocHTML + '\n' + documentContent;
+    
+    // Update document content
+    documentContentStore.updateContent(newContent);
+  };
+
+  // Copy TOC
+  const handleCopyTOC = () => {
+    const tocHTML = generateTOCContent('html');
+    if (!tocHTML) return;
+    
+    navigator.clipboard.writeText(tocHTML).then(() => {
+      console.log('TOC copied to clipboard');
+    });
+  };
 
   // Get documents, projects, and folders hooks
-  const { documents, updateDocument, createDocument } = useDocuments();
+  const { documents, updateDocument, createDocument, deleteDocument } = useDocuments();
   const { projects, createProject } = useProjects();
   const { createFolder } = useFolders();
+
+  // Handle creating new document from sidebar
+  const handleCreateDocument = () => {
+    setCreateModalType('document');
+    setCreateModalOpen(true);
+  };
+
+  // Save document
+  const handleSaveDocument = useCallback(async () => {
+    if (!selectedDocumentId || !documentContent) return;
+    
+    setSaveStatus('saving');
+    try {
+      updateDocument(selectedDocumentId, {
+        content: documentContent,
+      });
+      setSaveStatus('saved');
+      setLastSaved(new Date());
+      console.log('✅ Document saved successfully');
+      
+      // Auto-hide saved status after 2 seconds
+      setTimeout(() => {
+        setSaveStatus('saved'); // Keep it as 'saved' but button will be hidden
+      }, 2000);
+    } catch (error) {
+      console.error('❌ Failed to save document:', error);
+      setSaveStatus('unsaved');
+    }
+  }, [selectedDocumentId, documentContent, updateDocument]);
+
+  // Mark as unsaved when content changes
+  useEffect(() => {
+    if (documentContent && selectedDocumentId) {
+      setSaveStatus('unsaved');
+    }
+  }, [documentContent]);
+
+  // Auto-save every 30 seconds
+  useEffect(() => {
+    if (!selectedDocumentId) return;
+    
+    const interval = setInterval(() => {
+      if (saveStatus === 'unsaved') {
+        handleSaveDocument();
+      }
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [selectedDocumentId, saveStatus, handleSaveDocument]);
+
+  // Keyboard shortcut: Cmd+S / Ctrl+S
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        handleSaveDocument();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSaveDocument]);
+
+  // Warn before closing with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveStatus === 'unsaved') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [saveStatus]);
+
+  // Handle deleting multiple documents
+  const handleDeleteDocuments = (ids: string[]) => {
+    if (window.confirm(`Delete ${ids.length} document(s)? This cannot be undone.`)) {
+      ids.forEach(id => deleteDocument(id));
+    }
+  };
+
+  // Handle renaming a document
+  const handleRenameDocument = (id: string, newName: string) => {
+    updateDocument(id, { title: newName });
+  };
 
   const { messages, sendMessage, isLoading, reload, status, error } = useChat({
     api: '/api/chat-doc', // 🎯 Specialized endpoint for document editing
@@ -224,6 +418,94 @@ const ChatBotDemo = () => {
 
     return () => clearTimeout(timeoutId);
   }, [documentContent, selectedDocumentId, documents, updateDocument]);
+
+  // Handle document tagging from sidebar (max 2 items)
+  const handleDocumentTag = (doc: any) => {
+    setTaggedDocuments((prev) => {
+      // Don't add duplicates
+      if (prev.some(d => d.id === doc.id)) {
+        return prev;
+      }
+      // Limit to 2 tagged items
+      if (prev.length >= 2) {
+        alert('Maximum 2 items can be tagged at once. Please remove an item first.');
+        return prev;
+      }
+      // Only include supported types
+      const type = doc.type === 'file' || doc.type === 'folder' || doc.type === 'ditto' ? doc.type : undefined;
+      return [...prev, { id: doc.id, name: doc.name, type }];
+    });
+  };
+
+  const handleRemoveTaggedDocument = (id: string) => {
+    setTaggedDocuments((prev) => prev.filter(d => d.id !== id));
+  };
+
+  // Handle creating a new Ditto or Mirror
+  const handleCreateDitto = (ditto: {
+    name: string
+    description: string
+    type: 'mirror' | 'ditto'
+    files?: File[]
+    linkedinProfile?: string
+    personalWebsite?: string
+    companyWebsite?: string
+    additionalContext?: string
+    socialLinks?: Array<{ platform: string; url: string; icon: string }>
+    websiteLinks?: string[]
+  }) => {
+    console.log('Creating new Ditto/Mirror:', ditto);
+    
+    // TODO: Implement actual Ditto creation logic
+    // This would typically:
+    // 1. Create a new folder in the sidebar with type 'ditto'
+    // 2. Upload the files to that folder
+    // 3. Store all metadata (LinkedIn, websites, social links, etc.)
+    // 4. For Mirrors: scrape and ingest website content
+    // 5. Add to the data structure
+    
+    const details = ditto.type === 'ditto' 
+      ? `\nLinkedIn: ${ditto.linkedinProfile || 'N/A'}\nWebsites: ${[ditto.personalWebsite, ditto.companyWebsite].filter(Boolean).join(', ') || 'N/A'}\nSocial Links: ${ditto.socialLinks?.length || 0}\nFiles: ${ditto.files?.length || 0}`
+      : `\nWebsite Links: ${ditto.websiteLinks?.length || 0}\nFiles: ${ditto.files?.length || 0}`;
+    
+    alert(`${ditto.type === 'ditto' ? 'Ditto' : 'Mirror'} "${ditto.name}" created successfully!${details}`);
+  };
+
+  // Listen for addTag events from @ mentions
+  useEffect(() => {
+    const handleAddTag = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const doc = customEvent.detail;
+      handleDocumentTag(doc);
+    };
+    
+    window.addEventListener('addTag', handleAddTag);
+    return () => window.removeEventListener('addTag', handleAddTag);
+  }, []);
+
+  // Prepare available documents for @ mentions (flatten all documents from sidebar)
+  const availableDocuments = useMemo(() => {
+    const docs: Array<{ id: string; name: string; type: 'file' | 'folder' | 'ditto' }> = [];
+    
+    // Add all documents from the documents list
+    documents.forEach(doc => {
+      docs.push({ id: doc.id, name: doc.title, type: 'file' });
+    });
+    
+    // Add folders and projects
+    projects.forEach(project => {
+      docs.push({ id: project.id, name: project.name, type: 'folder' });
+    });
+    
+    // Add some example Ditto items (you can expand this based on your data structure)
+    docs.push(
+      { id: 'kyle-ditto', name: "Kyle's Ditto", type: 'ditto' },
+      { id: 'alfonso-ditto', name: "Alfonso's Ditto", type: 'ditto' },
+      { id: 'bobby-ditto', name: "Bobby's Ditto", type: 'ditto' }
+    );
+    
+    return docs;
+  }, [documents, projects]);
 
   // Handle message sending from DocumentChat
   const handleSendMessage = async (text: string, settings?: { webSearchEnabled: boolean; includeContext?: boolean; imageFile?: File }) => {
@@ -398,14 +680,25 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
 
   // Generate actual system prompt (same as API uses) for accurate token counting
   const actualSystemPrompt = useMemo(() => {
-    return generateDocSystemPrompt({
+    let basePrompt = generateDocSystemPrompt({
       includeContext,
       documentContent: markdownContent,
       documentTitle: currentDocument?.title || '',
       projectName: currentProject?.name || '',
       clientData: clientContextEnabled && selectedClient ? selectedClient : null,
     });
-  }, [includeContext, markdownContent, currentDocument?.title, currentProject?.name, clientContextEnabled, selectedClient]);
+
+    // Add tagged documents context
+    if (taggedDocuments.length > 0) {
+      const taggedContext = taggedDocuments.map(doc => {
+        return `\n\n## Tagged Context: ${doc.name}\nType: ${doc.type || 'file'}\n[Content would be loaded here]`;
+      }).join('\n');
+      
+      basePrompt += `\n\n# Additional Tagged Context\nThe user has tagged the following items for context:${taggedContext}`;
+    }
+
+    return basePrompt;
+  }, [includeContext, markdownContent, currentDocument?.title, currentProject?.name, clientContextEnabled, selectedClient, taggedDocuments]);
 
   // Navigation dropdown handler
   const handleNavigationDropdownClick = (tabId: string, item: string) => {
@@ -573,7 +866,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
     }
   };
 
-  // Navigation tabs configuration - Options, Documents, Comments, Tools, TOC as separate tabs
+  // Navigation tabs configuration - Options, Documents, Comments, Tools, TOC
   const navigationTabs: any[] = [
     {
       id: 'options',
@@ -627,8 +920,8 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
   ];
 
   return (
-    <div className="flex flex-col h-screen w-full max-w-full overflow-x-hidden" style={{
-      paddingTop: isMobile ? '52px' : '0', // Space for fixed nav on mobile
+    <div className="flex flex-col h-screen w-full max-w-full overflow-x-hidden bg-[#F0F0F0] dark:bg-[#121212]" style={{
+      paddingTop: isMobile ? '52px' : '0' // Space for fixed nav on mobile
     }}>
         {/* Mobile: Fixed navigation bar at top */}
         {isMobile && (
@@ -653,101 +946,400 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
       )}
 
       {/* Main content wrapper */}
-      <div className={`flex flex-1 h-full w-full ${isMobile ? 'px-2' : ''} gap-0 overflow-hidden`}>
-        {/* Desktop: Two-panel layout with chat and editor */}
+      <div className={`flex flex-1 h-full w-full ${isMobile ? 'px-2' : ''} gap-0 overflow-hidden relative`}>
+        {/* Desktop: Three-panel layout with chat on left and right, editor in center */}
         {!isMobile && isEditorVisible && isChatVisible && (
           <TwoPanelChatLayout
-            defaultSplitPercent={35}
-            leftPanel={
-              <div
-                ref={chatPanelRef}
-                style={{
-                  padding: '8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  height: '100%',
-                  width: '100%',
-                  maxWidth: '100%',
-                  boxSizing: 'border-box'
-                }}
-              >
-                <div className="rounded-lg bg-background" style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                  width: '100%',
-                  maxWidth: '100%'
-                }}>
-                  <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                    <NavigationBar
-                      tabs={navigationTabs}
-                      onTabChange={handleTabChange}
-                      onDropdownItemClick={handleNavigationDropdownClick}
-                      showOnDesktop={true}
-                      showOnMobile={false}
-                      hideLogoOnDesktop={false}
-                      containerWidth={chatPanelWidth}
-                      compactBreakpoint={500}
+            leftPanel={isLeftPanelVisible ? {
+              content: (
+                <div
+                  style={{
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <div className="rounded-lg bg-background" style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    width: '100%',
+                    maxWidth: '100%',
+                    fontSize: '0.875rem'
+                  }}>
+                    <DataSidebar 
+                      onToggle={() => setIsLeftPanelVisible(false)}
+                      onDocumentTag={handleDocumentTag}
+                      documents={documents}
+                      activeDocumentId={selectedDocumentId}
+                      onDocumentSelect={setSelectedDocumentId}
+                      onCreateDocument={handleCreateDocument}
+                      onDeleteDocuments={handleDeleteDocuments}
+                      onRenameDocument={handleRenameDocument}
                     />
                   </div>
-                  <DocumentChat
-                    messages={messages}
-                    isLoading={isLoading}
-                    status={status}
-                    error={error}
-                    onSendMessage={handleSendMessage}
-                    selectedModel={selectedModel}
-                    onModelChange={setSelectedModel}
-                    onReload={reload}
-                    isEditorVisible={isEditorVisible}
-                    onToggleEditor={handleToggleEditor}
-                    webSearchEnabled={webSearchEnabled}
-                    onWebSearchChange={setWebSearchEnabled}
-                    currentDocument={currentDocument}
-                    currentProject={currentProject}
-                    wordCount={wordCount}
-                    systemPrompt={actualSystemPrompt}
-                    documentContent={documentContent}
-                    containerWidth={chatPanelWidth}
-                    selectedClient={selectedClient}
-                    clientContextEnabled={clientContextEnabled}
-                    onClientChange={setSelectedClientId}
-                    onClientContextToggle={() => setClientContextEnabled(!clientContextEnabled)}
-                  />
                 </div>
-              </div>
-            }
-            rightPanel={
-              <div
-                style={{
-                  padding: '8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  height: '100%'
-                }}
-              >
-                <div className="rounded-lg bg-background shadow-sm" style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden'
-                }}>
-                  <TiptapEditor
-                    initialContent={documentContent}
-                    onContentChange={(html) => {
-                      console.log('📝 [EDITOR] Content changed, updating store (skipEditorUpdate=true)');
-                      documentContentStore.updateContent(html, true); // true = skip editor update
-                    }}
-                    onCommentsChange={setComments}
-                    onAIEdit={handleAIEdit}
-                    selectedModel={selectedModel}
-                    selectedDocumentId={selectedDocumentId}
-                    onDocumentSelect={setSelectedDocumentId}
-                  />
+              ),
+              defaultWidth: 17,
+              minWidth: 10,
+              maxWidth: 40,
+            } : undefined}
+            centerPanel={{
+              content: (
+                <div
+                  style={{
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%'
+                  }}
+                >
+                  <div className="rounded-lg bg-background shadow-sm" style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden'
+                  }}>
+                    <TiptapEditor
+                      initialContent={documentContent}
+                      onContentChange={(html) => {
+                        console.log('📝 [EDITOR] Content changed, updating store (skipEditorUpdate=true)');
+                        documentContentStore.updateContent(html, true); // true = skip editor update
+                      }}
+                      onCommentsChange={setComments}
+                      onAIEdit={handleAIEdit}
+                      selectedModel={selectedModel}
+                      selectedDocumentId={selectedDocumentId}
+                      onDocumentSelect={setSelectedDocumentId}
+                      showContextToggle={!isLeftPanelVisible}
+                      onToggleContext={() => setIsLeftPanelVisible(true)}
+                      onToggleCommentsPanel={() => setIsPanelOpen(!isPanelOpen)}
+                      onSetPanelTab={(tab) => {
+                        setPanelTab(tab);
+                        setIsPanelOpen(true);
+                      }}
+                      onSave={handleSaveDocument}
+                      saveStatus={saveStatus}
+                      lastSaved={lastSaved}
+                    />
+                  </div>
                 </div>
-              </div>
-            }
+              ),
+              defaultWidth: isLeftPanelVisible ? 58 : 75,
+              minWidth: 30,
+              maxWidth: 80,
+            }}
+            rightPanel={{
+              content: (
+                <div
+                  style={{
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <div className="rounded-lg bg-white dark:bg-[#1a1a1a]" style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    width: '100%',
+                    maxWidth: '100%'
+                  }}>
+                    <div className="bg-[#EBEBEB] dark:bg-[#2C2C2C] border-b border-b-[rgba(0,0,0,0.08)] dark:border-b-[rgba(255,255,255,0.08)]" style={{ 
+                      padding: '12px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <Image
+                          src="/MF-Workstation-Logo-Light.png"
+                          alt="MF Workstation"
+                          width={150}
+                          height={32}
+                          style={{ objectFit: 'contain' }}
+                          className="dark:block hidden"
+                        />
+                        <Image
+                          src="/MF-Workstation-Logo.png"
+                          alt="MF Workstation"
+                          width={150}
+                          height={32}
+                          style={{ objectFit: 'contain' }}
+                          className="dark:hidden block"
+                        />
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '12px',
+                        fontFamily: 'ui-monospace, monospace',
+                        color: '#666'
+                      }}>
+                        <span>
+                          {tokenData ? tokenData.totalTokens.toLocaleString() : '0'} / {tokenData ? tokenData.contextLimit.toLocaleString() : '200,000'}
+                        </span>
+                        <span style={{
+                          fontWeight: '600',
+                          color: tokenData && tokenData.percentUsed > 70 ? '#ef4444' : tokenData && tokenData.percentUsed > 50 ? '#f59e0b' : '#6ee7b7'
+                        }}>
+                          {tokenData ? tokenData.percentUsed.toFixed(1) : '0.0'}%
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Conditional panel rendering based on isPanelOpen and panelTab */}
+                    {isPanelOpen && panelTab === 'comments' ? (
+                      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#fff' }}>
+                        <CommentsPanel
+                          comments={comments}
+                          activeCommentId={null}
+                          onCommentClick={() => {}}
+                          onCommentResolve={(id) => {
+                            setComments(prev => prev.map(c => c.id === id ? {...c, resolved: !c.resolved} : c));
+                          }}
+                          onCommentDelete={(id) => {
+                            setComments(prev => prev.filter(c => c.id !== id));
+                          }}
+                          onAddComment={() => {}}
+                          isOpen={true}
+                          onToggle={() => setIsPanelOpen(false)}
+                        />
+                      </div>
+                    ) : isPanelOpen && panelTab === 'tools' ? (
+                      <div style={{ padding: '16px', height: '100%', overflow: 'auto', backgroundColor: '#fff', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Table of Contents</h2>
+                          <button 
+                            onClick={() => setIsPanelOpen(false)}
+                            style={{ padding: '4px 8px', cursor: 'pointer', background: 'none', border: 'none', fontSize: '16px' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        
+                        {/* Insert and Export buttons */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                          <button
+                            onClick={handleInsertTOC}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '13px',
+                              fontWeight: '500',
+                              backgroundColor: '#8b5cf6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            Insert TOC
+                          </button>
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              onClick={() => {
+                                const dropdown = document.getElementById('export-dropdown');
+                                if (dropdown) {
+                                  dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                                }
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <Download className="h-4 w-4" />
+                              Export
+                            </button>
+                            <div
+                              id="export-dropdown"
+                              style={{
+                                display: 'none',
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                marginTop: '4px',
+                                backgroundColor: 'white',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '6px',
+                                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                                zIndex: 1000,
+                                minWidth: '150px'
+                              }}
+                            >
+                              <button
+                                onClick={() => {
+                                  handleExportTOC('html');
+                                  const dropdown = document.getElementById('export-dropdown');
+                                  if (dropdown) dropdown.style.display = 'none';
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  textAlign: 'left',
+                                  border: 'none',
+                                  background: 'none',
+                                  cursor: 'pointer',
+                                  fontSize: '13px'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                HTML
+                              </button>
+                              <button
+                                onClick={() => {
+                                  handleExportTOC('markdown');
+                                  const dropdown = document.getElementById('export-dropdown');
+                                  if (dropdown) dropdown.style.display = 'none';
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  textAlign: 'left',
+                                  border: 'none',
+                                  background: 'none',
+                                  cursor: 'pointer',
+                                  fontSize: '13px'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                Markdown
+                              </button>
+                              <button
+                                onClick={() => {
+                                  handleExportTOC('richtext');
+                                  const dropdown = document.getElementById('export-dropdown');
+                                  if (dropdown) dropdown.style.display = 'none';
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  textAlign: 'left',
+                                  border: 'none',
+                                  background: 'none',
+                                  cursor: 'pointer',
+                                  fontSize: '13px',
+                                  borderTop: '1px solid #e5e7eb'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                Rich Text
+                              </button>
+                            </div>
+                          </div>
+                          <button
+                            onClick={handleCopyTOC}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '13px',
+                              fontWeight: '500',
+                              backgroundColor: '#10b981',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            Copy
+                          </button>
+                        </div>
+                        
+                        {documentHeadings.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, overflowY: 'auto' }}>
+                            {documentHeadings.map((heading) => (
+                              <div
+                                key={heading.id}
+                                onClick={() => handleTOCClick(heading.id)}
+                                style={{
+                                  cursor: 'pointer',
+                                  paddingTop: '6px',
+                                  paddingBottom: '6px',
+                                  paddingLeft: `${8 + (heading.level - 1) * 16}px`,
+                                  paddingRight: '8px',
+                                  borderRadius: '4px',
+                                  fontSize: heading.level === 1 ? '16px' : heading.level === 2 ? '14px' : '13px',
+                                  fontWeight: heading.level <= 2 ? '600' : '400',
+                                  color: '#333',
+                                  transition: 'background-color 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                {heading.text}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p style={{ color: '#666', fontSize: '14px' }}>No headings found in document</p>
+                        )}
+                      </div>
+                    ) : (
+                      <DocumentChat
+                        messages={messages}
+                        isLoading={isLoading}
+                        status={status}
+                        error={error}
+                        onSendMessage={handleSendMessage}
+                        selectedModel={selectedModel}
+                        onModelChange={setSelectedModel}
+                        onReload={reload}
+                        isEditorVisible={isEditorVisible}
+                        onToggleEditor={handleToggleEditor}
+                        webSearchEnabled={webSearchEnabled}
+                        onWebSearchChange={setWebSearchEnabled}
+                        currentDocument={currentDocument}
+                        currentProject={currentProject}
+                        wordCount={wordCount}
+                        systemPrompt={actualSystemPrompt}
+                        documentContent={documentContent}
+                      containerWidth={chatPanelWidth}
+                      selectedClient={selectedClient}
+                      clientContextEnabled={clientContextEnabled}
+                      onClientChange={setSelectedClientId}
+                      onClientContextToggle={() => setClientContextEnabled(!clientContextEnabled)}
+                      onTokenDataChange={setTokenData}
+                      taggedDocuments={taggedDocuments}
+                      onRemoveTaggedDocument={handleRemoveTaggedDocument}
+                      availableDocuments={availableDocuments}
+                    />
+                    )}
+                  </div>
+                </div>
+              ),
+              defaultWidth: 25,
+              minWidth: 15,
+              maxWidth: 50,
+            }}
           />
         )}
 
@@ -790,6 +1382,14 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                 selectedModel={selectedModel}
                 selectedDocumentId={selectedDocumentId}
                 onDocumentSelect={setSelectedDocumentId}
+                onToggleCommentsPanel={() => setIsPanelOpen(!isPanelOpen)}
+                onSetPanelTab={(tab) => {
+                  setPanelTab(tab);
+                  setIsPanelOpen(true);
+                }}
+                onSave={handleSaveDocument}
+                saveStatus={saveStatus}
+                lastSaved={lastSaved}
               />
             </div>
           </div>
@@ -821,6 +1421,9 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
               clientContextEnabled={clientContextEnabled}
               onClientChange={setSelectedClientId}
               onClientContextToggle={() => setClientContextEnabled(!clientContextEnabled)}
+              taggedDocuments={taggedDocuments}
+              onRemoveTaggedDocument={handleRemoveTaggedDocument}
+              availableDocuments={availableDocuments}
             />
           </div>
         )}
@@ -851,6 +1454,14 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
               selectedModel={selectedModel}
               onToggleSidebar={() => setIsSidebarVisible(!isSidebarVisible)}
               isSidebarVisible={isSidebarVisible}
+              onToggleCommentsPanel={() => setIsPanelOpen(!isPanelOpen)}
+              onSetPanelTab={(tab) => {
+                setPanelTab(tab);
+                setIsPanelOpen(true);
+              }}
+              onSave={handleSaveDocument}
+              saveStatus={saveStatus}
+              lastSaved={lastSaved}
             />
           </div>
 
@@ -950,6 +1561,9 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                   clientContextEnabled={clientContextEnabled}
                   onClientChange={setSelectedClientId}
                   onClientContextToggle={() => setClientContextEnabled(!clientContextEnabled)}
+                  taggedDocuments={taggedDocuments}
+                  onRemoveTaggedDocument={handleRemoveTaggedDocument}
+                  availableDocuments={availableDocuments}
                 />
               </div>
             )}
@@ -960,6 +1574,9 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
 
       {/* Bottom Navigation - Mobile Only */}
       {isMobile && <BottomNav />}
+
+      {/* Create Ditto/Mirror Floating Button */}
+      <CreateDittoButton onCreateDitto={handleCreateDitto} />
 
       {/* Create Document/Folder Modal */}
       <CreateItemModal

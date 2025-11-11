@@ -1,50 +1,78 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
 import React from 'react'
+import { NodeViewProps } from '@tiptap/react'
 
 // PageBreak Node View Component
-function PageBreakComponent() {
+function PageBreakComponent({ editor, getPos, extension }: NodeViewProps) {
+  // Get page configuration from extension options
+  const pageHeight = extension.options.pageHeight || 1056
+  const marginTop = extension.options.marginTop || 96
+  const marginBottom = extension.options.marginBottom || 96
+  const pageGap = extension.options.pageGap || 24
+
+  // Calculate dynamic spacing to jump to next page
+  const calculateSpacing = () => {
+    try {
+      if (typeof getPos !== 'function') return 24 // Fallback
+
+      const pos = getPos()
+      const resolvedPos = editor.state.doc.resolve(pos)
+      const domNode = editor.view.nodeDOM(pos)
+
+      if (!domNode) return 24 // Fallback
+
+      // Get the Y position of the page break in the editor
+      const editorElement = editor.view.dom.parentElement
+      if (!editorElement) return 24
+
+      const editorRect = editorElement.getBoundingClientRect()
+      const nodeRect = (domNode as HTMLElement).getBoundingClientRect()
+      const currentY = nodeRect.top - editorRect.top
+
+      // Calculate which page we're on and position within that page
+      const contentHeight = pageHeight - (marginTop + marginBottom)
+      const totalPageHeight = pageHeight + pageGap // Each "page unit" including its following gap
+
+      const currentPageIndex = Math.floor(currentY / totalPageHeight)
+      const nextPageStart = (currentPageIndex + 1) * totalPageHeight
+
+      // Calculate spacing needed to reach next page start
+      const spacingNeeded = Math.max(24, nextPageStart - currentY)
+
+      return spacingNeeded
+    } catch (error) {
+      console.warn('PageBreak spacing calculation error:', error)
+      return 24 // Fallback to minimum spacing
+    }
+  }
+
+  const spacing = calculateSpacing()
+
   return (
-    <NodeViewWrapper 
-      className="page-break-node" 
+    <NodeViewWrapper
+      className="page-break-node"
       data-type="page-break"
       contentEditable={false}
       style={{
-        margin: '48px 0',
+        display: 'block',
+        margin: '0',
+        padding: `${spacing}px 0 0 0`, // Dynamic padding to reach next page
         userSelect: 'none',
         position: 'relative',
-        height: '48px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        height: 'auto',
+        pageBreakAfter: 'always',
+        breakAfter: 'page',
       }}
     >
-      <div 
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          height: '1px',
-          background: 'repeating-linear-gradient(to right, #ccc 0px, #ccc 10px, transparent 10px, transparent 20px)',
-        }}
-      />
-      <div 
+      {/* Hidden by CSS but kept for structure */}
+      <div
         style={{
           position: 'relative',
-          background: 'white',
-          padding: '4px 16px',
-          fontSize: '11px',
-          fontWeight: '600',
-          color: '#666',
-          border: '1px solid #ccc',
-          borderRadius: '12px',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-          zIndex: 1,
+          height: '2px',
+          background: 'repeating-linear-gradient(to right, #ccc 0px, #ccc 8px, transparent 8px, transparent 16px)',
         }}
-      >
-        Page Break
-      </div>
+      />
     </NodeViewWrapper>
   )
 }
@@ -61,6 +89,17 @@ export const PageBreak = Node.create({
 
   draggable: true,
 
+  addOptions() {
+    return {
+      pageHeight: 1056,
+      marginTop: 96,
+      marginBottom: 96,
+      marginLeft: 96,
+      marginRight: 96,
+      pageGap: 24,
+    }
+  },
+
   parseHTML() {
     return [
       {
@@ -75,10 +114,10 @@ export const PageBreak = Node.create({
   renderHTML({ HTMLAttributes }) {
     return [
       'div',
-      mergeAttributes(HTMLAttributes, { 
+      mergeAttributes(HTMLAttributes, {
         'data-type': 'page-break',
         'class': 'page-break-node',
-        'style': 'page-break-after: always; break-after: page; margin: 48px 0; height: 48px;'
+        'style': 'page-break-after: always; break-after: page; display: block; margin: 0; padding: 24px 0;'
       }),
     ]
   },
@@ -108,21 +147,21 @@ export const PageBreak = Node.create({
       'Backspace': () => {
         const { $from } = this.editor.state.selection
         const nodeBefore = $from.nodeBefore
-        
+
         if (nodeBefore && nodeBefore.type.name === this.name) {
           return this.editor.commands.deleteNode(this.name)
         }
-        
+
         return false
       },
       'Delete': () => {
         const { $from } = this.editor.state.selection
         const nodeAfter = $from.nodeAfter
-        
+
         if (nodeAfter && nodeAfter.type.name === this.name) {
           return this.editor.commands.deleteNode(this.name)
         }
-        
+
         return false
       },
     }

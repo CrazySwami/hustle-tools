@@ -6,8 +6,20 @@ import { EditorContent } from '@tiptap/react'
 import { cn } from '@/lib/utils'
 import { UnifiedPanel, PanelType } from './UnifiedPanel'
 
+export interface PageSetupConfig {
+  pageSize: 'letter' | 'a4' | 'legal' | 'custom'
+  width: number
+  height: number
+  marginTop: number
+  marginRight: number
+  marginBottom: number
+  marginLeft: number
+  orientation: 'portrait' | 'landscape'
+}
+
 interface MultiPageRendererProps {
   editor: Editor | null
+  pageConfig?: PageSetupConfig
   mobileZoom?: number
   leftPanel?: PanelType
   rightPanel?: PanelType
@@ -17,14 +29,23 @@ interface MultiPageRendererProps {
   onRightPanelClose?: () => void
 }
 
-const PAGE_WIDTH = 816 // 8.5 inches at 96 DPI
-const PAGE_HEIGHT = 1056 // 11 inches at 96 DPI
-const CONTENT_HEIGHT = 864 // 9 inches (11 - 2 inch margins)
-const PAGE_PADDING = 96 // 1 inch margins
-const PAGE_GAP = 24 // Gap between pages
+// Default page dimensions if no config provided
+const DEFAULT_PAGE_CONFIG: PageSetupConfig = {
+  pageSize: 'letter',
+  width: 816,
+  height: 1056,
+  marginTop: 96,
+  marginRight: 96,
+  marginBottom: 96,
+  marginLeft: 96,
+  orientation: 'portrait',
+}
+
+const PAGE_GAP = 24 // Gap between pages (FIXED)
 
 export function MultiPageRenderer({
   editor,
+  pageConfig = DEFAULT_PAGE_CONFIG,
   mobileZoom = 60,
   leftPanel,
   rightPanel,
@@ -38,7 +59,16 @@ export function MultiPageRenderer({
   const containerRef = useRef<HTMLDivElement>(null)
   const editorWrapperRef = useRef<HTMLDivElement>(null)
 
-  // Calculate pages based on content height
+  // Extract dimensions from config
+  const PAGE_WIDTH = pageConfig.width
+  const PAGE_HEIGHT = pageConfig.height
+  const PAGE_PADDING_TOP = pageConfig.marginTop
+  const PAGE_PADDING_RIGHT = pageConfig.marginRight
+  const PAGE_PADDING_BOTTOM = pageConfig.marginBottom
+  const PAGE_PADDING_LEFT = pageConfig.marginLeft
+  const CONTENT_HEIGHT = PAGE_HEIGHT - (PAGE_PADDING_TOP + PAGE_PADDING_BOTTOM)
+
+  // Calculate number of pages needed based on content height
   const calculatePages = useCallback(() => {
     if (!editor || !editorWrapperRef.current) return
 
@@ -49,17 +79,17 @@ export function MultiPageRenderer({
     // Get total content height
     const totalHeight = (proseMirror as HTMLElement).scrollHeight
 
-    // Calculate number of pages needed
+    // Calculate pages needed (based on content area, not full page height)
     const pagesNeeded = Math.max(1, Math.ceil(totalHeight / CONTENT_HEIGHT))
 
     setPageCount(pagesNeeded)
-  }, [editor])
+  }, [editor, CONTENT_HEIGHT])
 
-  // Set up observers
+  // Set up observers for content changes
   useEffect(() => {
     if (!editor || !editorWrapperRef.current) return
 
-    // Initial calculation with delay to ensure rendering
+    // Initial calculation
     const initialTimer = setTimeout(() => calculatePages(), 200)
 
     // Debounced calculation on updates
@@ -73,9 +103,12 @@ export function MultiPageRenderer({
     editor.on('update', debouncedCalculate)
     editor.on('transaction', debouncedCalculate)
 
-    // Observe content changes
+    // Observe size changes
     const resizeObserver = new ResizeObserver(debouncedCalculate)
-    resizeObserver.observe(editorWrapperRef.current)
+    const proseMirror = editorWrapperRef.current.querySelector('.ProseMirror')
+    if (proseMirror) {
+      resizeObserver.observe(proseMirror as Element)
+    }
 
     return () => {
       clearTimeout(initialTimer)
@@ -86,7 +119,7 @@ export function MultiPageRenderer({
     }
   }, [editor, calculatePages])
 
-  // Track scroll position
+  // Track scroll position for current page indicator
   useEffect(() => {
     const container = containerRef.current
     if (!container || pageCount <= 1) return
@@ -111,9 +144,6 @@ export function MultiPageRenderer({
   if (!editor) {
     return null
   }
-
-  // Calculate total height needed for all pages
-  const totalHeight = pageCount * PAGE_HEIGHT + (pageCount - 1) * PAGE_GAP
 
   return (
     <div
@@ -158,9 +188,9 @@ export function MultiPageRenderer({
           </UnifiedPanel>
         )}
 
-        {/* Document */}
+        {/* Multi-Page Document Container */}
         <div
-          className="transform-gpu flex-shrink-0"
+          className="transform-gpu flex-shrink-0 relative"
           style={{
             transformOrigin: 'top center',
           }}
@@ -188,22 +218,41 @@ export function MultiPageRenderer({
             }
           `}</style>
 
-          {/* Single continuous page container with visual page breaks */}
-          <div
-            ref={editorWrapperRef}
-            className={cn(
-              "tiptap-page mx-auto",
-              "w-[816px]",
-              "bg-white dark:bg-[#2a2a2a]",
-              "shadow-[0_0_0_1px_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.08),0_4px_8px_rgba(0,0,0,0.05)]",
-              "dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.3),0_4px_8px_rgba(0,0,0,0.2)]"
-            )}
-            style={{
-              padding: `${PAGE_PADDING}px`,
-              minHeight: `${totalHeight}px`,
-            }}
-          >
-            <EditorContent editor={editor} className="w-full" />
+          {/* Pages container - stacks page boxes with continuous editor overlay */}
+          <div className="relative">
+            {/* Page boxes - background pages with gaps */}
+            <div className="flex flex-col" style={{ gap: `${PAGE_GAP}px` }}>
+              {Array.from({ length: pageCount }).map((_, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    "page-box mx-auto",
+                    "bg-white dark:bg-[#2a2a2a]",
+                    "shadow-[0_0_0_1px_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.08),0_4px_8px_rgba(0,0,0,0.05)]",
+                    "dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.3),0_4px_8px_rgba(0,0,0,0.2)]",
+                    "rounded-sm"
+                  )}
+                  style={{
+                    width: `${PAGE_WIDTH}px`,
+                    height: `${PAGE_HEIGHT}px`,
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Continuous editor overlay - flows through all pages */}
+            <div
+              ref={editorWrapperRef}
+              className="absolute top-0 left-0"
+              style={{
+                width: `${PAGE_WIDTH}px`,
+                padding: `${PAGE_PADDING_TOP}px ${PAGE_PADDING_RIGHT}px ${PAGE_PADDING_BOTTOM}px ${PAGE_PADDING_LEFT}px`,
+                // Min height to allow content to flow through all pages
+                minHeight: `${pageCount * PAGE_HEIGHT + (pageCount - 1) * PAGE_GAP}px`,
+              }}
+            >
+              <EditorContent editor={editor} />
+            </div>
           </div>
         </div>
 
@@ -219,10 +268,9 @@ export function MultiPageRenderer({
         )}
       </div>
 
-      {/* Mobile document view - full width edge to edge */}
+      {/* Mobile document view - simplified single page */}
       <div className="md:hidden">
         <div
-          ref={editorWrapperRef}
           className={cn(
             "tiptap-page",
             "w-full",
@@ -230,7 +278,7 @@ export function MultiPageRenderer({
           )}
           style={{
             padding: '16px',
-            minHeight: `${totalHeight}px`,
+            minHeight: '100vh',
           }}
         >
           <EditorContent editor={editor} className="w-full" />

@@ -57,6 +57,9 @@ export function BubbleMenuV0({
   const [showContextDialog, setShowContextDialog] = useState(false)
   const [pendingAction, setPendingAction] = useState<AIAction | null>(null)
   const [contextInput, setContextInput] = useState("")
+  const [showPlacementDialog, setShowPlacementDialog] = useState(false)
+  const [pendingPlacementAction, setPendingPlacementAction] = useState<AIAction | null>(null)
+  const [placementChoice, setPlacementChoice] = useState<'replace' | 'insert'>('replace')
 
   const handleFormat = (format: string) => {
     const newFormats = new Set(activeFormats)
@@ -80,8 +83,18 @@ export function BubbleMenuV0({
       return
     }
 
-    // Immediate actions (inline edits)
-    onAIAction?.(action, selectedText, undefined, false)
+    // Continue action goes directly (no replace/insert choice)
+    if (action === "continue") {
+      onAIAction?.(action, selectedText, undefined, false)
+      setShowAIMenu(false)
+      setShowToneMenu(false)
+      setShowAskAIMenu(false)
+      return
+    }
+
+    // All other actions show placement dialog
+    setPendingPlacementAction(action)
+    setShowPlacementDialog(true)
     setShowAIMenu(false)
     setShowToneMenu(false)
     setShowAskAIMenu(false)
@@ -94,6 +107,16 @@ export function BubbleMenuV0({
       setShowContextDialog(false)
       setPendingAction(null)
       setContextInput("")
+    }
+  }
+
+  const handlePlacementSubmit = () => {
+    if (pendingPlacementAction) {
+      // Pass placement choice as additional context
+      onAIAction?.(pendingPlacementAction, selectedText, placementChoice, false)
+      setShowPlacementDialog(false)
+      setPendingPlacementAction(null)
+      setPlacementChoice('replace')
     }
   }
 
@@ -167,7 +190,7 @@ export function BubbleMenuV0({
 
   return (
     <>
-      <div className="bg-white border border-neutral-200 rounded-lg shadow-lg backdrop-blur-sm relative">
+      <div className="bg-white dark:bg-[#2a2a2a] border border-neutral-200 dark:border-[rgba(255,255,255,0.15)] rounded-lg shadow-lg backdrop-blur-sm relative">
         <div className="flex items-center gap-0.5 p-1">
           {formatButtons.map((button, index) => {
             const Icon = button.icon
@@ -182,9 +205,9 @@ export function BubbleMenuV0({
                 className={`
                   h-8 w-8 p-0
                   transition-all duration-200 ease-out
-                  hover:bg-neutral-100 hover:scale-110
+                  hover:bg-neutral-100 dark:hover:bg-[#333333] hover:scale-110
                   active:scale-95
-                  ${isActive ? "bg-neutral-100 text-neutral-900" : "text-neutral-600"}
+                  ${isActive ? "bg-neutral-100 dark:bg-[#333333] text-neutral-900 dark:text-white" : "text-neutral-600 dark:text-gray-300"}
                   animate-in fade-in slide-in-from-bottom-1 duration-200
                 `}
                 style={{
@@ -206,9 +229,9 @@ export function BubbleMenuV0({
               className={`
                 h-8 w-8 p-0
                 transition-all duration-200 ease-out
-                hover:bg-blue-50 hover:scale-110
+                hover:bg-blue-50 dark:hover:bg-[#333333] hover:scale-110
                 active:scale-95
-                ${showInsertMenu ? "bg-blue-50 text-blue-600" : "text-neutral-600"}
+                ${showInsertMenu ? "bg-blue-50 dark:bg-[#333333] text-blue-600 dark:text-blue-400" : "text-neutral-600 dark:text-gray-300"}
                 animate-in fade-in slide-in-from-bottom-1 duration-200
               `}
               style={{
@@ -220,7 +243,7 @@ export function BubbleMenuV0({
             </Button>
 
             {showInsertMenu && (
-              <div className={`absolute right-0 w-56 bg-white border border-neutral-200 rounded-lg shadow-xl backdrop-blur-sm animate-in fade-in duration-200 overflow-hidden ${
+              <div className={`absolute right-0 w-56 bg-white dark:bg-[#2a2a2a] border border-neutral-200 dark:border-[rgba(255,255,255,0.15)] rounded-lg shadow-xl backdrop-blur-sm animate-in fade-in duration-200 overflow-hidden ${
                 menuPosition === 'top'
                   ? 'bottom-full mb-2 slide-in-from-bottom-2'
                   : 'top-full mt-2 slide-in-from-top-2'
@@ -235,7 +258,7 @@ export function BubbleMenuV0({
                         className={`
                           w-full text-left px-3 py-2 rounded-md
                           transition-all duration-200 ease-out
-                          hover:bg-neutral-50 hover:translate-x-0.5
+                          hover:bg-neutral-50 dark:hover:bg-[#333333] hover:translate-x-0.5
                           active:scale-[0.98]
                           group
                           animate-in fade-in slide-in-from-left-1 duration-200
@@ -245,14 +268,14 @@ export function BubbleMenuV0({
                         }}
                       >
                         <div className="flex items-center gap-2">
-                          <Icon className="h-4 w-4 text-neutral-600" />
+                          <Icon className="h-4 w-4 text-neutral-600 dark:text-gray-300" />
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs font-medium text-neutral-900 tracking-tight">{option.label}</div>
-                            <div className="text-[10px] text-neutral-500 tracking-tight truncate">
+                            <div className="text-xs font-medium text-neutral-900 dark:text-white tracking-tight">{option.label}</div>
+                            <div className="text-[10px] text-neutral-500 dark:text-gray-400 tracking-tight truncate">
                               {option.description}
                             </div>
                           </div>
-                          <ChevronRight className="h-3 w-3 text-neutral-400 transition-transform duration-200 group-hover:translate-x-0.5" />
+                          <ChevronRight className="h-3 w-3 text-neutral-400 dark:text-gray-500 transition-transform duration-200 group-hover:translate-x-0.5" />
                         </div>
                       </button>
                     )
@@ -271,9 +294,9 @@ export function BubbleMenuV0({
               className={`
                 h-8 w-8 p-0
                 transition-all duration-200 ease-out
-                hover:bg-purple-50 hover:scale-110
+                hover:bg-purple-50 dark:hover:bg-[#333333] hover:scale-110
                 active:scale-95
-                ${showAIMenu ? "bg-purple-50 text-purple-600" : "text-neutral-600"}
+                ${showAIMenu ? "bg-purple-50 dark:bg-[#333333] text-purple-600 dark:text-purple-400" : "text-neutral-600 dark:text-gray-300"}
                 animate-in fade-in slide-in-from-bottom-1 duration-200
               `}
               style={{
@@ -552,6 +575,97 @@ export function BubbleMenuV0({
             </Button>
             <Button onClick={handleContextSubmit}>
               {pendingAction === "research" ? "Search" : "Submit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Placement Choice Dialog */}
+      <Dialog open={showPlacementDialog} onOpenChange={setShowPlacementDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Where should the AI output go?</DialogTitle>
+            <DialogDescription>
+              Choose whether to replace the selected text or insert after it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-3">
+              <button
+                onClick={() => setPlacementChoice('replace')}
+                className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                  placementChoice === 'replace'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                    placementChoice === 'replace'
+                      ? 'border-purple-500 bg-purple-500'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}>
+                    {placementChoice === 'replace' && (
+                      <div className="h-2 w-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">Replace Selected Text</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      The AI output will replace your current selection
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setPlacementChoice('insert')}
+                className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                  placementChoice === 'insert'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                    placementChoice === 'insert'
+                      ? 'border-purple-500 bg-purple-500'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}>
+                    {placementChoice === 'insert' && (
+                      <div className="h-2 w-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">Insert After Selection</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      The AI output will be added on a new line after your selection
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {selectedText && (
+              <div className="mt-2 p-3 bg-muted rounded-md">
+                <p className="text-xs text-muted-foreground mb-1">Selected text:</p>
+                <p className="text-sm line-clamp-3">{selectedText}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPlacementDialog(false)
+                setPendingPlacementAction(null)
+                setPlacementChoice('replace')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handlePlacementSubmit}>
+              Continue
             </Button>
           </DialogFooter>
         </DialogContent>

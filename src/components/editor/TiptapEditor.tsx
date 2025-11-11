@@ -19,7 +19,7 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import TiptapHeading from '@tiptap/extension-heading'
 import TiptapParagraph from '@tiptap/extension-paragraph'
-import { Pagination } from 'tiptap-pagination-breaks'
+import { PageBreak } from './PageBreakExtension'
 import Table from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
@@ -91,7 +91,9 @@ import {
   Download,
   Save,
   Check,
-  Loader2
+  Loader2,
+  BarChart3,
+  Info
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
@@ -115,6 +117,7 @@ import { Plugin } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { MultiPageRenderer } from './MultiPageRenderer'
 import { ExportModal } from './ExportModal'
+import { PageSetupModal, PageSetupConfig } from './PageSetupModal'
 
 // Constants extracted outside component for performance
 const TEXT_COLORS = [
@@ -959,6 +962,38 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
   const [showAIMenu, setShowAIMenu] = useState(false)
   const [isInlineProcessing, setIsInlineProcessing] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [isPageSetupModalOpen, setIsPageSetupModalOpen] = useState(false)
+
+  // Page setup configuration - load from localStorage or use defaults
+  const [pageConfig, setPageConfig] = useState<PageSetupConfig>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('tiptap-page-setup')
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch (e) {
+          console.error('Failed to parse page config:', e)
+        }
+      }
+    }
+    return {
+      pageSize: 'letter',
+      width: 816,
+      height: 1056,
+      marginTop: 96,
+      marginRight: 96,
+      marginBottom: 96,
+      marginLeft: 96,
+      orientation: 'portrait',
+    }
+  })
+
+  // Save page config to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tiptap-page-setup', JSON.stringify(pageConfig))
+    }
+  }, [pageConfig])
 
   // Get document content store for animations
   const { setEditor: registerEditor } = useDocumentContent()
@@ -1112,11 +1147,13 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
           }
         },
       }),
-      Pagination.configure({
-        pageHeight: 1056, // 11 inches at 96 DPI
-        pageWidth: 816,   // 8.5 inches at 96 DPI
-        pageMargin: 96,   // 1 inch margins
-        showPageNumber: false, // We'll show our own page numbers
+      PageBreak.configure({
+        pageHeight: pageConfig.height,
+        marginTop: pageConfig.marginTop,
+        marginBottom: pageConfig.marginBottom,
+        marginLeft: pageConfig.marginLeft,
+        marginRight: pageConfig.marginRight,
+        pageGap: 24, // Fixed gap between pages
       }),
       Table.configure({
         resizable: true,
@@ -1160,55 +1197,46 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                     id: 'ai-continue',
                     label: 'Continue Writing (AI)',
                     description: 'Let AI continue from where you left off',
-                    icon: require('lucide-react').Sparkles,
+                    icon: Sparkles,
                     group: 'ai',
                     command: async () => {
-                      const docContext = getDocContext()
                       const selection = editor.state.selection
                       const textBefore = editor.state.doc.textBetween(Math.max(0, selection.from - 500), selection.from, ' ')
                       
+                      if (!textBefore.trim()) {
+                        alert('Please write some text first before using Continue Writing.')
+                        return
+                      }
+                      
+                      const { from } = selection
+                      
                       try {
-                        const response = await fetch('/api/chat', {
+                        const response = await fetch('/api/inline-edit', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                            messages: [
-                              {
-                                role: 'system',
-                                content: 'You are a helpful writing assistant. Continue the text naturally based on the context provided. Only output the continuation, no explanations.'
-                              },
-                              {
-                                role: 'user',
-                                content: `Continue writing from here:\n\n${textBefore}`
-                              }
-                            ],
-                            model: selectedModel || 'anthropic/claude-3-5-sonnet-20241022',
-                          }),
+                            text: textBefore,
+                            instruction: 'Continue writing from where this text ends',
+                            model: selectedModel || 'anthropic/claude-haiku-4-5-20251001'
+                          })
                         })
                         
                         if (!response.ok) throw new Error('Failed to generate continuation')
+                        if (!response.body) throw new Error('No response body')
                         
-                        const reader = response.body?.getReader()
+                        const reader = response.body.getReader()
                         const decoder = new TextDecoder()
-                        let continuation = ''
+                        let fullText = ''
                         
-                        if (reader) {
-                          while (true) {
-                            const { done, value } = await reader.read()
-                            if (done) break
-                            const chunk = decoder.decode(value)
-                            const lines = chunk.split('\n')
-                            for (const line of lines) {
-                              if (line.startsWith('0:')) {
-                                const text = line.substring(2).trim()
-                                if (text) continuation += text
-                              }
-                            }
-                          }
-                        }
-                        
-                        if (continuation) {
-                          editor.chain().focus().insertContent(' ' + continuation).run()
+                        while (true) {
+                          const { done, value } = await reader.read()
+                          if (done) break
+                          
+                          const chunk = decoder.decode(value)
+                          fullText += chunk
+                          
+                          editor.chain().focus().insertContentAt(from + fullText.length - chunk.length, chunk).run()
+                          await new Promise(resolve => setTimeout(resolve, 30))
                         }
                       } catch (error) {
                         console.error('Continue writing failed:', error)
@@ -1220,56 +1248,41 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                     id: 'ai-prompt',
                     label: 'Ask AI (Custom Prompt)',
                     description: 'Ask AI anything with document context',
-                    icon: require('lucide-react').MessageSquare,
+                    icon: MessageSquare,
                     group: 'ai',
                     command: async () => {
                       const userPrompt = window.prompt('What would you like AI to write?')
                       if (!userPrompt) return
                       
-                      const docContext = getDocContext()
+                      const { from } = editor.state.selection
                       
                       try {
-                        const response = await fetch('/api/chat', {
+                        const response = await fetch('/api/inline-edit', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                            messages: [
-                              {
-                                role: 'system',
-                                content: `You are a helpful writing assistant. You have access to the current document context. Generate content based on the user's request. Only output the requested content, no explanations.\n\nDocument context:\n${docContext.substring(0, 2000)}`
-                              },
-                              {
-                                role: 'user',
-                                content: userPrompt
-                              }
-                            ],
-                            model: selectedModel || 'anthropic/claude-3-5-sonnet-20241022',
-                          }),
+                            text: '',
+                            instruction: userPrompt,
+                            model: selectedModel || 'anthropic/claude-haiku-4-5-20251001'
+                          })
                         })
                         
                         if (!response.ok) throw new Error('Failed to generate content')
+                        if (!response.body) throw new Error('No response body')
                         
-                        const reader = response.body?.getReader()
+                        const reader = response.body.getReader()
                         const decoder = new TextDecoder()
-                        let generatedContent = ''
+                        let fullText = ''
                         
-                        if (reader) {
-                          while (true) {
-                            const { done, value } = await reader.read()
-                            if (done) break
-                            const chunk = decoder.decode(value)
-                            const lines = chunk.split('\n')
-                            for (const line of lines) {
-                              if (line.startsWith('0:')) {
-                                const text = line.substring(2).trim()
-                                if (text) generatedContent += text
-                              }
-                            }
-                          }
-                        }
-                        
-                        if (generatedContent) {
-                          editor.chain().focus().insertContent(generatedContent).run()
+                        while (true) {
+                          const { done, value } = await reader.read()
+                          if (done) break
+                          
+                          const chunk = decoder.decode(value)
+                          fullText += chunk
+                          
+                          editor.chain().focus().insertContentAt(from + fullText.length - chunk.length, chunk).run()
+                          await new Promise(resolve => setTimeout(resolve, 30))
                         }
                       } catch (error) {
                         console.error('AI prompt failed:', error)
@@ -1285,7 +1298,7 @@ export default function TiptapEditor({ initialContent, onContentChange, onCommen
                     id: 'chart-ai',
                     label: 'Generate Chart (AI)',
                     description: 'Create a chart with AI',
-                    icon: require('lucide-react').BarChart3,
+                    icon: BarChart3,
                     group: 'components',
                     command: async () => {
                       const promptText = `📊 CHART GENERATOR
@@ -1362,7 +1375,7 @@ Example: "User growth line graph last 6 months"`
                     id: 'infocard-ai',
                     label: 'Generate Info Card (AI)',
                     description: 'Create an info card with AI',
-                    icon: require('lucide-react').Info,
+                    icon: Info,
                     group: 'components',
                     command: async () => {
                       const promptText = `💡 INFO CARD GENERATOR
@@ -1445,7 +1458,7 @@ Example: "Warning about deadline"`
                     id: 'custom-component-ai',
                     label: 'Custom Component (AI)',
                     description: 'Generate any custom component',
-                    icon: require('lucide-react').Sparkles,
+                    icon: Sparkles,
                     group: 'components',
                     command: async () => {
                       const promptText = `✨ CUSTOM COMPONENT GENERATOR
@@ -1569,6 +1582,25 @@ Describe what you want:`
                       interactive: true,
                       trigger: 'manual',
                       placement: 'bottom-start',
+                      popperOptions: {
+                        modifiers: [
+                          {
+                            name: 'flip',
+                            enabled: true,
+                            options: {
+                              fallbackPlacements: ['top-start', 'bottom-start', 'top-end', 'bottom-end'],
+                            },
+                          },
+                          {
+                            name: 'preventOverflow',
+                            enabled: true,
+                            options: {
+                              boundary: 'viewport',
+                              padding: 8,
+                            },
+                          },
+                        ],
+                      },
                     })
                   },
                   onUpdate(props: any) {
@@ -1762,6 +1794,30 @@ Describe what you want:`
       editor.off("update", updateListener);
     };
   }, [editor]);
+
+  // Reconfigure PageBreak extension when page config changes
+  useEffect(() => {
+    if (editor && pageConfig) {
+      // Update the PageBreak extension options with new page dimensions
+      setTimeout(() => {
+        if (editor) {
+          editor.extensionManager.extensions.forEach((ext: any) => {
+            if (ext.name === 'pageBreak') {
+              ext.options.pageHeight = pageConfig.height
+              ext.options.marginTop = pageConfig.marginTop
+              ext.options.marginBottom = pageConfig.marginBottom
+              ext.options.marginLeft = pageConfig.marginLeft
+              ext.options.marginRight = pageConfig.marginRight
+              ext.options.pageGap = 24
+            }
+          })
+
+          // Force re-render of page breaks by triggering editor update
+          editor.view.dispatch(editor.state.tr)
+        }
+      }, 100)
+    }
+  }, [editor, pageConfig])
 
   // Event handlers for navigation bar
   useEffect(() => {
@@ -1967,13 +2023,14 @@ Describe what you want:`
   };
 
   // Handle inline AI actions (replace text directly in editor)
-  const handleInlineAction = async (action: string) => {
+  const handleInlineAction = async (action: string, placement: 'replace' | 'insert' = 'replace') => {
     if (!editor || !selectedText) return
 
     setIsInlineProcessing(true);
     setShowAIMenu(false);
 
     const { from, to } = editor.state.selection;
+    const insertPosition = placement === 'insert' ? to : from;
 
     try {
       // Get instruction based on action
@@ -2357,6 +2414,13 @@ Describe what you want:`
               >
                 <Download className="h-4 w-4" />
               </MenuButton>
+
+              <MenuButton
+                onClick={() => setIsPageSetupModalOpen(true)}
+                title="Page Setup"
+              >
+                <FileText className="h-4 w-4" />
+              </MenuButton>
             </div>
 
             {/* 2. Heading selector (Normal text) */}
@@ -2693,6 +2757,7 @@ Describe what you want:`
           {viewMode === 'editor' ? (
             <MultiPageRenderer
               editor={editor}
+              pageConfig={pageConfig}
               leftPanel={leftPanel}
               rightPanel={rightPanel}
               leftPanelContent={
@@ -2926,7 +2991,9 @@ Describe what you want:`
                   handleChatAction(action, additionalContext, enableWebSearch)
                 } else {
                   // All other actions are inline actions
-                  handleInlineAction(action)
+                  // additionalContext now contains placement choice ('replace' or 'insert')
+                  const placement = additionalContext as 'replace' | 'insert' | undefined
+                  handleInlineAction(action, placement)
                 }
               }}
             />
@@ -3186,6 +3253,14 @@ Describe what you want:`
         onClose={() => setIsExportModalOpen(false)}
         editor={editor}
         documentTitle={selectedDocumentId || 'document'}
+      />
+
+      {/* Page Setup Modal */}
+      <PageSetupModal
+        isOpen={isPageSetupModalOpen}
+        onClose={() => setIsPageSetupModalOpen(false)}
+        config={pageConfig}
+        onConfigChange={setPageConfig}
       />
     </>
   )

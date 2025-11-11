@@ -1025,7 +1025,6 @@ export default function ElementorEditorPage() {
       id: 'usage',
       label: 'Usage',
       icon: null,
-      dropdownItems: ['Export Data', 'Clear History'],
     },
   ];
 
@@ -1751,7 +1750,7 @@ export default function ElementorEditorPage() {
                   boxSizing: 'border-box'
                 }}
               >
-                <div className="rounded-lg bg-background" style={{
+                <div className="rounded-lg bg-[#f8f8f8] dark:bg-[#2a2a2a]" style={{
                   flex: 1,
                   display: 'flex',
                   flexDirection: 'column',
@@ -1759,7 +1758,7 @@ export default function ElementorEditorPage() {
                   width: '100%',
                   maxWidth: '100%'
                 }}>
-                  <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                  <div style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.1)' }} className="dark:border-[rgba(255,255,255,0.1)]">
                     <NavigationBar
                       tabs={navigationTabs}
                       activeTab={(() => {
@@ -1907,7 +1906,7 @@ export default function ElementorEditorPage() {
                   height: '100%'
                 }}
               >
-                <div className="rounded-lg bg-background shadow-sm" style={{
+                <div className="rounded-lg bg-[#f8f8f8] dark:bg-[#2a2a2a] shadow-sm" style={{
                   flex: 1,
                   display: 'flex',
                   flexDirection: 'column',

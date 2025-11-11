@@ -132,7 +132,7 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuRef, any>((props, ref
   }))
 
   return (
-    <div className="z-50 min-w-[200px] rounded-lg border bg-popover p-2 shadow-md">
+    <div className="z-50 min-w-[200px] max-h-[400px] overflow-y-auto rounded-lg border bg-popover p-2 shadow-md">
       {items.length > 0 ? (
         items.map((item: SlashCommand, index: number) => {
           const Icon = item.icon

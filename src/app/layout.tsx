@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { BrandingProvider } from "@/contexts/BrandingContext";
 import { Navbar } from "@/components/ui/navbar";
 import { ReactScan } from "./react-scan";
 
@@ -98,21 +99,23 @@ export default function RootLayout({
         )}
         {/* React Scan disabled */}
         {/* {process.env.NODE_ENV === 'development' && <ReactScan />} */}
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {/* Extensible Navbar - Traditional mode for most pages, Floating mode for Elementor/DocChat */}
-          <Navbar
-            traditionalOnPaths={['/elementor-editor', '/chat-doc']}
-            hideMobileOnPaths={['/chat-doc']}
-            hideButtonOnMobileForPaths={['/elementor-editor']}
-          />
+        <BrandingProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {/* Extensible Navbar - Traditional mode for most pages, Floating mode for Elementor/DocChat */}
+            <Navbar
+              traditionalOnPaths={['/elementor-editor', '/chat-doc', '/branding-settings']}
+              hideMobileOnPaths={['/chat-doc']}
+              hideButtonOnMobileForPaths={['/elementor-editor']}
+            />
 
-          <main>{children}</main>
-        </ThemeProvider>
+            <main>{children}</main>
+          </ThemeProvider>
+        </BrandingProvider>
       </body>
     </html>
   );

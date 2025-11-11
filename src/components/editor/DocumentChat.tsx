@@ -264,11 +264,10 @@ export function DocumentChat({
       ? availableDocuments.filter(doc => doc.name.toLowerCase().includes(query))
       : availableDocuments;
     
-    // Group by type
+    // Group by type - only show dittos and documents (folders/files from sidebar)
     const groups = {
       dittos: filtered.filter(doc => doc.type === 'ditto'),
-      folders: filtered.filter(doc => doc.type === 'folder'),
-      files: filtered.filter(doc => doc.type === 'file'),
+      documents: filtered.filter(doc => doc.type === 'folder' || doc.type === 'file'),
     };
     
     return groups;
@@ -278,8 +277,7 @@ export function DocumentChat({
   const flattenedMentions = useMemo(() => {
     const result: typeof availableDocuments = [];
     if (expandedFolders.has('dittos')) result.push(...groupedMentions.dittos);
-    if (expandedFolders.has('folders')) result.push(...groupedMentions.folders);
-    if (expandedFolders.has('files')) result.push(...groupedMentions.files);
+    if (expandedFolders.has('documents')) result.push(...groupedMentions.documents);
     return result;
   }, [groupedMentions, expandedFolders]);
 
@@ -1103,7 +1101,7 @@ export function DocumentChat({
             placeholder="Ask me to write or edit your document... (use @ to mention files)"
           />
           {/* Mention Dropdown with Grouped Folders */}
-          {showMentionDropdown && (groupedMentions.dittos.length > 0 || groupedMentions.folders.length > 0 || groupedMentions.files.length > 0) && (
+          {showMentionDropdown && (groupedMentions.dittos.length > 0 || groupedMentions.documents.length > 0) && (
             <div
               ref={mentionDropdownRef}
               className="fixed w-80 max-h-96 bg-white dark:bg-[#2a2a2a] border border-gray-200 dark:border-[rgba(255,255,255,0.15)] rounded-lg shadow-xl flex flex-col"
@@ -1151,7 +1149,7 @@ export function DocumentChat({
                         <div
                           key={doc.id}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-2 pl-8 cursor-pointer transition-colors",
+                            "flex items-center gap-2 px-3 py-2 pl-10 cursor-pointer transition-colors",
                             flatIndex === selectedMentionIndex
                               ? "bg-blue-50 dark:bg-[#333333]"
                               : "hover:bg-gray-50 dark:hover:bg-[#2a2a2a]"
@@ -1166,77 +1164,42 @@ export function DocumentChat({
                   </div>
                 )}
                 
-                {/* Folders Group */}
-                {groupedMentions.folders.length > 0 && (
+                {/* Documents Group (Folders & Files from Sidebar) */}
+                {groupedMentions.documents.length > 0 && (
                   <div>
                     <div
-                      className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-900 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-[#1a1a1a] cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333]"
                       onClick={() => {
                         const newExpanded = new Set(expandedFolders);
-                        if (newExpanded.has('folders')) {
-                          newExpanded.delete('folders');
+                        if (newExpanded.has('documents')) {
+                          newExpanded.delete('documents');
                         } else {
-                          newExpanded.add('folders');
+                          newExpanded.add('documents');
                         }
                         setExpandedFolders(newExpanded);
                       }}
                     >
-                      <ChevronRight className={cn("h-4 w-4 transition-transform", expandedFolders.has('folders') && "rotate-90")} />
-                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">FOLDERS ({groupedMentions.folders.length})</span>
+                      <ChevronRight className={cn("h-4 w-4 transition-transform", expandedFolders.has('documents') && "rotate-90")} />
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">DOCUMENTS ({groupedMentions.documents.length})</span>
                     </div>
-                    {expandedFolders.has('folders') && groupedMentions.folders.map((doc) => {
+                    {expandedFolders.has('documents') && groupedMentions.documents.map((doc) => {
                       const flatIndex = flattenedMentions.findIndex(d => d.id === doc.id);
                       return (
                         <div
                           key={doc.id}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-2 pl-8 cursor-pointer transition-colors",
+                            "flex items-center gap-2 px-3 py-2 pl-10 cursor-pointer transition-colors",
                             flatIndex === selectedMentionIndex
                               ? "bg-blue-50 dark:bg-[#333333]"
                               : "hover:bg-gray-50 dark:hover:bg-[#2a2a2a]"
                           )}
                           onClick={() => handleMentionSelect(doc)}
                         >
-                          <Folder className="h-4 w-4 shrink-0" style={{ color: '#6ee7b7' }} />
-                          <span className="text-sm truncate">{doc.name}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                
-                {/* Files Group */}
-                {groupedMentions.files.length > 0 && (
-                  <div>
-                    <div
-                      className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-900 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                      onClick={() => {
-                        const newExpanded = new Set(expandedFolders);
-                        if (newExpanded.has('files')) {
-                          newExpanded.delete('files');
-                        } else {
-                          newExpanded.add('files');
-                        }
-                        setExpandedFolders(newExpanded);
-                      }}
-                    >
-                      <ChevronRight className={cn("h-4 w-4 transition-transform", expandedFolders.has('files') && "rotate-90")} />
-                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">FILES ({groupedMentions.files.length})</span>
-                    </div>
-                    {expandedFolders.has('files') && groupedMentions.files.map((doc) => {
-                      const flatIndex = flattenedMentions.findIndex(d => d.id === doc.id);
-                      return (
-                        <div
-                          key={doc.id}
-                          className={cn(
-                            "flex items-center gap-2 px-3 py-2 pl-8 cursor-pointer transition-colors",
-                            flatIndex === selectedMentionIndex
-                              ? "bg-blue-50 dark:bg-[#333333]"
-                              : "hover:bg-gray-50 dark:hover:bg-[#2a2a2a]"
+                          {doc.type === 'folder' ? (
+                            <Folder className="h-4 w-4 shrink-0" style={{ color: '#6ee7b7' }} />
+                          ) : (
+                            <File className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
                           )}
-                          onClick={() => handleMentionSelect(doc)}
-                        >
-                          <File className="h-4 w-4 shrink-0 text-gray-500" />
                           <span className="text-sm truncate">{doc.name}</span>
                         </div>
                       );

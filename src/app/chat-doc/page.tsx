@@ -8,9 +8,10 @@ import { Comment } from '@/components/editor/CommentExtension';
 import CommentsPanel from '@/components/editor/CommentsPanel';
 import { DocumentChat } from '@/components/editor/DocumentChat';
 import { BottomNav } from '@/components/ui/BottomNav';
-import { useDocuments, useProjects, useFolders } from '@/hooks/useProjectHierarchy';
+import { useDocuments, useProjects, useFolders } from '@/hooks/useSupabaseProjectHierarchy';
 import TurndownService from 'turndown';
 import { generateDocSystemPrompt } from '@/lib/generate-doc-system-prompt';
+import { getDittoPersona } from '@/lib/ditto-personas';
 import { AppSidebar } from '@/components/app-sidebar';
 import { TwoPanelChatLayout } from '@/components/layouts/TwoPanelChatLayout';
 import { NavigationBar } from '@/components/ai-elements/inner-navigation-bar';
@@ -18,11 +19,13 @@ import { CreateItemModal } from '@/components/modals/CreateItemModal';
 import { useSelectedClient } from '@/components/client/ClientStorage';
 import { DataSidebar } from '@/components/ai-elements/data-sidebar';
 import { CreateDittoButton } from '@/components/ai-elements/create-ditto-button';
+import { useBranding } from '@/contexts/BrandingContext';
 import { ChevronRight, Download } from 'lucide-react';
 import Image from 'next/image';
 
 
 const ChatBotDemo = () => {
+  const { branding } = useBranding();
   const [selectedModel, setSelectedModel] = useState('anthropic/claude-haiku-4-5-20251001');
   const [isMobile, setIsMobile] = useState(false);
 
@@ -165,10 +168,51 @@ const ChatBotDemo = () => {
   const { createFolder } = useFolders();
 
   // Handle creating new document from sidebar
-  const handleCreateDocument = () => {
-    setCreateModalType('document');
-    setCreateModalOpen(true);
+  const handleCreateDocument = (title: string) => {
+    // Get the first project, or create one if none exists
+    let projectId = projects[0]?.id;
+    if (!projectId) {
+      const defaultProject = createProject('My Documents');
+      projectId = defaultProject.id;
+    }
+
+    const newDoc = createDocument(title, projectId);
+    if (newDoc) {
+      setSelectedDocumentId(newDoc.id);
+    }
   };
+
+  // Handle creating new folder from sidebar
+  const handleCreateFolder = (name: string) => {
+    // Get the first project, or create one if none exists
+    let projectId = projects[0]?.id;
+    if (!projectId) {
+      const defaultProject = createProject('My Documents');
+      projectId = defaultProject.id;
+    }
+
+    createFolder(name, projectId);
+  };
+
+  // Create default document if none exist
+  useEffect(() => {
+    // Only run after documents are loaded
+    if (documents.length === 0 && !selectedDocumentId) {
+      // Get or create default project
+      let projectId = projects[0]?.id;
+      if (!projectId) {
+        const defaultProject = createProject('My Documents');
+        projectId = defaultProject.id;
+      }
+
+      // Create default untitled document
+      const newDoc = createDocument('Untitled', projectId);
+      if (newDoc) {
+        setSelectedDocumentId(newDoc.id);
+        console.log('✅ Created default document:', newDoc.id);
+      }
+    }
+  }, [documents.length, selectedDocumentId, projects, createProject, createDocument]);
 
   // Save document
   const handleSaveDocument = useCallback(async () => {
@@ -573,6 +617,8 @@ const ChatBotDemo = () => {
           projectName: currentProject?.name || '',
           // Client context
           clientData: clientContextEnabled && selectedClient ? selectedClient : null,
+          // System prompt with ditto personas
+          systemPrompt: actualSystemPrompt,
         },
       },
     );
@@ -691,10 +737,17 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
     // Add tagged documents context
     if (taggedDocuments.length > 0) {
       const taggedContext = taggedDocuments.map(doc => {
+        // For dittos, include their persona information
+        if (doc.type === 'ditto') {
+          const persona = getDittoPersona(doc.id);
+          return `\n\n## ${doc.name}\n\n${persona}\n\nThis team member brings specialized knowledge and perspective to the conversation based on their role and expertise.`;
+        }
+
+        // For regular documents/folders, show basic info
         return `\n\n## Tagged Context: ${doc.name}\nType: ${doc.type || 'file'}\n[Content would be loaded here]`;
       }).join('\n');
-      
-      basePrompt += `\n\n# Additional Tagged Context\nThe user has tagged the following items for context:${taggedContext}`;
+
+      basePrompt += `\n\n# Team Members & Additional Context\nThe following team members and resources have been added to provide specialized expertise:${taggedContext}\n\nWhen responding, incorporate insights and perspective appropriate to each team member's role and expertise areas.`;
     }
 
     return basePrompt;
@@ -972,13 +1025,14 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                     maxWidth: '100%',
                     fontSize: '0.875rem'
                   }}>
-                    <DataSidebar 
+                    <DataSidebar
                       onToggle={() => setIsLeftPanelVisible(false)}
                       onDocumentTag={handleDocumentTag}
                       documents={documents}
                       activeDocumentId={selectedDocumentId}
                       onDocumentSelect={setSelectedDocumentId}
                       onCreateDocument={handleCreateDocument}
+                      onCreateFolder={handleCreateFolder}
                       onDeleteDocuments={handleDeleteDocuments}
                       onRenameDocument={handleRenameDocument}
                     />
@@ -1063,22 +1117,26 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                       gap: '12px'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <Image
-                          src="/MF-Workstation-Logo-Light.png"
-                          alt="MF Workstation"
-                          width={150}
-                          height={32}
-                          style={{ objectFit: 'contain' }}
-                          className="dark:block hidden"
-                        />
-                        <Image
-                          src="/MF-Workstation-Logo.png"
-                          alt="MF Workstation"
-                          width={150}
-                          height={32}
-                          style={{ objectFit: 'contain' }}
-                          className="dark:hidden block"
-                        />
+                        {branding.logo_dark_url && (
+                          <Image
+                            src={branding.logo_dark_url}
+                            alt={branding.company_name}
+                            width={150}
+                            height={32}
+                            style={{ objectFit: 'contain' }}
+                            className="dark:block hidden"
+                          />
+                        )}
+                        {branding.logo_light_url && (
+                          <Image
+                            src={branding.logo_light_url}
+                            alt={branding.company_name}
+                            width={150}
+                            height={32}
+                            style={{ objectFit: 'contain' }}
+                            className="dark:hidden block"
+                          />
+                        )}
                       </div>
                       <div style={{
                         display: 'flex',
@@ -1102,7 +1160,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                     
                     {/* Conditional panel rendering based on isPanelOpen and panelTab */}
                     {isPanelOpen && panelTab === 'comments' ? (
-                      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#fff' }}>
+                      <div className="bg-background" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <CommentsPanel
                           comments={comments}
                           activeCommentId={null}
@@ -1119,11 +1177,12 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                         />
                       </div>
                     ) : isPanelOpen && panelTab === 'tools' ? (
-                      <div style={{ padding: '16px', height: '100%', overflow: 'auto', backgroundColor: '#fff', display: 'flex', flexDirection: 'column' }}>
+                      <div className="bg-background text-foreground" style={{ padding: '16px', height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                          <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Table of Contents</h2>
-                          <button 
+                          <h2 className="text-foreground" style={{ fontSize: '18px', fontWeight: 'bold' }}>Table of Contents</h2>
+                          <button
                             onClick={() => setIsPanelOpen(false)}
+                            className="text-foreground hover:bg-muted"
                             style={{ padding: '4px 8px', cursor: 'pointer', background: 'none', border: 'none', fontSize: '16px' }}
                           >
                             ✕
@@ -1177,14 +1236,13 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                             </button>
                             <div
                               id="export-dropdown"
+                              className="bg-card border-border"
                               style={{
                                 display: 'none',
                                 position: 'absolute',
                                 top: '100%',
                                 left: 0,
                                 marginTop: '4px',
-                                backgroundColor: 'white',
-                                border: '1px solid #e5e7eb',
                                 borderRadius: '6px',
                                 boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
                                 zIndex: 1000,
@@ -1197,17 +1255,14 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                                   const dropdown = document.getElementById('export-dropdown');
                                   if (dropdown) dropdown.style.display = 'none';
                                 }}
+                                className="w-full text-left hover:bg-muted text-foreground"
                                 style={{
-                                  width: '100%',
                                   padding: '8px 12px',
-                                  textAlign: 'left',
                                   border: 'none',
                                   background: 'none',
                                   cursor: 'pointer',
                                   fontSize: '13px'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                               >
                                 HTML
                               </button>
@@ -1217,17 +1272,14 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                                   const dropdown = document.getElementById('export-dropdown');
                                   if (dropdown) dropdown.style.display = 'none';
                                 }}
+                                className="w-full text-left hover:bg-muted text-foreground"
                                 style={{
-                                  width: '100%',
                                   padding: '8px 12px',
-                                  textAlign: 'left',
                                   border: 'none',
                                   background: 'none',
                                   cursor: 'pointer',
                                   fontSize: '13px'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                               >
                                 Markdown
                               </button>
@@ -1237,18 +1289,13 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                                   const dropdown = document.getElementById('export-dropdown');
                                   if (dropdown) dropdown.style.display = 'none';
                                 }}
+                                className="w-full text-left hover:bg-muted text-foreground border-t border-border"
                                 style={{
-                                  width: '100%',
                                   padding: '8px 12px',
-                                  textAlign: 'left',
-                                  border: 'none',
                                   background: 'none',
                                   cursor: 'pointer',
-                                  fontSize: '13px',
-                                  borderTop: '1px solid #e5e7eb'
+                                  fontSize: '13px'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                               >
                                 Rich Text
                               </button>
@@ -1280,6 +1327,7 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                               <div
                                 key={heading.id}
                                 onClick={() => handleTOCClick(heading.id)}
+                                className="text-foreground hover:bg-muted"
                                 style={{
                                   cursor: 'pointer',
                                   paddingTop: '6px',
@@ -1289,18 +1337,15 @@ Your lazyEdit should be: "... existing text ...\n[YOUR EDITED VERSION OF SELECTE
                                   borderRadius: '4px',
                                   fontSize: heading.level === 1 ? '16px' : heading.level === 2 ? '14px' : '13px',
                                   fontWeight: heading.level <= 2 ? '600' : '400',
-                                  color: '#333',
                                   transition: 'background-color 0.2s'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                               >
                                 {heading.text}
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p style={{ color: '#666', fontSize: '14px' }}>No headings found in document</p>
+                          <p className="text-muted-foreground" style={{ fontSize: '14px' }}>No headings found in document</p>
                         )}
                       </div>
                     ) : (

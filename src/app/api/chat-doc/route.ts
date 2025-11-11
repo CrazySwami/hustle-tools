@@ -64,6 +64,7 @@ export async function POST(req: Request) {
       documentTitle = '',
       projectName = '',
       clientData = null,
+      systemPrompt = null,
     }: {
       messages: UIMessage[];
       model: string;
@@ -74,6 +75,7 @@ export async function POST(req: Request) {
       documentTitle?: string;
       projectName?: string;
       clientData?: any;
+      systemPrompt?: string | null;
     } = body;
 
     console.log('📨 Document Chat request:', {
@@ -84,6 +86,8 @@ export async function POST(req: Request) {
       includeContext,
       commentsCount: comments?.length || 0,
       clientName: clientData?.name || 'none',
+      hasCustomSystemPrompt: !!systemPrompt,
+      systemPromptLength: systemPrompt?.length || 0,
     });
 
     // Ensure messages is an array
@@ -143,15 +147,23 @@ export async function POST(req: Request) {
     // This prompt is ONLY for document editing - no code editing instructions!
     // Result: Saves 2000+ tokens per request vs. generic prompt
     // Uses shared function to ensure frontend token counting matches
+    // If frontend sends a systemPrompt (e.g., with ditto personas), use that instead
     // ============================================================================
 
-    let systemPrompt = generateDocSystemPrompt({
-      includeContext,
-      documentContent,
-      documentTitle,
-      projectName,
-      clientData,
-    });
+    let finalSystemPrompt;
+    if (systemPrompt) {
+      console.log('✅ Using custom system prompt from frontend (includes ditto personas if tagged)');
+      finalSystemPrompt = systemPrompt;
+    } else {
+      console.log('📝 Generating default system prompt');
+      finalSystemPrompt = generateDocSystemPrompt({
+        includeContext,
+        documentContent,
+        documentTitle,
+        projectName,
+        clientData,
+      });
+    }
 
     // OLD INLINE GENERATION (kept for reference, now replaced by shared function):
     /* const oldSystemPrompt = `You are an expert document editing assistant. You help users write, edit, and improve prose, articles, blog posts, essays, and other written content.
@@ -299,7 +311,7 @@ ${includeContext ? `
     // Enable web search for Perplexity models
     if (webSearch && model.startsWith('perplexity/')) {
       console.log('Web search enabled with Perplexity model:', model);
-      systemPrompt = `You are an expert document editing assistant with web search capabilities. Use search to provide accurate and up-to-date information with sources.
+      finalSystemPrompt = `You are an expert document editing assistant with web search capabilities. Use search to provide accurate and up-to-date information with sources.
 
 **Current Date & Time:** ${currentDate}, ${currentTime}
 
@@ -343,11 +355,11 @@ ${includeContext ? `
 - 📝 **Document Context:** ${includeContext ? 'You have full access to the document content shown above' : 'Context is disabled - you cannot see the document'}`;
     } else if (webSearch) {
       console.log('Web search requested but not available for non-Perplexity model:', model);
-      systemPrompt += '\n\nNote: Web search was requested but is only available with Perplexity models.';
+      finalSystemPrompt += '\n\nNote: Web search was requested but is only available with Perplexity models.';
     }
 
     // Add tool calling instructions
-    systemPrompt += `\n\n**🚨 CRITICAL: THESE ARE YOUR ONLY AVAILABLE TOOLS 🚨**
+    finalSystemPrompt += `\n\n**🚨 CRITICAL: THESE ARE YOUR ONLY AVAILABLE TOOLS 🚨**
 
 When user asks "what tools do you have" or "what can you do", list ONLY these tools below. DO NOT mention any other tools (no blog tools, no image tools, no web scraping tools). If you list tools that don't exist, you will confuse the user.
 
@@ -677,7 +689,7 @@ After using a tool, provide a brief text response explaining what you did.`;
       model: gateway(model, {
         apiKey: process.env.AI_GATEWAY_API_KEY!,
       }),
-      system: systemPrompt,
+      system: finalSystemPrompt,
       messages: managedMessages, // Use managed messages (may be truncated/summarized)
       // Disable tools when web search is enabled
       ...(!webSearch && { tools: toolsConfig, maxSteps: 10 }),

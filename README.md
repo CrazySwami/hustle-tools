@@ -1,228 +1,278 @@
-# Chat Application Architecture Guide
+# MF-Workstation
 
-This document provides a comprehensive overview of the chat application's architecture, focusing on how to extend its capabilities by adding new tools and models. The system is built using the Vercel AI SDK, leveraging its powerful features for streaming, tool usage, and UI rendering.
+**AI-Powered Workspace & Development Platform by Mirror Factory**
 
-## Core Components
+MF-Workstation is a comprehensive white-label AI workspace that combines document management, AI chat capabilities, WordPress/Elementor development tools, and visual editing—all in one unified platform.
 
-- **Backend API (`src/app/api/chat/route.ts`)**: A serverless function that handles chat requests, communicates with the AI models via the AI Gateway, and manages tool execution.
-- **Frontend Chat UI (`src/app/chat/page.tsx`)**: The main chat interface where users interact with the AI. It uses the Vercel AI SDK's `useChat` hook to manage state and render the conversation.
-- **Tool Definitions (`src/lib/tools.ts`)**: A centralized file where all tools available to the AI are defined.
-- **Tool Result Renderer (`src/components/tool-ui/tool-result-renderer.tsx`)**: A component that renders the output of a tool call. It can be extended to provide rich, custom UI for different tools.
+![MF-Workstation](./public/MF-Workstation-Logo.png)
 
----
+## ✨ Key Features
 
-## Backend: `src/app/api/chat/route.ts`
+### 📝 Document Management
+- **Rich Text Editor** - TipTap-powered editor with markdown support, comments, and real-time collaboration
+- **Supabase Integration** - Cloud-based document storage with folders and organization
+- **Auto-save & Manual Save** - Never lose your work with intelligent auto-saving
+- **Drag & Drop Sidebar** - Organize documents, folders, and Dittos with intuitive drag-and-drop
 
-The backend is the brain of the operation. It receives messages from the client, processes them, and streams the AI's response back.
+### 🤖 AI Chat Interface
+- **Multiple AI Models** - Support for OpenAI, Anthropic (Claude), Google, and Perplexity
+- **Streaming Responses** - Real-time AI responses with Vercel AI SDK
+- **Tool Integration** - Extensible tool system for custom AI capabilities
+- **Web Search** - Enable web search with Perplexity for up-to-date information
+- **Source Citations** - View and verify sources when using web search
 
-### Key Responsibilities:
+### 🎨 Elementor Development Suite
+A complete WordPress/Elementor development environment with browser-based WordPress Playground integration:
 
-1.  **Receiving Requests**: The `POST` handler extracts messages, the selected model, and other settings (like `enableTools`) from the request body.
-2.  **Using the AI Gateway**: It uses `streamText` from the Vercel AI SDK to send the request to the appropriate AI model. The AI Gateway (`gateway` from `@ai-sdk/gateway`) handles the actual API calls to different model providers (OpenAI, Anthropic, etc.), which simplifies multi-provider support.
-3.  **Tool Management**: It imports tools from `src/lib/tools.ts` and passes them to the `streamText` function. This makes the tools available for the AI to use.
-4.  **Streaming Responses**: It uses `result.toUIMessageStreamResponse()` to stream the complete response—including text, tool calls, and tool results—back to the frontend.
+#### Visual & Code Editors
+- **GrapeJS Visual Editor** - Drag-and-drop visual builder with:
+  - 3-column layout: Blocks panel, Canvas, Styles panel
+  - Real-time visual editing with live preview
+  - Bidirectional sync with code editor
+  - Responsive preview (Desktop/Tablet/Mobile)
+  - CSS cascade inspector showing inline, class, and global styles
 
-### How to Add a New Tool
+- **Monaco Code Editor** - Professional code editing for HTML/CSS/JS with:
+  - Syntax highlighting and IntelliSense
+  - Live preview panel
+  - Settings configuration
+  - Diff-based AI code editing
 
-1.  **Define the Tool in `src/lib/tools.ts`**:
-    Use the `tool` helper from the AI SDK. Define a `description`, an `inputSchema` using Zod, and an `execute` function.
+#### WordPress Integration
+- **Live WordPress Playground** - Browser-based WordPress instance with:
+  - Elementor, Yoast SEO, Hello Elementor theme pre-installed
+  - Real-time preview and testing
+  - Import/export functionality
 
-    ```typescript
-    // src/lib/tools.ts
-    import { tool } from 'ai';
-    import { z } from 'zod';
+- **Section Library** - Manage and organize multiple sections with drag-to-reorder
+- **Style Guide Editor** - Visual style guide with global CSS management
+- **Site Content Manager** - Complete WordPress settings and pages CRUD
 
-    export const tools = {
-      // ... existing tools
-      getStockPrice: tool({
-        description: 'Get the current stock price for a given symbol.',
-        inputSchema: z.object({ symbol: z.string() }),
-        execute: async ({ symbol }) => {
-          // Your logic to fetch the stock price
-          const price = await fetchStockPrice(symbol);
-          return { price };
-        },
-      }),
-    };
-    ```
+#### AI-Powered Widget Generation
+- **⚡ Generate Widget** - Convert HTML/CSS to Elementor widgets using Claude Sonnet 4.5
+- Automatic CSS scoping with `{{WRAPPER}}` prefix
+- Comprehensive control generation for all elements
+- Real-time streaming PHP generation
 
-2.  **(Optional) Create a Custom UI Widget**:
-    If you want a rich UI for your tool's result (instead of raw JSON), you can create a new component (e.g., `stock-widget.tsx`).
+### 🔧 Advanced Features
+- **Resizable Panels** - 2-panel and 3-panel layouts with draggable dividers
+- **Dark/Light Mode** - Full theme support with customizable branding
+- **Custom Branding** - White-label with logo, colors, and company information
+- **Firecrawl Integration** - Website mapping and content scraping
+- **Image Processing** - Image manipulation and generation tools
 
-3.  **Update the Renderer**:
-    In `src/components/tool-ui/tool-result-renderer.tsx`, add a new `case` to the `switch` statement to render your new widget.
-
-    ```tsx
-    // src/components/tool-ui/tool-result-renderer.tsx
-    import { StockWidget } from './stock-widget'; // Your new widget
-
-    // ...
-    switch (toolName) {
-      // ... other cases
-      case 'getStockPrice':
-        return <StockWidget data={result} />;
-      default:
-        // ... fallback
-    }
-    ```
-
----
-
-## Frontend: `src/app/chat/page.tsx`
-
-The frontend provides the user interface and manages the conversation state.
-
-### Key Features:
-
-1.  **`useChat` Hook**: This hook from `@ai-sdk/react` is the core of the frontend. It handles:
-    -   The list of messages.
-    -   The user's input.
-    -   Sending messages to the backend API.
-    -   The streaming connection status (`status`).
-2.  **Rendering Messages**: The component maps over the `messages` array. For each message, it then maps over the `parts` of that message.
-3.  **Rendering Message Parts**: A `switch` statement checks the `type` of each part:
-    -   `'text'`: Renders standard text content.
-    -   `'tool-call'`: Renders the AI's request to use a tool, showing the tool name and parameters.
-    -   `'tool-result'`: Renders the output from the tool. This is where the `<ToolResultRenderer>` is used to display either a custom widget or the raw JSON.
-
-### How to Add a New Chat Model
-
-Adding a new model is simple and doesn't require backend changes, thanks to the AI Gateway.
-
-1.  **Add the Model to the List**:
-    In `src/app/chat/page.tsx`, find the `modelGroups` array and add your new model to the appropriate provider group.
-
-    ```tsx
-    // src/app/chat/page.tsx
-
-    const modelGroups: ModelGroup[] = [
-      {
-        provider: 'OpenAI',
-        models: [
-          // ... existing models
-          { name: 'My New Model', value: 'openai/my-new-model' },
-        ]
-      },
-      // ... other providers
-    ];
-    ```
-
-The `value` should be the model identifier that the Vercel AI Gateway recognizes. The new model will automatically appear in the model selection dropdown in the UI.
-
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-
-- Node.js (v18 or later)
+- Node.js 18 or later
 - npm, yarn, or pnpm
-- A Firecrawl API key (get one from [firecrawl.dev](https://firecrawl.dev))
-- Vercel AI Gateway API key (for AI chat functionality)
+- Supabase account (for document storage)
+- Vercel AI Gateway API key
+- Firecrawl API key (optional, for site crawling)
 
 ### Installation
 
-1.  **Clone the repository:**
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/mirror-factory/MF-Workstation.git
+   cd MF-Workstation
+   ```
 
-    ```bash
-    git clone <repository-url>
-    cd hustle-tools
-    ```
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-2.  **Install dependencies:**
+3. **Set up environment variables:**
 
-    ```bash
-    npm install
-    ```
+   Create `.env.local` in the root directory:
+   ```env
+   # AI Gateway
+   AI_GATEWAY_API_KEY=your_vercel_ai_gateway_key
 
-3.  **Set up your environment variables:**
+   # Supabase
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
-    Create a file named `.env.local` in the root of the project and add your API keys:
+   # OpenAI (optional)
+   OPENAI_API_KEY=your_openai_key
 
-    ```
-    FIRECRAWL_API_KEY=your_firecrawl_api_key_here
-    AI_GATEWAY_API_KEY=your_vercel_ai_gateway_key_here
-    ```
+   # Firecrawl (optional)
+   FIRECRAWL_API_KEY=your_firecrawl_key
 
-4.  **Run the development server:**
+   # Other APIs (optional)
+   PEXELS_API_KEY=your_pexels_key
+   UNSPLASH_ACCESS_KEY=your_unsplash_key
+   BRANDFETCH_API_KEY=your_brandfetch_key
+   ```
 
-    ```bash
-    npm run dev
-    ```
+4. **Set up Supabase database:**
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+   Run the migrations in your Supabase SQL Editor:
+   ```bash
+   # Run files in order:
+   supabase/migrations/001_initial_schema.sql
+   supabase/migrations/002_disable_rls_for_development.sql
+   supabase/migrations/003_setup_development_mode.sql
+   ```
 
-## How to Use
+5. **Run the development server:**
+   ```bash
+   npm run dev
+   ```
 
-1.  Navigate to the **Firecrawl App** from the homepage.
-2.  **Map a Site**: Enter a URL to get a list of all discoverable pages on that site.
-3.  **Scrape Pages**: Use the list of mapped URLs (or paste your own) to scrape the content. The app uses Firecrawl's batch scraping API to efficiently process multiple URLs.
-4.  **Download**: Once the scraping is complete, you can download the content as individual Markdown files or as a single combined document.
+6. **Open your browser:**
+   Navigate to [http://localhost:3000](http://localhost:3000)
 
-## Features and Tools
+## 📖 Usage Guide
 
-### Firecrawl Site Crawler
+### Document Editor (`/chat-doc`)
+1. Create new documents with the "+ New" button
+2. Write with the rich text editor (supports markdown)
+3. Save manually with Cmd/Ctrl+S or let auto-save handle it
+4. Organize documents in folders using the sidebar
+5. Chat with AI about your document content
 
-A tool for mapping and scraping website content:
+### Elementor Editor (`/elementor-editor`)
+1. **Code Editor Tab** - Write HTML/CSS/JS with Monaco editor
+2. **Visual Editor Tab** - Design visually with drag-and-drop
+3. **Section Library** - Save and manage reusable sections
+4. **WordPress Playground** - Test in live WordPress environment
+5. **Style Guide** - Define global styles and typography
+6. **Generate Widget** - Convert your design to Elementor widget
 
-1.  **Map a Site**: Enter a URL to get a list of all discoverable pages on that site.
-2.  **Scrape Pages**: Use the list of mapped URLs (or paste your own) to scrape the content.
-3.  **Download**: Once the scraping is complete, you can download the content as individual Markdown files or as a single combined document.
+### AI Chat (`/chat`)
+1. Select your preferred AI model
+2. Enable tools for enhanced capabilities
+3. Toggle web search for real-time information
+4. View source citations for research
 
-### AI Chat Interface
+## 🏗️ Architecture
 
-An interactive chat interface powered by the Vercel AI SDK:
+### Tech Stack
+- **Framework:** Next.js 15.4.6 with App Router and Turbopack
+- **UI Library:** React 19 with Shadcn/UI
+- **Editor:** TipTap (rich text), Monaco (code), GrapeJS (visual)
+- **AI SDK:** Vercel AI SDK with streaming support
+- **Database:** Supabase (PostgreSQL)
+- **Drag & Drop:** @dnd-kit
+- **Styling:** Tailwind CSS with CSS variables
+- **Theme:** next-themes for dark/light mode
 
-1.  **Multiple Models**: Choose from various AI models including OpenAI, Anthropic, Google, and Perplexity.
-2.  **Web Search**: Enable web search capabilities with Perplexity models.
-3.  **Source Citations**: View source citations for responses when using web search.
-4.  **Markdown Support**: Rich text formatting with code highlighting.
+### Project Structure
+```
+MF-Workstation/
+├── src/
+│   ├── app/                      # Next.js pages
+│   │   ├── chat/                 # AI chat interface
+│   │   ├── chat-doc/             # Document editor
+│   │   ├── elementor-editor/     # Elementor development
+│   │   ├── firecrawl/            # Site crawler
+│   │   └── api/                  # API routes
+│   ├── components/
+│   │   ├── ai-elements/          # AI UI components
+│   │   ├── editor/               # TipTap editor components
+│   │   ├── elementor/            # Elementor components
+│   │   ├── layouts/              # Layout components
+│   │   └── ui/                   # Shadcn UI components
+│   ├── lib/                      # Utilities and helpers
+│   ├── hooks/                    # React hooks
+│   └── contexts/                 # React contexts
+├── public/                       # Static assets
+├── supabase/                     # Database migrations
+└── docs/                         # Documentation
+```
 
-### Image Alterations
+## 🎨 Customization
 
-A tool for image manipulation and generation:
+### Branding
+Edit branding settings at `/branding-settings`:
+- Company name
+- Logo (light & dark mode)
+- Primary color
+- Background colors
+- Footer text
 
-1.  **Upload Images**: Upload your own images for alteration.
-2.  **Apply Effects**: Choose from various image processing options.
-3.  **Download Results**: Save the altered images.
+### Adding AI Tools
+See [docs/how-to-make-tools.md](./docs/how-to-make-tools.md) for detailed instructions.
 
-## Technical Documentation
+## 📚 Documentation
 
-The project includes comprehensive documentation for all major components:
+Comprehensive documentation is available in the `/docs` directory:
 
 ### Core Documentation
+- [UI Stack Guide](./docs/ui-stack.md) - UI libraries and component guidelines
+- [GrapeJS Visual Editor](./docs/grapejs-visual-editor.md) - Visual editor integration
+- [Diff-Based Code Editing](./docs/diff-based-code-editing.md) - AI code editing
+- [WordPress Playground Guide](./docs/WORDPRESS_PLAYGROUND_IMPORT_GUIDE.md) - WP integration
+- [Firecrawl Integration](./docs/fire-crawl-docs.md) - Site crawling tools
+- [Models Reference](./docs/models.md) - Supported AI models
 
-- [**UI Stack Documentation**](./docs/ui-stack.md) - Overview of UI libraries, components, and layout guidelines used in the project.
-- [**Firecrawl Documentation**](./docs/fire-crawl-docs.md) - Technical details of the Firecrawl integration, API routes, and frontend implementation.
-- [**AI Chat Integration Guide**](./docs/ai-chat-integration.md) - Comprehensive guide to the AI chat implementation, including backend API, frontend components, and integration with the Vercel AI SDK.
-- [**Models Reference**](./docs/models.md) - List of supported AI models and their configurations.
+### Development Guides
+- [How to Make Tools](./docs/how-to-make-tools.md) - Creating AI tools
+- [Supabase Auth Setup](./docs/Main%20Doc%20%E2%80%93%20Supabase%20Auth%20Setup.md) - Authentication
+- [Sidebar Implementation](./docs/Main%20Doc%20%E2%80%93%20Sidebar%20Implementation%20Status.md) - Sidebar features
 
-### Vercel AI SDK Documentation
+## 🔐 Security Notes
 
-The `/docs/vercel-ai-sdk-ui-docs/` directory contains detailed documentation for the Vercel AI SDK Elements:
+**⚠️ Development Mode:**
+- Authentication is currently disabled for development
+- Row Level Security (RLS) is disabled on database tables
+- All operations use a placeholder user ID
+- **DO NOT deploy to production without re-enabling security!**
 
-- [**Overview**](./docs/vercel-ai-sdk-ui-docs/ai-sdk_dev_elements_overview.md) - Introduction to the AI SDK Elements.
-- [**Components**](./docs/vercel-ai-sdk-ui-docs/ai-sdk_dev_elements_components.md) - Reference for all UI components.
-- [**Examples**](./docs/vercel-ai-sdk-ui-docs/ai-sdk_dev_elements_examples.md) - Example implementations including chatbots.
-- [**Setup Guide**](./docs/vercel-ai-sdk-ui-docs/ai-sdk_dev_elements_overview_setup.md) - How to set up the AI SDK.
-- [**Troubleshooting**](./docs/vercel-ai-sdk-ui-docs/ai-sdk_dev_elements_overview_troubleshooting.md) - Common issues and solutions.
+To re-enable for production:
+1. Enable RLS on all Supabase tables
+2. Remove placeholder user ID from API routes
+3. Implement proper authentication flow
+4. Use environment variables instead of hardcoded credentials
 
-## Project Structure
+## 🚢 Deployment
 
-- `/src/app/` - Next.js app router pages
-  - `/chat/` - AI chat interface
-  - `/firecrawl/` - Site crawler interface
-  - `/image-alterations/` - Image processing tools
-- `/src/components/` - Reusable React components
-  - `/ai-elements/` - Custom AI UI components
-  - `/ui/` - Shadcn UI components
-- `/docs/` - Project documentation
-- `/public/` - Static assets
+### Vercel (Recommended)
+1. Push your code to GitHub
+2. Import project in Vercel dashboard
+3. Add environment variables
+4. Deploy
 
-## Contributing
+### Other Platforms
+```bash
+npm run build
+npm run start
+```
 
-Contributions are welcome! Please follow these steps:
+## 🤝 Contributing
+
+We welcome contributions! Please follow these steps:
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+## 📋 Git Branching Strategy
+
+**Development Workflow:**
+- `MF-Workstation` - Active development branch
+- `development` - Testing and QA
+- `staging` - Pre-production testing
+- `main` - Production releases
+
+Workflow: `MF-Workstation` → `development` → `staging` → `main`
+
+## 📝 License
+
+Copyright © 2024 Mirror Factory. All rights reserved.
+
+## 🙋 Support
+
+For issues, questions, or feature requests:
+- GitHub Issues: [MF-Workstation/issues](https://github.com/mirror-factory/MF-Workstation/issues)
+- Documentation: `/docs` directory
+- Email: support@mirrorfactory.com
+
+---
+
+**Made with ❤️ by Mirror Factory**

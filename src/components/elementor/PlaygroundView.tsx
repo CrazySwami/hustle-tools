@@ -305,7 +305,7 @@ export function PlaygroundView({ json, isActive = false, onJsonUpdate, onPlaygro
         gap: '8px',
         padding: '8px 12px',
         borderBottom: '1px solid var(--border)',
-        background: 'var(--background)',
+        background: 'var(--card)',
         zIndex: 100,
       }}>
         {/* Back/Forward Buttons */}

@@ -31,14 +31,124 @@ On Vercel, each branch deploys to a separate URL for isolated testing.
 
 ### Running the Application
 ```bash
-npm run dev          # Start development server with Turbopack
-npm run build        # Production build
-npm run start        # Start production server
-npm run lint         # Run ESLint
-npm run test-reasoning  # Test API reasoning endpoints
+pnpm dev             # Start development server with Turbopack
+pnpm build           # Production build
+pnpm start           # Start production server
+pnpm lint            # Run ESLint
+pnpm test-reasoning  # Test API reasoning endpoints
+```
+
+**Note:** This project uses **pnpm** (v10.11.0) as the package manager, not npm. If you don't have pnpm installed:
+```bash
+npm install -g pnpm
 ```
 
 The dev server runs on `http://localhost:3000` by default. Uses Next.js 15.4.6 with Turbopack for fast HMR.
+
+## Documentation Standards & Structure
+
+**Updated:** November 10, 2025 – 6:45 PM EST
+
+This project follows a universal documentation framework that applies to all READMEs, Main Docs, and technical specifications. These standards ensure consistency, permanence, and clarity across all documentation.
+
+### Documentation Philosophy
+
+Every README and doc file should be both **instructional** and **historical**. Key principles:
+
+1. **Never delete content without clear justification** - Mark with `// deprecated:` and explain why
+2. **Version every edit** - Include date/time and short note for each major update
+3. **Preserve context** - Keep related sections as historical or reference material
+4. **Timestamp everything** - All updates include EST timestamps
+
+### Universal Document Structure
+
+Every Main Doc or README must include (in order):
+
+```markdown
+# Main Doc – [System or Project Name]
+Date: YYYY-MM-DD
+Time: HH:MM [Timezone]
+
+## TL;DR
+[One concise paragraph summarizing the file's purpose]
+
+## Table of Contents (optional for longer docs)
+
+## Main Sections
+- Setup
+- Usage
+- Maintenance
+- Structure
+- Notes
+
+## Instructions for Updating This File
+
+## Changelog
+```
+
+### File Naming Convention
+
+```
+/docs/
+│
+├── Main Doc – [Topic].md           # Primary authoritative documentation
+├── README – [Submodule].md         # Local or per-feature documentation
+├── Notes – [Short Context].md      # Session notes or context
+└── Archive – [Deprecated].md       # Deprecated but preserved content
+```
+
+**Rules:**
+- Prefix "Main Doc –" for primary sources
+- Use "README –" for local/feature docs
+- Never overwrite Main Doc files; version them: `Main Doc – Topic (2025-11-10).md`
+- All docs open with prefix and timestamp
+
+### Changelog Format
+
+Every doc includes a changelog section at the top:
+
+```markdown
+---
+Updated: 2025-11-10 6:45 PM EST
+Author: Alfonso Morales
+Changes: Refactored setup and added new API integration section.
+---
+```
+
+For major revisions:
+- Keep prior versions under `/docs/archive/`
+- Reference them: `// Previous version: /docs/archive/Main Doc – Topic (2025-09-12).md`
+
+### Update Procedures
+
+When editing any README:
+
+1. **Add changelog entry** at the top with date, author, and summary
+2. **Mark removed content** instead of deleting:
+   ```markdown
+   // deprecated: replaced by /docs/api/auth.md
+   ```
+3. **Leave redirect notes** if content moves:
+   ```markdown
+   // Moved: See /docs/config/auth.md
+   ```
+4. **Preserve structure** - don't overwrite context unless clear system replacement
+5. **Treat docs as immutable records** - not replaceable summaries
+
+### Tone Standards
+
+All documentation should be:
+- **Readable** - Full sentences with minimal jargon
+- **Actionable** - Short, numbered instructions over vague commentary
+- **Contextual** - Explain WHY decisions were made, not just WHAT
+- **Consistent** - Same section order, spacing, and heading style
+
+### Future-Proofing
+
+When adding new systems:
+- Duplicate this structure as `Main Doc – [System Name].md`
+- Cross-link between systems: `See also: Main Doc – AI System Integration.md`
+- Use existing docs as templates for depth and detail
 
 ## Environment Variables
 
@@ -52,7 +162,39 @@ Optional (for Supabase authentication):
 ```
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
+
+### Main Doc – Supabase Database & Authentication System
+
+**📘 See:** `/docs/Main Doc – Supabase Database System.md`
+
+**Quick Summary:**
+- ✅ Complete database schema (5 tables: documents, folders, dittos, shares, uploaded_files)
+- ✅ All API routes implemented (`/api/documents`, `/api/folders`, `/api/dittos`, `/api/shares`, `/api/files`)
+- ✅ Supabase-backed React hooks with realtime sync
+- ✅ File uploads to Supabase Storage (50MB limit)
+- ✅ Sharing system with view/edit permissions
+- ✅ Row-Level Security (RLS) on all tables
+- ✅ Full authentication (email/password + Google OAuth)
+
+**Migration File:** `/supabase/migrations/001_initial_schema.sql`
+
+**One-Line Frontend Migration:**
+```typescript
+// In /src/app/chat-doc/page.tsx, change import to:
+import { useDocuments, useProjects, useFolders } from '@/hooks/useSupabaseProjectHierarchy';
+```
+
+**Authentication Pattern:**
+- All Supabase client creation functions check for environment variables first
+- If `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing:
+  - Mock clients are returned instead
+  - App functions normally without auth
+- This allows development without Supabase setup
+- Auth pages available at `/login` and `/signup`
+
+**For full setup instructions, see the Main Doc above ↑**
 
 ## Architecture Overview
 
@@ -386,4 +528,6 @@ Comprehensive docs in `/docs/`:
 
 13. **WordPress imports use zero padding**: Section and column defaults ensure full-width layouts
 
-14. **Supabase is optional**: All client creation functions check for credentials and return mock clients if missing
+14. **Supabase is optional**: See "Supabase Database Setup" section above for authentication pattern and mock client behavior
+
+15. **Documentation standards**: All new docs must follow the "Documentation Standards & Structure" section - use `Main Doc –` prefix, include timestamps, and never delete content without justification

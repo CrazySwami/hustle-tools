@@ -80,19 +80,19 @@
 }
 
 .dark {
-  --background: #121212;
+  --background: #1a1a1a;
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.15 0 0);
+  --card: #2a2a2a;
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.15 0 0);
+  --popover: #2a2a2a;
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.87 0.13 166);
   --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.18 0 0);
+  --secondary: #333333;
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.18 0 0);
+  --muted: #333333;
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.18 0 0);
+  --accent: #333333;
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 8%);
@@ -103,13 +103,13 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.18 0 0);
+  --sidebar: #2a2a2a;
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.22 0 0);
+  --sidebar-accent: #333333;
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.25 0 0);
+  --sidebar-border: #444444;
   --sidebar-ring: oklch(0.556 0 0);
 }
 
@@ -220,26 +220,14 @@
 
 /* Multi-page container wrapper */
 .tiptap-page-container {
-  width: 816px; /* 8.5" * 96 DPI */
+  width: 816px; /* 8.5" * 96 DPI - FIXED */
   margin: 0 auto;
+  position: relative;
 }
 
 .tiptap-page-container .ProseMirror {
   outline: none;
-  /* Remove min-height to allow natural content flow */
-}
-
-/* Automatic page boundaries */
-.tiptap-page-container .ProseMirror > * {
-  /* Allow page breaks between block elements */
-  page-break-inside: avoid;
-  break-inside: avoid;
-}
-
-/* Visual page separator for automatic pagination */
-.auto-page-separator {
-  pointer-events: none;
-  user-select: none;
+  width: 100%;
 }
 
 /* Print/Export styles for proper page breaks */
@@ -370,6 +358,17 @@
   color: white !important;
 }
 
+/* Ensure bold, italic, and other inline styles maintain white color in dark mode */
+.dark .ProseMirror strong,
+.dark .ProseMirror b,
+.dark .ProseMirror em,
+.dark .ProseMirror i,
+.dark .ProseMirror u,
+.dark .ProseMirror s,
+.dark .ProseMirror code {
+  color: inherit !important;
+}
+
 /* Spinner Animation for Loading States */
 @keyframes spin {
   0% { transform: rotate(0deg); }
@@ -385,66 +384,36 @@
   margin: 0 !important;
 }
 
-.ProseMirror .page-break {
+/* Page break node styling */
+.ProseMirror .page-break-node {
   display: block !important;
-  height: 0 !important;
   width: 100% !important;
   margin: 0 !important;
-  padding: 36px 0 !important; /* 36px top and bottom padding for spacing */
   background: transparent !important;
   border: none !important;
+  cursor: default !important;
   position: relative !important;
-  pointer-events: none;
-  user-select: none;
-  box-shadow: none !important;
 }
 
-.dark .ProseMirror .page-break {
-  background: transparent !important;
-  box-shadow: none !important;
+/* Hide the dashed line div inside page break nodes */
+.ProseMirror .page-break-node > div {
+  display: none !important;
 }
 
-/* Create the visual gap effect */
-.ProseMirror .page-break::before {
-  content: '';
-  position: absolute;
-  left: -96px; /* Extend to page edge */
-  right: -96px;
-  top: 0;
-  bottom: 0;
-  background: #f0f0f0;
-  z-index: -1;
-}
-
-.dark .ProseMirror .page-break::before {
-  background: #1a1a1a;
-}
-
-/* Page number label */
-.ProseMirror .page-break::after {
-  content: 'Page ' attr(data-page-number);
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: white;
-  padding: 4px 12px;
-  font-size: 9px;
-  font-weight: 600;
-  color: #999;
-  border: 1px solid #d0d0d0;
+/* Page break selected state */
+.ProseMirror .page-break-node.ProseMirror-selectednode {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
   border-radius: 4px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  z-index: 1;
 }
 
-.dark .ProseMirror .page-break::after {
-  background: #2a2a2a;
-  color: #aaa;
-  border-color: #555;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+/* Hide visual gap effect - page boxes provide separation */
+.ProseMirror .page-break-node::before {
+  display: none !important;
+}
+
+.dark .ProseMirror .page-break-node::before {
+  display: none !important;
 }
 
 /* Table Styles */

@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { FilePreviewModal } from "@/components/ai-elements/file-preview-modal"
+import { CreateDocOrFolderModal } from "@/components/modals/CreateDocOrFolderModal"
 import {
   DndContext,
   closestCenter,
@@ -130,24 +131,27 @@ interface DataSidebarProps {
   documents?: Array<{ id: string; title: string }>;
   activeDocumentId?: string;
   onDocumentSelect?: (id: string) => void;
-  onCreateDocument?: () => void;
+  onCreateDocument?: (title: string) => void;
+  onCreateFolder?: (name: string) => void;
   onDeleteDocuments?: (ids: string[]) => void;
   onRenameDocument?: (id: string, newName: string) => void;
 }
 
-export function DataSidebar({ 
-  onToggle, 
+export function DataSidebar({
+  onToggle,
   onDocumentTag,
   documents = [],
   activeDocumentId,
   onDocumentSelect,
   onCreateDocument,
+  onCreateFolder,
   onDeleteDocuments,
   onRenameDocument,
 }: DataSidebarProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     new Set(["active-files", "active-docs", "bob-ditto", "files", "kyle-ditto", "alfonso-ditto"]),
   )
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [data, setData] = useState<DataItem[]>(initialData)
@@ -439,23 +443,50 @@ export function DataSidebar({
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      // We need to reorder within the combined dataWithActiveDocs array
-      // but only update the `data` state for non-Active Docs items
       const allItems = dataWithActiveDocs;
+      const draggedItem = allItems.find((item) => item.id === active.id);
+      const targetItem = allItems.find((item) => item.id === over.id);
+
+      // RULE 1: Active Docs can never be moved
+      if (active.id === 'active-docs' || over.id === 'active-docs') {
+        console.log('❌ Cannot drag Active Docs or drag items into Active Docs');
+        return;
+      }
+
+      // RULE 2: Respect the divider - items can't cross between ACTIVE DIRECTORY and RELEVANT
+      const activeDirItems = ['active-docs', 'bob-ditto', 'active-files'];
+      const isActiveInActiveDir = draggedItem && activeDirItems.includes(draggedItem.id);
+      const isTargetInActiveDir = targetItem && activeDirItems.includes(targetItem.id);
+
+      if (isActiveInActiveDir !== isTargetInActiveDir) {
+        console.log('❌ Cannot drag items across ACTIVE DIRECTORY / RELEVANT divider');
+        return;
+      }
+
+      // RULE 3: Can't drag files that belong to Active Docs
+      // (Documents in Active Docs are managed by the system, not draggable)
+
       const oldIndex = allItems.findIndex((item) => item.id === active.id);
       const newIndex = allItems.findIndex((item) => item.id === over.id);
 
       if (oldIndex !== -1 && newIndex !== -1) {
         const reordered = arrayMove(allItems, oldIndex, newIndex);
-        
-        // Filter out Active Docs (which is dynamically generated) and update data state
-        const updatedData = reordered.filter(item => item.id !== 'active-docs');
+
+        // Filter out Active Docs and Active Files (which are dynamically generated)
+        const updatedData = reordered.filter(item =>
+          item.id !== 'active-docs' && item.id !== 'active-files'
+        );
         setData(updatedData);
       }
     }
   };
 
   const SortableItem = ({ item, level, parentId }: { item: DataItem; level: number; parentId?: string }) => {
+    // Disable dragging for Active Docs, documents inside Active Docs, and Active Files
+    const isDraggable = item.id !== 'active-docs' &&
+                        item.id !== 'active-files' &&
+                        parentId !== 'active-docs'; // Don't allow dragging documents out of Active Docs
+
     const {
       attributes,
       listeners,
@@ -463,7 +494,10 @@ export function DataSidebar({
       transform,
       transition,
       isDragging,
-    } = useSortable({ id: item.id });
+    } = useSortable({
+      id: item.id,
+      disabled: !isDraggable,
+    });
 
     const style = {
       transform: CSS.Transform.toString(transform),
@@ -473,7 +507,7 @@ export function DataSidebar({
 
     return (
       <div ref={setNodeRef} style={style}>
-        {renderItem(item, level, parentId, attributes, listeners)}
+        {renderItem(item, level, parentId, attributes, isDraggable ? listeners : undefined)}
       </div>
     );
   };
@@ -488,13 +522,13 @@ export function DataSidebar({
       <div key={item.id}>
         <div
           className={cn(
-            "group flex items-center gap-2 px-3 py-1.5 hover:bg-sidebar-accent rounded-md cursor-pointer transition-colors",
+            "group flex items-center gap-2 py-1.5 hover:bg-sidebar-accent rounded-md cursor-pointer transition-colors",
             "text-sm text-sidebar-foreground",
             item.isTagged && "bg-blue-50 dark:bg-blue-950",
             item.isActive && "bg-mint-50 dark:bg-mint-950 font-semibold",
             isUserDitto && "font-bold"
           )}
-          style={{ paddingLeft: `${level * 16 + 12}px` }}
+          style={{ paddingLeft: `${level * 24 + 12}px`, paddingRight: '12px' }}
           onClick={(e) => {
             if (hasChildren) {
               toggleExpand(item.id)
@@ -561,7 +595,7 @@ export function DataSidebar({
                 {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </button>
             </div>
-          ) : hasChildren ? (
+          ) : hasChildren || item.id === 'active-docs' ? (
             <button className="shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground">
               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </button>
@@ -615,16 +649,16 @@ export function DataSidebar({
             </span>
           )}
 
-          {/* Add button for Active Docs folder - on the right */}
-          {item.id === 'active-docs' && hasChildren && (
+          {/* Add button for Active Docs folder - ALWAYS visible on hover */}
+          {item.id === 'active-docs' && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onCreateDocument?.();
+                setIsCreateModalOpen(true);
               }}
               className="shrink-0 ml-auto opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-1"
               style={{ backgroundColor: '#6ee7b7' }}
-              title="Add new document"
+              title="Add document or folder"
             >
               <Plus className="h-3 w-3 text-white" />
             </button>
@@ -670,7 +704,13 @@ export function DataSidebar({
           )}
         </div>
 
-        {hasChildren && isExpanded && <div>{item.children?.map((child) => renderItem(child, level + 1, item.id))}</div>}
+        {hasChildren && isExpanded && (
+          <div>
+            {item.children?.map((child) => (
+              <SortableItem key={child.id} item={child} level={level + 1} parentId={item.id} />
+            ))}
+          </div>
+        )}
       </div>
     )
   }
@@ -783,6 +823,17 @@ export function DataSidebar({
         fileUrl={previewFile ? localStorage.getItem(`file-content-${previewFile.id}`) || undefined : undefined}
         fileContent={previewFile ? localStorage.getItem(`file-content-${previewFile.id}`) || undefined : undefined}
         fileType={previewFile ? localStorage.getItem(`file-type-${previewFile.id}`) || previewFile.type : undefined}
+      />
+
+      <CreateDocOrFolderModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        onCreateDocument={(title) => {
+          onCreateDocument?.(title);
+        }}
+        onCreateFolder={(name) => {
+          onCreateFolder?.(name);
+        }}
       />
     </>
   )

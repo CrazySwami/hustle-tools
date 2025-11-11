@@ -453,14 +453,14 @@ export function StyleGuideUnified({
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      backgroundColor: 'var(--background)',
+      backgroundColor: '#1a1a1a',
       color: 'var(--foreground)',
     }}>
       {/* Mode Selector */}
       <div style={{
         padding: '8px 12px',
         borderBottom: '1px solid var(--border)',
-        backgroundColor: 'var(--background)',
+        backgroundColor: 'var(--card)',
       }}>
         <div style={{
           display: 'flex',

@@ -27,6 +27,7 @@ export async function middleware(request: NextRequest) {
     '/',
     '/login',
     '/signup',
+    '/request-access',
     '/branding-settings',
     '/image-alterations',
     '/image-editor',

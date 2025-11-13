@@ -118,24 +118,24 @@ export default function Home() {
 
           {/* Buttons group */}
           <div className="flex flex-col sm:flex-row gap-4">
-            {/* Login button */}
+            {/* Request Access button */}
             <Link
-              href="/login"
+              href="/request-access"
               className="px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-2xl backdrop-blur-sm border border-white/20"
               style={{
                 backgroundColor: branding.primary_color,
                 color: '#0a0a0a'
               }}
             >
-              Login
+              Request Access
             </Link>
 
-            {/* Continue as Guest button */}
+            {/* Sign In button */}
             <Link
-              href="/chat-doc"
+              href="/login"
               className="px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-xl backdrop-blur-md bg-background/40 border border-border hover:bg-background/60"
             >
-              Continue as Guest
+              Sign In
             </Link>
           </div>
         </div>

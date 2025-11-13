@@ -9,10 +9,32 @@ import { ReactScan } from "./react-scan";
 // Using system fonts as fallback when Google Fonts are unavailable
 const fontVariables = "--font-geist-sans --font-geist-mono";
 
-export const metadata: Metadata = {
-  title: "Hustle Tools",
-  description: "A collection of tools to streamline your workflow.",
-};
+// Dynamic metadata that uses branding settings
+export async function generateMetadata(): Promise<Metadata> {
+  let companyName = "Mirror Factory";
+
+  try {
+    // Fetch branding settings from API
+    const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/branding`, {
+      cache: 'no-store'
+    });
+
+    if (response.ok) {
+      const branding = await response.json();
+      if (branding?.company_name) {
+        companyName = branding.company_name;
+      }
+    }
+  } catch (error) {
+    // Fall back to default if API fails
+    console.log('Using default branding for metadata');
+  }
+
+  return {
+    title: `${companyName} | Workstation`,
+    description: "Multiply your expertise across every project with AI agents trained on your work.",
+  };
+}
 
 export default function RootLayout({
   children,

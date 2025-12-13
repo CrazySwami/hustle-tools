@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test-reasoning": "node test-api.mjs"
+    "test-reasoning": "node test-api.mjs",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.34",
@@ -15,6 +17,7 @@
     "@ai-sdk/openai": "^2.0.53",
     "@ai-sdk/react": "^2.0.11",
     "@cartesia/cartesia-js": "^2.2.7",
+    "@codesandbox/sandpack-react": "^2.20.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -132,7 +135,20 @@
     "react-scan": "^0.4.3",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.6",
-    "typescript": "^5"
+    "typescript": "^5",
+    "storybook": "^10.1.8",
+    "@storybook/nextjs-vite": "^10.1.8",
+    "@chromatic-com/storybook": "^4.1.3",
+    "@storybook/addon-vitest": "^10.1.8",
+    "@storybook/addon-a11y": "^10.1.8",
+    "@storybook/addon-docs": "^10.1.8",
+    "@storybook/addon-onboarding": "^10.1.8",
+    "vite": "^7.2.7",
+    "eslint-plugin-storybook": "^10.1.8",
+    "vitest": "^4.0.15",
+    "playwright": "^1.57.0",
+    "@vitest/browser-playwright": "^4.0.15",
+    "@vitest/coverage-v8": "^4.0.15"
   },
   "pnpm": {
     "overrides": {

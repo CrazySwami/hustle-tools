@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Performance budgets for UI components and pages. Tests will FAIL if these thresholds are exceeded.",
+  "version": "1.0.0",
+
+  "memory": {
+    "description": "Memory usage thresholds (in MB)",
+    "page_max_mb": 50,
+    "component_max_mb": 10,
+    "heap_growth_max_mb": 5
+  },
+
+  "renders": {
+    "description": "React render count thresholds",
+    "mount_max": 1,
+    "prop_change_max": 1,
+    "state_change_max": 1,
+    "unnecessary_renders_max": 0
+  },
+
+  "layout": {
+    "description": "Layout performance thresholds",
+    "count_max": 10,
+    "duration_max_ms": 100,
+    "style_recalc_max": 20
+  },
+
+  "timing": {
+    "description": "Load and interaction timing thresholds (in ms)",
+    "page_load_max_ms": 3000,
+    "first_contentful_paint_max_ms": 1500,
+    "time_to_interactive_max_ms": 3500,
+    "largest_contentful_paint_max_ms": 2500
+  },
+
+  "bundle": {
+    "description": "Bundle size thresholds (in KB)",
+    "component_max_kb": 50,
+    "page_max_kb": 200,
+    "chunk_max_kb": 100
+  },
+
+  "accessibility": {
+    "description": "Accessibility requirements",
+    "wcag_level": "AA",
+    "violations_max": 0,
+    "color_contrast_min": 4.5
+  },
+
+  "responsive": {
+    "description": "Responsive breakpoints to test",
+    "breakpoints": [
+      { "name": "mobile", "width": 375, "height": 667 },
+      { "name": "tablet", "width": 768, "height": 1024 },
+      { "name": "desktop", "width": 1920, "height": 1080 }
+    ]
+  }
+}

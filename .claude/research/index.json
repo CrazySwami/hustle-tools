@@ -1,0 +1,6 @@
+{
+  "version": "3.0.0",
+  "description": "Research cache index with freshness tracking",
+  "freshness_threshold_days": 7,
+  "apis": {}
+}

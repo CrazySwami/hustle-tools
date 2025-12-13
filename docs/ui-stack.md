@@ -8,6 +8,12 @@ This document provides an overview of the UI libraries and components used in th
 
 -   **Framer Motion**: For animations and interactive elements, the application uses `framer-motion`. It's a powerful and easy-to-use animation library for React that helps create fluid and complex animations with simple syntax.
 
+## Component Development
+
+-   **Storybook**: Available via `pnpm storybook` (dev server) and `pnpm build-storybook` (static build). Config lives in `.storybook/` and the default port is `6006`.
+
+-   **Sandpack**: Installed (`@codesandbox/sandpack-react`) to support live-editable component previews (used by the dev tools/showcase workflow).
+
 ## Key Components
 
 ### `BackgroundPaths`

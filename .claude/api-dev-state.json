@@ -1,0 +1,235 @@
+{
+  "version": "3.10.0",
+  "created_at": null,
+  "workflow": null,
+  "_workflow_options": ["api-create", "combine-api", "ui-create-component", "ui-create-page"],
+  "active_endpoint": null,
+  "active_element": null,
+  "endpoints": {},
+  "elements": {},
+  "combine_config": {
+    "_comment": "Configuration for combine-api workflow",
+    "mode": null,
+    "_mode_options": ["api", "ui"],
+    "source_elements": [],
+    "_source_elements_example": [
+      { "type": "api", "name": "openai", "registry_ref": "apis.openai" },
+      { "type": "api", "name": "wordpress", "registry_ref": "apis.wordpress" }
+    ],
+    "flow_type": null,
+    "_flow_type_options": ["sequential", "parallel", "conditional"],
+    "error_strategy": null,
+    "_error_strategy_options": ["fail-fast", "partial", "retry"],
+    "orchestration": {
+      "input_mapping": {},
+      "output_mapping": {},
+      "transforms": []
+    }
+  },
+  "ui_config": {
+    "_comment": "Configuration for ui-create-* workflows",
+    "mode": null,
+    "_mode_options": ["component", "page"],
+    "use_brand_guide": false,
+    "component_type": null,
+    "_component_type_options": ["atom", "molecule", "organism", "template"],
+    "page_type": null,
+    "_page_type_options": ["landing", "dashboard", "form", "list", "detail", "auth"],
+    "accessibility_level": null,
+    "_accessibility_level_options": ["AA", "AAA"],
+    "data_sources": [],
+    "variants": [],
+    "sizes": []
+  },
+  "turn_count": 0,
+  "last_turn_timestamp": null,
+  "research_queries": [],
+  "prompt_detections": [],
+  "decisions_history": [],
+  "reground_history": [],
+  "manifest_generation": {
+    "last_run": null,
+    "manifest_generated": false,
+    "parameters_extracted": false,
+    "test_results_collected": false,
+    "output_files": {
+      "manifest": "src/app/api-test/api-tests-manifest.json",
+      "parameters": "src/app/api-test/parameter-matrix.json",
+      "results": "src/app/api-test/test-results.json"
+    }
+  },
+  "_endpoint_template": {
+    "_comment": "This is a template for new endpoints - copy when creating a new workflow",
+    "started_at": null,
+    "status": "not_started",
+    "library": null,
+    "enforce_freshness": true,
+    "freshness_threshold_days": 7,
+    "scope": {
+      "discovered_features": [],
+      "implemented_features": [],
+      "deferred_features": [],
+      "coverage_percent": 0
+    },
+    "session": {
+      "interrupted_at": null,
+      "interrupted_phase": null,
+      "recovery_checkpoint": null
+    },
+    "phases": {
+      "disambiguation": {
+        "status": "not_started",
+        "clarified": null,
+        "search_variations": [],
+        "user_question_asked": false,
+        "user_selected": null,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Pre-research disambiguation to clarify ambiguous requests"
+      },
+      "scope": {
+        "status": "not_started",
+        "confirmed": false,
+        "user_question_asked": false,
+        "user_confirmed": false,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Initial scope understanding and confirmation"
+      },
+      "research_initial": {
+        "status": "not_started",
+        "sources": [],
+        "summary_shown": false,
+        "user_question_asked": false,
+        "user_approved": false,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Context7/WebSearch research for live documentation"
+      },
+      "interview": {
+        "status": "not_started",
+        "questions": [],
+        "user_question_count": 0,
+        "structured_question_count": 0,
+        "decisions": {},
+        "user_question_asked": false,
+        "user_completed": false,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Structured interview about requirements (generated FROM research)"
+      },
+      "research_deep": {
+        "status": "not_started",
+        "sources": [],
+        "proposed_searches": [],
+        "approved_searches": [],
+        "executed_searches": [],
+        "skipped_searches": [],
+        "proposals_shown": false,
+        "user_question_asked": false,
+        "user_approved": false,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Deep dive based on interview answers (adaptive, not shotgun)"
+      },
+      "schema_creation": {
+        "status": "not_started",
+        "schema_file": null,
+        "fields_count": 0,
+        "schema_shown": false,
+        "user_question_asked": false,
+        "user_confirmed": false,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Zod schema creation from research"
+      },
+      "environment_check": {
+        "status": "not_started",
+        "keys_required": [],
+        "keys_found": [],
+        "keys_missing": [],
+        "env_shown": false,
+        "user_question_asked": false,
+        "user_ready": false,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "API key and environment verification"
+      },
+      "tdd_red": {
+        "status": "not_started",
+        "test_file": null,
+        "test_count": 0,
+        "test_scenarios": [],
+        "matrix_shown": false,
+        "user_question_asked": false,
+        "user_approved": false,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Write failing tests first"
+      },
+      "tdd_green": {
+        "status": "not_started",
+        "implementation_file": null,
+        "all_tests_passing": false,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Minimal implementation to pass tests"
+      },
+      "verify": {
+        "status": "not_started",
+        "gaps_found": 0,
+        "gaps_fixed": 0,
+        "gaps_skipped": 0,
+        "intentional_omissions": [],
+        "re_research_done": false,
+        "gap_analysis_shown": false,
+        "user_question_asked": false,
+        "user_decided": false,
+        "user_decision": null,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Re-research after Green to verify implementation matches docs"
+      },
+      "tdd_refactor": {
+        "status": "not_started",
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Code cleanup while keeping tests green"
+      },
+      "documentation": {
+        "status": "not_started",
+        "files_updated": [],
+        "manifest_updated": false,
+        "openapi_updated": false,
+        "research_cached": false,
+        "checklist_shown": false,
+        "user_question_asked": false,
+        "user_confirmed": false,
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Update manifests, OpenAPI, cache research"
+      },
+      "completion": {
+        "status": "not_started",
+        "all_tests_passing": false,
+        "coverage_100_percent": false,
+        "typescript_compiles": false,
+        "docs_updated": false,
+        "commit_ready": false,
+        "files_created": [],
+        "files_modified": [],
+        "phase_exit_confirmed": false,
+        "last_question_type": null,
+        "description": "Final verification - all tests pass, docs complete, ready for commit"
+      }
+    },
+    "verification": {
+      "all_sources_fetched": false,
+      "schema_matches_docs": false,
+      "tests_cover_params": false,
+      "all_tests_passing": false,
+      "coverage_percent": null,
+      "post_green_verification": false
+    }
+  }
+}
